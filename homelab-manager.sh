@@ -58,6 +58,11 @@ show_menu() {
     echo -e "    ${GREEN}12)${NC} 🏥 Health Check (all services)"
     echo -e "    ${GREEN}13)${NC} 🔧 Full Troubleshoot Mode"
     echo ""
+    echo -e "  ${BOLD}Code Sync (Replit → Ubuntu):${NC}"
+    echo -e "    ${GREEN}17)${NC} 🔄 Sync from Replit (pull latest code & auto-deploy)"
+    echo -e "    ${GREEN}18)${NC} ⚡ Install Auto-Sync (every 5 minutes)"
+    echo -e "    ${GREEN}19)${NC} 🔍 Check Auto-Sync Status"
+    echo ""
     echo -e "  ${BOLD}Updates:${NC}"
     echo -e "    ${GREEN}16)${NC} 📦 Update Service (pull latest image)"
     echo ""
@@ -499,6 +504,71 @@ show_urls() {
     pause
 }
 
+# Sync from Replit
+sync_from_replit() {
+    echo ""
+    echo -e "${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BOLD}${BLUE}  🔄 SYNC FROM REPLIT${NC}"
+    echo -e "${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    
+    if [ -f "./deployment/sync-from-replit.sh" ]; then
+        ./deployment/sync-from-replit.sh
+    else
+        echo -e "${RED}Error: sync-from-replit.sh not found in deployment folder${NC}"
+    fi
+    
+    pause
+}
+
+# Install Auto-Sync
+install_auto_sync() {
+    echo ""
+    echo -e "${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BOLD}${BLUE}  ⚡ INSTALL AUTO-SYNC${NC}"
+    echo -e "${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    
+    if [ -f "./deployment/install-auto-sync.sh" ]; then
+        sudo ./deployment/install-auto-sync.sh
+        echo ""
+        echo -e "${GREEN}✓ Auto-sync installed! Will run every 5 minutes.${NC}"
+    else
+        echo -e "${RED}Error: install-auto-sync.sh not found in deployment folder${NC}"
+    fi
+    
+    pause
+}
+
+# Check Sync Status
+check_sync_status() {
+    echo ""
+    echo -e "${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BOLD}${BLUE}  🔍 AUTO-SYNC STATUS${NC}"
+    echo -e "${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    
+    # Check if systemd timer exists
+    if systemctl list-unit-files | grep -q "homelab-sync.timer"; then
+        echo -e "${GREEN}✓ Auto-sync is installed${NC}"
+        echo ""
+        echo "Timer Status:"
+        systemctl status homelab-sync.timer --no-pager | head -10
+        echo ""
+        echo "Service Status:"
+        systemctl status homelab-sync.service --no-pager | head -10
+        echo ""
+        echo "Recent Sync Logs:"
+        journalctl -u homelab-sync.service -n 20 --no-pager
+    else
+        echo -e "${YELLOW}⚠ Auto-sync is NOT installed${NC}"
+        echo ""
+        echo "To install auto-sync, choose option 18 from the main menu."
+    fi
+    
+    pause
+}
+
 # Pause helper
 pause() {
     echo ""
@@ -528,6 +598,9 @@ main() {
             14) show_details ;;
             15) show_urls ;;
             16) update_service ;;
+            17) sync_from_replit ;;
+            18) install_auto_sync ;;
+            19) check_sync_status ;;
             0) 
                 echo ""
                 echo -e "${GREEN}Goodbye! 👋${NC}"
