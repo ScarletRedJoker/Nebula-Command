@@ -82,7 +82,7 @@ def containers():
 @web_bp.route('/system')
 @require_web_auth
 def system():
-    return render_template('dashboard.html')
+    return render_template('system.html')
 
 @web_bp.route('/databases')
 @require_web_auth
