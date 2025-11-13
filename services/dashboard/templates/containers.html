@@ -22,7 +22,7 @@
 <script>
 async function loadContainers() {
     try {
-        const response = await fetch('/api/docker/containers');
+        const response = await fetch('/api/containers');
         const containers = await response.json();
         
         const containerList = document.getElementById('container-list');
@@ -82,7 +82,7 @@ async function startContainer(id) {
     if (!confirm('Start this container?')) return;
     
     try {
-        const response = await fetch(`/api/docker/containers/${id}/start`, { method: 'POST' });
+        const response = await fetch(`/api/containers/${id}/start`, { method: 'POST' });
         const result = await response.json();
         
         if (result.error) {
@@ -99,7 +99,7 @@ async function stopContainer(id) {
     if (!confirm('Stop this container?')) return;
     
     try {
-        const response = await fetch(`/api/docker/containers/${id}/stop`, { method: 'POST' });
+        const response = await fetch(`/api/containers/${id}/stop`, { method: 'POST' });
         const result = await response.json();
         
         if (result.error) {
@@ -116,7 +116,7 @@ async function restartContainer(id) {
     if (!confirm('Restart this container?')) return;
     
     try {
-        const response = await fetch(`/api/docker/containers/${id}/restart`, { method: 'POST' });
+        const response = await fetch(`/api/containers/${id}/restart`, { method: 'POST' });
         const result = await response.json();
         
         if (result.error) {

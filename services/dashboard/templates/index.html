@@ -169,7 +169,7 @@ async function loadStats() {
 
 async function loadContainers() {
     try {
-        const response = await fetch('/api/docker/containers');
+        const response = await fetch('/api/containers');
         const containers = await response.json();
         
         if (Array.isArray(containers)) {
