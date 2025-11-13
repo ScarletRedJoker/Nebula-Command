@@ -43,11 +43,15 @@ services:
       - ./services/dashboard/logs:/app/logs
       - /home/${SERVICE_USER:-evin}/contain:/home/${SERVICE_USER:-evin}/contain:ro
       - /var/www:/var/www
+      - ./docker-compose.unified.yml:/app/docker-compose.unified.yml:ro
+      - ./Caddyfile:/app/Caddyfile:ro
+      - ./.env:/app/.env:ro
     env_file:
       - .env
     environment:
       - FLASK_ENV=production
       - PYTHONUNBUFFERED=1
+      - COMPOSE_PROJECT_DIR=/home/${SERVICE_USER:-evin}/contain/HomeLabHub
 
   # ============================================
   # Discord Ticket Bot + PostgreSQL
