@@ -1,0 +1,293 @@
+{% extends "base.html" %}
+
+{% block title %}System Monitor - Homelab Dashboard{% endblock %}
+{% block page_title %}<i class="bi bi-cpu"></i> System Monitor{% endblock %}
+
+{% block content %}
+<!-- System Overview Cards -->
+<div class="row mb-4">
+    <div class="col-md-3 mb-3">
+        <div class="stat-card">
+            <i class="bi bi-motherboard" style="font-size: 2rem; color: var(--accent-blue);"></i>
+            <div class="stat-value" id="hostname">-</div>
+            <div class="stat-label">Hostname</div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="stat-card">
+            <i class="bi bi-clock" style="font-size: 2rem; color: var(--accent-green);"></i>
+            <div class="stat-value" id="uptime">-</div>
+            <div class="stat-label">Uptime</div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="stat-card">
+            <i class="bi bi-ubuntu" style="font-size: 2rem; color: var(--accent-purple);"></i>
+            <div class="stat-value" id="os">-</div>
+            <div class="stat-label">Operating System</div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="stat-card">
+            <i class="bi bi-cpu-fill" style="font-size: 2rem; color: var(--accent-yellow);"></i>
+            <div class="stat-value" id="cpu-cores">-</div>
+            <div class="stat-label">CPU Cores</div>
+        </div>
+    </div>
+</div>
+
+<!-- Detailed System Stats -->
+<div class="row">
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-cpu"></i>
+                CPU Information
+            </div>
+            <table class="table">
+                <tbody>
+                    <tr>
+                        <td><strong>Current Usage</strong></td>
+                        <td><span id="cpu-usage">-</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Physical Cores</strong></td>
+                        <td><span id="cpu-physical">-</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Logical Cores</strong></td>
+                        <td><span id="cpu-logical">-</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Load Average (1m, 5m, 15m)</strong></td>
+                        <td><span id="cpu-load">-</span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-memory"></i>
+                Memory Information
+            </div>
+            <table class="table">
+                <tbody>
+                    <tr>
+                        <td><strong>Total RAM</strong></td>
+                        <td><span id="mem-total">-</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Used</strong></td>
+                        <td><span id="mem-used">-</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Available</strong></td>
+                        <td><span id="mem-available">-</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Usage Percentage</strong></td>
+                        <td>
+                            <span id="mem-percent">-</span>
+                            <div style="background: var(--bg-tertiary); border-radius: 10px; height: 8px; overflow: hidden; margin-top: 5px;">
+                                <div id="mem-bar" style="width: 0%; background: var(--accent-green); height: 100%; transition: width 0.3s ease;"></div>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Disk and Network -->
+<div class="row">
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-device-hdd"></i>
+                Disk Usage by Mount Point
+            </div>
+            <div id="disk-details" style="padding: 20px;">
+                <div class="loading">
+                    <div class="spinner-border"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-diagram-3"></i>
+                Network Statistics
+            </div>
+            <table class="table">
+                <tbody>
+                    <tr>
+                        <td><strong>Data Sent</strong></td>
+                        <td><span id="net-sent">-</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Data Received</strong></td>
+                        <td><span id="net-recv">-</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Total Traffic</strong></td>
+                        <td><span id="net-total">-</span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Process Information -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-list-task"></i>
+                System Processes
+            </div>
+            <div style="padding: 20px; text-align: center; color: var(--text-secondary);">
+                <p>Process monitoring coming soon...</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function updateSystemInfo() {
+    try {
+        const response = await fetch('/api/system/stats', {
+            credentials: 'include'
+        });
+        const result = await response.json();
+        
+        if (!result.success || !result.data) {
+            console.error('Error loading system info');
+            return;
+        }
+        
+        const data = result.data;
+        
+        // Update overview
+        document.getElementById('hostname').textContent = data.hostname || '-';
+        document.getElementById('uptime').textContent = formatUptime(data.uptime || 0);
+        document.getElementById('os').textContent = 'Ubuntu';
+        document.getElementById('cpu-cores').textContent = data.cpu_count || '-';
+        
+        // CPU details
+        document.getElementById('cpu-usage').textContent = data.cpu_percent.toFixed(1) + '%';
+        document.getElementById('cpu-physical').textContent = data.cpu_count || '-';
+        document.getElementById('cpu-logical').textContent = data.cpu_count || '-';
+        
+        // Memory details
+        const memTotalGB = (data.memory_total / (1024**3)).toFixed(2);
+        const memUsedGB = (data.memory_used / (1024**3)).toFixed(2);
+        const memAvailableGB = (data.memory_available / (1024**3)).toFixed(2);
+        
+        document.getElementById('mem-total').textContent = memTotalGB + ' GB';
+        document.getElementById('mem-used').textContent = memUsedGB + ' GB';
+        document.getElementById('mem-available').textContent = memAvailableGB + ' GB';
+        document.getElementById('mem-percent').textContent = data.memory_percent.toFixed(1) + '%';
+        document.getElementById('mem-bar').style.width = data.memory_percent + '%';
+        
+        // Change mem-bar color based on usage
+        const memBar = document.getElementById('mem-bar');
+        if (data.memory_percent > 80) {
+            memBar.style.background = 'var(--accent-red)';
+        } else if (data.memory_percent > 60) {
+            memBar.style.background = 'var(--accent-yellow)';
+        } else {
+            memBar.style.background = 'var(--accent-green)';
+        }
+        
+        // Network
+        document.getElementById('net-sent').textContent = data.network_sent_mb.toFixed(2) + ' MB';
+        document.getElementById('net-recv').textContent = data.network_recv_mb.toFixed(2) + ' MB';
+        const totalNet = data.network_sent_mb + data.network_recv_mb;
+        document.getElementById('net-total').textContent = totalNet.toFixed(2) + ' MB';
+        
+    } catch (error) {
+        console.error('Failed to update system info:', error);
+    }
+}
+
+async function loadDiskInfo() {
+    try {
+        const response = await fetch('/api/system/disk', {
+            credentials: 'include'
+        });
+        const result = await response.json();
+        
+        if (!result.success) {
+            console.error('Error loading disks');
+            return;
+        }
+        
+        const disks = result.data || [];
+        let html = '';
+        
+        if (Array.isArray(disks) && disks.length > 0) {
+            disks.forEach(disk => {
+                const percent = disk.percent || 0;
+                let barColor = 'var(--accent-green)';
+                if (percent > 80) barColor = 'var(--accent-red)';
+                else if (percent > 60) barColor = 'var(--accent-yellow)';
+                
+                html += `
+                    <div style="margin-bottom: 24px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                            <strong>${disk.mountpoint}</strong>
+                            <span>${percent.toFixed(1)}%</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 8px;">
+                            <span>Used: ${disk.used_gb}GB</span>
+                            <span>Total: ${disk.total_gb}GB</span>
+                        </div>
+                        <div style="background: var(--bg-tertiary); border-radius: 10px; height: 12px; overflow: hidden;">
+                            <div style="width: ${percent}%; background: ${barColor}; height: 100%; transition: width 0.3s ease;"></div>
+                        </div>
+                    </div>
+                `;
+            });
+        } else {
+            html = '<p style="color: var(--text-secondary);">No disk information available</p>';
+        }
+        
+        document.getElementById('disk-details').innerHTML = html;
+        
+    } catch (error) {
+        console.error('Failed to load disk info:', error);
+    }
+}
+
+function formatUptime(seconds) {
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    
+    if (days > 0) {
+        return `${days}d ${hours}h`;
+    } else if (hours > 0) {
+        return `${hours}h ${minutes}m`;
+    } else {
+        return `${minutes}m`;
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    updateSystemInfo();
+    loadDiskInfo();
+    
+    setInterval(updateSystemInfo, 5000);
+    setInterval(loadDiskInfo, 30000);
+});
+</script>
+{% endblock %}

@@ -82,7 +82,11 @@ class SystemService:
             
             return {
                 'cpu_percent': round(cpu_percent, 1),
+                'cpu_count': psutil.cpu_count(),
                 'memory_percent': round(memory.percent, 1),
+                'memory_total': memory.total,
+                'memory_used': memory.used,
+                'memory_available': memory.available,
                 'disk_percent': round(disk.percent, 1),
                 'network_sent_mb': round(net_io.bytes_sent / (1024**2), 2),
                 'network_recv_mb': round(net_io.bytes_recv / (1024**2), 2),
