@@ -1,116 +1,166 @@
 {% extends "base.html" %}
 
-{% block title %}System Monitor - Homelab Dashboard{% endblock %}
-{% block page_title %}<i class="bi bi-cpu"></i> System Monitor{% endblock %}
+{% block title %}System Diagnostics - Homelab Dashboard{% endblock %}
+{% block page_title %}<i class="bi bi-cpu"></i> System Diagnostics{% endblock %}
 
 {% block content %}
-<!-- System Overview Cards -->
+<div class="led-panel mb-4">
+    <div class="led-group">
+        <div class="led-label">CPU</div>
+        <span class="status-led online" id="cpu-led"></span>
+    </div>
+    <div class="led-group">
+        <div class="led-label">MEMORY</div>
+        <span class="status-led warning" id="mem-led"></span>
+    </div>
+    <div class="led-group">
+        <div class="led-label">DISK</div>
+        <span class="status-led online" id="disk-led"></span>
+    </div>
+    <div class="led-group">
+        <div class="led-label">NETWORK</div>
+        <span class="status-led active blink" id="net-led"></span>
+    </div>
+    <div class="led-group">
+        <div class="led-label">I/O</div>
+        <span class="hex-led" id="io-led"></span>
+    </div>
+    <div class="led-group">
+        <div class="led-label">TEMP</div>
+        <span class="hex-led" id="temp-led"></span>
+    </div>
+</div>
+
 <div class="row mb-4">
     <div class="col-md-3 mb-3">
-        <div class="stat-card">
-            <i class="bi bi-motherboard" style="font-size: 2rem; color: var(--accent-blue);"></i>
-            <div class="stat-value" id="hostname">-</div>
-            <div class="stat-label">Hostname</div>
+        <div class="metric-display glow-border">
+            <span class="status-led active blink"></span>
+            <div style="flex: 1; text-align: center;">
+                <div class="metric-label">HOSTNAME</div>
+                <div class="data-readout" id="hostname" style="font-size: 0.9rem;">-</div>
+            </div>
         </div>
     </div>
     <div class="col-md-3 mb-3">
-        <div class="stat-card">
-            <i class="bi bi-clock" style="font-size: 2rem; color: var(--accent-green);"></i>
-            <div class="stat-value" id="uptime">-</div>
-            <div class="stat-label">Uptime</div>
+        <div class="metric-display glow-border">
+            <span class="status-led online"></span>
+            <div style="flex: 1; text-align: center;">
+                <div class="metric-label">UPTIME</div>
+                <div class="data-readout" id="uptime" style="font-size: 0.9rem;">-</div>
+            </div>
         </div>
     </div>
     <div class="col-md-3 mb-3">
-        <div class="stat-card">
-            <i class="bi bi-ubuntu" style="font-size: 2rem; color: var(--accent-purple);"></i>
-            <div class="stat-value" id="os">-</div>
-            <div class="stat-label">Operating System</div>
+        <div class="metric-display glow-border">
+            <span class="hex-led"></span>
+            <div style="flex: 1; text-align: center;">
+                <div class="metric-label">SYSTEM</div>
+                <div class="data-readout" id="os" style="font-size: 0.9rem;">UBUNTU 25.10</div>
+            </div>
         </div>
     </div>
     <div class="col-md-3 mb-3">
-        <div class="stat-card">
-            <i class="bi bi-cpu-fill" style="font-size: 2rem; color: var(--accent-yellow);"></i>
-            <div class="stat-value" id="cpu-cores">-</div>
-            <div class="stat-label">CPU Cores</div>
+        <div class="metric-display glow-border">
+            <span class="status-led online blink"></span>
+            <div style="flex: 1; text-align: center;">
+                <div class="metric-label">CPU CORES</div>
+                <div class="data-readout" id="cpu-cores" style="font-size: 0.9rem;">-</div>
+            </div>
         </div>
     </div>
 </div>
 
-<!-- Detailed System Stats -->
 <div class="row">
     <div class="col-md-6 mb-4">
-        <div class="card">
-            <div class="card-header">
-                <i class="bi bi-cpu"></i>
-                CPU Information
+        <div class="diagnostic-panel">
+            <div class="diagnostic-header">
+                <span class="status-led online"></span>
+                <h5 style="margin: 0; font-weight: 600;">CPU MONITORING</h5>
             </div>
-            <table class="table">
-                <tbody>
-                    <tr>
-                        <td><strong>Current Usage</strong></td>
-                        <td><span id="cpu-usage">-</span></td>
-                    </tr>
-                    <tr>
-                        <td><strong>Physical Cores</strong></td>
-                        <td><span id="cpu-physical">-</span></td>
-                    </tr>
-                    <tr>
-                        <td><strong>Logical Cores</strong></td>
-                        <td><span id="cpu-logical">-</span></td>
-                    </tr>
-                    <tr>
-                        <td><strong>Load Average (1m, 5m, 15m)</strong></td>
-                        <td><span id="cpu-load">-</span></td>
-                    </tr>
-                </tbody>
-            </table>
+            <div style="display: flex; flex-direction: column; gap: 16px;">
+                <div class="metric-display">
+                    <div style="flex: 1;">
+                        <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 4px;">CURRENT USAGE</div>
+                        <div class="data-readout" id="cpu-usage">-</div>
+                    </div>
+                    <span class="status-led online blink"></span>
+                </div>
+                <div class="metric-display">
+                    <div style="flex: 1;">
+                        <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 4px;">PHYSICAL CORES</div>
+                        <div class="data-readout" id="cpu-physical">-</div>
+                    </div>
+                    <span class="hex-led"></span>
+                </div>
+                <div class="metric-display">
+                    <div style="flex: 1;">
+                        <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 4px;">LOGICAL CORES</div>
+                        <div class="data-readout" id="cpu-logical">-</div>
+                    </div>
+                    <span class="hex-led"></span>
+                </div>
+                <div class="metric-display">
+                    <div style="flex: 1;">
+                        <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 4px;">LOAD AVERAGE</div>
+                        <div class="data-readout" id="cpu-load">- - -</div>
+                    </div>
+                    <span class="status-led active"></span>
+                </div>
+            </div>
         </div>
     </div>
     
     <div class="col-md-6 mb-4">
-        <div class="card">
-            <div class="card-header">
-                <i class="bi bi-memory"></i>
-                Memory Information
+        <div class="diagnostic-panel">
+            <div class="diagnostic-header">
+                <span class="status-led warning"></span>
+                <h5 style="margin: 0; font-weight: 600;">MEMORY STATUS</h5>
             </div>
-            <table class="table">
-                <tbody>
-                    <tr>
-                        <td><strong>Total RAM</strong></td>
-                        <td><span id="mem-total">-</span></td>
-                    </tr>
-                    <tr>
-                        <td><strong>Used</strong></td>
-                        <td><span id="mem-used">-</span></td>
-                    </tr>
-                    <tr>
-                        <td><strong>Available</strong></td>
-                        <td><span id="mem-available">-</span></td>
-                    </tr>
-                    <tr>
-                        <td><strong>Usage Percentage</strong></td>
-                        <td>
-                            <span id="mem-percent">-</span>
-                            <div style="background: var(--bg-tertiary); border-radius: 10px; height: 8px; overflow: hidden; margin-top: 5px;">
-                                <div id="mem-bar" style="width: 0%; background: var(--accent-green); height: 100%; transition: width 0.3s ease;"></div>
-                            </div>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
+            <div style="display: flex; flex-direction: column; gap: 16px;">
+                <div class="metric-display">
+                    <div style="flex: 1;">
+                        <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 4px;">TOTAL RAM</div>
+                        <div class="data-readout" id="mem-total">-</div>
+                    </div>
+                    <span class="hex-led"></span>
+                </div>
+                <div class="metric-display">
+                    <div style="flex: 1;">
+                        <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 4px;">USED</div>
+                        <div class="data-readout" id="mem-used">-</div>
+                    </div>
+                    <span class="status-led warning"></span>
+                </div>
+                <div class="metric-display">
+                    <div style="flex: 1;">
+                        <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 4px;">AVAILABLE</div>
+                        <div class="data-readout" id="mem-available">-</div>
+                    </div>
+                    <span class="status-led online"></span>
+                </div>
+                <div class="metric-display">
+                    <div style="flex: 1;">
+                        <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 4px;">USAGE PERCENTAGE</div>
+                        <div class="data-readout" id="mem-percent">-</div>
+                        <div class="progress-led" style="margin-top: 8px;">
+                            <div class="progress-led-fill" id="mem-bar" style="width: 0%;"></div>
+                        </div>
+                    </div>
+                    <span class="status-led warning blink"></span>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
-<!-- Disk and Network -->
 <div class="row">
     <div class="col-md-6 mb-4">
-        <div class="card">
-            <div class="card-header">
-                <i class="bi bi-device-hdd"></i>
-                Disk Usage by Mount Point
+        <div class="diagnostic-panel">
+            <div class="diagnostic-header">
+                <span class="hex-led"></span>
+                <h5 style="margin: 0; font-weight: 600;">DISK STORAGE</h5>
             </div>
-            <div id="disk-details" style="padding: 20px;">
+            <div id="disk-details">
                 <div class="loading">
                     <div class="spinner-border"></div>
                 </div>
@@ -119,41 +169,53 @@
     </div>
     
     <div class="col-md-6 mb-4">
-        <div class="card">
-            <div class="card-header">
-                <i class="bi bi-diagram-3"></i>
-                Network Statistics
+        <div class="diagnostic-panel">
+            <div class="diagnostic-header">
+                <span class="status-led active blink"></span>
+                <h5 style="margin: 0; font-weight: 600;">NETWORK TRAFFIC</h5>
             </div>
-            <table class="table">
-                <tbody>
-                    <tr>
-                        <td><strong>Data Sent</strong></td>
-                        <td><span id="net-sent">-</span></td>
-                    </tr>
-                    <tr>
-                        <td><strong>Data Received</strong></td>
-                        <td><span id="net-recv">-</span></td>
-                    </tr>
-                    <tr>
-                        <td><strong>Total Traffic</strong></td>
-                        <td><span id="net-total">-</span></td>
-                    </tr>
-                </tbody>
-            </table>
+            <div style="display: flex; flex-direction: column; gap: 16px;">
+                <div class="metric-display">
+                    <div style="flex: 1;">
+                        <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 4px;">DATA SENT</div>
+                        <div class="data-readout" id="net-sent">-</div>
+                    </div>
+                    <span class="status-led active"></span>
+                </div>
+                <div class="metric-display">
+                    <div style="flex: 1;">
+                        <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 4px;">DATA RECEIVED</div>
+                        <div class="data-readout" id="net-recv">-</div>
+                    </div>
+                    <span class="status-led active"></span>
+                </div>
+                <div class="metric-display">
+                    <div style="flex: 1;">
+                        <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 4px;">TOTAL TRAFFIC</div>
+                        <div class="data-readout" id="net-total">-</div>
+                    </div>
+                    <span class="status-led active blink"></span>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
-<!-- Process Information -->
 <div class="row">
     <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <i class="bi bi-list-task"></i>
-                System Processes
+        <div class="control-panel-card">
+            <div class="diagnostic-header">
+                <span class="hex-led"></span>
+                <h5 style="margin: 0; font-weight: 600;">PROCESS MONITORING</h5>
+                <div style="margin-left: auto;">
+                    <div class="activity-indicator">
+                        <span class="activity-dot"></span>
+                        <span>COMING SOON</span>
+                    </div>
+                </div>
             </div>
             <div style="padding: 20px; text-align: center; color: var(--text-secondary);">
-                <p>Process monitoring coming soon...</p>
+                <p>Advanced process monitoring and management will be available in the next update.</p>
             </div>
         </div>
     </div>
@@ -176,18 +238,23 @@ async function updateSystemInfo() {
         
         const data = result.data;
         
-        // Update overview
-        document.getElementById('hostname').textContent = data.hostname || '-';
+        document.getElementById('hostname').textContent = (data.hostname || '-').toUpperCase();
         document.getElementById('uptime').textContent = formatUptime(data.uptime || 0);
-        document.getElementById('os').textContent = 'Ubuntu';
         document.getElementById('cpu-cores').textContent = data.cpu_count || '-';
         
-        // CPU details
         document.getElementById('cpu-usage').textContent = data.cpu_percent.toFixed(1) + '%';
         document.getElementById('cpu-physical').textContent = data.cpu_count || '-';
         document.getElementById('cpu-logical').textContent = data.cpu_count || '-';
         
-        // Memory details
+        const cpuLed = document.getElementById('cpu-led');
+        if (data.cpu_percent > 80) {
+            cpuLed.className = 'status-led offline blink';
+        } else if (data.cpu_percent > 60) {
+            cpuLed.className = 'status-led warning';
+        } else {
+            cpuLed.className = 'status-led online';
+        }
+        
         const memTotalGB = (data.memory_total / (1024**3)).toFixed(2);
         const memUsedGB = (data.memory_used / (1024**3)).toFixed(2);
         const memAvailableGB = (data.memory_available / (1024**3)).toFixed(2);
@@ -198,17 +265,15 @@ async function updateSystemInfo() {
         document.getElementById('mem-percent').textContent = data.memory_percent.toFixed(1) + '%';
         document.getElementById('mem-bar').style.width = data.memory_percent + '%';
         
-        // Change mem-bar color based on usage
-        const memBar = document.getElementById('mem-bar');
+        const memLed = document.getElementById('mem-led');
         if (data.memory_percent > 80) {
-            memBar.style.background = 'var(--accent-red)';
+            memLed.className = 'status-led offline blink';
         } else if (data.memory_percent > 60) {
-            memBar.style.background = 'var(--accent-yellow)';
+            memLed.className = 'status-led warning';
         } else {
-            memBar.style.background = 'var(--accent-green)';
+            memLed.className = 'status-led online';
         }
         
-        // Network
         document.getElementById('net-sent').textContent = data.network_sent_mb.toFixed(2) + ' MB';
         document.getElementById('net-recv').textContent = data.network_recv_mb.toFixed(2) + ' MB';
         const totalNet = data.network_sent_mb + data.network_recv_mb;
@@ -237,28 +302,35 @@ async function loadDiskInfo() {
         if (Array.isArray(disks) && disks.length > 0) {
             disks.forEach(disk => {
                 const percent = disk.percent || 0;
-                let barColor = 'var(--accent-green)';
-                if (percent > 80) barColor = 'var(--accent-red)';
-                else if (percent > 60) barColor = 'var(--accent-yellow)';
+                let ledClass = 'status-led online';
+                if (percent > 80) ledClass = 'status-led offline';
+                else if (percent > 60) ledClass = 'status-led warning';
                 
                 html += `
-                    <div style="margin-bottom: 24px;">
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                            <strong>${disk.mountpoint}</strong>
-                            <span>${percent.toFixed(1)}%</span>
+                    <div class="metric-display" style="margin-bottom: 16px;">
+                        <div style="flex: 1;">
+                            <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 4px;">${disk.mountpoint}</div>
+                            <div class="data-readout" style="font-size: 0.85rem;">${disk.used_gb}GB / ${disk.total_gb}GB (${percent.toFixed(1)}%)</div>
+                            <div class="progress-led" style="margin-top: 8px;">
+                                <div class="progress-led-fill" style="width: ${percent}%;"></div>
+                            </div>
                         </div>
-                        <div style="display: flex; justify-content: space-between; font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 8px;">
-                            <span>Used: ${disk.used_gb}GB</span>
-                            <span>Total: ${disk.total_gb}GB</span>
-                        </div>
-                        <div style="background: var(--bg-tertiary); border-radius: 10px; height: 12px; overflow: hidden;">
-                            <div style="width: ${percent}%; background: ${barColor}; height: 100%; transition: width 0.3s ease;"></div>
-                        </div>
+                        <span class="${ledClass}"></span>
                     </div>
                 `;
             });
+            
+            const avgPercent = disks.reduce((sum, d) => sum + d.percent, 0) / disks.length;
+            const diskLed = document.getElementById('disk-led');
+            if (avgPercent > 80) {
+                diskLed.className = 'status-led offline blink';
+            } else if (avgPercent > 60) {
+                diskLed.className = 'status-led warning';
+            } else {
+                diskLed.className = 'status-led online';
+            }
         } else {
-            html = '<p style="color: var(--text-secondary);">No disk information available</p>';
+            html = '<p style="color: var(--text-secondary); padding: 20px;">No disk information available</p>';
         }
         
         document.getElementById('disk-details').innerHTML = html;
@@ -274,11 +346,11 @@ function formatUptime(seconds) {
     const minutes = Math.floor((seconds % 3600) / 60);
     
     if (days > 0) {
-        return `${days}d ${hours}h`;
+        return `${days}D ${hours}H ${minutes}M`;
     } else if (hours > 0) {
-        return `${hours}h ${minutes}m`;
+        return `${hours}H ${minutes}M`;
     } else {
-        return `${minutes}m`;
+        return `${minutes}M`;
     }
 }
 
