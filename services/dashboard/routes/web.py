@@ -112,3 +112,8 @@ def network():
 @require_web_auth
 def domains():
     return render_template('domains.html')
+
+@web_bp.route('/game-connect')
+def game_connect():
+    return render_template('game_connect.html',
+                          windows_kvm_ip=Config.WINDOWS_KVM_IP)

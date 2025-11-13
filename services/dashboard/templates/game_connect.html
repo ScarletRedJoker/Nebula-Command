@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+
+{% block title %}Game Streaming Connection - Homelab{% endblock %}
+{% block page_title %}<i class="bi bi-controller"></i> Cloud Gaming Setup{% endblock %}
+
+{% block content %}
+<div class="led-panel mb-4">
+    <div class="led-group">
+        <div class="led-label">GAMING VM</div>
+        <span class="status-led online blink"></span>
+    </div>
+    <div class="led-group">
+        <div class="led-label">SUNSHINE</div>
+        <span class="status-led online"></span>
+    </div>
+    <div class="led-group">
+        <div class="led-label">RTX 3060</div>
+        <span class="hex-led"></span>
+    </div>
+    <div class="led-group">
+        <div class="led-label">TWINGATE</div>
+        <span class="status-led active blink"></span>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="control-panel-card mb-4">
+            <div class="diagnostic-header">
+                <span class="status-led online blink"></span>
+                <h3 style="margin: 0; font-weight: 600;">WINDOWS 11 GAMING VM</h3>
+            </div>
+            <div style="padding: 24px;">
+                <div class="alert alert-info mb-4">
+                    <i class="bi bi-info-circle"></i> 
+                    <strong>Best Performance:</strong> Connect directly via Twingate VPN or your local network for lowest latency (&lt;5ms).
+                </div>
+
+                <div class="row g-4">
+                    <div class="col-md-6">
+                        <div class="metric-display glow-border">
+                            <div style="flex: 1; text-align: center;">
+                                <div class="metric-label">VM SPECIFICATIONS</div>
+                                <div class="data-readout" style="font-size: 0.9rem; margin-top: 12px;">
+                                    <i class="bi bi-windows" style="color: var(--accent-blue);"></i> Windows 11 Pro<br>
+                                    <i class="bi bi-gpu-card" style="color: var(--accent-green);"></i> NVIDIA RTX 3060 (GPU Passthrough)<br>
+                                    <i class="bi bi-hdd" style="color: var(--accent-purple);"></i> NVMe SSD Storage
+                                </div>
+                            </div>
+                            <span class="hex-led"></span>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="metric-display glow-border">
+                            <div style="flex: 1; text-align: center;">
+                                <div class="metric-label">CONNECTION ADDRESS</div>
+                                <div class="data-readout" style="font-size: 1.2rem; margin-top: 12px; color: var(--accent-blue);">
+                                    {{ windows_kvm_ip }}
+                                </div>
+                                <button class="control-btn" style="margin-top: 12px; font-size: 0.8rem;" onclick="copyToClipboard('{{ windows_kvm_ip }}')">
+                                    <i class="bi bi-clipboard"></i> Copy IP
+                                </button>
+                            </div>
+                            <span class="status-led active blink"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="control-panel-card mb-4">
+            <div class="diagnostic-header">
+                <span class="status-led warning"></span>
+                <h3 style="margin: 0; font-weight: 600;">QUICK START GUIDE</h3>
+            </div>
+            <div style="padding: 24px;">
+                <h5 style="color: var(--accent-blue); margin-bottom: 16px;">Step 1: Download Moonlight Client</h5>
+                <div class="row g-3 mb-4">
+                    <div class="col-6 col-md-3">
+                        <div class="control-panel-card text-center" style="padding: 16px;">
+                            <i class="bi bi-windows" style="font-size: 2.5rem; color: var(--accent-blue);"></i>
+                            <div style="margin-top: 8px; font-size: 0.85rem;">Windows</div>
+                            <a href="https://github.com/moonlight-stream/moonlight-qt/releases" target="_blank" rel="noopener noreferrer" class="control-btn" style="font-size: 0.75rem; margin-top: 8px;">
+                                Download
+                            </a>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="control-panel-card text-center" style="padding: 16px;">
+                            <i class="bi bi-apple" style="font-size: 2.5rem; color: var(--text-primary);"></i>
+                            <div style="margin-top: 8px; font-size: 0.85rem;">macOS</div>
+                            <a href="https://github.com/moonlight-stream/moonlight-qt/releases" target="_blank" rel="noopener noreferrer" class="control-btn" style="font-size: 0.75rem; margin-top: 8px;">
+                                Download
+                            </a>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="control-panel-card text-center" style="padding: 16px;">
+                            <i class="bi bi-ubuntu" style="font-size: 2.5rem; color: var(--accent-red);"></i>
+                            <div style="margin-top: 8px; font-size: 0.85rem;">Linux</div>
+                            <a href="https://github.com/moonlight-stream/moonlight-qt/releases" target="_blank" rel="noopener noreferrer" class="control-btn" style="font-size: 0.75rem; margin-top: 8px;">
+                                Download
+                            </a>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="control-panel-card text-center" style="padding: 16px;">
+                            <i class="bi bi-phone" style="font-size: 2.5rem; color: var(--accent-green);"></i>
+                            <div style="margin-top: 8px; font-size: 0.85rem;">Mobile</div>
+                            <a href="https://moonlight-stream.org/" target="_blank" rel="noopener noreferrer" class="control-btn" style="font-size: 0.75rem; margin-top: 8px;">
+                                Get App
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <h5 style="color: var(--accent-green); margin-bottom: 16px;">Step 2: Connect via Twingate VPN</h5>
+                <div class="diagnostic-panel mb-4">
+                    <div style="padding: 16px;">
+                        <p style="margin: 0;">
+                            <i class="bi bi-shield-check" style="color: var(--accent-green);"></i> 
+                            Make sure Twingate VPN is connected for secure, low-latency access.
+                        </p>
+                        <p style="margin: 8px 0 0 0; font-size: 0.9rem; color: var(--text-secondary);">
+                            This provides direct LAN-like access with &lt;5ms latency.
+                        </p>
+                    </div>
+                </div>
+
+                <h5 style="color: var(--accent-purple); margin-bottom: 16px;">Step 3: Add PC in Moonlight</h5>
+                <div class="diagnostic-panel mb-4">
+                    <div style="padding: 16px;">
+                        <ol style="margin: 0; padding-left: 20px;">
+                            <li>Open Moonlight client</li>
+                            <li>Click "Add PC"</li>
+                            <li>Enter IP: <code style="background: rgba(96, 165, 250, 0.1); padding: 2px 8px; border-radius: 4px;">{{ windows_kvm_ip }}</code></li>
+                            <li>Pair with PIN from Sunshine Web UI</li>
+                        </ol>
+                    </div>
+                </div>
+
+                <h5 style="color: var(--accent-yellow); margin-bottom: 16px;">Step 4: Configure Games</h5>
+                <div class="diagnostic-panel mb-4">
+                    <div style="padding: 16px;">
+                        <p style="margin: 0;">
+                            <i class="bi bi-gear" style="color: var(--accent-yellow);"></i> 
+                            Access Sunshine Web UI to add games and configure streaming settings:
+                        </p>
+                        <a href="http://{{ windows_kvm_ip }}:47990" target="_blank" rel="noopener noreferrer" class="control-btn" style="margin-top: 12px;">
+                            <i class="bi bi-box-arrow-up-right"></i> Open Sunshine Web UI
+                        </a>
+                        <p style="margin: 12px 0 0 0; font-size: 0.85rem; color: var(--text-secondary);">
+                            Default credentials: admin / admin (change immediately!)
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="control-panel-card mb-4">
+            <div class="diagnostic-header">
+                <span class="hex-led"></span>
+                <h3 style="margin: 0; font-weight: 600;">PERFORMANCE TIPS</h3>
+            </div>
+            <div style="padding: 24px;">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="diagnostic-panel">
+                            <div style="padding: 16px;">
+                                <h6 style="color: var(--accent-green); margin-bottom: 12px;">
+                                    <i class="bi bi-lightning-charge"></i> Competitive Gaming
+                                </h6>
+                                <ul style="margin: 0; padding-left: 20px; font-size: 0.9rem;">
+                                    <li>Encoder: NVENC</li>
+                                    <li>FPS: 120</li>
+                                    <li>Bitrate: 10-15 Mbps</li>
+                                    <li>Quality: Balanced</li>
+                                    <li>Latency: &lt;5ms via Twingate</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="diagnostic-panel">
+                            <div style="padding: 16px;">
+                                <h6 style="color: var(--accent-blue); margin-bottom: 12px;">
+                                    <i class="bi bi-stars"></i> High Quality
+                                </h6>
+                                <ul style="margin: 0; padding-left: 20px; font-size: 0.9rem;">
+                                    <li>Encoder: NVENC</li>
+                                    <li>FPS: 60</li>
+                                    <li>Bitrate: 30-50 Mbps</li>
+                                    <li>Quality: High</li>
+                                    <li>Resolution: Up to 4K</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="control-panel-card">
+            <div class="diagnostic-header">
+                <span class="status-led active"></span>
+                <h3 style="margin: 0; font-weight: 600;">ADDITIONAL RESOURCES</h3>
+            </div>
+            <div style="padding: 24px;">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <a href="/game-streaming" class="control-btn" style="width: 100%; text-decoration: none;">
+                            <i class="bi bi-box-arrow-up-right"></i> Full Setup Guide
+                        </a>
+                    </div>
+                    <div class="col-md-4">
+                        <a href="/static/MOONLIGHT_SETUP.md" target="_blank" class="control-btn" style="width: 100%; text-decoration: none;">
+                            <i class="bi bi-file-text"></i> Documentation
+                        </a>
+                    </div>
+                    <div class="col-md-4">
+                        <a href="https://docs.lizardbyte.dev/projects/sunshine/" target="_blank" rel="noopener noreferrer" class="control-btn" style="width: 100%; text-decoration: none;">
+                            <i class="bi bi-book"></i> Sunshine Docs
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(function() {
+        const btn = event.target.closest('button');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<i class="bi bi-check"></i> Copied!';
+        setTimeout(() => {
+            btn.innerHTML = originalText;
+        }, 2000);
+    });
+}
+</script>
+{% endblock %}

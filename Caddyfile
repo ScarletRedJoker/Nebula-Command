@@ -47,6 +47,17 @@ vnc.evindrake.net {
     reverse_proxy vnc-desktop:80
 }
 
+game.evindrake.net {
+    reverse_proxy homelab-dashboard:5000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Forwarded-Host {host}
+    }
+    redir / /game-connect
+}
+
 scarletredjoker.com {
     reverse_proxy scarletredjoker-web:80
 }

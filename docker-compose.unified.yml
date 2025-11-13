@@ -7,6 +7,7 @@ volumes:
   n8n_data:
   caddy_data:
   caddy_config:
+  vnc_home:
 
 services:
   # ============================================
@@ -216,19 +217,32 @@ services:
       - ./services/static-site:/usr/share/nginx/html:ro
 
   # ============================================
-  # VNC Remote Desktop
+  # VNC Remote Desktop (Enhanced Ubuntu Desktop)
   # ============================================
   vnc-desktop:
-    image: dorowu/ubuntu-desktop-lxde-vnc:latest
+    build:
+      context: ./services/vnc-desktop
+      dockerfile: Dockerfile
     container_name: vnc-desktop
     restart: unless-stopped
     networks:
       - homelab
     environment:
       - VNC_PASSWORD=${VNC_PASSWORD}
-      - USER=${VNC_USER:-evin}
+      - VNC_USER=${VNC_USER:-evin}
+      - USER_UID=1000
+      - USER_GID=1000
       - PASSWORD=${VNC_USER_PASSWORD}
       - RESOLUTION=1920x1080
+      - TZ=America/New_York
     volumes:
-      - /home/${SERVICE_USER:-evin}:/home/ubuntu/host-home:ro
+      - vnc_home:/home/${VNC_USER:-evin}
+      - /home/${SERVICE_USER:-evin}/contain:/home/${VNC_USER:-evin}/host-projects:ro
+      - /home/${SERVICE_USER:-evin}/Downloads:/home/${VNC_USER:-evin}/host-downloads
     shm_size: '2gb'
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:6080 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
