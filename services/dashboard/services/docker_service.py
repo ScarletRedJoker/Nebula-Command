@@ -9,7 +9,8 @@ logger = logging.getLogger(__name__)
 class DockerService:
     def __init__(self, docker_host: str = 'unix:///var/run/docker.sock'):
         try:
-            self.client = docker.DockerClient(base_url=docker_host)
+            # Use from_env() which properly handles Docker socket connection
+            self.client = docker.from_env()
             self.client.ping()
             self.connected = True
             logger.info("Docker client connected successfully")

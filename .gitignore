@@ -43,3 +43,7 @@ dmypy.json
 .DS_Store
 src/static/uploads/*
 !src/static/uploads/.gitkeep
+
+# Attached Assets (generated files, user uploads, embed images)
+attached_assets/
+**/attached_assets/
