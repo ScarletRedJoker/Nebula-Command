@@ -6,6 +6,9 @@ This Replit workspace is the centralized development environment for all homelab
 ## Recent Production Fixes & Features (Nov 13, 2025)
 
 ### Latest Updates
+- ✅ **Activity Logging System**: Real-time activity feed on Mission Control dashboard showing container operations, system events, and user actions with color-coded severity levels
+- ✅ **Route Caching Fix**: Added cache-control headers to /dashboard and /system routes to prevent Caddy from caching and serving wrong pages (fixes "same page" bug)
+- ✅ **Unified Control Panel Complete**: All homelab operations (deployment, sync, troubleshooting) accessible from single homelab-manager.sh menu with Code Sync section (options 17-19)
 - 🔧 **Dashboard Docker Subprocess Fix**: Rewrote Docker operations to use subprocess calls instead of docker-py SDK to fix persistent urllib3 incompatibility issues in containerized environments (ready for deployment)
 - ✅ **Stream Notification Web Dashboard**: Complete web UI for managing stream notifications with channel selection, custom message templates (@user mentions, {game}, {platform} tokens), and tracked user management
 - ✅ **Discord Stream Notifications**: Complete presence-based go-live detection system with rich embeds, slash commands, and per-user customization
