@@ -6,6 +6,7 @@ This Replit workspace is the centralized development environment for all homelab
 ## Recent Production Fixes & Features (Nov 13, 2025)
 
 ### Latest Updates
+- 🔧 **Dashboard Docker Subprocess Fix**: Rewrote Docker operations to use subprocess calls instead of docker-py SDK to fix persistent urllib3 incompatibility issues in containerized environments (ready for deployment)
 - ✅ **Stream Notification Web Dashboard**: Complete web UI for managing stream notifications with channel selection, custom message templates (@user mentions, {game}, {platform} tokens), and tracked user management
 - ✅ **Discord Stream Notifications**: Complete presence-based go-live detection system with rich embeds, slash commands, and per-user customization
 - ✅ **Twitch OAuth Integration**: Complete PKCE-secured OAuth flow with encrypted token storage and auto-refresh
