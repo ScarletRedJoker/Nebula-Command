@@ -8,6 +8,7 @@ from config import Config
 from routes.api import api_bp
 from routes.web import web_bp
 from routes.deployment_api import deployment_bp
+from services.activity_service import activity_service
 
 logging.basicConfig(
     level=logging.INFO,
@@ -51,6 +52,13 @@ CORS(app, resources={r"/api/*": {
 app.register_blueprint(api_bp)
 app.register_blueprint(web_bp)
 app.register_blueprint(deployment_bp)
+
+activity_service.log_activity(
+    'system',
+    'Dashboard started successfully',
+    'check-circle-fill',
+    'success'
+)
 
 @app.route('/health')
 def health():

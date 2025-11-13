@@ -6,6 +6,7 @@ from services.ssh_service import SSHService
 from services.database_service import DatabaseService
 from services.network_service import NetworkService
 from services.domain_service import DomainService
+from services.activity_service import activity_service
 from utils.auth import require_auth
 from config import Config
 import logging
@@ -100,6 +101,13 @@ def start_container(container_name):
     try:
         container_name = validate_container_name(container_name)
         result = docker_service.start_container(container_name)
+        if result.get('success'):
+            activity_service.log_activity(
+                'container', 
+                f'Container "{container_name}" started',
+                'play-circle-fill',
+                'success'
+            )
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error starting container {container_name}: {e}")
@@ -111,6 +119,13 @@ def stop_container(container_name):
     try:
         container_name = validate_container_name(container_name)
         result = docker_service.stop_container(container_name)
+        if result.get('success'):
+            activity_service.log_activity(
+                'container',
+                f'Container "{container_name}" stopped',
+                'stop-circle-fill',
+                'warning'
+            )
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error stopping container {container_name}: {e}")
@@ -122,6 +137,13 @@ def restart_container(container_name):
     try:
         container_name = validate_container_name(container_name)
         result = docker_service.restart_container(container_name)
+        if result.get('success'):
+            activity_service.log_activity(
+                'container',
+                f'Container "{container_name}" restarted',
+                'arrow-clockwise',
+                'info'
+            )
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error restarting container {container_name}: {e}")
@@ -562,4 +584,15 @@ def get_ssl_certificates():
         return jsonify({'success': True, 'data': certificates})
     except Exception as e:
         logger.error(f"Error getting SSL certificates: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@api_bp.route('/activity/recent', methods=['GET'])
+@require_auth
+def get_recent_activity():
+    try:
+        limit = min(request.args.get('limit', 20, type=int), 100)
+        activities = activity_service.get_recent_activities(limit)
+        return jsonify({'success': True, 'data': activities})
+    except Exception as e:
+        logger.error(f"Error fetching recent activity: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500

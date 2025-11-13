@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, jsonify, send_from_directory, redirect, url_for, session
+from flask import Blueprint, render_template, request, jsonify, send_from_directory, redirect, url_for, session, make_response
 from utils.auth import require_web_auth
 from config import Config
 import os
@@ -45,7 +45,11 @@ def index():
 @web_bp.route('/dashboard')
 @require_web_auth
 def dashboard():
-    return render_template('dashboard.html', services=Config.SERVICES)
+    response = make_response(render_template('dashboard.html', services=Config.SERVICES))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 @web_bp.route('/logs')
 @require_web_auth
@@ -82,7 +86,11 @@ def containers():
 @web_bp.route('/system')
 @require_web_auth
 def system():
-    return render_template('system.html')
+    response = make_response(render_template('system.html'))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 @web_bp.route('/databases')
 @require_web_auth

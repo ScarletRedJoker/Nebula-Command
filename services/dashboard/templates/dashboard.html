@@ -453,12 +453,10 @@
         </div>
         <div id="activity-feed">
             <div class="activity-item">
-                <div class="activity-icon"><i class="bi bi-check-circle"></i></div>
+                <div class="activity-icon"><i class="bi bi-hourglass-split"></i></div>
                 <div>
-                    <div style="font-weight: 500; font-size: 0.875rem;">System Started</div>
-                    <div style="font-size: 0.75rem; color: var(--text-secondary);">All services online</div>
+                    <div style="font-weight: 500; font-size: 0.875rem;">Loading activities...</div>
                 </div>
-                <div class="activity-time">just now</div>
             </div>
         </div>
     </div>
@@ -633,10 +631,60 @@ async function updateDashboard() {
     }
 }
 
+async function updateActivityFeed() {
+    try {
+        const response = await fetch('/api/activity/recent?limit=10', {
+            credentials: 'include'
+        });
+        const result = await response.json();
+        
+        if (!result.success || !result.data || result.data.length === 0) {
+            document.getElementById('activity-feed').innerHTML = `
+                <div class="activity-item">
+                    <div class="activity-icon"><i class="bi bi-info-circle"></i></div>
+                    <div>
+                        <div style="font-weight: 500; font-size: 0.875rem;">No recent activity</div>
+                        <div style="font-size: 0.75rem; color: var(--text-secondary);">System events will appear here</div>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+        
+        let html = '';
+        result.data.forEach(activity => {
+            const levelColors = {
+                'success': 'var(--accent-green)',
+                'info': 'var(--accent-blue)',
+                'warning': 'var(--accent-yellow)',
+                'error': 'var(--accent-red)'
+            };
+            const iconColor = levelColors[activity.level] || 'var(--accent-blue)';
+            
+            html += `
+                <div class="activity-item">
+                    <div class="activity-icon" style="color: ${iconColor};"><i class="bi bi-${activity.icon}"></i></div>
+                    <div style="flex: 1;">
+                        <div style="font-weight: 500; font-size: 0.875rem;">${activity.message}</div>
+                        <div style="font-size: 0.75rem; color: var(--text-secondary);">${activity.type}</div>
+                    </div>
+                    <div class="activity-time">${activity.time_ago}</div>
+                </div>
+            `;
+        });
+        
+        document.getElementById('activity-feed').innerHTML = html;
+    } catch (error) {
+        console.error('Failed to update activity feed:', error);
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     initCharts();
     updateDashboard();
+    updateActivityFeed();
     setInterval(updateDashboard, 3000);
+    setInterval(updateActivityFeed, 10000);
 });
 </script>
 {% endblock %}
