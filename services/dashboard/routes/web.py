@@ -14,11 +14,16 @@ def login():
         username = request.form.get('username')
         password = request.form.get('password')
         
-        # Get credentials from environment
-        expected_username = os.environ.get('WEB_USERNAME', 'evin')
-        expected_password = os.environ.get('WEB_PASSWORD', 'homelab')
+        # Get credentials from environment (NO DEFAULTS for security)
+        expected_username = os.environ.get('WEB_USERNAME')
+        expected_password = os.environ.get('WEB_PASSWORD')
         
-        # Debug logging
+        # Security: Require credentials to be set in environment
+        if not expected_username or not expected_password:
+            logger.error("SECURITY ERROR: WEB_USERNAME or WEB_PASSWORD not set in environment!")
+            return render_template('login.html', error='Server configuration error. Contact administrator.')
+        
+        # Debug logging (never log passwords!)
         logger.info(f"Login attempt - Username: {username}")
         
         if username == expected_username and password == expected_password:
@@ -115,5 +120,10 @@ def domains():
 
 @web_bp.route('/game-connect')
 def game_connect():
-    return render_template('game_connect.html',
-                          windows_kvm_ip=Config.WINDOWS_KVM_IP)
+    response = make_response(render_template('game_connect.html',
+                          windows_kvm_ip=Config.WINDOWS_KVM_IP))
+    # Add proper cache headers to prevent Caddy caching
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response

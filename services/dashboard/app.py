@@ -30,6 +30,24 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 
+# CRITICAL: Validate required environment variables
+missing_vars = []
+if not os.environ.get('WEB_USERNAME'):
+    missing_vars.append('WEB_USERNAME')
+if not os.environ.get('WEB_PASSWORD'):
+    missing_vars.append('WEB_PASSWORD')
+
+if missing_vars:
+    logger.error("=" * 60)
+    logger.error("CRITICAL: Missing required environment variables!")
+    logger.error(f"Missing: {', '.join(missing_vars)}")
+    logger.error("Set these in your .env file before starting the dashboard.")
+    logger.error("Example:")
+    logger.error("  WEB_USERNAME=your_username")
+    logger.error("  WEB_PASSWORD=your_secure_password")
+    logger.error("=" * 60)
+    sys.exit(1)
+
 # Only show API key warning in development, not in production
 # (Production deployment via deploy.sh automatically generates the key)
 if not os.environ.get('DASHBOARD_API_KEY') and os.environ.get('FLASK_ENV') != 'production':
