@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
 
-docker_service = DockerService(Config.DOCKER_HOST)
+docker_service = DockerService()
 system_service = SystemService()
 ai_service = AIService()
 database_service = DatabaseService()
