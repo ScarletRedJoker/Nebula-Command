@@ -40,6 +40,11 @@ host.evindrake.net {
         header_up X-Forwarded-For {remote_host}
         header_up X-Forwarded-Proto {scheme}
         header_up X-Forwarded-Host {host}
+        
+        # CRITICAL: Disable all caching for dashboard routes
+        header_down Cache-Control "no-cache, no-store, must-revalidate, private"
+        header_down Pragma "no-cache"
+        header_down Expires "0"
     }
 }
 
@@ -57,6 +62,11 @@ game.evindrake.net {
         header_up X-Forwarded-For {remote_host}
         header_up X-Forwarded-Proto {scheme}
         header_up X-Forwarded-Host {host}
+        
+        # Disable caching for game connection page
+        header_down Cache-Control "no-cache, no-store, must-revalidate"
+        header_down Pragma "no-cache"
+        header_down Expires "0"
     }
 }
 

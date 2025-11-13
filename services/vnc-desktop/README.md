@@ -49,6 +49,9 @@ Custom Ubuntu desktop environment with pre-installed applications and shortcuts 
   - ⚠️ **Note**: GPU acceleration NOT available in containers
   - Best for: Steam Link, lightweight/2D games
   - For GPU gaming: Use **game.evindrake.net** (Windows KVM + RTX 3060)
+  - **Status**: Enabled by default (`INSTALL_STEAM=true` in Dockerfile)
+  - **Verify after rebuild**: Check Applications menu or run `which steam` in terminal
+  - **To disable**: Edit `services/vnc-desktop/Dockerfile` and set `INSTALL_STEAM=false`
 
 ### Desktop Environment
 - **Window Manager**: LXDE/LXQt (lightweight and responsive)
