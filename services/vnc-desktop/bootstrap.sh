@@ -23,7 +23,9 @@ mkdir -p "${USER_HOME}/Downloads"
 mkdir -p "${USER_HOME}/Pictures"
 mkdir -p "${USER_HOME}/Videos"
 mkdir -p "${USER_HOME}/Music"
-mkdir -p "${USER_HOME}/Projects"
+
+echo "Waiting for host mounts to be ready..."
+sleep 2
 
 echo "Creating desktop shortcuts..."
 cat > "${USER_HOME}/Desktop/Firefox.desktop" << 'EOF'
@@ -88,16 +90,24 @@ Terminal=false
 Categories=Network;WebBrowser;
 EOF
 
-cat > "${USER_HOME}/Desktop/Projects.desktop" << 'EOF'
+if [ -d "${USER_HOME}/host-projects" ]; then
+    cat > "${USER_HOME}/Desktop/Projects.desktop" << EOF
 [Desktop Entry]
 Type=Link
 Name=Projects Folder
 Icon=folder-code
-URL=file:///home/evin/host-projects
+URL=file://${USER_HOME}/host-projects
 EOF
+else
+    echo "Warning: host-projects mount not available, skipping Projects shortcut"
+fi
 
 echo "Making desktop shortcuts executable..."
-chmod +x "${USER_HOME}/Desktop/"*.desktop
+for desktop_file in "${USER_HOME}/Desktop/"*.desktop; do
+    if [ -f "$desktop_file" ] && [ -w "$desktop_file" ]; then
+        chmod +x "$desktop_file" || echo "Warning: Could not make $desktop_file executable"
+    fi
+done
 
 echo "Creating LXQt panel configuration..."
 mkdir -p "${USER_HOME}/.config/lxpanel/LXDE/panels"
@@ -198,15 +208,18 @@ Plugin {
 }
 EOF
 
-echo "Setting ownership..."
-chown -R ${VNC_USER}:${VNC_USER} "${USER_HOME}/.config"
-chown -R ${VNC_USER}:${VNC_USER} "${USER_HOME}/Desktop"
-chown -R ${VNC_USER}:${VNC_USER} "${USER_HOME}/Documents"
-chown -R ${VNC_USER}:${VNC_USER} "${USER_HOME}/Downloads"
-chown -R ${VNC_USER}:${VNC_USER} "${USER_HOME}/Pictures"
-chown -R ${VNC_USER}:${VNC_USER} "${USER_HOME}/Videos"
-chown -R ${VNC_USER}:${VNC_USER} "${USER_HOME}/Music"
-chown -R ${VNC_USER}:${VNC_USER} "${USER_HOME}/Projects"
+echo "Fixing permissions (if running as root)..."
+if [ "$(id -u)" = "0" ]; then
+    chown -R ${VNC_USER}:${VNC_USER} "${USER_HOME}/.config" 2>/dev/null || true
+    chown -R ${VNC_USER}:${VNC_USER} "${USER_HOME}/Desktop" 2>/dev/null || true
+    chown -R ${VNC_USER}:${VNC_USER} "${USER_HOME}/Documents" 2>/dev/null || true
+    chown -R ${VNC_USER}:${VNC_USER} "${USER_HOME}/Downloads" 2>/dev/null || true
+    chown -R ${VNC_USER}:${VNC_USER} "${USER_HOME}/Pictures" 2>/dev/null || true
+    chown -R ${VNC_USER}:${VNC_USER} "${USER_HOME}/Videos" 2>/dev/null || true
+    chown -R ${VNC_USER}:${VNC_USER} "${USER_HOME}/Music" 2>/dev/null || true
+else
+    echo "Running as non-root user, skipping chown"
+fi
 
 echo "Provisioning complete!"
 touch "${USER_HOME}/.desktop_provisioned"

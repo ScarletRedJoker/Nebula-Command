@@ -6,6 +6,9 @@ This Replit workspace is the centralized development environment for all homelab
 ## Recent Production Fixes & Features (Nov 13, 2025)
 
 ### Latest Updates
+- ✅ **Enhanced VNC Desktop**: Custom Ubuntu desktop with pre-installed apps (Firefox, Chromium, LibreOffice, GIMP, VLC, dev tools), persistent storage, and curated desktop shortcuts - built as custom Docker image extending dorowu/ubuntu-desktop-lxde-vnc
+- ✅ **Cloud Gaming Infrastructure**: Complete Moonlight/Sunshine game streaming setup with Windows 11 KVM (RTX 3060 GPU passthrough) accessible at game.evindrake.net - prioritizes direct Twingate/LAN connection for <5ms latency
+- ✅ **Game Streaming Landing Page**: Professional connection guide at game.evindrake.net with Windows KVM specs, Moonlight client downloads, Twingate VPN instructions, and performance optimization tips
 - ✅ **Activity Logging System**: Real-time activity feed on Mission Control dashboard showing container operations, system events, and user actions with color-coded severity levels
 - ✅ **Route Caching Fix**: Added cache-control headers to /dashboard and /system routes to prevent Caddy from caching and serving wrong pages (fixes "same page" bug)
 - ✅ **Unified Control Panel Complete**: All homelab operations (deployment, sync, troubleshooting) accessible from single homelab-manager.sh menu with Code Sync section (options 17-19)
@@ -52,6 +55,7 @@ HomeLabHub/                      ← Replit Workspace Root
 │   ├── discord-bot/            ← Discord Ticket Bot (TypeScript/React)
 │   ├── stream-bot/             ← SnappleBotAI (TypeScript/React)
 │   ├── static-site/            ← scarletredjoker.com (HTML/CSS/JS)
+│   ├── vnc-desktop/            ← Custom VNC Desktop (Dockerfile + bootstrap)
 │   ├── n8n/                    ← n8n Automation config
 │   └── plex/                   ← Plex Media Server config
 │
@@ -60,6 +64,7 @@ HomeLabHub/                      ← Replit Workspace Root
 ├── config/                      ← Configuration files
 ├── docker-compose.unified.yml   ← Main deployment file
 ├── Caddyfile                    ← Reverse proxy config
+├── DEPLOYMENT_GUIDE.md          ← VNC + Gaming deployment instructions
 └── README.md                    ← Workspace overview
 ```
 
@@ -154,6 +159,24 @@ HomeLabHub/                      ← Replit Workspace Root
   - Automatic volume management and secure password generation
   - Multi-language connection examples (Python, Node.js, Docker internal)
 - Game streaming integration (Moonlight/Sunshine setup)
+  - Complete connection guide at game.evindrake.net
+  - Windows 11 KVM with RTX 3060 GPU passthrough support
+  - Direct Twingate/LAN connection (best latency)
+  - Moonlight client download links for all platforms
+
+**VNC Desktop Features:**
+- Custom Ubuntu desktop environment (LXDE/LXQt)
+- Pre-installed applications:
+  - Web browsers: Firefox, Chromium
+  - Development: Git, Python3, Node.js, npm, Vim, Nano
+  - Productivity: LibreOffice suite
+  - Media: VLC, GIMP
+  - System: htop, neofetch, Thunar, Mousepad, GNOME Terminal
+- Desktop shortcuts and panel configuration
+- Persistent storage with vnc_home volume
+- Selective host mounting (projects read-only, downloads read-write)
+- Bootstrap script for automatic provisioning
+- Security: VNC password protected, HTTPS via Caddy, internal Docker network only
 
 **Stream Bot Features:**
 - Multi-platform streaming (Twitch, Kick, YouTube) with OAuth integration

@@ -35,6 +35,8 @@ RUN apt-get update && apt-get install -y \
     xdg-utils \
     xdg-user-dirs \
     desktop-file-utils \
+    procps \
+    net-tools \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

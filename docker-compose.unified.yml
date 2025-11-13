@@ -229,19 +229,19 @@ services:
       - homelab
     environment:
       - VNC_PASSWORD=${VNC_PASSWORD}
-      - VNC_USER=${VNC_USER:-evin}
+      - VNC_USER=evin
       - USER_UID=1000
       - USER_GID=1000
       - PASSWORD=${VNC_USER_PASSWORD}
       - RESOLUTION=1920x1080
       - TZ=America/New_York
     volumes:
-      - vnc_home:/home/${VNC_USER:-evin}
-      - /home/${SERVICE_USER:-evin}/contain:/home/${VNC_USER:-evin}/host-projects:ro
-      - /home/${SERVICE_USER:-evin}/Downloads:/home/${VNC_USER:-evin}/host-downloads
+      - vnc_home:/home/evin
+      - /home/${SERVICE_USER:-evin}/contain:/home/evin/host-projects:ro
+      - /home/${SERVICE_USER:-evin}/Downloads:/home/evin/host-downloads
     shm_size: '2gb'
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:6080 || exit 1"]
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:6080 || curl -f http://localhost:6080 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
