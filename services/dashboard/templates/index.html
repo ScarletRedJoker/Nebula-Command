@@ -1,139 +1,250 @@
 {% extends "base.html" %}
 
-{% block title %}Home - Homelab Dashboard{% endblock %}
-{% block page_title %}Welcome to Your Homelab{% endblock %}
+{% block title %}Mission Control - Homelab Dashboard{% endblock %}
+{% block page_title %}Homelab Mission Control{% endblock %}
 
 {% block content %}
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card" style="background: linear-gradient(135deg, rgba(96, 165, 250, 0.1) 0%, rgba(167, 139, 250, 0.1) 100%); border: 1px solid rgba(96, 165, 250, 0.3); overflow: hidden; position: relative;">
-            <div style="position: absolute; top: -50%; right: -10%; width: 300px; height: 300px; background: radial-gradient(circle, rgba(96, 165, 250, 0.1) 0%, transparent 70%); border-radius: 50%;"></div>
-            <div style="position: absolute; bottom: -50%; left: -10%; width: 400px; height: 400px; background: radial-gradient(circle, rgba(167, 139, 250, 0.08) 0%, transparent 70%); border-radius: 50%;"></div>
-            <div style="padding: 40px 30px; text-align: center; position: relative; z-index: 1;">
-                <h1 style="font-size: 2.5rem; margin-bottom: 12px; font-weight: 700; letter-spacing: -0.02em; background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-blue) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
-                    <i class="bi bi-hdd-rack" style="color: var(--accent-blue);"></i> Homelab Control Center
-                </h1>
-                <p style="font-size: 1.1rem; color: var(--text-secondary); margin: 0;">
-                    Monitor and manage all your services from one place
-                </p>
-            </div>
-        </div>
+<div class="control-panel-card mb-4">
+    <div style="text-align: center; padding: 20px 0;">
+        <h1 style="font-size: 2.2rem; margin-bottom: 12px; font-weight: 700; background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
+            <i class="bi bi-hdd-rack"></i> MISSION CONTROL CENTER
+        </h1>
+        <p style="font-size: 1rem; color: var(--text-secondary); margin: 0;">
+            <span class="data-readout">SYSTEM STATUS: OPERATIONAL</span>
+        </p>
+    </div>
+</div>
+
+<div class="led-panel mb-4">
+    <div class="led-group">
+        <div class="led-label">POWER</div>
+        <span class="status-led online blink"></span>
+    </div>
+    <div class="led-group">
+        <div class="led-label">CPU</div>
+        <span class="status-led online"></span>
+    </div>
+    <div class="led-group">
+        <div class="led-label">MEMORY</div>
+        <span class="status-led warning"></span>
+    </div>
+    <div class="led-group">
+        <div class="led-label">DISK</div>
+        <span class="status-led online"></span>
+    </div>
+    <div class="led-group">
+        <div class="led-label">NETWORK</div>
+        <span class="status-led active blink"></span>
+    </div>
+    <div class="led-group">
+        <div class="led-label">DOCKER</div>
+        <span class="hex-led"></span>
+    </div>
+    <div class="led-group">
+        <div class="led-label">DATABASE</div>
+        <span class="hex-led"></span>
+    </div>
+    <div class="led-group">
+        <div class="led-label">PROXY</div>
+        <span class="hex-led"></span>
     </div>
 </div>
 
 <div class="row mb-4">
     <div class="col-md-3 mb-3">
-        <div class="stat-card" style="background: var(--bg-secondary); border: 1px solid var(--border-color); padding: 20px; border-radius: 8px;">
-            <i class="bi bi-box-seam" style="font-size: 1.8rem; color: var(--accent-blue); opacity: 0.8;"></i>
-            <div class="stat-value" id="container-count" style="font-size: 2rem; font-weight: 600; margin: 10px 0; color: var(--text-primary);">-</div>
-            <div class="stat-label" style="font-size: 0.875rem; color: var(--text-secondary);">Total Containers</div>
-        </div>
-    </div>
-    <div class="col-md-3 mb-3">
-        <div class="stat-card" style="background: var(--bg-secondary); border: 1px solid var(--border-color); padding: 20px; border-radius: 8px;">
-            <i class="bi bi-play-circle-fill" style="font-size: 1.8rem; color: var(--accent-green); opacity: 0.8;"></i>
-            <div class="stat-value" id="running-count" style="font-size: 2rem; font-weight: 600; margin: 10px 0; color: var(--text-primary);">-</div>
-            <div class="stat-label" style="font-size: 0.875rem; color: var(--text-secondary);">Currently Running</div>
-        </div>
-    </div>
-    <div class="col-md-3 mb-3">
-        <div class="stat-card" style="background: var(--bg-secondary); border: 1px solid var(--border-color); padding: 20px; border-radius: 8px;">
-            <i class="bi bi-globe" style="font-size: 1.8rem; color: var(--accent-purple); opacity: 0.8;"></i>
-            <div class="stat-value" style="font-size: 2rem; font-weight: 600; margin: 10px 0; color: var(--text-primary);">3</div>
-            <div class="stat-label" style="font-size: 0.875rem; color: var(--text-secondary);">Active Domains</div>
-        </div>
-    </div>
-    <div class="col-md-3 mb-3">
-        <div class="stat-card" style="background: var(--bg-secondary); border: 1px solid var(--border-color); padding: 20px; border-radius: 8px;">
-            <i class="bi bi-check2-circle" style="font-size: 1.8rem; color: var(--accent-green); opacity: 0.8;"></i>
-            <div class="stat-value" id="services-online" style="font-size: 2rem; font-weight: 600; margin: 10px 0; color: var(--text-primary);">6</div>
-            <div class="stat-label" style="font-size: 0.875rem; color: var(--text-secondary);">Services Online</div>
-        </div>
-    </div>
-</div>
-
-<div class="row">
-    <div class="col-md-6 mb-4">
-        <div class="card">
-            <div class="card-header">
-                <i class="bi bi-activity"></i>
-                Quick Actions
+        <div class="metric-display glow-border">
+            <div class="metric-icon" style="color: var(--accent-blue);">
+                <i class="bi bi-box-seam"></i>
             </div>
-            <div style="display: grid; gap: 10px;">
-                <a href="/dashboard" class="btn btn-primary" style="text-decoration: none; text-align: center;">
-                    <i class="bi bi-speedometer2"></i> View Dashboard
-                </a>
-                <a href="/containers" class="btn btn-primary" style="text-decoration: none; text-align: center;">
-                    <i class="bi bi-box-seam"></i> Manage Containers
-                </a>
-                <a href="/system" class="btn btn-primary" style="text-decoration: none; text-align: center;">
-                    <i class="bi bi-cpu"></i> System Monitor
-                </a>
-                <a href="/logs" class="btn btn-primary" style="text-decoration: none; text-align: center;">
-                    <i class="bi bi-file-text"></i> View Logs
-                </a>
+            <div style="flex: 1;">
+                <div class="metric-value" id="container-count">-</div>
+                <div class="metric-label">CONTAINERS</div>
             </div>
+            <span class="status-led active blink"></span>
         </div>
     </div>
-
-    <div class="col-md-6 mb-4">
-        <div class="card">
-            <div class="card-header">
+    <div class="col-md-3 mb-3">
+        <div class="metric-display glow-border">
+            <div class="metric-icon" style="color: var(--accent-green);">
+                <i class="bi bi-play-circle-fill"></i>
+            </div>
+            <div style="flex: 1;">
+                <div class="metric-value" id="running-count">-</div>
+                <div class="metric-label">RUNNING</div>
+            </div>
+            <span class="status-led online"></span>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="metric-display glow-border">
+            <div class="metric-icon" style="color: var(--accent-purple);">
                 <i class="bi bi-globe"></i>
-                Your Services
             </div>
-            <table class="table">
-                <tbody>
-                    <tr>
-                        <td><i class="bi bi-ticket"></i> Discord Bot</td>
-                        <td><a href="https://bot.rig-city.com" target="_blank" style="color: var(--accent-blue);">bot.rig-city.com</a></td>
-                        <td><span class="badge badge-success" id="status-discord">●</span></td>
-                    </tr>
-                    <tr>
-                        <td><i class="bi bi-camera-video"></i> Stream Bot</td>
-                        <td><a href="https://stream.rig-city.com" target="_blank" style="color: var(--accent-blue);">stream.rig-city.com</a></td>
-                        <td><span class="badge badge-warning" id="status-stream">●</span></td>
-                    </tr>
-                    <tr>
-                        <td><i class="bi bi-film"></i> Plex Server</td>
-                        <td><a href="https://plex.evindrake.net" target="_blank" style="color: var(--accent-blue);">plex.evindrake.net</a></td>
-                        <td><span class="badge badge-success" id="status-plex">●</span></td>
-                    </tr>
-                    <tr>
-                        <td><i class="bi bi-diagram-3"></i> n8n Automation</td>
-                        <td><a href="https://n8n.evindrake.net" target="_blank" style="color: var(--accent-blue);">n8n.evindrake.net</a></td>
-                        <td><span class="badge badge-success" id="status-n8n">●</span></td>
-                    </tr>
-                    <tr>
-                        <td><i class="bi bi-globe"></i> Static Website</td>
-                        <td><a href="https://scarletredjoker.com" target="_blank" style="color: var(--accent-blue);">scarletredjoker.com</a></td>
-                        <td><span class="badge badge-success" id="status-static">●</span></td>
-                    </tr>
-                </tbody>
-            </table>
+            <div style="flex: 1;">
+                <div class="metric-value">3</div>
+                <div class="metric-label">DOMAINS</div>
+            </div>
+            <span class="status-led online"></span>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="metric-display glow-border">
+            <div class="metric-icon" style="color: var(--accent-green);">
+                <i class="bi bi-check2-circle"></i>
+            </div>
+            <div style="flex: 1;">
+                <div class="metric-value" id="services-online">6</div>
+                <div class="metric-label">SERVICES</div>
+            </div>
+            <span class="status-led online blink"></span>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6 mb-4">
+        <div class="control-panel-card">
+            <div class="diagnostic-header">
+                <span class="status-led active blink"></span>
+                <h5 style="margin: 0; font-weight: 600;">QUICK ACCESS TERMINAL</h5>
+            </div>
+            <div style="display: grid; gap: 12px;">
+                <a href="/dashboard" class="control-btn" style="text-decoration: none; text-align: center;">
+                    <i class="bi bi-speedometer2"></i> MISSION CONTROL DASHBOARD
+                </a>
+                <a href="/containers" class="control-btn" style="text-decoration: none; text-align: center;">
+                    <i class="bi bi-box-seam"></i> CONTAINER MANAGEMENT
+                </a>
+                <a href="/system" class="control-btn" style="text-decoration: none; text-align: center;">
+                    <i class="bi bi-cpu"></i> SYSTEM DIAGNOSTICS
+                </a>
+                <a href="/network" class="control-btn" style="text-decoration: none; text-align: center;">
+                    <i class="bi bi-diagram-3"></i> NETWORK MONITOR
+                </a>
+                <a href="/domains" class="control-btn" style="text-decoration: none; text-align: center;">
+                    <i class="bi bi-globe"></i> DOMAIN HEALTH CHECK
+                </a>
+                <a href="/logs" class="control-btn" style="text-decoration: none; text-align: center;">
+                    <i class="bi bi-file-text"></i> SYSTEM LOGS
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 mb-4">
+        <div class="control-panel-card">
+            <div class="diagnostic-header">
+                <span class="hex-led"></span>
+                <h5 style="margin: 0; font-weight: 600;">SERVICE STATUS ARRAY</h5>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div class="status-indicator-box">
+                    <span class="status-led online blink" id="status-discord-led"></span>
+                    <div style="flex: 1;">
+                        <div style="font-weight: 600; font-size: 0.95rem;">Discord Ticket Bot</div>
+                        <a href="https://bot.rig-city.com" target="_blank" class="data-readout" style="font-size: 0.8rem; text-decoration: none;">bot.rig-city.com</a>
+                    </div>
+                    <span class="badge badge-success">ONLINE</span>
+                </div>
+                
+                <div class="status-indicator-box">
+                    <span class="status-led online blink" id="status-stream-led"></span>
+                    <div style="flex: 1;">
+                        <div style="font-weight: 600; font-size: 0.95rem;">Stream Bot AI</div>
+                        <a href="https://stream.rig-city.com" target="_blank" class="data-readout" style="font-size: 0.8rem; text-decoration: none;">stream.rig-city.com</a>
+                    </div>
+                    <span class="badge badge-success">ONLINE</span>
+                </div>
+                
+                <div class="status-indicator-box">
+                    <span class="status-led online" id="status-plex-led"></span>
+                    <div style="flex: 1;">
+                        <div style="font-weight: 600; font-size: 0.95rem;">Plex Media Server</div>
+                        <a href="https://plex.evindrake.net" target="_blank" class="data-readout" style="font-size: 0.8rem; text-decoration: none;">plex.evindrake.net</a>
+                    </div>
+                    <span class="badge badge-success">ONLINE</span>
+                </div>
+                
+                <div class="status-indicator-box">
+                    <span class="status-led online" id="status-n8n-led"></span>
+                    <div style="flex: 1;">
+                        <div style="font-weight: 600; font-size: 0.95rem;">n8n Automation Platform</div>
+                        <a href="https://n8n.evindrake.net" target="_blank" class="data-readout" style="font-size: 0.8rem; text-decoration: none;">n8n.evindrake.net</a>
+                    </div>
+                    <span class="badge badge-success">ONLINE</span>
+                </div>
+                
+                <div class="status-indicator-box">
+                    <span class="status-led online" id="status-static-led"></span>
+                    <div style="flex: 1;">
+                        <div style="font-weight: 600; font-size: 0.95rem;">Static Website</div>
+                        <a href="https://scarletredjoker.com" target="_blank" class="data-readout" style="font-size: 0.8rem; text-decoration: none;">scarletredjoker.com</a>
+                    </div>
+                    <span class="badge badge-success">ONLINE</span>
+                </div>
+                
+                <div class="status-indicator-box">
+                    <span class="status-led warning" id="status-vnc-led"></span>
+                    <div style="flex: 1;">
+                        <div style="font-weight: 600; font-size: 0.95rem;">VNC Desktop</div>
+                        <a href="https://vnc.evindrake.net" target="_blank" class="data-readout" style="font-size: 0.8rem; text-decoration: none;">vnc.evindrake.net</a>
+                    </div>
+                    <span class="badge badge-warning">CHECK</span>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
 <div class="row">
     <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <i class="bi bi-info-circle"></i>
-                System Information
+        <div class="diagnostic-panel">
+            <div class="diagnostic-header">
+                <span class="hex-led"></span>
+                <h5 style="margin: 0; font-weight: 600;">SYSTEM DIAGNOSTICS</h5>
+                <div style="margin-left: auto;">
+                    <div class="activity-indicator">
+                        <span class="activity-dot"></span>
+                        <span>LIVE</span>
+                    </div>
+                </div>
             </div>
-            <div class="row">
-                <div class="col-md-4">
-                    <p><strong>Hostname:</strong> <span id="hostname">Loading...</span></p>
-                    <p><strong>Uptime:</strong> <span id="uptime">Loading...</span></p>
+            <div class="system-status">
+                <div class="status-indicator-box">
+                    <div>
+                        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 4px;">HOSTNAME</div>
+                        <div class="data-readout" id="hostname">Loading...</div>
+                    </div>
                 </div>
-                <div class="col-md-4">
-                    <p><strong>Platform:</strong> <span id="platform">Loading...</span></p>
-                    <p><strong>Architecture:</strong> <span id="arch">Loading...</span></p>
+                <div class="status-indicator-box">
+                    <div>
+                        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 4px;">UPTIME</div>
+                        <div class="data-readout" id="uptime">Loading...</div>
+                    </div>
                 </div>
-                <div class="col-md-4">
-                    <p><strong>Docker Version:</strong> <span id="docker-version">Loading...</span></p>
-                    <p><strong>Last Updated:</strong> <span id="last-update">Just now</span></p>
+                <div class="status-indicator-box">
+                    <div>
+                        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 4px;">PLATFORM</div>
+                        <div class="data-readout" id="platform">Loading...</div>
+                    </div>
+                </div>
+                <div class="status-indicator-box">
+                    <div>
+                        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 4px;">ARCHITECTURE</div>
+                        <div class="data-readout" id="arch">Loading...</div>
+                    </div>
+                </div>
+                <div class="status-indicator-box">
+                    <div>
+                        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 4px;">DOCKER</div>
+                        <div class="data-readout" id="docker-version">Loading...</div>
+                    </div>
+                </div>
+                <div class="status-indicator-box">
+                    <div>
+                        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 4px;">LAST UPDATE</div>
+                        <div class="data-readout" id="last-update">Just now</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -143,31 +254,49 @@
 
 {% block extra_js %}
 <script>
-async function loadContainers() {
+async function loadSystemData() {
     try {
-        const response = await fetch('/api/containers', {
-            credentials: 'include'
-        });
-        const result = await response.json();
+        const [containersRes, statsRes] = await Promise.all([
+            fetch('/api/containers', { credentials: 'include' }),
+            fetch('/api/system/stats', { credentials: 'include' })
+        ]);
         
-        if (result.success && Array.isArray(result.data)) {
-            const containers = result.data;
-            const total = containers.length;
-            const running = containers.filter(c => c.status && c.status.includes('Up')).length;
+        const containers = await containersRes.json();
+        const stats = await statsRes.json();
+        
+        if (containers.success && Array.isArray(containers.data)) {
+            const total = containers.data.length;
+            const running = containers.data.filter(c => c.status && c.status.includes('Up')).length;
             
             document.getElementById('container-count').textContent = total;
             document.getElementById('running-count').textContent = running;
         }
+        
+        if (stats.success && stats.data) {
+            const data = stats.data;
+            
+            if (data.hostname) document.getElementById('hostname').textContent = data.hostname.toUpperCase();
+            if (data.platform) document.getElementById('platform').textContent = data.platform.toUpperCase();
+            if (data.architecture) document.getElementById('arch').textContent = data.architecture.toUpperCase();
+            
+            if (data.uptime) {
+                const days = Math.floor(data.uptime / 86400);
+                const hours = Math.floor((data.uptime % 86400) / 3600);
+                const mins = Math.floor((data.uptime % 3600) / 60);
+                document.getElementById('uptime').textContent = `${days}D ${hours}H ${mins}M`;
+            }
+        }
+        
+        document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+        
     } catch (error) {
-        console.error('Failed to load containers:', error);
-        document.getElementById('container-count').textContent = '0';
-        document.getElementById('running-count').textContent = '0';
+        console.error('Failed to load system data:', error);
     }
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    loadContainers();
-    setInterval(loadContainers, 15000);
+    loadSystemData();
+    setInterval(loadSystemData, 5000);
 });
 </script>
 {% endblock %}
