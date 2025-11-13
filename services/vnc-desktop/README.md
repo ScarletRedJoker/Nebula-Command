@@ -5,12 +5,50 @@ Custom Ubuntu desktop environment with pre-installed applications and shortcuts 
 ## Features
 
 ### Pre-installed Applications
-- **Web Browsers**: Firefox, Chromium
-- **Development**: Git, Python3, Node.js, npm, Vim, Nano
-- **Productivity**: LibreOffice suite
-- **Media**: VLC, GIMP
-- **System Tools**: htop, neofetch, Thunar file manager, Mousepad text editor
-- **Terminal**: GNOME Terminal with full features
+
+#### Web Browsers
+- **Firefox** - Full-featured web browser
+- **Chromium** - Open-source Chrome
+
+#### Development Tools
+- **Git** - Version control
+- **Python 3** with pip - Python development
+- **Node.js** with npm - JavaScript development
+- **build-essential** - C/C++ compilation (gcc, g++, make)
+- **tmux** - Terminal multiplexer for persistent sessions
+- **Vim & Nano** - Text editors
+- **Gedit** - GUI text editor
+- **OpenSSH Client** - SSH remote access
+
+#### Graphics & Media  
+- **GIMP** - Advanced image editing
+- **VLC** - Universal media player
+- **OBS Studio** - Screen recording & streaming (software mode)
+- **Audacity** - Audio editing & recording
+
+#### Productivity & Office
+- **LibreOffice Suite** - Writer, Calc, Impress, Draw
+- **Evince** - PDF viewer
+- **Mousepad** - Lightweight text editor
+- **KeePassXC** - Password manager with KeePass compatibility
+
+#### System Monitoring & Tools
+- **htop** - Interactive process viewer
+- **glances** - Advanced system monitor (CPU, RAM, network, disk)
+- **gnome-system-monitor** - GUI system resource monitor
+- **nmap** - Network discovery & security scanner
+- **neofetch** - System information display
+- **Thunar** - File manager
+- **GNOME Terminal** - Full-featured terminal
+
+#### Remote Access
+- **Remmina** - Remote desktop client (RDP, VNC, SSH support)
+
+#### Gaming (Optional - ~500MB)
+- **Steam** - Game platform with 32-bit library support
+  - ⚠️ **Note**: GPU acceleration NOT available in containers
+  - Best for: Steam Link, lightweight/2D games
+  - For GPU gaming: Use **game.evindrake.net** (Windows KVM + RTX 3060)
 
 ### Desktop Environment
 - **Window Manager**: LXDE/LXQt (lightweight and responsive)
@@ -71,6 +109,29 @@ Not exposed externally for security. Use noVNC web interface.
 - **Reverse Proxy**: Caddy handles HTTPS and SSL termination
 - **No Direct Exposure**: VNC ports not exposed to internet
 
+## Installing Additional Apps
+
+### Apps NOT Included (Manual Installation)
+These require AppImage or .deb downloads due to repository issues:
+
+#### Discord (AppImage)
+```bash
+cd ~/Downloads
+wget "https://discord.com/api/download?platform=linux&format=tar.gz" -O discord.tar.gz
+tar -xvzf discord.tar.gz
+./Discord/Discord
+```
+
+#### VS Code (.deb)
+```bash
+cd ~/Downloads  
+wget "https://code.visualstudio.com/sha/download?build=stable&os=linux-deb-x64" -O vscode.deb
+sudo dpkg -i vscode.deb
+```
+
+#### Spotify (Web Player Recommended)
+Use https://open.spotify.com in Firefox for best experience.
+
 ## Customization
 
 ### Add More Applications
@@ -80,6 +141,12 @@ RUN apt-get update && apt-get install -y \
     your-package-here \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+```
+
+### Disable Steam (Save ~500MB)
+Edit `services/vnc-desktop/Dockerfile`, change:
+```dockerfile
+ENV INSTALL_STEAM=false
 ```
 
 ### Add Desktop Shortcuts
