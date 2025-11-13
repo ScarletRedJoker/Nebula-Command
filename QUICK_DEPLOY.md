@@ -10,7 +10,24 @@
 
 ---
 
-## One-Command Deployment
+## Git Conflict? Use This First
+
+If you see git merge errors when pulling:
+
+```bash
+cd /home/evin/contain/HomeLabHub
+./RESOLVE_GIT_CONFLICT.sh
+```
+
+This script will:
+1. Safely backup your local changes
+2. Pull latest code from GitHub
+3. Let you choose: keep GitHub version or merge your changes
+4. Deploy everything automatically
+
+---
+
+## One-Command Deployment (No Git Issues)
 
 ### On Your Ubuntu Server:
 
