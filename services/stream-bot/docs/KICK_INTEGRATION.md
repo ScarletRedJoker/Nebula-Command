@@ -43,8 +43,8 @@ Kick OAuth2 strategy with:
 
 ```typescript
 passport.use('kick-signin', new OAuth2Strategy({
-  authorizationURL: 'https://kick.com/oauth/authorize',
-  tokenURL: 'https://kick.com/oauth/token',
+  authorizationURL: 'https://kick.com/oauth2/authorize',
+  tokenURL: 'https://kick.com/oauth2/token',
   clientID: getEnv('KICK_CLIENT_ID'),
   clientSecret: getEnv('KICK_CLIENT_SECRET'),
   callbackURL: getEnv('KICK_SIGNIN_CALLBACK_URL'),
@@ -73,24 +73,24 @@ private kickClientReady: boolean = false;
 
 // Start Kick client
 async startKickClient(connection: PlatformConnection, keywords: string[]) {
-  const channelSlug = connection.platformUsername.toLowerCase();
-  this.kickChannelSlug = channelSlug;
+  const channelName = connection.platformUsername.toLowerCase();
+  this.kickChannelSlug = channelName;
   
-  this.kickClient = createClient();
+  // Create client with channel slug and options
+  this.kickClient = createClient(channelName, { logger: false, readOnly: false });
   
   // Wait for ready state
   this.kickClient.on("ready", () => {
     this.kickClientReady = true;
-    console.log(`[BotWorker] Kick bot connected to ${channelSlug}`);
+    console.log(`[BotWorker] Kick bot connected to ${channelName}`);
   });
   
-  // Listen to chat messages
-  this.kickClient.on("message", async (message) => {
-    await this.handleKickMessage(message);
+  // Listen to chat messages (note: event is "ChatMessage" not "message")
+  this.kickClient.on("ChatMessage", async (message) => {
+    const username = message.sender.username || "unknown";
+    const content = message.content.trim();
+    // Handle commands, keywords, etc.
   });
-  
-  // Connect to channel
-  await this.kickClient.connect(channelSlug);
 }
 
 // Send message with channel context
