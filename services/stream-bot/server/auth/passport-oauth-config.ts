@@ -232,13 +232,11 @@ if (KICK_CLIENT_ID && KICK_CLIENT_SECRET) {
 
         const userData = await userResponse.json();
         
-        if (!userData.email) {
-          return done(new Error('No email found in Kick profile'), null);
-        }
+        const syntheticEmail = userData.email || `kick_${userData.id}@kick.local`;
 
         const oauthProfile: OAuthProfile = {
           id: String(userData.id),
-          email: userData.email,
+          email: syntheticEmail,
           displayName: userData.username,
           username: userData.username,
           platform: 'kick',

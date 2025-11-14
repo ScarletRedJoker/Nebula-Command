@@ -8,7 +8,7 @@ celery_app = Celery(
     'jarvis_workflow_engine',
     broker=Config.CELERY_BROKER_URL,
     backend=Config.CELERY_RESULT_BACKEND,
-    include=['workers.workflow_worker', 'workers.analysis_worker']
+    include=['workers.workflow_worker', 'workers.analysis_worker', 'workers.google_tasks']
 )
 
 celery_app.conf.update(
@@ -30,6 +30,10 @@ celery_app.conf.update(
         'workers.workflow_worker.run_artifact_analysis_workflow': {'queue': 'analysis'},
         'workers.analysis_worker.analyze_artifact_task': {'queue': 'analysis'},
         'workers.analysis_worker.analyze_preview_task': {'queue': 'analysis'},
+        'workers.google_tasks.poll_calendar_events': {'queue': 'google'},
+        'workers.google_tasks.send_email_task': {'queue': 'google'},
+        'workers.google_tasks.backup_to_drive_task': {'queue': 'google'},
+        'workers.google_tasks.cleanup_old_backups': {'queue': 'google'},
     },
     task_default_queue='default',
     task_default_exchange='tasks',

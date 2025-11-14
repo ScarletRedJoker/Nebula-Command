@@ -22,6 +22,7 @@ from .artifact import Artifact
 from .deployment import Deployment
 from .domain_record import DomainRecord
 from .jarvis import Project, ArtifactBuild, ComposeSpec, SSLCertificate, AISession
+from .google_integration import GoogleServiceStatus, CalendarAutomation, EmailNotification, DriveBackup
 
 __all__ = [
     'Base',
@@ -36,5 +37,9 @@ __all__ = [
     'ArtifactBuild',
     'ComposeSpec',
     'SSLCertificate',
-    'AISession'
+    'AISession',
+    'GoogleServiceStatus',
+    'CalendarAutomation',
+    'EmailNotification',
+    'DriveBackup'
 ]

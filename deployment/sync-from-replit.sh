@@ -120,6 +120,11 @@ log "Syncing to origin/main (${REMOTE:0:8})..."
 git checkout main --quiet 2>/dev/null || git checkout -b main --quiet
 git reset --hard origin/main
 
+# Fix execute permissions on all shell scripts
+log "Fixing execute permissions on shell scripts..."
+chmod +x deployment/*.sh homelab-manager.sh *.sh 2>/dev/null || true
+find services -name "*.sh" -type f -exec chmod +x {} \; 2>/dev/null || true
+
 log "✓ Sync complete: ${PREV_COMMIT:0:8} → ${REMOTE:0:8}"
 
 # Save successful sync

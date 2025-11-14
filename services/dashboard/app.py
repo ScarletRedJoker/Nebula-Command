@@ -17,6 +17,7 @@ from routes.analysis_routes import analysis_bp
 from routes.artifact_routes import artifact_bp
 from routes.jarvis_voice_api import jarvis_voice_bp
 from routes.smart_home_api import smart_home_bp, limiter
+from routes.google_services_api import google_services_bp
 from services.activity_service import activity_service
 from services.db_service import db_service
 from services.websocket_service import websocket_service
@@ -115,6 +116,7 @@ app.register_blueprint(analysis_bp)
 app.register_blueprint(artifact_bp)
 app.register_blueprint(jarvis_voice_bp)
 app.register_blueprint(smart_home_bp)
+app.register_blueprint(google_services_bp)
 
 # Initialize WebSocket service
 websocket_service.init_app(app)

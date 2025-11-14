@@ -28,6 +28,8 @@ type KickClient = ReturnType<typeof createClient>;
 export class BotWorker {
   private twitchClient: tmi.Client | null = null;
   private kickClient: KickClient | null = null;
+  private kickChannelSlug: string | null = null;
+  private kickClientReady: boolean = false;
   private youtubeActiveLiveChatId: string | null = null;
   private cronJob: cron.ScheduledTask | null = null;
   private randomTimeout: NodeJS.Timeout | null = null;
@@ -157,6 +159,8 @@ export class BotWorker {
       if (this.kickClient) {
         // Kick client doesn't have explicit disconnect method, just nullify
         this.kickClient = null;
+        this.kickChannelSlug = null;
+        this.kickClientReady = false;
       }
 
       // Stop cron job
@@ -1264,6 +1268,7 @@ export class BotWorker {
 
     try {
       const channelName = connection.platformUsername.toLowerCase();
+      this.kickChannelSlug = channelName;
       this.kickClient = createClient(channelName, { logger: false, readOnly: false });
 
       // If we have credentials, login
@@ -1284,6 +1289,7 @@ export class BotWorker {
       }
 
       this.kickClient.on("ready", () => {
+        this.kickClientReady = true;
         console.log(`[BotWorker] Kick bot connected for user ${this.userId} (${channelName})`);
       });
 
@@ -1299,9 +1305,11 @@ export class BotWorker {
           const commandName = trimmedContent.split(" ")[0]; // Get first word
           const response = await this.executeCustomCommand(commandName, message.sender.username);
           
-          if (response && this.kickClient) {
-            await this.kickClient.sendMessage(response);
+          if (response && this.kickClient && this.kickClientReady && this.kickChannelSlug) {
+            await this.kickClient.sendMessage(this.kickChannelSlug, response);
             return; // Don't check keywords if command was executed
+          } else if (response && this.kickClient && !this.kickClientReady) {
+            console.log(`[BotWorker] Skipping Kick message send - client not ready yet (user ${this.userId})`);
           }
         }
 
@@ -1466,10 +1474,12 @@ export class BotWorker {
         break;
 
       case "kick":
-        if (this.kickClient) {
-          await this.kickClient.sendMessage(message);
+        if (this.kickClient && this.kickClientReady && this.kickChannelSlug) {
+          await this.kickClient.sendMessage(this.kickChannelSlug, message);
         } else {
-          throw new Error("Kick client not connected");
+          const reason = !this.kickClient ? "not connected" : !this.kickClientReady ? "not ready" : "missing channel slug";
+          console.log(`[BotWorker] Kick client ${reason} for user ${this.userId}`);
+          throw new Error(`Kick client not connected or not ready (${reason})`);
         }
         break;
 
