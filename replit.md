@@ -5,6 +5,15 @@ This project provides a comprehensive web-based dashboard for managing a Ubuntu 
 
 ## Recent Changes (November 2025)
 
+**🎙️ Voice-Controlled Smart Home Integration (NEW):**
+- 🏠 Home Assistant integration for IoT automation and Google Home voice control
+- 🗣️ Jarvis Voice API - Deploy websites, create databases, manage SSL via voice commands
+- 🔐 Secure API key authentication for Home Assistant integration
+- 🤖 Conversational AI sessions with context tracking
+- 📡 RESTful command integration for "Hey Google, tell Jarvis to..." commands
+- ⚡ Async Celery-powered deployments triggered by voice
+- 🎯 Production-ready and architect-approved security implementation
+
 **UI Transformation:**
 - ✨ Candy-themed UI for Stream Bot - delicious gradients, glassmorphism, smooth animations
 - 🌌 Cosmic-themed UI for Dashboard - animated starfield, nebula gradients, glassmorphic panels
@@ -40,6 +49,7 @@ This project provides a comprehensive web-based dashboard for managing a Ubuntu 
   - Static Website (scarletredjoker.com) - Personal website
   - VNC Desktop (vnc.evindrake.net) - Remote desktop access
   - Homelab Dashboard (host.evindrake.net) - Management UI
+  - **Home Assistant (home.evindrake.net) - Smart home automation hub with Google Home integration**
 - Prefers centralized development environment with clean structure
 - Needs public HTTPS access with automatic SSL (port forwarding configured)
 
