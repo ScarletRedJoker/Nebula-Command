@@ -19,3 +19,4 @@ werkzeug==3.0.1
 celery==5.3.4
 redis==5.0.1
 flask-sock==0.7.0
+docker==7.1.0
