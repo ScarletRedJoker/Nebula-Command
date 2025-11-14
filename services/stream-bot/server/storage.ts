@@ -1,5 +1,6 @@
 // Reference: javascript_database blueprint
 import {
+  users,
   platformConnections,
   botConfigs,
   messageHistory,
@@ -19,6 +20,13 @@ import {
   gameStats,
   currencySettings,
   currencyRewards,
+  alertSettings,
+  alertHistory,
+  milestones,
+  chatbotSettings,
+  chatbotResponses,
+  chatbotContext,
+  chatbotPersonalities,
   type PlatformConnection,
   type BotConfig,
   type MessageHistory,
@@ -38,6 +46,13 @@ import {
   type GameStats,
   type CurrencySettings,
   type CurrencyReward,
+  type AlertSettings,
+  type AlertHistory,
+  type Milestone,
+  type ChatbotSettings,
+  type ChatbotResponse,
+  type ChatbotContext,
+  type ChatbotPersonality,
   type InsertPlatformConnection,
   type InsertBotConfig,
   type InsertMessageHistory,
@@ -57,6 +72,13 @@ import {
   type InsertGameStats,
   type InsertCurrencySettings,
   type InsertCurrencyReward,
+  type InsertAlertSettings,
+  type InsertAlertHistory,
+  type InsertMilestone,
+  type InsertChatbotSettings,
+  type InsertChatbotResponse,
+  type InsertChatbotContext,
+  type InsertChatbotPersonality,
   type UpdateBotConfig,
   type UpdatePlatformConnection,
   type UpdateCustomCommand,
@@ -68,6 +90,12 @@ import {
   type UpdateGameStats,
   type UpdateCurrencySettings,
   type UpdateCurrencyReward,
+  type UpdateAlertSettings,
+  type UpdateMilestone,
+  type UpdateChatbotSettings,
+  type UpdateChatbotResponse,
+  type UpdateChatbotContext,
+  type UpdateChatbotPersonality,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, gte, sql, and } from "drizzle-orm";
@@ -207,6 +235,47 @@ export interface IStorage {
   createCurrencyReward(userId: string, data: InsertCurrencyReward): Promise<CurrencyReward>;
   updateCurrencyReward(userId: string, id: string, data: UpdateCurrencyReward): Promise<CurrencyReward>;
   deleteCurrencyReward(userId: string, id: string): Promise<void>;
+
+  // Alert Settings
+  getAlertSettings(userId: string): Promise<AlertSettings | undefined>;
+  createAlertSettings(userId: string, data: InsertAlertSettings): Promise<AlertSettings>;
+  updateAlertSettings(userId: string, data: UpdateAlertSettings): Promise<AlertSettings>;
+
+  // Alert History
+  getAlertHistory(userId: string, alertType?: string, limit?: number): Promise<AlertHistory[]>;
+  createAlertHistory(data: InsertAlertHistory): Promise<AlertHistory>;
+
+  // Milestones
+  getMilestones(userId: string, milestoneType?: string): Promise<Milestone[]>;
+  getMilestone(userId: string, milestoneType: string, threshold: number): Promise<Milestone | undefined>;
+  createMilestone(data: InsertMilestone): Promise<Milestone>;
+  updateMilestone(userId: string, id: string, data: UpdateMilestone): Promise<Milestone>;
+
+  // Chatbot Settings
+  getChatbotSettings(userId: string): Promise<ChatbotSettings | undefined>;
+  createChatbotSettings(userId: string, data: InsertChatbotSettings): Promise<ChatbotSettings>;
+  updateChatbotSettings(userId: string, data: UpdateChatbotSettings): Promise<ChatbotSettings>;
+
+  // Chatbot Responses
+  getChatbotResponses(userId: string, limit?: number): Promise<ChatbotResponse[]>;
+  getChatbotResponse(userId: string, id: string): Promise<ChatbotResponse | undefined>;
+  createChatbotResponse(userId: string, data: InsertChatbotResponse): Promise<ChatbotResponse>;
+  updateChatbotResponse(userId: string, id: string, data: UpdateChatbotResponse): Promise<ChatbotResponse>;
+
+  // Chatbot Context
+  getChatbotContext(userId: string, username: string, platform: string): Promise<ChatbotContext | undefined>;
+  getAllChatbotContexts(userId: string, limit?: number): Promise<ChatbotContext[]>;
+  createChatbotContext(userId: string, data: InsertChatbotContext): Promise<ChatbotContext>;
+  updateChatbotContext(userId: string, id: string, data: UpdateChatbotContext): Promise<ChatbotContext>;
+
+  // Chatbot Personalities
+  getChatbotPersonalities(userId: string): Promise<ChatbotPersonality[]>;
+  getChatbotPersonality(userId: string, id: string): Promise<ChatbotPersonality | undefined>;
+  getChatbotPersonalityByName(userId: string, name: string): Promise<ChatbotPersonality | undefined>;
+  createChatbotPersonality(userId: string, data: InsertChatbotPersonality): Promise<ChatbotPersonality>;
+  updateChatbotPersonality(userId: string, id: string, data: UpdateChatbotPersonality): Promise<ChatbotPersonality>;
+  deleteChatbotPersonality(userId: string, id: string): Promise<void>;
+  getPresetPersonalities(): Promise<ChatbotPersonality[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1369,6 +1438,333 @@ export class DatabaseStorage implements IStorage {
           eq(currencyRewards.botUserId, userId)
         )
       );
+  }
+
+  // Alert Settings
+  async getAlertSettings(userId: string): Promise<AlertSettings | undefined> {
+    const [settings] = await db
+      .select()
+      .from(alertSettings)
+      .where(eq(alertSettings.userId, userId))
+      .limit(1);
+    return settings || undefined;
+  }
+
+  async createAlertSettings(userId: string, data: InsertAlertSettings): Promise<AlertSettings> {
+    const [settings] = await db
+      .insert(alertSettings)
+      .values({
+        ...data,
+        userId,
+      })
+      .returning();
+    return settings;
+  }
+
+  async updateAlertSettings(userId: string, data: UpdateAlertSettings): Promise<AlertSettings> {
+    const [settings] = await db
+      .update(alertSettings)
+      .set(data)
+      .where(eq(alertSettings.userId, userId))
+      .returning();
+    return settings;
+  }
+
+  // Alert History
+  async getAlertHistory(userId: string, alertType?: string, limit: number = 50): Promise<AlertHistory[]> {
+    let query = db
+      .select()
+      .from(alertHistory)
+      .where(eq(alertHistory.userId, userId))
+      .orderBy(desc(alertHistory.timestamp))
+      .limit(limit);
+
+    if (alertType) {
+      query = db
+        .select()
+        .from(alertHistory)
+        .where(
+          and(
+            eq(alertHistory.userId, userId),
+            eq(alertHistory.alertType, alertType)
+          )
+        )
+        .orderBy(desc(alertHistory.timestamp))
+        .limit(limit);
+    }
+
+    return await query;
+  }
+
+  async createAlertHistory(data: InsertAlertHistory): Promise<AlertHistory> {
+    const [history] = await db
+      .insert(alertHistory)
+      .values(data)
+      .returning();
+    return history;
+  }
+
+  // Milestones
+  async getMilestones(userId: string, milestoneType?: string): Promise<Milestone[]> {
+    if (milestoneType) {
+      return await db
+        .select()
+        .from(milestones)
+        .where(
+          and(
+            eq(milestones.userId, userId),
+            eq(milestones.milestoneType, milestoneType)
+          )
+        )
+        .orderBy(desc(milestones.threshold));
+    }
+
+    return await db
+      .select()
+      .from(milestones)
+      .where(eq(milestones.userId, userId))
+      .orderBy(desc(milestones.threshold));
+  }
+
+  async getMilestone(userId: string, milestoneType: string, threshold: number): Promise<Milestone | undefined> {
+    const [milestone] = await db
+      .select()
+      .from(milestones)
+      .where(
+        and(
+          eq(milestones.userId, userId),
+          eq(milestones.milestoneType, milestoneType),
+          eq(milestones.threshold, threshold)
+        )
+      )
+      .limit(1);
+    return milestone || undefined;
+  }
+
+  async createMilestone(data: InsertMilestone): Promise<Milestone> {
+    const [milestone] = await db
+      .insert(milestones)
+      .values(data)
+      .returning();
+    return milestone;
+  }
+
+  async updateMilestone(userId: string, id: string, data: UpdateMilestone): Promise<Milestone> {
+    const [milestone] = await db
+      .update(milestones)
+      .set(data)
+      .where(
+        and(
+          eq(milestones.id, id),
+          eq(milestones.userId, userId)
+        )
+      )
+      .returning();
+    return milestone;
+  }
+
+  // Chatbot Settings
+  async getChatbotSettings(userId: string): Promise<ChatbotSettings | undefined> {
+    const [settings] = await db
+      .select()
+      .from(chatbotSettings)
+      .where(eq(chatbotSettings.userId, userId));
+    return settings || undefined;
+  }
+
+  async createChatbotSettings(userId: string, data: InsertChatbotSettings): Promise<ChatbotSettings> {
+    const [settings] = await db
+      .insert(chatbotSettings)
+      .values({ ...data, userId })
+      .returning();
+    return settings;
+  }
+
+  async updateChatbotSettings(userId: string, data: UpdateChatbotSettings): Promise<ChatbotSettings> {
+    const [settings] = await db
+      .update(chatbotSettings)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(chatbotSettings.userId, userId))
+      .returning();
+    return settings;
+  }
+
+  // Chatbot Responses
+  async getChatbotResponses(userId: string, limit: number = 100): Promise<ChatbotResponse[]> {
+    return await db
+      .select()
+      .from(chatbotResponses)
+      .where(eq(chatbotResponses.userId, userId))
+      .orderBy(desc(chatbotResponses.timestamp))
+      .limit(limit);
+  }
+
+  async getChatbotResponse(userId: string, id: string): Promise<ChatbotResponse | undefined> {
+    const [response] = await db
+      .select()
+      .from(chatbotResponses)
+      .where(
+        and(
+          eq(chatbotResponses.userId, userId),
+          eq(chatbotResponses.id, id)
+        )
+      );
+    return response || undefined;
+  }
+
+  async createChatbotResponse(userId: string, data: InsertChatbotResponse): Promise<ChatbotResponse> {
+    const [response] = await db
+      .insert(chatbotResponses)
+      .values({ ...data, userId })
+      .returning();
+    return response;
+  }
+
+  async updateChatbotResponse(userId: string, id: string, data: UpdateChatbotResponse): Promise<ChatbotResponse> {
+    const [response] = await db
+      .update(chatbotResponses)
+      .set(data)
+      .where(
+        and(
+          eq(chatbotResponses.userId, userId),
+          eq(chatbotResponses.id, id)
+        )
+      )
+      .returning();
+    return response;
+  }
+
+  // Chatbot Context
+  async getChatbotContext(userId: string, username: string, platform: string): Promise<ChatbotContext | undefined> {
+    const [context] = await db
+      .select()
+      .from(chatbotContext)
+      .where(
+        and(
+          eq(chatbotContext.botUserId, userId),
+          eq(chatbotContext.username, username),
+          eq(chatbotContext.platform, platform)
+        )
+      );
+    return context || undefined;
+  }
+
+  async getAllChatbotContexts(userId: string, limit: number = 50): Promise<ChatbotContext[]> {
+    return await db
+      .select()
+      .from(chatbotContext)
+      .where(eq(chatbotContext.botUserId, userId))
+      .orderBy(desc(chatbotContext.lastSeen))
+      .limit(limit);
+  }
+
+  async createChatbotContext(userId: string, data: InsertChatbotContext): Promise<ChatbotContext> {
+    const [context] = await db
+      .insert(chatbotContext)
+      .values({ ...data, botUserId: userId })
+      .returning();
+    return context;
+  }
+
+  async updateChatbotContext(userId: string, id: string, data: UpdateChatbotContext): Promise<ChatbotContext> {
+    const [context] = await db
+      .update(chatbotContext)
+      .set({ ...data, updatedAt: new Date() })
+      .where(
+        and(
+          eq(chatbotContext.id, id),
+          eq(chatbotContext.botUserId, userId)
+        )
+      )
+      .returning();
+    return context;
+  }
+
+  // Chatbot Personalities
+  async getChatbotPersonalities(userId: string): Promise<ChatbotPersonality[]> {
+    return await db
+      .select()
+      .from(chatbotPersonalities)
+      .where(eq(chatbotPersonalities.userId, userId))
+      .orderBy(desc(chatbotPersonalities.createdAt));
+  }
+
+  async getChatbotPersonality(userId: string, id: string): Promise<ChatbotPersonality | undefined> {
+    const [personality] = await db
+      .select()
+      .from(chatbotPersonalities)
+      .where(
+        and(
+          eq(chatbotPersonalities.userId, userId),
+          eq(chatbotPersonalities.id, id)
+        )
+      );
+    return personality || undefined;
+  }
+
+  async getChatbotPersonalityByName(userId: string, name: string): Promise<ChatbotPersonality | undefined> {
+    const [personality] = await db
+      .select()
+      .from(chatbotPersonalities)
+      .where(
+        and(
+          eq(chatbotPersonalities.userId, userId),
+          eq(chatbotPersonalities.name, name)
+        )
+      );
+    return personality || undefined;
+  }
+
+  async createChatbotPersonality(userId: string, data: InsertChatbotPersonality): Promise<ChatbotPersonality> {
+    const [personality] = await db
+      .insert(chatbotPersonalities)
+      .values({ ...data, userId })
+      .returning();
+    return personality;
+  }
+
+  async updateChatbotPersonality(userId: string, id: string, data: UpdateChatbotPersonality): Promise<ChatbotPersonality> {
+    const [personality] = await db
+      .update(chatbotPersonalities)
+      .set({ ...data, updatedAt: new Date() })
+      .where(
+        and(
+          eq(chatbotPersonalities.userId, userId),
+          eq(chatbotPersonalities.id, id)
+        )
+      )
+      .returning();
+    return personality;
+  }
+
+  async deleteChatbotPersonality(userId: string, id: string): Promise<void> {
+    await db
+      .delete(chatbotPersonalities)
+      .where(
+        and(
+          eq(chatbotPersonalities.userId, userId),
+          eq(chatbotPersonalities.id, id)
+        )
+      );
+  }
+
+  async getPresetPersonalities(): Promise<ChatbotPersonality[]> {
+    return await db
+      .select()
+      .from(chatbotPersonalities)
+      .where(eq(chatbotPersonalities.isPreset, true))
+      .orderBy(chatbotPersonalities.name);
+  }
+
+  async updateUser(userId: string, data: Partial<{
+    onboardingCompleted: boolean;
+    onboardingStep: number;
+    dismissedWelcome: boolean;
+  }>): Promise<void> {
+    await db
+      .update(users)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(users.id, userId));
   }
 }
 

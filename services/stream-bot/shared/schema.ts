@@ -3,13 +3,17 @@ import { pgTable, text, varchar, timestamp, boolean, integer, jsonb, uniqueIndex
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// Users - stores user accounts for multi-tenant access
+// Users - stores user accounts for multi-tenant access (OAuth-based)
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   email: text("email").notNull().unique(),
-  passwordHash: text("password_hash").notNull(),
+  passwordHash: text("password_hash"), // Nullable - OAuth users don't have passwords
+  primaryPlatform: text("primary_platform"), // 'twitch', 'youtube', 'kick' - which OAuth they used first
   role: text("role").default("user").notNull(), // 'user', 'admin'
   isActive: boolean("is_active").default(true).notNull(),
+  onboardingCompleted: boolean("onboarding_completed").default(false).notNull(),
+  onboardingStep: integer("onboarding_step").default(0).notNull(), // 0-4 for tracking progress
+  dismissedWelcome: boolean("dismissed_welcome").default(false).notNull(), // Track if user dismissed welcome card
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -576,6 +580,106 @@ export const milestones = pgTable("milestones", {
   ),
 }));
 
+// Chatbot Settings - AI chatbot personality and configuration
+export const chatbotSettings = pgTable("chatbot_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }).unique(),
+  isEnabled: boolean("is_enabled").default(false).notNull(),
+  personality: text("personality").default("friendly").notNull(), // 'friendly', 'snarky', 'professional', 'gamer', 'custom'
+  customPersonalityPrompt: text("custom_personality_prompt"), // Used when personality is 'custom'
+  temperature: integer("temperature").default(10).notNull(), // Stored as integer (0-20), divided by 10 in app (0.0-2.0)
+  responseRate: integer("response_rate").default(30).notNull(), // Max 1 response per user per X seconds
+  contextWindow: integer("context_window").default(10).notNull(), // Number of recent messages to include in context
+  learningEnabled: boolean("learning_enabled").default(true).notNull(), // Track and learn from user feedback
+  mentionTrigger: text("mention_trigger").default("@bot").notNull(), // What to watch for in chat
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Chatbot Responses - Log of all chatbot interactions for learning
+export const chatbotResponses = pgTable("chatbot_responses", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  username: text("username").notNull(), // User who triggered the bot
+  platform: text("platform").notNull(), // 'twitch', 'youtube', 'kick'
+  message: text("message").notNull(), // Original message that triggered bot
+  response: text("response").notNull(), // Bot's response
+  personality: text("personality").notNull(), // Personality used for this response
+  wasHelpful: boolean("was_helpful"), // null = no feedback yet, true/false = user feedback
+  engagementScore: integer("engagement_score").default(0).notNull(), // 0-100, based on reactions/replies
+  metadata: jsonb("metadata"), // Additional data: temperature, contextSize, processingTime
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Chatbot Context - Track conversation context per user
+export const chatbotContext = pgTable("chatbot_context", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  botUserId: varchar("bot_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  username: text("username").notNull(), // Chat user's username
+  platform: text("platform").notNull(), // 'twitch', 'youtube', 'kick'
+  recentMessages: jsonb("recent_messages").default(sql`'[]'::jsonb`).notNull(), // Array of {message, timestamp, isBot}
+  conversationSummary: text("conversation_summary"), // AI-generated summary of conversation
+  messageCount: integer("message_count").default(0).notNull(),
+  lastSeen: timestamp("last_seen").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  userContextIdx: uniqueIndex("chatbot_context_bot_user_id_username_platform_unique").on(
+    table.botUserId,
+    table.username,
+    table.platform
+  ),
+}));
+
+// Chatbot Personalities - Custom AI personalities users can create
+export const chatbotPersonalities = pgTable("chatbot_personalities", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(), // User-friendly name (e.g., "Gaming Buddy", "Helpful Assistant")
+  systemPrompt: text("system_prompt").notNull(), // The full system prompt for this personality
+  temperature: integer("temperature").default(10).notNull(), // Stored as integer (0-20), divided by 10 in app (0.0-2.0)
+  traits: jsonb("traits").default(sql`'[]'::jsonb`).notNull(), // Array of personality traits/keywords
+  isPreset: boolean("is_preset").default(false).notNull(), // True for built-in personalities, false for custom
+  isActive: boolean("is_active").default(true).notNull(),
+  usageCount: integer("usage_count").default(0).notNull(), // Track how often this personality is used
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  userNameIdx: uniqueIndex("chatbot_personalities_user_id_name_unique").on(table.userId, table.name),
+}));
+
+// Analytics Snapshots - Daily snapshots of streamer metrics
+export const analyticsSnapshots = pgTable("analytics_snapshots", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  date: timestamp("date").notNull(),
+  followers: integer("followers").default(0).notNull(),
+  subscribers: integer("subscribers").default(0).notNull(),
+  avgViewers: integer("avg_viewers").default(0).notNull(),
+  totalStreams: integer("total_streams").default(0).notNull(),
+  totalHours: integer("total_hours").default(0).notNull(),
+  revenue: integer("revenue").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  userDateIdx: uniqueIndex("analytics_snapshots_user_id_date_unique").on(table.userId, table.date),
+}));
+
+// Sentiment Analysis - AI-powered sentiment analysis of chat messages
+export const sentimentAnalysis = pgTable("sentiment_analysis", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  date: timestamp("date").notNull(),
+  positiveMessages: integer("positive_messages").default(0).notNull(),
+  negativeMessages: integer("negative_messages").default(0).notNull(),
+  neutralMessages: integer("neutral_messages").default(0).notNull(),
+  sentimentScore: integer("sentiment_score").default(0).notNull(), // -100 to 100
+  topTopics: jsonb("top_topics").default(sql`'[]'::jsonb`).notNull(), // Array of {topic: string, count: number}
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  userDateIdx: uniqueIndex("sentiment_analysis_user_id_date_unique").on(table.userId, table.date),
+}));
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users, {
   email: z.string().email("Invalid email address"),
@@ -909,6 +1013,81 @@ export const insertMilestoneSchema = createInsertSchema(milestones, {
   createdAt: true,
 });
 
+export const insertChatbotSettingsSchema = createInsertSchema(chatbotSettings, {
+  personality: z.enum(["friendly", "snarky", "professional", "enthusiastic", "chill", "custom"]),
+  customPersonalityPrompt: z.string().max(1000, "Personality prompt too long").optional(),
+  temperature: z.coerce.number().min(0).max(20), // 0-20 representing 0.0-2.0
+  responseRate: z.coerce.number().min(10).max(300), // 10-300 seconds
+  contextWindow: z.coerce.number().min(1).max(50), // 1-50 messages
+  mentionTrigger: z.string().min(1, "Mention trigger is required").max(50, "Mention trigger too long"),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertChatbotResponseSchema = createInsertSchema(chatbotResponses, {
+  username: z.string().min(1, "Username is required").max(100, "Username too long"),
+  platform: z.enum(["twitch", "youtube", "kick"]),
+  message: z.string().min(1, "Message is required").max(500, "Message too long"),
+  response: z.string().min(1, "Response is required").max(500, "Response too long"),
+  personality: z.enum(["friendly", "snarky", "professional", "enthusiastic", "chill", "custom"]),
+  wasHelpful: z.boolean().optional(),
+  engagementScore: z.coerce.number().min(0).max(100).optional(),
+}).omit({
+  id: true,
+  timestamp: true,
+  createdAt: true,
+});
+
+export const insertChatbotContextSchema = createInsertSchema(chatbotContext, {
+  username: z.string().min(1, "Username is required").max(100, "Username too long"),
+  platform: z.enum(["twitch", "youtube", "kick"]),
+  messageCount: z.coerce.number().min(0).optional(),
+  conversationSummary: z.string().max(1000, "Summary too long").optional(),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertChatbotPersonalitySchema = createInsertSchema(chatbotPersonalities, {
+  name: z.string().min(1, "Personality name is required").max(100, "Name too long"),
+  systemPrompt: z.string().min(10, "System prompt is required").max(2000, "Prompt too long"),
+  temperature: z.coerce.number().min(0).max(20), // 0-20 representing 0.0-2.0
+  traits: z.array(z.string()).optional(),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertAnalyticsSnapshotSchema = createInsertSchema(analyticsSnapshots, {
+  followers: z.coerce.number().min(0),
+  subscribers: z.coerce.number().min(0),
+  avgViewers: z.coerce.number().min(0),
+  totalStreams: z.coerce.number().min(0),
+  totalHours: z.coerce.number().min(0),
+  revenue: z.coerce.number().min(0),
+}).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertSentimentAnalysisSchema = createInsertSchema(sentimentAnalysis, {
+  positiveMessages: z.coerce.number().min(0),
+  negativeMessages: z.coerce.number().min(0),
+  neutralMessages: z.coerce.number().min(0),
+  sentimentScore: z.coerce.number().min(-100).max(100),
+  topTopics: z.array(z.object({
+    topic: z.string(),
+    count: z.number(),
+  })).optional(),
+}).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Update schemas for partial updates
 export const updateUserSchema = insertUserSchema.partial();
 export const updateBotConfigSchema = insertBotConfigSchema.partial();
@@ -932,6 +1111,12 @@ export const updatePollSchema = insertPollSchema.partial();
 export const updatePollVoteSchema = insertPollVoteSchema.partial();
 export const updatePredictionSchema = insertPredictionSchema.partial();
 export const updatePredictionBetSchema = insertPredictionBetSchema.partial();
+export const updateAlertSettingsSchema = insertAlertSettingsSchema.partial();
+export const updateMilestoneSchema = insertMilestoneSchema.partial();
+export const updateChatbotSettingsSchema = insertChatbotSettingsSchema.partial();
+export const updateChatbotResponseSchema = insertChatbotResponseSchema.partial();
+export const updateChatbotContextSchema = insertChatbotContextSchema.partial();
+export const updateChatbotPersonalitySchema = insertChatbotPersonalitySchema.partial();
 
 // Signup schema - for user registration
 export const signupSchema = z.object({
@@ -979,6 +1164,15 @@ export type Poll = typeof polls.$inferSelect;
 export type PollVote = typeof pollVotes.$inferSelect;
 export type Prediction = typeof predictions.$inferSelect;
 export type PredictionBet = typeof predictionBets.$inferSelect;
+export type AlertSettings = typeof alertSettings.$inferSelect;
+export type AlertHistory = typeof alertHistory.$inferSelect;
+export type Milestone = typeof milestones.$inferSelect;
+export type ChatbotSettings = typeof chatbotSettings.$inferSelect;
+export type ChatbotResponse = typeof chatbotResponses.$inferSelect;
+export type ChatbotContext = typeof chatbotContext.$inferSelect;
+export type ChatbotPersonality = typeof chatbotPersonalities.$inferSelect;
+export type AnalyticsSnapshot = typeof analyticsSnapshots.$inferSelect;
+export type SentimentAnalysis = typeof sentimentAnalysis.$inferSelect;
 
 // Insert types
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -1014,6 +1208,15 @@ export type InsertPoll = z.infer<typeof insertPollSchema>;
 export type InsertPollVote = z.infer<typeof insertPollVoteSchema>;
 export type InsertPrediction = z.infer<typeof insertPredictionSchema>;
 export type InsertPredictionBet = z.infer<typeof insertPredictionBetSchema>;
+export type InsertAlertSettings = z.infer<typeof insertAlertSettingsSchema>;
+export type InsertAlertHistory = z.infer<typeof insertAlertHistorySchema>;
+export type InsertMilestone = z.infer<typeof insertMilestoneSchema>;
+export type InsertChatbotSettings = z.infer<typeof insertChatbotSettingsSchema>;
+export type InsertChatbotResponse = z.infer<typeof insertChatbotResponseSchema>;
+export type InsertChatbotContext = z.infer<typeof insertChatbotContextSchema>;
+export type InsertChatbotPersonality = z.infer<typeof insertChatbotPersonalitySchema>;
+export type InsertAnalyticsSnapshot = z.infer<typeof insertAnalyticsSnapshotSchema>;
+export type InsertSentimentAnalysis = z.infer<typeof insertSentimentAnalysisSchema>;
 
 // Update types
 export type UpdateUser = z.infer<typeof updateUserSchema>;
@@ -1038,6 +1241,8 @@ export type UpdatePoll = z.infer<typeof updatePollSchema>;
 export type UpdatePollVote = z.infer<typeof updatePollVoteSchema>;
 export type UpdatePrediction = z.infer<typeof updatePredictionSchema>;
 export type UpdatePredictionBet = z.infer<typeof updatePredictionBetSchema>;
+export type UpdateAlertSettings = z.infer<typeof updateAlertSettingsSchema>;
+export type UpdateMilestone = z.infer<typeof updateMilestoneSchema>;
 
 // Auth types
 export type Signup = z.infer<typeof signupSchema>;

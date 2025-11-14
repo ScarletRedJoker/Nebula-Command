@@ -4,11 +4,30 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useWebSocket } from "@/hooks/use-websocket";
 import { PlatformCard } from "@/components/platform-card";
 import { ConnectPlatformDialog } from "@/components/connect-platform-dialog";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { WelcomeCard } from "@/components/WelcomeCard";
+import { FeatureCard } from "@/components/FeatureCard";
+import { EmptyState } from "@/components/EmptyState";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Activity, Zap, Clock, TrendingUp } from "lucide-react";
+import { 
+  Activity, 
+  Zap, 
+  Clock, 
+  TrendingUp, 
+  MessageSquare, 
+  Trophy, 
+  Bot, 
+  Coins,
+  Sparkles,
+  ArrowRight,
+  Play,
+  Pause,
+  Plus,
+} from "lucide-react";
+import { Link, useLocation } from "wouter";
 import type { PlatformConnection, BotSettings } from "@shared/schema";
 
 export default function Dashboard() {
@@ -168,14 +187,91 @@ export default function Dashboard() {
     return platforms?.find((p) => p.platform === platform);
   };
 
+  const [, setLocation] = useLocation();
+
+  const toggleBotMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("PATCH", "/api/settings", {
+        isActive: !settings?.isActive,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+      toast({
+        title: settings?.isActive ? "Bot Paused" : "Bot Activated",
+        description: settings?.isActive 
+          ? "Your bot has been paused" 
+          : "Your bot is now active!",
+      });
+    },
+  });
+
+  const quickTriggerMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("POST", "/api/trigger-fact", {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/messages"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      toast({
+        title: "Fact Posted!",
+        description: "Your Snapple fact has been posted to all active platforms.",
+      });
+    },
+  });
+
+  const hasConnectedPlatforms = platforms?.some(p => p.isConnected) ?? false;
+
   return (
-    <div className="space-y-8 p-6">
-      <div>
-        <h1 className="text-3xl font-bold">Dashboard</h1>
-        <p className="text-muted-foreground mt-1">
-          Manage your multi-platform streaming bot
-        </p>
+    <div className="space-y-8 p-4 sm:p-6 max-w-7xl">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold">Dashboard</h1>
+          <p className="text-muted-foreground mt-1">
+            Manage your multi-platform streaming bot
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => toggleBotMutation.mutate()}
+            disabled={toggleBotMutation.isPending || !hasConnectedPlatforms}
+          >
+            {settings?.isActive ? (
+              <>
+                <Pause className="h-4 w-4 mr-2" />
+                Pause Bot
+              </>
+            ) : (
+              <>
+                <Play className="h-4 w-4 mr-2" />
+                Start Bot
+              </>
+            )}
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => quickTriggerMutation.mutate()}
+            disabled={quickTriggerMutation.isPending || !hasConnectedPlatforms}
+          >
+            {quickTriggerMutation.isPending ? (
+              <>
+                <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
+                Posting...
+              </>
+            ) : (
+              <>
+                <Zap className="h-4 w-4 mr-2" />
+                Post Fact Now
+              </>
+            )}
+          </Button>
+        </div>
       </div>
+
+      {/* Welcome Card for New Users */}
+      <WelcomeCard />
 
       {/* Stats Overview */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -254,11 +350,118 @@ export default function Dashboard() {
         </Card>
       </div>
 
+      {/* What's New Section */}
+      <Card className="border-primary/20">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              <CardTitle>What's New</CardTitle>
+            </div>
+            <Badge variant="secondary">Latest Updates</Badge>
+          </div>
+          <CardDescription>
+            Check out the newest features and improvements
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-2">
+          <div className="flex gap-3 p-3 rounded-lg bg-muted/50">
+            <div className="flex-shrink-0">
+              <div className="h-2 w-2 rounded-full bg-primary mt-2" />
+            </div>
+            <div className="space-y-1">
+              <div className="text-sm font-medium">Multi-Platform Support</div>
+              <div className="text-xs text-muted-foreground">
+                Now supporting Twitch, YouTube, and Kick simultaneously!
+              </div>
+            </div>
+          </div>
+          <div className="flex gap-3 p-3 rounded-lg bg-muted/50">
+            <div className="flex-shrink-0">
+              <div className="h-2 w-2 rounded-full bg-primary mt-2" />
+            </div>
+            <div className="space-y-1">
+              <div className="text-sm font-medium">AI Chatbot Integration</div>
+              <div className="text-xs text-muted-foreground">
+                Interactive AI chatbot with custom personalities
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Feature Discovery */}
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-2xl font-semibold">Explore Features</h2>
+          <Link href="/settings">
+            <Button variant="ghost" size="sm">
+              View All
+              <ArrowRight className="h-4 w-4 ml-2" />
+            </Button>
+          </Link>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <FeatureCard
+            icon={MessageSquare}
+            title="Custom Commands"
+            description="Create personalized chat commands for your community"
+            badge="Popular"
+            badgeVariant="default"
+            iconColor="text-blue-500"
+            action={{
+              label: "Manage Commands",
+              onClick: () => setLocation("/commands"),
+            }}
+          />
+          <FeatureCard
+            icon={Trophy}
+            title="Giveaways"
+            description="Run engaging giveaways and raffles for viewers"
+            iconColor="text-yellow-500"
+            action={{
+              label: "Create Giveaway",
+              onClick: () => setLocation("/giveaways"),
+            }}
+          />
+          <FeatureCard
+            icon={Coins}
+            title="Currency System"
+            description="Custom points and rewards for loyal viewers"
+            badge="New"
+            iconColor="text-green-500"
+            action={{
+              label: "Setup Currency",
+              onClick: () => setLocation("/currency"),
+            }}
+          />
+          <FeatureCard
+            icon={Bot}
+            title="AI Chatbot"
+            description="Intelligent chat responses with custom personalities"
+            badge="AI"
+            iconColor="text-purple-500"
+            action={{
+              label: "Configure AI",
+              onClick: () => setLocation("/chatbot"),
+            }}
+          />
+        </div>
+      </div>
+
       {/* Platform Connections */}
       <div>
-        <h2 className="text-2xl font-semibold mb-4">Platform Connections</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-2xl font-semibold">Platform Connections</h2>
+          {hasConnectedPlatforms && (
+            <Badge variant="outline" className="bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20">
+              <div className="h-2 w-2 rounded-full bg-green-500 mr-1.5 animate-pulse" />
+              {stats?.activePlatforms || 0} Active
+            </Badge>
+          )}
+        </div>
         {platformsLoading ? (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
             {[1, 2, 3].map((i) => (
               <Card key={i}>
                 <CardHeader>
@@ -271,8 +474,18 @@ export default function Dashboard() {
               </Card>
             ))}
           </div>
+        ) : !hasConnectedPlatforms ? (
+          <EmptyState
+            icon={Plus}
+            title="No Platforms Connected"
+            description="Connect your first streaming platform to start posting AI-generated Snapple facts to your viewers!"
+            action={{
+              label: "Connect a Platform",
+              onClick: () => handleConnect("twitch"),
+            }}
+          />
         ) : (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
             <PlatformCard
               platform="twitch"
               connection={getPlatformConnection("twitch")}

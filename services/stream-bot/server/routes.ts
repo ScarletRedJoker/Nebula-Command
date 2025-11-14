@@ -15,6 +15,7 @@ import {
 } from "@shared/schema";
 import { getAvailableVariables } from "./command-variables";
 import authRoutes from "./auth/routes";
+import oauthSignInRoutes from "./auth/oauth-signin-routes";
 import spotifyRoutes from "./spotify-routes";
 import oauthSpotifyRoutes from "./oauth-spotify";
 import oauthYoutubeRoutes from "./oauth-youtube";
@@ -27,8 +28,13 @@ import { statsService } from "./stats-service";
 import { GamesService } from "./games-service";
 import { currencyService } from "./currency-service";
 import { songRequestService } from "./song-request-service";
+import { PollsService } from "./polls-service";
+import { AlertsService } from "./alerts-service";
+import { ChatbotService } from "./chatbot-service";
+import { analyticsService } from "./analytics-service";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  app.use("/api/auth", oauthSignInRoutes);
   app.use("/auth", authRoutes);
   app.use("/auth", oauthSpotifyRoutes);
   app.use("/auth", oauthYoutubeRoutes);
@@ -330,6 +336,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(stats);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch stats" });
+    }
+  });
+
+  // Analytics
+  app.get("/api/analytics/sentiment", requireAuth, async (req, res) => {
+    try {
+      const days = parseInt(req.query.days as string) || 30;
+      const sentimentTrend = await analyticsService.getSentimentTrend(req.user!.id, days);
+      res.json(sentimentTrend);
+    } catch (error: any) {
+      console.error('[Analytics] Sentiment endpoint error:', error);
+      res.status(500).json({ error: "Failed to fetch sentiment data" });
+    }
+  });
+
+  app.get("/api/analytics/growth", requireAuth, async (req, res) => {
+    try {
+      const predictions = await analyticsService.predictGrowth(req.user!.id);
+      res.json(predictions);
+    } catch (error: any) {
+      console.error('[Analytics] Growth endpoint error:', error);
+      res.status(500).json({ error: "Failed to generate growth predictions" });
+    }
+  });
+
+  app.get("/api/analytics/engagement", requireAuth, async (req, res) => {
+    try {
+      const days = parseInt(req.query.days as string) || 30;
+      const metrics = await analyticsService.getEngagementMetrics(req.user!.id, days);
+      res.json(metrics);
+    } catch (error: any) {
+      console.error('[Analytics] Engagement endpoint error:', error);
+      res.status(500).json({ error: "Failed to fetch engagement metrics" });
+    }
+  });
+
+  app.get("/api/analytics/best-times", requireAuth, async (req, res) => {
+    try {
+      const days = parseInt(req.query.days as string) || 90;
+      const bestTimes = await analyticsService.getBestStreamingTimes(req.user!.id, days);
+      res.json(bestTimes);
+    } catch (error: any) {
+      console.error('[Analytics] Best times endpoint error:', error);
+      res.status(500).json({ error: "Failed to fetch best streaming times" });
+    }
+  });
+
+  app.get("/api/analytics/health-score", requireAuth, async (req, res) => {
+    try {
+      const healthScore = await analyticsService.calculateHealthScore(req.user!.id);
+      res.json(healthScore);
+    } catch (error: any) {
+      console.error('[Analytics] Health score endpoint error:', error);
+      res.status(500).json({ error: "Failed to calculate health score" });
     }
   });
 
@@ -1514,6 +1574,778 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Failed to fulfill redemption:", error);
       res.status(500).json({ error: "Failed to fulfill redemption" });
+    }
+  });
+
+  app.post("/api/polls", requireAuth, async (req, res) => {
+    try {
+      const { question, options, durationSeconds, platform } = req.body;
+      
+      if (!question || !options || !Array.isArray(options) || options.length < 2) {
+        return res.status(400).json({ error: "Missing or invalid fields: question and at least 2 options required" });
+      }
+      
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const pollsService = new PollsService(userStorage);
+      
+      const poll = await pollsService.createPoll(
+        req.user!.id,
+        question,
+        options,
+        durationSeconds || 120,
+        platform || "twitch"
+      );
+      
+      const result = await pollsService.startPoll(poll.id);
+      res.json({ poll, ...result });
+    } catch (error) {
+      console.error("Failed to create poll:", error);
+      res.status(500).json({ error: "Failed to create poll" });
+    }
+  });
+
+  app.post("/api/polls/:id/vote", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { username, option, platform } = req.body;
+      
+      if (!username || !option) {
+        return res.status(400).json({ error: "Missing required fields: username, option" });
+      }
+      
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const pollsService = new PollsService(userStorage);
+      
+      const result = await pollsService.vote(parseInt(id), username, option, platform || "twitch");
+      res.json(result);
+    } catch (error) {
+      console.error("Failed to vote:", error);
+      res.status(500).json({ error: "Failed to vote" });
+    }
+  });
+
+  app.post("/api/polls/:id/end", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const pollsService = new PollsService(userStorage);
+      
+      const result = await pollsService.endPoll(parseInt(id));
+      res.json(result);
+    } catch (error) {
+      console.error("Failed to end poll:", error);
+      res.status(500).json({ error: "Failed to end poll" });
+    }
+  });
+
+  app.get("/api/polls/active", requireAuth, async (req, res) => {
+    try {
+      const { platform = "twitch" } = req.query;
+      
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const pollsService = new PollsService(userStorage);
+      
+      const poll = await pollsService.getActivePoll(req.user!.id, platform as string);
+      res.json(poll || null);
+    } catch (error) {
+      console.error("Failed to get active poll:", error);
+      res.status(500).json({ error: "Failed to get active poll" });
+    }
+  });
+
+  app.get("/api/polls/:id/results", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const pollsService = new PollsService(userStorage);
+      
+      const results = await pollsService.getPollResults(parseInt(id));
+      res.json(results);
+    } catch (error) {
+      console.error("Failed to get poll results:", error);
+      res.status(500).json({ error: "Failed to get poll results" });
+    }
+  });
+
+  app.get("/api/polls", requireAuth, async (req, res) => {
+    try {
+      const { limit = "20", platform } = req.query;
+      
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const pollsService = new PollsService(userStorage);
+      
+      const polls = await pollsService.getPollHistory(req.user!.id, parseInt(limit as string), platform as string | undefined);
+      res.json(polls);
+    } catch (error) {
+      console.error("Failed to get polls:", error);
+      res.status(500).json({ error: "Failed to get polls" });
+    }
+  });
+
+  app.post("/api/predictions", requireAuth, async (req, res) => {
+    try {
+      const { title, outcomes, durationSeconds, platform } = req.body;
+      
+      if (!title || !outcomes || !Array.isArray(outcomes) || outcomes.length < 2) {
+        return res.status(400).json({ error: "Missing or invalid fields: title and at least 2 outcomes required" });
+      }
+      
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const pollsService = new PollsService(userStorage);
+      
+      const prediction = await pollsService.createPrediction(
+        req.user!.id,
+        title,
+        outcomes,
+        durationSeconds || 300,
+        platform || "twitch"
+      );
+      
+      const result = await pollsService.startPrediction(prediction.id);
+      res.json({ prediction, ...result });
+    } catch (error) {
+      console.error("Failed to create prediction:", error);
+      res.status(500).json({ error: "Failed to create prediction" });
+    }
+  });
+
+  app.post("/api/predictions/:id/bet", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { username, outcome, amount, platform } = req.body;
+      
+      if (!username || !outcome || !amount) {
+        return res.status(400).json({ error: "Missing required fields: username, outcome, amount" });
+      }
+      
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const pollsService = new PollsService(userStorage);
+      
+      const result = await pollsService.placeBet(parseInt(id), username, outcome, amount, platform || "twitch");
+      res.json(result);
+    } catch (error) {
+      console.error("Failed to place bet:", error);
+      res.status(500).json({ error: "Failed to place bet" });
+    }
+  });
+
+  app.post("/api/predictions/:id/resolve", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { winningOutcome } = req.body;
+      
+      if (!winningOutcome) {
+        return res.status(400).json({ error: "Missing required field: winningOutcome" });
+      }
+      
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const pollsService = new PollsService(userStorage);
+      
+      const result = await pollsService.resolvePrediction(parseInt(id), winningOutcome);
+      res.json(result);
+    } catch (error) {
+      console.error("Failed to resolve prediction:", error);
+      res.status(500).json({ error: "Failed to resolve prediction" });
+    }
+  });
+
+  app.get("/api/predictions/active", requireAuth, async (req, res) => {
+    try {
+      const { platform = "twitch" } = req.query;
+      
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const pollsService = new PollsService(userStorage);
+      
+      const prediction = await pollsService.getActivePrediction(req.user!.id, platform as string);
+      res.json(prediction || null);
+    } catch (error) {
+      console.error("Failed to get active prediction:", error);
+      res.status(500).json({ error: "Failed to get active prediction" });
+    }
+  });
+
+  app.get("/api/predictions/:id/results", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const pollsService = new PollsService(userStorage);
+      
+      const results = await pollsService.getPredictionResults(parseInt(id));
+      res.json(results);
+    } catch (error) {
+      console.error("Failed to get prediction results:", error);
+      res.status(500).json({ error: "Failed to get prediction results" });
+    }
+  });
+
+  app.get("/api/predictions", requireAuth, async (req, res) => {
+    try {
+      const { limit = "20", platform } = req.query;
+      
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const pollsService = new PollsService(userStorage);
+      
+      const predictions = await pollsService.getPredictionHistory(req.user!.id, parseInt(limit as string), platform as string | undefined);
+      res.json(predictions);
+    } catch (error) {
+      console.error("Failed to get predictions:", error);
+      res.status(500).json({ error: "Failed to get predictions" });
+    }
+  });
+
+  app.get("/api/alerts/settings", requireAuth, async (req, res) => {
+    try {
+      const userStorage = storage.getUserStorage(req.user!.id);
+      let settings = await userStorage.getAlertSettings();
+      
+      if (!settings) {
+        settings = await userStorage.createAlertSettings({
+          userId: req.user!.id,
+          enableFollowerAlerts: true,
+          enableSubAlerts: true,
+          enableRaidAlerts: true,
+          enableMilestoneAlerts: true,
+          followerTemplate: "Welcome {username}! Thanks for the follow! 🎉",
+          subTemplate: "Thank you {username} for subscribing! {tier} for {months} months! 💜",
+          raidTemplate: "Thank you {raider} for the raid with {viewers} viewers! 🚀",
+          milestoneThresholds: [50, 100, 500, 1000, 5000, 10000],
+        });
+      }
+      
+      res.json(settings);
+    } catch (error) {
+      console.error("Failed to get alert settings:", error);
+      res.status(500).json({ error: "Failed to get alert settings" });
+    }
+  });
+
+  app.patch("/api/alerts/settings", requireAuth, async (req, res) => {
+    try {
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const settings = await userStorage.updateAlertSettings(req.body);
+      res.json(settings);
+    } catch (error) {
+      console.error("Failed to update alert settings:", error);
+      res.status(500).json({ error: "Failed to update alert settings" });
+    }
+  });
+
+  app.get("/api/alerts/history", requireAuth, async (req, res) => {
+    try {
+      const { type, limit = "50" } = req.query;
+      
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const history = await userStorage.getAlertHistory(
+        type as string | undefined,
+        parseInt(limit as string)
+      );
+      
+      res.json(history);
+    } catch (error) {
+      console.error("Failed to get alert history:", error);
+      res.status(500).json({ error: "Failed to get alert history" });
+    }
+  });
+
+  app.post("/api/alerts/test", requireAuth, async (req, res) => {
+    try {
+      const { alertType, platform = "twitch" } = req.body;
+      
+      if (!alertType || !["follower", "subscriber", "raid", "milestone"].includes(alertType)) {
+        return res.status(400).json({ error: "Invalid alert type" });
+      }
+      
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const alertsService = new AlertsService(userStorage);
+      
+      const result = await alertsService.testAlert(req.user!.id, alertType, platform);
+      
+      if (!result.success) {
+        return res.status(400).json({ error: "Failed to test alert" });
+      }
+      
+      res.json(result);
+    } catch (error) {
+      console.error("Failed to test alert:", error);
+      res.status(500).json({ error: "Failed to test alert" });
+    }
+  });
+
+  app.get("/api/alerts/milestones", requireAuth, async (req, res) => {
+    try {
+      const { type = "followers" } = req.query;
+      
+      if (!["followers", "subscribers"].includes(type as string)) {
+        return res.status(400).json({ error: "Invalid milestone type" });
+      }
+      
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const alertsService = new AlertsService(userStorage);
+      
+      const progress = await alertsService.getMilestoneProgress(
+        req.user!.id,
+        type as "followers" | "subscribers"
+      );
+      
+      res.json(progress);
+    } catch (error) {
+      console.error("Failed to get milestone progress:", error);
+      res.status(500).json({ error: "Failed to get milestone progress" });
+    }
+  });
+
+  // Chatbot
+  app.get("/api/chatbot/settings", requireAuth, async (req, res) => {
+    try {
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const settings = await userStorage.getChatbotSettings();
+      res.json(settings || {
+        userId: req.user!.id,
+        isEnabled: false,
+        personality: "friendly",
+        responseRate: 60,
+        learningEnabled: true,
+        contextWindow: 10,
+        mentionTrigger: "@bot"
+      });
+    } catch (error) {
+      console.error("Failed to get chatbot settings:", error);
+      res.status(500).json({ error: "Failed to get chatbot settings" });
+    }
+  });
+
+  app.patch("/api/chatbot/settings", requireAuth, async (req, res) => {
+    try {
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const settings = await userStorage.updateChatbotSettings(req.body);
+      res.json(settings);
+    } catch (error) {
+      console.error("Failed to update chatbot settings:", error);
+      res.status(500).json({ error: "Failed to update chatbot settings" });
+    }
+  });
+
+  app.get("/api/chatbot/personalities/presets", requireAuth, async (req, res) => {
+    try {
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const presets = await userStorage.getPresetPersonalities();
+      res.json(presets);
+    } catch (error) {
+      console.error("Failed to get preset personalities:", error);
+      res.status(500).json({ error: "Failed to get preset personalities" });
+    }
+  });
+
+  app.get("/api/chatbot/personalities", requireAuth, async (req, res) => {
+    try {
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const personalities = await userStorage.getChatbotPersonalities();
+      res.json(personalities);
+    } catch (error) {
+      console.error("Failed to get chatbot personalities:", error);
+      res.status(500).json({ error: "Failed to get chatbot personalities" });
+    }
+  });
+
+  app.get("/api/chatbot/personalities/:id", requireAuth, async (req, res) => {
+    try {
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const personality = await userStorage.getChatbotPersonality(req.params.id);
+      if (!personality) {
+        return res.status(404).json({ error: "Personality not found" });
+      }
+      res.json(personality);
+    } catch (error) {
+      console.error("Failed to get chatbot personality:", error);
+      res.status(500).json({ error: "Failed to get chatbot personality" });
+    }
+  });
+
+  app.post("/api/chatbot/personalities", requireAuth, async (req, res) => {
+    try {
+      const { name, systemPrompt, temperature, traits } = req.body;
+      
+      if (!name || !systemPrompt) {
+        return res.status(400).json({ error: "Missing required fields: name, systemPrompt" });
+      }
+      
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const personality = await userStorage.createChatbotPersonality({
+        name,
+        systemPrompt,
+        temperature: temperature || 0.7,
+        traits: traits || []
+      });
+      
+      res.json(personality);
+    } catch (error) {
+      console.error("Failed to create chatbot personality:", error);
+      res.status(500).json({ error: "Failed to create chatbot personality" });
+    }
+  });
+
+  app.patch("/api/chatbot/personalities/:id", requireAuth, async (req, res) => {
+    try {
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const personality = await userStorage.updateChatbotPersonality(req.params.id, req.body);
+      res.json(personality);
+    } catch (error) {
+      console.error("Failed to update chatbot personality:", error);
+      res.status(500).json({ error: "Failed to update chatbot personality" });
+    }
+  });
+
+  app.delete("/api/chatbot/personalities/:id", requireAuth, async (req, res) => {
+    try {
+      const userStorage = storage.getUserStorage(req.user!.id);
+      await userStorage.deleteChatbotPersonality(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Failed to delete chatbot personality:", error);
+      res.status(500).json({ error: "Failed to delete chatbot personality" });
+    }
+  });
+
+  app.get("/api/chatbot/context", requireAuth, async (req, res) => {
+    try {
+      const { limit = "20", username } = req.query;
+      const userStorage = storage.getUserStorage(req.user!.id);
+      
+      let context;
+      if (username) {
+        context = await userStorage.getChatbotContextByUsername(username as string, parseInt(limit as string));
+      } else {
+        context = await userStorage.getChatbotContext(parseInt(limit as string));
+      }
+      
+      res.json(context);
+    } catch (error) {
+      console.error("Failed to get chatbot context:", error);
+      res.status(500).json({ error: "Failed to get chatbot context" });
+    }
+  });
+
+  app.post("/api/chatbot/respond", requireAuth, async (req, res) => {
+    try {
+      const { message, username, platform = "twitch" } = req.body;
+      
+      if (!message || !username) {
+        return res.status(400).json({ error: "Missing required fields: message, username" });
+      }
+      
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const chatbotService = new ChatbotService(userStorage);
+      
+      const response = await chatbotService.processMessage(username, message, platform);
+      
+      res.json({ response, success: true });
+    } catch (error) {
+      console.error("Failed to generate chatbot response:", error);
+      res.status(500).json({ error: "Failed to generate chatbot response" });
+    }
+  });
+
+  // Polls
+  app.get("/api/polls", requireAuth, async (req, res) => {
+    try {
+      const { limit = "20" } = req.query;
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const polls = await userStorage.getPolls(parseInt(limit as string));
+      res.json(polls);
+    } catch (error) {
+      console.error("Failed to get polls:", error);
+      res.status(500).json({ error: "Failed to get polls" });
+    }
+  });
+
+  app.get("/api/polls/active", requireAuth, async (req, res) => {
+    try {
+      const { platform } = req.query;
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const pollsService = new PollsService(userStorage);
+      const activePoll = await pollsService.getActivePoll(req.user!.id, platform as string | undefined);
+      res.json(activePoll);
+    } catch (error) {
+      console.error("Failed to get active poll:", error);
+      res.status(500).json({ error: "Failed to get active poll" });
+    }
+  });
+
+  app.get("/api/polls/history", requireAuth, async (req, res) => {
+    try {
+      const { limit = "20" } = req.query;
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const pollsService = new PollsService(userStorage);
+      const history = await pollsService.getPollHistory(req.user!.id, parseInt(limit as string));
+      res.json(history);
+    } catch (error) {
+      console.error("Failed to get poll history:", error);
+      res.status(500).json({ error: "Failed to get poll history" });
+    }
+  });
+
+  app.get("/api/polls/:id", requireAuth, async (req, res) => {
+    try {
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const poll = await userStorage.getPoll(req.params.id);
+      if (!poll) {
+        return res.status(404).json({ error: "Poll not found" });
+      }
+      res.json(poll);
+    } catch (error) {
+      console.error("Failed to get poll:", error);
+      res.status(500).json({ error: "Failed to get poll" });
+    }
+  });
+
+  app.get("/api/polls/:id/results", requireAuth, async (req, res) => {
+    try {
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const pollsService = new PollsService(userStorage);
+      const results = await pollsService.getPollResults(req.params.id);
+      res.json(results);
+    } catch (error) {
+      console.error("Failed to get poll results:", error);
+      res.status(500).json({ error: "Failed to get poll results" });
+    }
+  });
+
+  app.post("/api/polls", requireAuth, async (req, res) => {
+    try {
+      const { question, options, duration = 120, platform = "twitch" } = req.body;
+
+      if (!question || !options || !Array.isArray(options)) {
+        return res.status(400).json({ error: "Invalid poll data" });
+      }
+
+      if (options.length < 2 || options.length > 5) {
+        return res.status(400).json({ error: "Polls must have 2-5 options" });
+      }
+
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const pollsService = new PollsService(userStorage);
+      
+      const poll = await pollsService.createPoll(req.user!.id, question, options, duration, platform);
+      const result = await pollsService.startPoll(poll.id);
+      
+      res.json(result);
+    } catch (error: any) {
+      console.error("Failed to create poll:", error);
+      res.status(500).json({ error: error.message || "Failed to create poll" });
+    }
+  });
+
+  app.post("/api/polls/:id/vote", requireAuth, async (req, res) => {
+    try {
+      const { option, username, platform = "twitch" } = req.body;
+
+      if (!option || !username) {
+        return res.status(400).json({ error: "Invalid vote data" });
+      }
+
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const pollsService = new PollsService(userStorage);
+      const result = await pollsService.vote(req.params.id, username, option, platform);
+      
+      res.json(result);
+    } catch (error: any) {
+      console.error("Failed to vote:", error);
+      res.status(500).json({ error: error.message || "Failed to vote" });
+    }
+  });
+
+  app.post("/api/polls/:id/end", requireAuth, async (req, res) => {
+    try {
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const pollsService = new PollsService(userStorage);
+      const result = await pollsService.endPoll(req.params.id);
+      
+      res.json(result);
+    } catch (error: any) {
+      console.error("Failed to end poll:", error);
+      res.status(500).json({ error: error.message || "Failed to end poll" });
+    }
+  });
+
+  // Predictions
+  app.get("/api/predictions", requireAuth, async (req, res) => {
+    try {
+      const { limit = "20" } = req.query;
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const predictions = await userStorage.getPredictions(parseInt(limit as string));
+      res.json(predictions);
+    } catch (error) {
+      console.error("Failed to get predictions:", error);
+      res.status(500).json({ error: "Failed to get predictions" });
+    }
+  });
+
+  app.get("/api/predictions/active", requireAuth, async (req, res) => {
+    try {
+      const { platform } = req.query;
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const pollsService = new PollsService(userStorage);
+      const activePrediction = await pollsService.getActivePrediction(req.user!.id, platform as string | undefined);
+      res.json(activePrediction);
+    } catch (error) {
+      console.error("Failed to get active prediction:", error);
+      res.status(500).json({ error: "Failed to get active prediction" });
+    }
+  });
+
+  app.get("/api/predictions/history", requireAuth, async (req, res) => {
+    try {
+      const { limit = "20" } = req.query;
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const pollsService = new PollsService(userStorage);
+      const history = await pollsService.getPredictionHistory(req.user!.id, parseInt(limit as string));
+      res.json(history);
+    } catch (error) {
+      console.error("Failed to get prediction history:", error);
+      res.status(500).json({ error: "Failed to get prediction history" });
+    }
+  });
+
+  app.get("/api/predictions/:id", requireAuth, async (req, res) => {
+    try {
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const prediction = await userStorage.getPrediction(req.params.id);
+      if (!prediction) {
+        return res.status(404).json({ error: "Prediction not found" });
+      }
+      res.json(prediction);
+    } catch (error) {
+      console.error("Failed to get prediction:", error);
+      res.status(500).json({ error: "Failed to get prediction" });
+    }
+  });
+
+  app.get("/api/predictions/:id/results", requireAuth, async (req, res) => {
+    try {
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const pollsService = new PollsService(userStorage);
+      const results = await pollsService.getPredictionResults(req.params.id);
+      res.json(results);
+    } catch (error) {
+      console.error("Failed to get prediction results:", error);
+      res.status(500).json({ error: "Failed to get prediction results" });
+    }
+  });
+
+  app.post("/api/predictions", requireAuth, async (req, res) => {
+    try {
+      const { title, outcomes, duration = 300, platform = "twitch" } = req.body;
+
+      if (!title || !outcomes || !Array.isArray(outcomes)) {
+        return res.status(400).json({ error: "Invalid prediction data" });
+      }
+
+      if (outcomes.length < 2 || outcomes.length > 10) {
+        return res.status(400).json({ error: "Predictions must have 2-10 outcomes" });
+      }
+
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const pollsService = new PollsService(userStorage);
+      
+      const prediction = await pollsService.createPrediction(req.user!.id, title, outcomes, duration, platform);
+      const result = await pollsService.startPrediction(prediction.id);
+      
+      res.json(result);
+    } catch (error: any) {
+      console.error("Failed to create prediction:", error);
+      res.status(500).json({ error: error.message || "Failed to create prediction" });
+    }
+  });
+
+  app.post("/api/predictions/:id/bet", requireAuth, async (req, res) => {
+    try {
+      const { outcome, points, username, platform = "twitch" } = req.body;
+
+      if (!outcome || !points || !username) {
+        return res.status(400).json({ error: "Invalid bet data" });
+      }
+
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const pollsService = new PollsService(userStorage);
+      const result = await pollsService.placeBet(req.params.id, username, outcome, points, platform);
+      
+      res.json(result);
+    } catch (error: any) {
+      console.error("Failed to place bet:", error);
+      res.status(500).json({ error: error.message || "Failed to place bet" });
+    }
+  });
+
+  app.post("/api/predictions/:id/resolve", requireAuth, async (req, res) => {
+    try {
+      const { winningOutcome } = req.body;
+
+      if (!winningOutcome) {
+        return res.status(400).json({ error: "Winning outcome is required" });
+      }
+
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const pollsService = new PollsService(userStorage);
+      const result = await pollsService.resolvePrediction(req.params.id, winningOutcome);
+      
+      res.json(result);
+    } catch (error: any) {
+      console.error("Failed to resolve prediction:", error);
+      res.status(500).json({ error: error.message || "Failed to resolve prediction" });
+    }
+  });
+
+  app.post("/api/predictions/:id/cancel", requireAuth, async (req, res) => {
+    try {
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const pollsService = new PollsService(userStorage);
+      const prediction = await pollsService.cancelPrediction(req.params.id);
+      
+      res.json({ prediction, message: "Prediction cancelled and all bets refunded" });
+    } catch (error: any) {
+      console.error("Failed to cancel prediction:", error);
+      res.status(500).json({ error: error.message || "Failed to cancel prediction" });
+    }
+  });
+
+  app.post("/api/auth/complete-onboarding", requireAuth, async (req, res) => {
+    try {
+      await storage.updateUser(req.user!.id, {
+        onboardingCompleted: true,
+        onboardingStep: 4,
+      });
+      res.json({ success: true, message: "Onboarding completed" });
+    } catch (error: any) {
+      console.error("Failed to complete onboarding:", error);
+      res.status(500).json({ error: error.message || "Failed to complete onboarding" });
+    }
+  });
+
+  app.post("/api/auth/skip-onboarding", requireAuth, async (req, res) => {
+    try {
+      await storage.updateUser(req.user!.id, {
+        onboardingCompleted: true,
+        onboardingStep: 4,
+      });
+      res.json({ success: true, message: "Onboarding skipped" });
+    } catch (error: any) {
+      console.error("Failed to skip onboarding:", error);
+      res.status(500).json({ error: error.message || "Failed to skip onboarding" });
+    }
+  });
+
+  app.post("/api/auth/dismiss-welcome", requireAuth, async (req, res) => {
+    try {
+      await storage.updateUser(req.user!.id, {
+        dismissedWelcome: true,
+      });
+      res.json({ success: true, message: "Welcome card dismissed" });
+    } catch (error: any) {
+      console.error("Failed to dismiss welcome:", error);
+      res.status(500).json({ error: error.message || "Failed to dismiss welcome" });
     }
   });
 

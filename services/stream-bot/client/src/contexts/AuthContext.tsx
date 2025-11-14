@@ -4,15 +4,17 @@ import { useToast } from '@/hooks/use-toast';
 interface User {
   id: string;
   email: string;
+  primaryPlatform?: string;
   role: 'user' | 'admin';
   isActive: boolean;
+  onboardingCompleted: boolean;
+  onboardingStep: number;
+  dismissedWelcome: boolean;
 }
 
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -48,49 +50,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refreshUser();
   }, []);
 
-  const login = async (email: string, password: string) => {
-    const response = await fetch('/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-      credentials: 'include',
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Login failed');
-    }
-
-    const userData = await response.json();
-    setUser(userData);
-    
-    toast({
-      title: 'Welcome back!',
-      description: `Logged in as ${userData.email}`,
-    });
-  };
-
-  const signup = async (email: string, password: string) => {
-    const response = await fetch('/auth/signup', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-      credentials: 'include',
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Signup failed');
-    }
-
-    const userData = await response.json();
-    setUser(userData);
-    
-    toast({
-      title: 'Account created!',
-      description: 'Welcome to StreamBot Dashboard',
-    });
-  };
 
   const logout = async () => {
     const response = await fetch('/auth/logout', {
@@ -108,7 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, signup, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, isLoading, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

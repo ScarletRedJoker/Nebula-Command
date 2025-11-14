@@ -1,7 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
-import passport from "./auth/passport-config";
+import passport from "./auth/passport-oauth-config";
 import { registerRoutes } from "./routes";
 import { serveStatic, log } from "./http";
 import { pool } from "./db";

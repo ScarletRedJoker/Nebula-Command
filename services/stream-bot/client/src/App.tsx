@@ -5,12 +5,12 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
+import { OnboardingWizard } from "@/components/OnboardingWizard";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import UserMenu from "@/components/UserMenu";
-import Login from "@/pages/Login";
-import Signup from "@/pages/Signup";
+import OAuthLogin from "@/pages/OAuthLogin";
 import Profile from "@/pages/Profile";
 import Dashboard from "@/pages/dashboard";
 import Settings from "@/pages/settings";
@@ -24,7 +24,11 @@ import Shoutouts from "@/pages/shoutouts";
 import Games from "@/pages/games";
 import Currency from "@/pages/currency";
 import Statistics from "@/pages/statistics";
+import Analytics from "@/pages/analytics";
 import SongRequests from "@/pages/song-requests";
+import Polls from "@/pages/polls";
+import Alerts from "@/pages/alerts";
+import Chatbot from "@/pages/chatbot";
 import NotFound from "@/pages/not-found";
 import SpotifyOverlay from "@/pages/spotify-overlay";
 import YouTubeOverlay from "@/pages/youtube-overlay";
@@ -32,8 +36,7 @@ import YouTubeOverlay from "@/pages/youtube-overlay";
 function AuthRouter() {
   return (
     <Switch>
-      <Route path="/login" component={Login} />
-      <Route path="/signup" component={Signup} />
+      <Route path="/login" component={OAuthLogin} />
       {/* Overlay routes - publicly accessible for OBS */}
       <Route path="/overlay/spotify" component={SpotifyOverlay} />
       <Route path="/spotify-overlay" component={SpotifyOverlay} />
@@ -58,6 +61,7 @@ function ProtectedRouter() {
 
   return (
     <SidebarProvider style={style as React.CSSProperties}>
+      <OnboardingWizard />
       <div className="flex h-screen w-full">
         <AppSidebar />
         <div className="flex flex-col flex-1 min-w-0">
@@ -75,13 +79,17 @@ function ProtectedRouter() {
               <Route path="/activity" component={Activity} />
               <Route path="/history" component={History} />
               <Route path="/statistics" component={Statistics} />
+              <Route path="/analytics" component={Analytics} />
               <Route path="/commands" component={Commands} />
               <Route path="/moderation" component={Moderation} />
               <Route path="/giveaways" component={Giveaways} />
               <Route path="/shoutouts" component={Shoutouts} />
               <Route path="/games" component={Games} />
               <Route path="/currency" component={Currency} />
+              <Route path="/polls" component={Polls} />
               <Route path="/song-requests" component={SongRequests} />
+              <Route path="/alerts" component={Alerts} />
+              <Route path="/chatbot" component={Chatbot} />
               <Route path="/settings" component={Settings} />
               <Route path="/profile" component={Profile} />
               <Route component={NotFound} />

@@ -12,6 +12,9 @@ import { streamerInfoService } from "./streamer-info";
 import { GamesService } from "./games-service";
 import { currencyService } from "./currency-service";
 import { songRequestService } from "./song-request-service";
+import { PollsService } from "./polls-service";
+import { AlertsService } from "./alerts-service";
+import { ChatbotService } from "./chatbot-service";
 import type { BotConfig, PlatformConnection, CustomCommand, ModerationRule, LinkWhitelist } from "@shared/schema";
 
 type BotEvent = {
@@ -36,6 +39,9 @@ export class BotWorker {
   private gameCooldowns: Map<string, number> = new Map(); // userId+gameType -> lastPlayedTimestamp
   private activePlatforms: Set<string> = new Set();
   private gamesService: GamesService;
+  private pollsService: PollsService;
+  private alertsService: AlertsService;
+  private chatbotService: ChatbotService;
 
   constructor(
     private userId: string,
@@ -43,6 +49,9 @@ export class BotWorker {
     private onEvent: (event: BotEvent) => void
   ) {
     this.gamesService = new GamesService(storage);
+    this.pollsService = new PollsService(storage);
+    this.alertsService = new AlertsService(storage);
+    this.chatbotService = new ChatbotService(storage);
   }
 
   async start(): Promise<void> {
@@ -491,6 +500,94 @@ export class BotWorker {
     }
   }
 
+  private async shouldChatbotRespond(
+    message: string,
+    username: string,
+    platform: string
+  ): Promise<{ should: boolean; reason: string; cleanMessage: string }> {
+    try {
+      // Get chatbot settings
+      const chatbotSettings = await this.storage.getChatbotSettings();
+      if (!chatbotSettings || !chatbotSettings.isEnabled) {
+        return { should: false, reason: "disabled", cleanMessage: message };
+      }
+
+      // Check rate limiting
+      const isRateLimited = await this.chatbotService.isRateLimited(username, platform);
+      if (isRateLimited) {
+        return { should: false, reason: "rate_limited", cleanMessage: message };
+      }
+
+      // Check for mention trigger
+      const mentionTrigger = chatbotSettings.mentionTrigger || "@bot";
+      if (message.toLowerCase().includes(mentionTrigger.toLowerCase())) {
+        const cleanMessage = message.replace(new RegExp(mentionTrigger, 'gi'), '').trim();
+        return { should: true, reason: "mention", cleanMessage };
+      }
+
+      // Check if message is a question (ends with ?)
+      if (message.trim().endsWith("?")) {
+        // Random 50% chance to respond to questions
+        if (Math.random() < 0.5) {
+          return { should: true, reason: "question", cleanMessage: message };
+        }
+      }
+
+      // Random response chance (configured in settings, default 10% which is 0.1)
+      // responseRate in settings is seconds between responses per user, not percentage
+      // So we'll use a fixed 10% chance for random responses to avoid confusion
+      const randomChance = 0.10; // 10% chance
+      if (Math.random() < randomChance) {
+        return { should: true, reason: "random", cleanMessage: message };
+      }
+
+      return { should: false, reason: "no_trigger", cleanMessage: message };
+    } catch (error) {
+      console.error(`[BotWorker] Error checking if chatbot should respond:`, error);
+      return { should: false, reason: "error", cleanMessage: message };
+    }
+  }
+
+  private async handleChatbotResponse(
+    message: string,
+    username: string,
+    platform: string
+  ): Promise<string | null> {
+    try {
+      // Check if chatbot should respond to this message
+      const { should, reason, cleanMessage } = await this.shouldChatbotRespond(message, username, platform);
+      
+      if (!should) {
+        return null;
+      }
+
+      console.log(`[BotWorker] Chatbot responding to ${username} (reason: ${reason}): ${cleanMessage}`);
+
+      // Process message and generate response
+      const response = await this.chatbotService.processMessage(username, cleanMessage, platform);
+
+      // Format response based on trigger reason
+      if (reason === "mention") {
+        return `@${username}, ${response}`;
+      } else {
+        // For questions and random responses, be more natural (no @mention)
+        return response;
+      }
+    } catch (error) {
+      console.error(`[BotWorker] Error handling chatbot response:`, error);
+      return null;
+    }
+  }
+
+  private async handleChatbotMention(
+    message: string,
+    username: string,
+    platform: string
+  ): Promise<string | null> {
+    // This method is now deprecated, use handleChatbotResponse instead
+    return await this.handleChatbotResponse(message, username, platform);
+  }
+
   private async handleTriviaAnswer(
     message: string,
     username: string,
@@ -804,6 +901,62 @@ export class BotWorker {
         if (shoutoutResponse && this.twitchClient) {
           await this.twitchClient.say(channel, shoutoutResponse);
         }
+
+        try {
+          const alertResult = await this.alertsService.triggerAlert(
+            this.userId,
+            "raid",
+            "twitch",
+            { raider: username, viewers }
+          );
+          
+          if (alertResult.shouldPost && alertResult.message && this.twitchClient) {
+            await this.twitchClient.say(channel, alertResult.message);
+          }
+        } catch (error) {
+          console.error(`[BotWorker] Error triggering raid alert:`, error);
+        }
+      });
+
+      // Subscription event listener
+      this.twitchClient.on("subscription", async (channel, username, methods, message, userstate) => {
+        console.log(`[BotWorker] New subscription: ${username}`);
+        
+        try {
+          const alertResult = await this.alertsService.triggerAlert(
+            this.userId,
+            "subscriber",
+            "twitch",
+            { username, tier: "Tier 1", months: 1 }
+          );
+          
+          if (alertResult.shouldPost && alertResult.message && this.twitchClient) {
+            await this.twitchClient.say(channel, alertResult.message);
+          }
+        } catch (error) {
+          console.error(`[BotWorker] Error triggering subscription alert:`, error);
+        }
+      });
+
+      // Resubscription event listener
+      this.twitchClient.on("resub", async (channel, username, months, message, userstate, methods) => {
+        console.log(`[BotWorker] Resubscription: ${username} for ${months} months`);
+        
+        try {
+          const tier = methods?.plan ? `Tier ${methods.plan.replace("000", "")}` : "Tier 1";
+          const alertResult = await this.alertsService.triggerAlert(
+            this.userId,
+            "subscriber",
+            "twitch",
+            { username, tier, months: parseInt(months) || 1 }
+          );
+          
+          if (alertResult.shouldPost && alertResult.message && this.twitchClient) {
+            await this.twitchClient.say(channel, alertResult.message);
+          }
+        } catch (error) {
+          console.error(`[BotWorker] Error triggering resubscription alert:`, error);
+        }
       });
 
       // Host event listener (Note: Twitch deprecated hosting, but keeping for compatibility)
@@ -818,6 +971,12 @@ export class BotWorker {
           await this.twitchClient.say(channel, shoutoutResponse);
         }
       });
+
+      // NOTE: TMI.js does not support follower events
+      // For follower alerts, you need to integrate Twitch EventSub API
+      // EventSub provides webhook-based notifications for channel.follow events
+      // Requires setting up a webhook endpoint and subscribing to the channel.follow event type
+      // See: https://dev.twitch.tv/docs/eventsub/eventsub-subscription-types#channelfollow
 
       this.twitchClient.on("message", async (channel, tags, message, self) => {
         if (self) return;
@@ -876,6 +1035,16 @@ export class BotWorker {
           await this.twitchClient.say(channel, triviaResponse);
           return;
         }
+
+        // Check for chatbot response (mentions, questions, or random chance)
+        // Do this early, before commands, so the chatbot can respond naturally
+        if (!trimmedMessage.startsWith("!")) {
+          const chatbotResponse = await this.handleChatbotResponse(trimmedMessage, username, "twitch");
+          if (chatbotResponse && this.twitchClient) {
+            await this.twitchClient.say(channel, chatbotResponse);
+            return;
+          }
+        }
         
         // Check for custom commands (starts with !)
         if (trimmedMessage.startsWith("!")) {
@@ -918,6 +1087,28 @@ export class BotWorker {
             
             if (currencyResponse && this.twitchClient) {
               await this.twitchClient.say(channel, currencyResponse);
+              return;
+            }
+          }
+
+          // Check for poll commands (!poll, !vote)
+          if (["!poll", "!vote"].includes(commandName)) {
+            const isMod = tags.mod || tags.badges?.moderator || tags.badges?.broadcaster || false;
+            const pollResponse = await this.handlePollCommand(trimmedMessage, username, "twitch", isMod);
+            
+            if (pollResponse && this.twitchClient) {
+              await this.twitchClient.say(channel, pollResponse);
+              return;
+            }
+          }
+
+          // Check for prediction commands (!predict, !bet)
+          if (["!predict", "!bet"].includes(commandName)) {
+            const isMod = tags.mod || tags.badges?.moderator || tags.badges?.broadcaster || false;
+            const predictionResponse = await this.handlePredictionCommand(trimmedMessage, username, "twitch", isMod);
+            
+            if (predictionResponse && this.twitchClient) {
+              await this.twitchClient.say(channel, predictionResponse);
               return;
             }
           }
@@ -1447,6 +1638,209 @@ export class BotWorker {
       return null;
     } catch (error) {
       console.error(`[BotWorker] Error handling currency command:`, error);
+      return null;
+    }
+  }
+
+  private async handlePollCommand(
+    message: string,
+    username: string,
+    platform: string,
+    isMod: boolean
+  ): Promise<string | null> {
+    try {
+      const parts = message.trim().split(/\s+/);
+      const command = parts[0].toLowerCase();
+
+      if (command === "!poll") {
+        if (!isMod) {
+          return `@${username}, only moderators can create polls!`;
+        }
+
+        const activePoll = await this.pollsService.getActivePoll(this.userId, platform);
+        if (activePoll) {
+          return `@${username}, there is already an active poll! End it with /endpoll before creating a new one.`;
+        }
+
+        const questionAndOptions = parts.slice(1).join(" ");
+        const matches = questionAndOptions.match(/"([^"]+)"/g);
+
+        if (!matches || matches.length < 3) {
+          return `@${username}, usage: !poll "Question?" "Option 1" "Option 2" ["Option 3"] ["Option 4"] ["Option 5"]`;
+        }
+
+        const question = matches[0].replace(/"/g, "");
+        const options = matches.slice(1).map(opt => opt.replace(/"/g, ""));
+
+        if (options.length < 2) {
+          return `@${username}, a poll needs at least 2 options!`;
+        }
+
+        if (options.length > 5) {
+          return `@${username}, a poll can have at most 5 options!`;
+        }
+
+        const durationSeconds = 120; // Default 2 minutes
+        const poll = await this.pollsService.createPoll(
+          this.userId,
+          question,
+          options,
+          durationSeconds,
+          platform
+        );
+
+        const { message: startMessage } = await this.pollsService.startPoll(poll.id);
+
+        return startMessage;
+      }
+
+      if (command === "!vote") {
+        const activePoll = await this.pollsService.getActivePoll(this.userId, platform);
+        if (!activePoll) {
+          return `@${username}, there is no active poll!`;
+        }
+
+        const optionInput = parts[1];
+        if (!optionInput) {
+          return `@${username}, usage: !vote <number> or !vote "<option text>"`;
+        }
+
+        let selectedOption: string;
+        const optionNumber = parseInt(optionInput);
+
+        if (!isNaN(optionNumber)) {
+          if (optionNumber < 1 || optionNumber > activePoll.options.length) {
+            return `@${username}, please enter a valid option number (1-${activePoll.options.length})!`;
+          }
+          selectedOption = activePoll.options[optionNumber - 1];
+        } else {
+          const optionText = parts.slice(1).join(" ").replace(/"/g, "");
+          if (!activePoll.options.includes(optionText)) {
+            return `@${username}, invalid option! Options: ${activePoll.options.map((opt, i) => `${i + 1}. ${opt}`).join(" | ")}`;
+          }
+          selectedOption = optionText;
+        }
+
+        const result = await this.pollsService.vote(
+          activePoll.id,
+          username,
+          selectedOption,
+          platform
+        );
+
+        return `@${username}, ${result.message}`;
+      }
+
+      return null;
+    } catch (error) {
+      console.error(`[BotWorker] Error handling poll command:`, error);
+      return null;
+    }
+  }
+
+  private async handlePredictionCommand(
+    message: string,
+    username: string,
+    platform: string,
+    isMod: boolean
+  ): Promise<string | null> {
+    try {
+      const parts = message.trim().split(/\s+/);
+      const command = parts[0].toLowerCase();
+
+      if (command === "!predict") {
+        if (!isMod) {
+          return `@${username}, only moderators can create predictions!`;
+        }
+
+        const activePrediction = await this.pollsService.getActivePrediction(this.userId, platform);
+        if (activePrediction) {
+          return `@${username}, there is already an active prediction! Resolve it before creating a new one.`;
+        }
+
+        const titleAndOutcomes = parts.slice(1).join(" ");
+        const matches = titleAndOutcomes.match(/"([^"]+)"/g);
+
+        if (!matches || matches.length < 3) {
+          return `@${username}, usage: !predict "Title" "Outcome 1" "Outcome 2" ["Outcome 3"] ...`;
+        }
+
+        const title = matches[0].replace(/"/g, "");
+        const outcomes = matches.slice(1).map(opt => opt.replace(/"/g, ""));
+
+        if (outcomes.length < 2) {
+          return `@${username}, a prediction needs at least 2 outcomes!`;
+        }
+
+        if (outcomes.length > 10) {
+          return `@${username}, a prediction can have at most 10 outcomes!`;
+        }
+
+        const durationSeconds = 300; // Default 5 minutes
+        const prediction = await this.pollsService.createPrediction(
+          this.userId,
+          title,
+          outcomes,
+          durationSeconds,
+          platform
+        );
+
+        const { message: startMessage } = await this.pollsService.startPrediction(prediction.id);
+
+        return startMessage;
+      }
+
+      if (command === "!bet") {
+        const activePrediction = await this.pollsService.getActivePrediction(this.userId, platform);
+        if (!activePrediction) {
+          return `@${username}, there is no active prediction!`;
+        }
+
+        if (activePrediction.status === "locked") {
+          return `@${username}, betting is closed for this prediction!`;
+        }
+
+        const outcomeInput = parts.slice(1, -1).join(" ");
+        const pointsStr = parts[parts.length - 1];
+
+        if (!outcomeInput || !pointsStr) {
+          return `@${username}, usage: !bet <outcome> <points> or !bet <number> <points>`;
+        }
+
+        const points = parseInt(pointsStr);
+        if (isNaN(points) || points <= 0) {
+          return `@${username}, please enter a valid amount of points!`;
+        }
+
+        let selectedOutcome: string;
+        const outcomeNumber = parseInt(outcomeInput);
+
+        if (!isNaN(outcomeNumber)) {
+          if (outcomeNumber < 1 || outcomeNumber > activePrediction.outcomes.length) {
+            return `@${username}, please enter a valid outcome number (1-${activePrediction.outcomes.length})!`;
+          }
+          selectedOutcome = activePrediction.outcomes[outcomeNumber - 1];
+        } else {
+          if (!activePrediction.outcomes.includes(outcomeInput)) {
+            return `@${username}, invalid outcome! Outcomes: ${activePrediction.outcomes.map((opt, i) => `${i + 1}. ${opt}`).join(" | ")}`;
+          }
+          selectedOutcome = outcomeInput;
+        }
+
+        const result = await this.pollsService.placeBet(
+          activePrediction.id,
+          username,
+          selectedOutcome,
+          points,
+          platform
+        );
+
+        return `@${username}, ${result.message}`;
+      }
+
+      return null;
+    } catch (error) {
+      console.error(`[BotWorker] Error handling prediction command:`, error);
       return null;
     }
   }

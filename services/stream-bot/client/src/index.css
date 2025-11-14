@@ -286,3 +286,23 @@
     inset: -1px;
   }
 }
+
+@layer utilities {
+  .hover-elevate {
+    @apply transition-all duration-200 ease-in-out;
+  }
+  
+  .hover-elevate:hover {
+    @apply shadow-sm;
+  }
+}
+
+@layer components {
+  .card-hover {
+    @apply transition-all duration-200 ease-in-out;
+  }
+  
+  .card-hover:hover {
+    @apply shadow-md border-primary/20;
+  }
+}

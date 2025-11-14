@@ -52,6 +52,14 @@ import type {
   InsertPredictionBet,
   UpdatePoll,
   UpdatePrediction,
+  AlertSettings,
+  AlertHistory,
+  Milestone,
+  InsertAlertSettings,
+  InsertAlertHistory,
+  InsertMilestone,
+  UpdateAlertSettings,
+  UpdateMilestone,
 } from "@shared/schema";
 
 export class UserStorage {
@@ -397,6 +405,121 @@ export class UserStorage {
 
   async updatePredictionBet(betId: string, data: { payout: number }): Promise<PredictionBet> {
     return storage.updatePredictionBet(this.userId, betId, data);
+  }
+
+  // Chatbot Settings
+  async getChatbotSettings() {
+    return storage.getChatbotSettings(this.userId);
+  }
+
+  async createChatbotSettings(data: any) {
+    return storage.createChatbotSettings(this.userId, data);
+  }
+
+  async updateChatbotSettings(data: any) {
+    return storage.updateChatbotSettings(this.userId, data);
+  }
+
+  // Chatbot Responses
+  async getChatbotResponses(limit?: number) {
+    return storage.getChatbotResponses(this.userId, limit);
+  }
+
+  async getChatbotResponse(id: string) {
+    return storage.getChatbotResponse(this.userId, id);
+  }
+
+  async createChatbotResponse(data: any) {
+    return storage.createChatbotResponse(this.userId, data);
+  }
+
+  async updateChatbotResponse(id: string, data: any) {
+    return storage.updateChatbotResponse(this.userId, id, data);
+  }
+
+  // Chatbot Context
+  async getChatbotContext(username: string, platform: string) {
+    return storage.getChatbotContext(this.userId, username, platform);
+  }
+
+  async getAllChatbotContexts(limit?: number) {
+    return storage.getAllChatbotContexts(this.userId, limit);
+  }
+
+  async createChatbotContext(data: any) {
+    return storage.createChatbotContext(this.userId, data);
+  }
+
+  async updateChatbotContext(id: string, data: any) {
+    return storage.updateChatbotContext(this.userId, id, data);
+  }
+
+  // Chatbot Personalities
+  async getChatbotPersonalities() {
+    return storage.getChatbotPersonalities(this.userId);
+  }
+
+  async getChatbotPersonality(id: string) {
+    return storage.getChatbotPersonality(this.userId, id);
+  }
+
+  async getChatbotPersonalityByName(name: string) {
+    return storage.getChatbotPersonalityByName(this.userId, name);
+  }
+
+  async createChatbotPersonality(data: any) {
+    return storage.createChatbotPersonality(this.userId, data);
+  }
+
+  async updateChatbotPersonality(id: string, data: any) {
+    return storage.updateChatbotPersonality(this.userId, id, data);
+  }
+
+  async deleteChatbotPersonality(id: string) {
+    return storage.deleteChatbotPersonality(this.userId, id);
+  }
+
+  async getPresetPersonalities() {
+    return storage.getPresetPersonalities();
+  }
+
+  // Alert Settings
+  async getAlertSettings(): Promise<AlertSettings | undefined> {
+    return storage.getAlertSettings(this.userId);
+  }
+
+  async createAlertSettings(data: InsertAlertSettings): Promise<AlertSettings> {
+    return storage.createAlertSettings(this.userId, data);
+  }
+
+  async updateAlertSettings(data: UpdateAlertSettings): Promise<AlertSettings> {
+    return storage.updateAlertSettings(this.userId, data);
+  }
+
+  // Alert History
+  async getAlertHistory(alertType?: string, limit?: number): Promise<AlertHistory[]> {
+    return storage.getAlertHistory(this.userId, alertType, limit);
+  }
+
+  async createAlertHistory(data: InsertAlertHistory): Promise<AlertHistory> {
+    return storage.createAlertHistory(data);
+  }
+
+  // Milestones
+  async getMilestones(milestoneType?: string): Promise<Milestone[]> {
+    return storage.getMilestones(this.userId, milestoneType);
+  }
+
+  async getMilestone(milestoneType: string, threshold: number): Promise<Milestone | undefined> {
+    return storage.getMilestone(this.userId, milestoneType, threshold);
+  }
+
+  async createMilestone(data: InsertMilestone): Promise<Milestone> {
+    return storage.createMilestone(data);
+  }
+
+  async updateMilestone(id: string, data: UpdateMilestone): Promise<Milestone> {
+    return storage.updateMilestone(this.userId, id, data);
   }
 }
 
