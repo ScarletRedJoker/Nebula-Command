@@ -2,11 +2,16 @@ from sqlalchemy import String, DateTime, Text, Enum as SQLEnum, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID, JSON
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship, Mapped, mapped_column
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from datetime import datetime
 import uuid
 import enum
 from . import Base
+
+if TYPE_CHECKING:
+    from .workflow import Workflow
+    from .artifact import Artifact
+    from .jarvis import SSLCertificate, ComposeSpec
 
 class DeploymentStatus(enum.Enum):
     deploying = "deploying"

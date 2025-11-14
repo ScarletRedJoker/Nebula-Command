@@ -1,6 +1,7 @@
 """Artifact Builder - Docker image generation and registry management"""
 import os
 import logging
+import uuid
 import docker
 from docker.errors import BuildError, APIError, DockerException
 from datetime import datetime
@@ -30,12 +31,12 @@ class ArtifactBuilder:
         
         self.registry_url = registry_url
         
-    def build_project(self, project: Project, workflow_id: Optional[str] = None) -> ArtifactBuild:
+    def build_project(self, project: Project, workflow_id: Optional[uuid.UUID] = None) -> ArtifactBuild:
         """Build Docker image for a project
         
         Args:
             project: Project model instance to build
-            workflow_id: Optional workflow ID to associate with build
+            workflow_id: Optional workflow UUID to associate with build
             
         Returns:
             ArtifactBuild model instance with build results

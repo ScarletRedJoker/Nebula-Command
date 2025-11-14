@@ -2,10 +2,13 @@
 from sqlalchemy import String, Integer, BigInteger, Boolean, DateTime, Text, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship, Mapped, mapped_column
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 import uuid
 from datetime import datetime
 from . import Base
+
+if TYPE_CHECKING:
+    from .workflow import Workflow
 
 class Project(Base):
     """Detected projects from /home/evin/contain/"""
@@ -23,9 +26,9 @@ class Project(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
-    builds = relationship("ArtifactBuild", back_populates="project", cascade="all, delete-orphan")
-    compose_specs = relationship("ComposeSpec", back_populates="project", cascade="all, delete-orphan")
-    ai_sessions = relationship("AISession", back_populates="target_project")
+    builds: Mapped[list["ArtifactBuild"]] = relationship("ArtifactBuild", back_populates="project", cascade="all, delete-orphan")
+    compose_specs: Mapped[list["ComposeSpec"]] = relationship("ComposeSpec", back_populates="project", cascade="all, delete-orphan")
+    ai_sessions: Mapped[list["AISession"]] = relationship("AISession", back_populates="target_project")
     
     def __repr__(self):
         return f"<Project(id={self.id}, name='{self.name}', status='{self.status}')>"
@@ -63,8 +66,8 @@ class ArtifactBuild(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     
-    project = relationship("Project", back_populates="builds")
-    workflow = relationship("Workflow")
+    project: Mapped["Project"] = relationship("Project", back_populates="builds")
+    workflow: Mapped[Optional["Workflow"]] = relationship("Workflow")
     
     def __repr__(self):
         return f"<ArtifactBuild(id={self.id}, status='{self.status}', image_ref='{self.image_ref}')>"
@@ -102,7 +105,7 @@ class ComposeSpec(Base):
     created_by: Mapped[Optional[str]] = mapped_column(String(100))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     
-    project = relationship("Project", back_populates="compose_specs")
+    project: Mapped["Project"] = relationship("Project", back_populates="compose_specs")
     
     def __repr__(self):
         return f"<ComposeSpec(id={self.id}, version={self.version}, is_active={self.is_active})>"
@@ -181,7 +184,7 @@ class AISession(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     
-    target_project = relationship("Project", back_populates="ai_sessions")
+    target_project: Mapped[Optional["Project"]] = relationship("Project", back_populates="ai_sessions")
     
     def __repr__(self):
         return f"<AISession(id={self.id}, state='{self.state}', intent='{self.intent}')>"
