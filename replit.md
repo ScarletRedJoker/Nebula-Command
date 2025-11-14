@@ -56,10 +56,27 @@ HomeLabHub/                      ← Replit Workspace Root
 - **Purpose**: Support ticket system for Discord servers with web dashboard, plus multi-platform streamer go-live notifications.
 - **Features**: Ticket management, stream go-live detection for Twitch, YouTube, Kick with rich embeds, admin commands, and a web dashboard for managing stream notification settings, custom message templates, and tracked streamers.
 
-**Stream Bot (services/stream-bot/)**
-- **Stack**: TypeScript, React, Express, tmi.js, @retconned/kick-js, OpenAI API, Spotify Web API
-- **Purpose**: AI-powered Snapple facts bot for Twitch and Kick streams with Spotify "now playing" OBS overlay.
-- **Features**: Multi-platform streaming, OpenAI fact generation, Spotify integration, web dashboard for configuration.
+**Stream Bot / SnappleBotAI (services/stream-bot/)**
+- **Stack**: TypeScript, React, Express, tmi.js, @retconned/kick-js, OpenAI GPT-5, Spotify Web API, Drizzle ORM, PostgreSQL
+- **Purpose**: Multi-tenant SaaS platform for AI-powered stream bot management across Twitch, YouTube, and Kick.
+- **Authentication**: OAuth-only sign-in (Twitch/YouTube/Kick), email matching for account linking, no email/password auth.
+- **15 Major Features**:
+  1. Custom Commands - User-defined commands with variables, cooldowns, permissions
+  2. AI Auto-Moderation - Toxic language detection, spam filter, link blocking, caps/symbol filters
+  3. Giveaway & Raffle System - Keyword entry, subscriber mode, multi-winner raffles
+  4. Shoutout System - Auto-fetch streamer info from Twitch API, raid/host auto-shoutouts
+  5. Stream Statistics - Viewer tracking, peak viewers, chat activity heatmap, top chatters
+  6. Mini-Games - 8ball, trivia, duel, slots, roulette with AI enhancements
+  7. Channel Points & Currency - Custom currency, earn/gamble/redeem system, leaderboards
+  8. Song Requests - Spotify/YouTube integration, queue management, AI profanity filter
+  9. Polls & Predictions - Native Twitch polls, custom system for Kick/YouTube, betting integration
+  10. Alerts & Notifications - Sub/raid/milestone alerts with custom templates and variables
+  11. AI Chatbot Personality - 5 personalities (Friendly, Snarky, Professional, Enthusiastic, Chill), context-aware responses
+  12. Advanced Analytics - AI sentiment analysis, growth predictions, engagement metrics, health score dashboard
+  13. OAuth Platform Linking - Connect/disconnect Twitch/YouTube/Kick from dashboard
+  14. Onboarding Wizard - 4-step guided setup for new users
+  15. Feature Discovery UI - Welcome cards, quick actions, what's new section, organized navigation
+- **Architecture**: Per-user bot instances with isolated configurations, WebSocket real-time updates, session-based auth with Passport.js.
 
 **Static Site (services/static-site/)**
 - **Stack**: HTML, CSS, JavaScript
@@ -97,9 +114,10 @@ A single PostgreSQL container (`discord-bot-db`) hosts multiple databases (`tick
 - React, Vite, Radix UI components, Tailwind CSS
 
 **Stream Bot:**
-- tmi.js (Twitch), @retconned/kick-js (Kick), openai, express, drizzle-orm, pg
-- React, Vite, Radix UI components, Tailwind CSS
-- Spotify Web API
+- tmi.js (Twitch), @retconned/kick-js (Kick), openai (GPT-5), express, drizzle-orm, pg
+- passport, passport-twitch-new, passport-google-oauth20 (OAuth)
+- React, Vite, Radix UI (Sidebar, Dialog, Card, Select), Tailwind CSS, Recharts (analytics visualization)
+- Spotify Web API, YouTube Data API v3
 
 **Infrastructure:**
 - Caddy (reverse proxy with automatic HTTPS)
