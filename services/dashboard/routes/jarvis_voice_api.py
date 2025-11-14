@@ -325,11 +325,17 @@ def create_database():
                 existing = client.containers.get(container_name)
                 logger.info(f"Container {container_name} already exists")
                 
+                enhanced = personality.enhance_database_response(
+                    success=True,
+                    db_name=db_name,
+                    db_type=db_type
+                )
+                
                 return jsonify({
                     'success': True,
                     'session_id': session_id,
                     'status': 'exists',
-                    'message': f'Database container {container_name} already exists',
+                    'message': enhanced['message'],
                     'connection_string': config['connection_string'],
                     'container_name': container_name,
                     'db_type': db_type
@@ -354,11 +360,17 @@ def create_database():
             if isinstance(container_id, str) and len(container_id) > 12:
                 container_id = container_id[:12]
             
+            enhanced = personality.enhance_database_response(
+                success=True,
+                db_name=db_name,
+                db_type=db_type
+            )
+            
             return jsonify({
                 'success': True,
                 'session_id': session_id,
                 'status': 'created',
-                'message': f'{db_type.capitalize()} database {db_name} created successfully',
+                'message': enhanced['message'],
                 'connection_string': config['connection_string'],
                 'container_name': container_name,
                 'container_id': str(container_id),
@@ -367,17 +379,26 @@ def create_database():
             }), 201
         
         except (DockerException, APIError) as e:
+            error_msg = personality.wrap_error('docker_error', str(e))
             logger.error(f"Docker error creating database: {e}")
             return jsonify({
                 'success': False,
-                'error': f'Docker error: {str(e)}'
+                'error': error_msg
             }), 500
     
+    except ValueError as ve:
+        error_msg = personality.wrap_error('validation_error', str(ve))
+        logger.error(f"Validation error in voice database: {ve}")
+        return jsonify({
+            'success': False,
+            'error': error_msg
+        }), 400
     except Exception as e:
+        error_msg = personality.wrap_error('database_error', str(e))
         logger.error(f"Error in voice database endpoint: {e}", exc_info=True)
         return jsonify({
             'success': False,
-            'error': str(e)
+            'error': error_msg
         }), 500
 
 
@@ -442,12 +463,23 @@ def manage_ssl():
             
             if action == 'check':
                 if not cert:
+                    enhanced = personality.enhance_ssl_response(
+                        success=False,
+                        domain=domain,
+                        action='check'
+                    )
                     return jsonify({
                         'success': True,
                         'status': 'not_found',
                         'domain': domain,
                         'message': f'No SSL certificate found for {domain}'
                     }), 404
+                
+                enhanced = personality.enhance_ssl_response(
+                    success=True,
+                    domain=domain,
+                    action='check'
+                )
                 
                 return jsonify({
                     'success': True,
@@ -457,16 +489,17 @@ def manage_ssl():
                     'issued_at': cert.issued_at.isoformat() if cert.issued_at else None,
                     'provider': cert.provider,
                     'auto_renew': cert.auto_renew,
-                    'message': f'SSL certificate for {domain} is {cert.status}'
+                    'message': enhanced['message']
                 }), 200
             
             elif action == 'create':
                 if cert:
+                    error_msg = personality.wrap_error('general_error', f'SSL certificate for {domain} already exists')
                     return jsonify({
                         'success': False,
                         'status': 'exists',
                         'domain': domain,
-                        'message': f'SSL certificate for {domain} already exists. Use "renew" to update it.'
+                        'message': error_msg
                     }), 409
                 
                 # Create new SSL certificate record
@@ -482,21 +515,28 @@ def manage_ssl():
                 
                 logger.info(f"Created SSL certificate record for {domain}")
                 
+                enhanced = personality.enhance_ssl_response(
+                    success=True,
+                    domain=domain,
+                    action='create'
+                )
+                
                 return jsonify({
                     'success': True,
                     'status': 'pending',
                     'domain': domain,
-                    'message': f'SSL certificate request created for {domain}. Certificate provisioning will begin shortly.',
+                    'message': enhanced['message'],
                     'certificate_id': str(cert.id)
                 }), 201
             
             elif action == 'renew':
                 if not cert:
+                    error_msg = personality.wrap_error('general_error', f'No SSL certificate found for {domain}')
                     return jsonify({
                         'success': False,
                         'status': 'not_found',
                         'domain': domain,
-                        'message': f'No SSL certificate found for {domain}. Use "create" instead.'
+                        'message': error_msg
                     }), 404
                 
                 # Update renewal status
@@ -506,19 +546,33 @@ def manage_ssl():
                 
                 logger.info(f"Initiated SSL renewal for {domain}")
                 
+                enhanced = personality.enhance_ssl_response(
+                    success=True,
+                    domain=domain,
+                    action='renew'
+                )
+                
                 return jsonify({
                     'success': True,
                     'status': 'renewing',
                     'domain': domain,
-                    'message': f'SSL certificate renewal initiated for {domain}',
+                    'message': enhanced['message'],
                     'last_renewal_attempt': cert.last_renewal_attempt.isoformat()
                 }), 200
     
+    except ValueError as ve:
+        error_msg = personality.wrap_error('validation_error', str(ve))
+        logger.error(f"Validation error in voice SSL: {ve}")
+        return jsonify({
+            'success': False,
+            'error': error_msg
+        }), 400
     except Exception as e:
+        error_msg = personality.wrap_error('general_error', str(e))
         logger.error(f"Error in voice SSL endpoint: {e}", exc_info=True)
         return jsonify({
             'success': False,
-            'error': str(e)
+            'error': error_msg
         }), 500
 
 
