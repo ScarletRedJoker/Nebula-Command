@@ -1,0 +1,316 @@
+{
+  "description": "Example Google Assistant routine payloads for Jarvis Voice API",
+  "routines": [
+    {
+      "name": "Deploy Project",
+      "description": "Deploy a website or application",
+      "dialogflow_request": {
+        "responseId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "queryResult": {
+          "queryText": "deploy my portfolio as a static site",
+          "parameters": {
+            "project-name": "my-portfolio",
+            "project-type": "static",
+            "domain": "portfolio.example.com"
+          },
+          "allRequiredParamsPresent": true,
+          "fulfillmentText": "",
+          "fulfillmentMessages": [],
+          "intent": {
+            "name": "projects/jarvis-homelab/agent/intents/12345678-1234-1234-1234-123456789012",
+            "displayName": "DeployProject"
+          },
+          "intentDetectionConfidence": 0.95,
+          "languageCode": "en"
+        },
+        "session": "projects/jarvis-homelab/agent/sessions/session-id-123"
+      },
+      "expected_jarvis_payload": {
+        "command": "deploy",
+        "params": {
+          "project_name": "my-portfolio",
+          "project_type": "static",
+          "domain": "portfolio.example.com"
+        }
+      },
+      "expected_response": {
+        "fulfillmentText": "Deployment initiated. Consider this your personal Stark Expo moment. I'll report back when the fireworks conclude.",
+        "fulfillmentMessages": [
+          {
+            "text": {
+              "text": [
+                "Deployment of my-portfolio has been initiated"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Create Database",
+      "description": "Create a new database container",
+      "dialogflow_request": {
+        "responseId": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+        "queryResult": {
+          "queryText": "create a postgres database called user_data",
+          "parameters": {
+            "database-type": "postgres",
+            "database-name": "user_data"
+          },
+          "allRequiredParamsPresent": true,
+          "fulfillmentText": "",
+          "fulfillmentMessages": [],
+          "intent": {
+            "name": "projects/jarvis-homelab/agent/intents/23456789-2345-2345-2345-234567890123",
+            "displayName": "CreateDatabase"
+          },
+          "intentDetectionConfidence": 0.92,
+          "languageCode": "en"
+        },
+        "session": "projects/jarvis-homelab/agent/sessions/session-id-456"
+      },
+      "expected_jarvis_payload": {
+        "db_type": "postgres",
+        "db_name": "user_data"
+      },
+      "expected_response": {
+        "fulfillmentText": "Database user_data created successfully. Consider it your personal data fortress.",
+        "fulfillmentMessages": [
+          {
+            "text": {
+              "text": [
+                "Postgres database established. I've ensured it's as secure as Stark Tower."
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Check SSL Certificate",
+      "description": "Check SSL certificate status for a domain",
+      "dialogflow_request": {
+        "responseId": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+        "queryResult": {
+          "queryText": "check SSL certificate for example.com",
+          "parameters": {
+            "domain": "example.com",
+            "action": "check"
+          },
+          "allRequiredParamsPresent": true,
+          "fulfillmentText": "",
+          "fulfillmentMessages": [],
+          "intent": {
+            "name": "projects/jarvis-homelab/agent/intents/34567890-3456-3456-3456-345678901234",
+            "displayName": "ManageSSL"
+          },
+          "intentDetectionConfidence": 0.88,
+          "languageCode": "en"
+        },
+        "session": "projects/jarvis-homelab/agent/sessions/session-id-789"
+      },
+      "expected_jarvis_payload": {
+        "domain": "example.com",
+        "action": "check"
+      },
+      "expected_response": {
+        "fulfillmentText": "SSL certificate for example.com is active",
+        "fulfillmentMessages": [
+          {
+            "text": {
+              "text": [
+                "Your domain is now secured with military-grade encryption."
+              ]
+            }
+          }
+        ],
+        "payload": {
+          "status": "active",
+          "expires_at": "2025-12-31T23:59:59Z",
+          "provider": "letsencrypt"
+        }
+      }
+    },
+    {
+      "name": "Create SSL Certificate",
+      "description": "Create a new SSL certificate for a domain",
+      "dialogflow_request": {
+        "responseId": "d4e5f6a7-b8c9-0123-def0-123456789abc",
+        "queryResult": {
+          "queryText": "create SSL certificate for newsite.example.com",
+          "parameters": {
+            "domain": "newsite.example.com",
+            "action": "create"
+          },
+          "allRequiredParamsPresent": true,
+          "intent": {
+            "name": "projects/jarvis-homelab/agent/intents/45678901-4567-4567-4567-456789012345",
+            "displayName": "ManageSSL"
+          },
+          "intentDetectionConfidence": 0.91,
+          "languageCode": "en"
+        },
+        "session": "projects/jarvis-homelab/agent/sessions/session-id-abc"
+      },
+      "expected_jarvis_payload": {
+        "domain": "newsite.example.com",
+        "action": "create"
+      },
+      "expected_response": {
+        "fulfillmentText": "SSL certificate secured. Your domain is now Fort Knox-level protected.",
+        "fulfillmentMessages": [
+          {
+            "text": {
+              "text": [
+                "Certificate installed. I do enjoy a good encryption protocol."
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Conversational Query - Status",
+      "description": "Ask about system status",
+      "dialogflow_request": {
+        "responseId": "e5f6a7b8-c9d0-1234-ef01-23456789abcd",
+        "queryResult": {
+          "queryText": "what's the status of my homelab?",
+          "parameters": {},
+          "allRequiredParamsPresent": true,
+          "intent": {
+            "name": "projects/jarvis-homelab/agent/intents/56789012-5678-5678-5678-567890123456",
+            "displayName": "GeneralQuery"
+          },
+          "intentDetectionConfidence": 0.85,
+          "languageCode": "en"
+        },
+        "session": "projects/jarvis-homelab/agent/sessions/session-id-def"
+      },
+      "expected_jarvis_payload": {
+        "message": "what's the status of my homelab?"
+      },
+      "expected_response": {
+        "fulfillmentText": "At your service, sir. Your homelab is running smoothly with 5 active deployments, 3 databases online, and all SSL certificates valid.",
+        "fulfillmentMessages": [
+          {
+            "text": {
+              "text": [
+                "All systems nominal. Everything is in order."
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Conversational Query - Projects",
+      "description": "Ask about active projects",
+      "dialogflow_request": {
+        "responseId": "f6a7b8c9-d0e1-2345-f012-3456789abcde",
+        "queryResult": {
+          "queryText": "what projects do I have running?",
+          "parameters": {},
+          "allRequiredParamsPresent": true,
+          "intent": {
+            "name": "projects/jarvis-homelab/agent/intents/67890123-6789-6789-6789-678901234567",
+            "displayName": "GeneralQuery"
+          },
+          "intentDetectionConfidence": 0.89,
+          "languageCode": "en"
+        },
+        "session": "projects/jarvis-homelab/agent/sessions/session-id-ghi"
+      },
+      "expected_jarvis_payload": {
+        "message": "what projects do I have running?"
+      },
+      "expected_response": {
+        "fulfillmentText": "Standing by, sir. You have the following active projects: my-portfolio (static), api-backend (flask), and dashboard-ui (react).",
+        "fulfillmentMessages": [
+          {
+            "text": {
+              "text": [
+                "Three projects currently deployed and operational."
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Error - Missing Parameters",
+      "description": "Example of error handling when parameters are missing",
+      "dialogflow_request": {
+        "responseId": "a7b8c9d0-e1f2-3456-0123-456789abcdef",
+        "queryResult": {
+          "queryText": "deploy something",
+          "parameters": {
+            "project-name": "",
+            "project-type": ""
+          },
+          "allRequiredParamsPresent": false,
+          "intent": {
+            "name": "projects/jarvis-homelab/agent/intents/78901234-7890-7890-7890-789012345678",
+            "displayName": "DeployProject"
+          },
+          "intentDetectionConfidence": 0.72,
+          "languageCode": "en"
+        },
+        "session": "projects/jarvis-homelab/agent/sessions/session-id-jkl"
+      },
+      "expected_response": {
+        "fulfillmentText": "I'm afraid there's been a complication. Missing required parameters: project_name and project_type",
+        "fulfillmentMessages": [
+          {
+            "text": {
+              "text": [
+                "I must insist on proper formatting. Please specify both project name and type."
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Error - Invalid Input",
+      "description": "Example of validation error",
+      "dialogflow_request": {
+        "responseId": "b8c9d0e1-f2a3-4567-1234-56789abcdef0",
+        "queryResult": {
+          "queryText": "create database with invalid name!!!",
+          "parameters": {
+            "database-type": "postgres",
+            "database-name": "invalid!!!name"
+          },
+          "allRequiredParamsPresent": true,
+          "intent": {
+            "name": "projects/jarvis-homelab/agent/intents/89012345-8901-8901-8901-890123456789",
+            "displayName": "CreateDatabase"
+          },
+          "intentDetectionConfidence": 0.81,
+          "languageCode": "en"
+        },
+        "session": "projects/jarvis-homelab/agent/sessions/session-id-mno"
+      },
+      "expected_response": {
+        "fulfillmentText": "Security validation prevented that operation: Database name must start with alphanumeric character and contain only lowercase letters, numbers, and underscores",
+        "fulfillmentMessages": [
+          {
+            "text": {
+              "text": [
+                "I must insist on proper formatting for security purposes."
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "notes": {
+    "personality": "All responses include Iron Man themed personality messages",
+    "error_handling": "Errors use serious tone per personality profile",
+    "session_tracking": "Conversational queries support multi-turn sessions",
+    "webhook_url": "https://your-domain.com/api/jarvis/google-home/webhook",
+    "authentication": "Implement API key or JWT authentication for production"
+  }
+}
