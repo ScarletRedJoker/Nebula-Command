@@ -9,6 +9,7 @@ from config import Config
 from routes.api import api_bp
 from routes.web import web_bp
 from routes.deployment_api import deployment_bp
+from routes.deployment_routes import jarvis_deployment_bp
 from routes.websocket_routes import ws_bp
 from routes.upload_routes import upload_bp
 from routes.analysis_routes import analysis_bp
@@ -100,6 +101,7 @@ CORS(app, resources={r"/api/*": {
 app.register_blueprint(api_bp)
 app.register_blueprint(web_bp)
 app.register_blueprint(deployment_bp)
+app.register_blueprint(jarvis_deployment_bp)
 app.register_blueprint(ws_bp)
 app.register_blueprint(upload_bp)
 app.register_blueprint(analysis_bp)
