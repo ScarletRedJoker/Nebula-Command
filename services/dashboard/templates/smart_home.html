@@ -259,9 +259,45 @@
 
 <script>
 let allDevices = [];
+let csrfToken = '';
+let autoRefreshInterval = null;
+let isRefreshing = false;
 
-async function loadDevices() {
+async function getCsrfToken() {
     try {
+        const response = await fetch('/smarthome/api/csrf-token');
+        const data = await response.json();
+        if (data.success) {
+            csrfToken = data.csrf_token;
+        }
+    } catch (error) {
+        console.error('Error getting CSRF token:', error);
+    }
+}
+
+function showLoadingIndicator() {
+    const container = document.getElementById('devicesContainer');
+    const currentContent = container.innerHTML;
+    container.dataset.previousContent = currentContent;
+    container.style.opacity = '0.6';
+    container.style.pointerEvents = 'none';
+}
+
+function hideLoadingIndicator() {
+    const container = document.getElementById('devicesContainer');
+    container.style.opacity = '1';
+    container.style.pointerEvents = 'auto';
+}
+
+async function loadDevices(showLoading = true) {
+    if (isRefreshing) return;
+    isRefreshing = true;
+    
+    try {
+        if (showLoading) {
+            showLoadingIndicator();
+        }
+        
         const response = await fetch('/smarthome/api/devices');
         const data = await response.json();
         
@@ -274,6 +310,31 @@ async function loadDevices() {
         }
     } catch (error) {
         showError('Error loading devices: ' + error.message);
+    } finally {
+        if (showLoading) {
+            hideLoadingIndicator();
+        }
+        isRefreshing = false;
+    }
+}
+
+function startAutoRefresh() {
+    if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+    }
+    
+    autoRefreshInterval = setInterval(() => {
+        loadDevices(false);
+    }, 5000);
+    
+    console.log('Auto-refresh started (every 5 seconds)');
+}
+
+function stopAutoRefresh() {
+    if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+        autoRefreshInterval = null;
+        console.log('Auto-refresh stopped');
     }
 }
 
@@ -396,14 +457,23 @@ function createDeviceControls(device) {
 async function toggleDevice(entityId, turnOn) {
     try {
         const action = turnOn ? 'turn_on' : 'turn_off';
+        const headers = {
+            'Content-Type': 'application/json'
+        };
+        if (csrfToken) {
+            headers['X-CSRFToken'] = csrfToken;
+        }
+        
         const response = await fetch(`/smarthome/api/device/${entityId}/${action}`, {
-            method: 'POST'
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify({})
         });
         const data = await response.json();
         
         if (data.success) {
             showSuccess(data.message);
-            setTimeout(loadDevices, 500);
+            setTimeout(() => loadDevices(false), 300);
         } else {
             showError(data.error);
         }
@@ -414,9 +484,16 @@ async function toggleDevice(entityId, turnOn) {
 
 async function setBrightness(entityId, brightness) {
     try {
+        const headers = {
+            'Content-Type': 'application/json'
+        };
+        if (csrfToken) {
+            headers['X-CSRFToken'] = csrfToken;
+        }
+        
         const response = await fetch(`/smarthome/api/light/${entityId}/brightness`, {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: headers,
             body: JSON.stringify({brightness: parseInt(brightness)})
         });
         const data = await response.json();
@@ -477,25 +554,63 @@ async function sendVoiceCommand() {
     
     if (!command) return;
     
+    const responseDiv = document.getElementById('voiceResponse');
+    responseDiv.className = 'alert alert-info';
+    responseDiv.innerHTML = '<i class="bi bi-hourglass-split"></i> Processing command...';
+    responseDiv.classList.remove('d-none');
+    
     try {
+        const headers = {
+            'Content-Type': 'application/json'
+        };
+        if (csrfToken) {
+            headers['X-CSRFToken'] = csrfToken;
+        }
+        
         const response = await fetch('/smarthome/api/voice/command', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: headers,
             body: JSON.stringify({command: command})
         });
         const data = await response.json();
         
-        const responseDiv = document.getElementById('voiceResponse');
-        responseDiv.className = `alert ${data.success ? 'alert-success' : 'alert-danger'}`;
-        responseDiv.textContent = data.response;
-        responseDiv.classList.remove('d-none');
+        responseDiv.className = `alert ${data.success ? 'alert-success' : 'alert-warning'}`;
+        
+        let html = `<strong>${data.response}</strong>`;
+        
+        if (data.parsed && data.parsed.intent) {
+            html += `<hr><small><strong>Intent:</strong> ${data.parsed.intent}`;
+            if (data.parsed.entities && data.parsed.entities.length > 0) {
+                html += `<br><strong>Entities:</strong> ${data.parsed.entities.join(', ')}`;
+            }
+            html += '</small>';
+        }
+        
+        if (data.suggestions && data.suggestions.length > 0) {
+            html += '<hr><strong>Suggestions:</strong><ul class="mb-0">';
+            data.suggestions.forEach(suggestion => {
+                html += `<li>${suggestion}</li>`;
+            });
+            html += '</ul>';
+        }
+        
+        if (data.processing_log && data.processing_log.length > 0) {
+            html += '<hr><small><strong>Processing Log:</strong><ul class="mb-0">';
+            data.processing_log.forEach(log => {
+                html += `<li>${log}</li>`;
+            });
+            html += '</ul></small>';
+        }
+        
+        responseDiv.innerHTML = html;
         
         if (data.success) {
             input.value = '';
-            setTimeout(loadDevices, 500);
+            setTimeout(() => loadDevices(false), 300);
         }
     } catch (error) {
-        showError('Error processing voice command: ' + error.message);
+        responseDiv.className = 'alert alert-danger';
+        responseDiv.textContent = 'Error processing voice command: ' + error.message;
     }
 }
 
@@ -554,7 +669,24 @@ document.getElementById('voiceCommandInput').addEventListener('keypress', functi
     }
 });
 
+document.addEventListener('visibilitychange', function() {
+    if (document.hidden) {
+        stopAutoRefresh();
+    } else {
+        startAutoRefresh();
+        loadDevices(false);
+    }
+});
+
+window.addEventListener('beforeunload', function() {
+    stopAutoRefresh();
+});
+
+getCsrfToken();
 loadDevices();
 loadAutomationTemplates();
+startAutoRefresh();
+
+console.log('Smart Home Dashboard initialized with auto-refresh, CSRF protection, and enhanced voice command validation');
 </script>
 {% endblock %}

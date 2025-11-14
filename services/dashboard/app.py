@@ -1,5 +1,6 @@
 from flask import Flask
 from flask_cors import CORS
+from flask_wtf.csrf import CSRFProtect
 import logging
 from logging.handlers import RotatingFileHandler
 import sys
@@ -15,7 +16,7 @@ from routes.upload_routes import upload_bp
 from routes.analysis_routes import analysis_bp
 from routes.artifact_routes import artifact_bp
 from routes.jarvis_voice_api import jarvis_voice_bp
-from routes.smart_home_api import smart_home_bp
+from routes.smart_home_api import smart_home_bp, limiter
 from services.activity_service import activity_service
 from services.db_service import db_service
 from services.websocket_service import websocket_service
@@ -41,6 +42,10 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=12)
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
+
+csrf = CSRFProtect(app)
+limiter.init_app(app)
+logger.info("✓ CSRF Protection and Rate Limiting initialized")
 
 # Production logging configuration
 if not app.debug and os.environ.get('FLASK_ENV') == 'production':
