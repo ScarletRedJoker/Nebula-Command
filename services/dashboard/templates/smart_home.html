@@ -1,0 +1,560 @@
+{% extends "base.html" %}
+
+{% block title %}Smart Home Control - Jarvis{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h2><i class="bi bi-house-heart"></i> Smart Home Control</h2>
+        <p class="text-muted">Control your smart devices with Jarvis and Google Home</p>
+    </div>
+</div>
+
+<div class="row mb-3">
+    <div class="col-md-3 mb-3">
+        <div class="card text-white bg-primary">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-lightbulb"></i> Lights</h5>
+                <h3 id="lightsCount">-</h3>
+                <p class="mb-0">devices</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card text-white bg-success">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-power"></i> Switches</h5>
+                <h3 id="switchesCount">-</h3>
+                <p class="mb-0">devices</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card text-white bg-info">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-thermometer"></i> Climate</h5>
+                <h3 id="climateCount">-</h3>
+                <p class="mb-0">devices</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card text-white bg-warning">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-speedometer"></i> Sensors</h5>
+                <h3 id="sensorsCount">-</h3>
+                <p class="mb-0">devices</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<ul class="nav nav-tabs mb-4" id="smartHomeTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="devices-tab" data-bs-toggle="tab" data-bs-target="#devices" type="button">
+            <i class="bi bi-grid"></i> Devices
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="automations-tab" data-bs-toggle="tab" data-bs-target="#automations" type="button">
+            <i class="bi bi-gear"></i> Automations
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="voice-tab" data-bs-toggle="tab" data-bs-target="#voice" type="button">
+            <i class="bi bi-mic"></i> Voice Commands
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="google-home-tab" data-bs-toggle="tab" data-bs-target="#google-home" type="button">
+            <i class="bi bi-google"></i> Google Home
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="smartHomeTabContent">
+    <div class="tab-pane fade show active" id="devices" role="tabpanel">
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="text" class="form-control" id="deviceSearch" placeholder="Search devices...">
+                </div>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" id="deviceFilter">
+                    <option value="">All Devices</option>
+                    <option value="light">Lights</option>
+                    <option value="switch">Switches</option>
+                    <option value="climate">Climate</option>
+                    <option value="sensor">Sensors</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <button class="btn btn-primary w-100" onclick="refreshDevices()">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
+            </div>
+        </div>
+
+        <div class="row" id="devicesContainer">
+            <div class="col-12 text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2">Loading devices...</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="tab-pane fade" id="automations" role="tabpanel">
+        <div class="row mb-4">
+            <div class="col-12">
+                <h4>Quick Routines</h4>
+                <p class="text-muted">One-click automation templates</p>
+            </div>
+        </div>
+
+        <div class="row" id="automationTemplates">
+        </div>
+    </div>
+
+    <div class="tab-pane fade" id="voice" role="tabpanel">
+        <div class="row">
+            <div class="col-md-8 offset-md-2">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5><i class="bi bi-mic"></i> Voice Command Test</h5>
+                    </div>
+                    <div class="card-body">
+                        <p>Test voice commands that work with Google Home:</p>
+                        <div class="input-group mb-3">
+                            <input type="text" class="form-control" id="voiceCommandInput" 
+                                   placeholder='Try: "Turn on all lights" or "Set temperature to 72"'>
+                            <button class="btn btn-primary" onclick="sendVoiceCommand()">
+                                <i class="bi bi-send"></i> Send
+                            </button>
+                        </div>
+                        <div id="voiceResponse" class="alert alert-info d-none"></div>
+                    </div>
+                </div>
+
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h5>Example Voice Commands</h5>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-unstyled">
+                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> "Turn on all lights"</li>
+                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> "Turn off living room lights"</li>
+                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> "Set temperature to 72 degrees"</li>
+                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> "Good morning" (runs morning routine)</li>
+                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> "Good night" (runs bedtime routine)</li>
+                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> "Movie time" (activates movie mode)</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="tab-pane fade" id="google-home" role="tabpanel">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5><i class="bi bi-google"></i> Google Home Integration</h5>
+                    </div>
+                    <div class="card-body">
+                        <h6>Setup Instructions:</h6>
+                        <ol>
+                            <li>Open Google Home app on your phone</li>
+                            <li>Tap <strong>+</strong> (Add) → <strong>Set up device</strong></li>
+                            <li>Select <strong>Works with Google</strong></li>
+                            <li>Search for <strong>"Home Assistant"</strong></li>
+                            <li>Link your Home Assistant account</li>
+                            <li>Say: <em>"Hey Google, sync my devices"</em></li>
+                        </ol>
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i> Your Jarvis devices will appear in Google Home automatically!
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Google Home Display Cards</h5>
+                    </div>
+                    <div class="card-body">
+                        <h6>Create Rich Responses:</h6>
+                        <p>When you ask Google Home about your home status, Jarvis can display:</p>
+                        <ul>
+                            <li><i class="bi bi-image"></i> Device status cards</li>
+                            <li><i class="bi bi-thermometer"></i> Temperature and climate info</li>
+                            <li><i class="bi bi-lightning"></i> Energy usage stats</li>
+                            <li><i class="bi bi-shield-check"></i> Security status</li>
+                        </ul>
+                        
+                        <div class="mt-3">
+                            <h6>Try These Commands:</h6>
+                            <div class="bg-light p-3 rounded">
+                                <p class="mb-2"><strong>"Hey Google, ask Jarvis about my home"</strong></p>
+                                <p class="mb-2"><strong>"Hey Google, tell Jarvis to run good morning routine"</strong></p>
+                                <p class="mb-0"><strong>"Hey Google, ask Jarvis what lights are on"</strong></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Routine Builder (Coming Soon)</h5>
+                    </div>
+                    <div class="card-body">
+                        <p>Create custom Google Home routines that trigger Jarvis automations:</p>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="card border-primary mb-3">
+                                    <div class="card-header">Wake Up Routine</div>
+                                    <div class="card-body">
+                                        <p class="small">Trigger: "Good morning"</p>
+                                        <p class="small">Actions: Lights, Coffee, News</p>
+                                        <button class="btn btn-sm btn-primary" disabled>Edit</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card border-success mb-3">
+                                    <div class="card-header">Leave Home</div>
+                                    <div class="card-body">
+                                        <p class="small">Trigger: "I'm leaving"</p>
+                                        <p class="small">Actions: Lights off, Lock doors</p>
+                                        <button class="btn btn-sm btn-success" disabled>Edit</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card border-warning mb-3">
+                                    <div class="card-header">Bedtime</div>
+                                    <div class="card-body">
+                                        <p class="small">Trigger: "Good night"</p>
+                                        <p class="small">Actions: All off, Security on</p>
+                                        <button class="btn btn-sm btn-warning" disabled>Edit</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let allDevices = [];
+
+async function loadDevices() {
+    try {
+        const response = await fetch('/smarthome/api/devices');
+        const data = await response.json();
+        
+        if (data.success) {
+            allDevices = data.devices;
+            displayDevices(allDevices);
+            updateCounts(allDevices);
+        } else {
+            showError('Failed to load devices: ' + (data.error || 'Unknown error'));
+        }
+    } catch (error) {
+        showError('Error loading devices: ' + error.message);
+    }
+}
+
+function displayDevices(devices) {
+    const container = document.getElementById('devicesContainer');
+    container.innerHTML = '';
+    
+    if (devices.length === 0) {
+        container.innerHTML = '<div class="col-12"><div class="alert alert-info">No devices found. Make sure Home Assistant is configured and running.</div></div>';
+        return;
+    }
+    
+    devices.forEach(device => {
+        const col = document.createElement('div');
+        col.className = 'col-md-4 col-lg-3 mb-3';
+        
+        const card = createDeviceCard(device);
+        col.appendChild(card);
+        container.appendChild(col);
+    });
+}
+
+function createDeviceCard(device) {
+    const card = document.createElement('div');
+    card.className = 'card h-100';
+    
+    const isOn = device.state === 'on';
+    const icon = getDeviceIcon(device.domain);
+    const color = isOn ? 'success' : 'secondary';
+    
+    card.innerHTML = `
+        <div class="card-body">
+            <h5 class="card-title">
+                <i class="bi bi-${icon} text-${color}"></i>
+                ${device.name}
+            </h5>
+            <p class="card-text">
+                <small class="text-muted">${device.domain}</small><br>
+                <span class="badge bg-${color}">${device.state}</span>
+            </p>
+            ${createDeviceControls(device)}
+        </div>
+    `;
+    
+    return card;
+}
+
+function getDeviceIcon(domain) {
+    const icons = {
+        'light': 'lightbulb',
+        'switch': 'power',
+        'sensor': 'speedometer',
+        'climate': 'thermometer',
+        'automation': 'gear',
+        'scene': 'palette',
+        'lock': 'lock',
+        'cover': 'window'
+    };
+    return icons[domain] || 'question-circle';
+}
+
+function createDeviceControls(device) {
+    const isOn = device.state === 'on';
+    
+    if (device.domain === 'light') {
+        const brightness = device.attributes.brightness || 0;
+        return `
+            <div class="btn-group w-100 mb-2">
+                <button class="btn btn-sm btn-${isOn ? 'success' : 'outline-success'}" 
+                        onclick="toggleDevice('${device.entity_id}', true)">
+                    <i class="bi bi-power"></i> On
+                </button>
+                <button class="btn btn-sm btn-${!isOn ? 'danger' : 'outline-danger'}" 
+                        onclick="toggleDevice('${device.entity_id}', false)">
+                    <i class="bi bi-power"></i> Off
+                </button>
+            </div>
+            ${isOn ? `
+                <div>
+                    <label class="form-label small">Brightness</label>
+                    <input type="range" class="form-range" min="0" max="255" value="${brightness}" 
+                           onchange="setBrightness('${device.entity_id}', this.value)">
+                </div>
+            ` : ''}
+        `;
+    } else if (device.domain === 'switch') {
+        return `
+            <div class="btn-group w-100">
+                <button class="btn btn-sm btn-${isOn ? 'success' : 'outline-success'}" 
+                        onclick="toggleDevice('${device.entity_id}', true)">
+                    <i class="bi bi-power"></i> On
+                </button>
+                <button class="btn btn-sm btn-${!isOn ? 'danger' : 'outline-danger'}" 
+                        onclick="toggleDevice('${device.entity_id}', false)">
+                    <i class="bi bi-power"></i> Off
+                </button>
+            </div>
+        `;
+    } else if (device.domain === 'climate') {
+        const temp = device.attributes.temperature || device.attributes.current_temperature || 'N/A';
+        return `
+            <div class="text-center">
+                <h3>${temp}°</h3>
+                <button class="btn btn-sm btn-primary" onclick="showTempControl('${device.entity_id}')">
+                    <i class="bi bi-thermometer"></i> Adjust
+                </button>
+            </div>
+        `;
+    } else if (device.domain === 'automation') {
+        return `
+            <button class="btn btn-sm btn-primary w-100" onclick="triggerAutomation('${device.entity_id}')">
+                <i class="bi bi-play"></i> Run
+            </button>
+        `;
+    }
+    
+    return '';
+}
+
+async function toggleDevice(entityId, turnOn) {
+    try {
+        const action = turnOn ? 'turn_on' : 'turn_off';
+        const response = await fetch(`/smarthome/api/device/${entityId}/${action}`, {
+            method: 'POST'
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            showSuccess(data.message);
+            setTimeout(loadDevices, 500);
+        } else {
+            showError(data.error);
+        }
+    } catch (error) {
+        showError('Error controlling device: ' + error.message);
+    }
+}
+
+async function setBrightness(entityId, brightness) {
+    try {
+        const response = await fetch(`/smarthome/api/light/${entityId}/brightness`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({brightness: parseInt(brightness)})
+        });
+        const data = await response.json();
+        
+        if (!data.success) {
+            showError(data.error);
+        }
+    } catch (error) {
+        showError('Error setting brightness: ' + error.message);
+    }
+}
+
+async function loadAutomationTemplates() {
+    try {
+        const response = await fetch('/smarthome/api/automation/templates');
+        const data = await response.json();
+        
+        if (data.success) {
+            displayAutomationTemplates(data.templates);
+        }
+    } catch (error) {
+        console.error('Error loading automation templates:', error);
+    }
+}
+
+function displayAutomationTemplates(templates) {
+    const container = document.getElementById('automationTemplates');
+    container.innerHTML = '';
+    
+    templates.forEach(template => {
+        const col = document.createElement('div');
+        col.className = 'col-md-4 col-lg-3 mb-3';
+        
+        col.innerHTML = `
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <i class="bi bi-${template.icon} display-4 text-primary mb-3"></i>
+                    <h5 class="card-title">${template.name}</h5>
+                    <p class="card-text small text-muted">${template.description}</p>
+                    <button class="btn btn-primary btn-sm" onclick="runTemplate('${template.id}')">
+                        <i class="bi bi-play"></i> Run
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        container.appendChild(col);
+    });
+}
+
+async function runTemplate(templateId) {
+    showSuccess('Running ' + templateId + ' automation...');
+}
+
+async function sendVoiceCommand() {
+    const input = document.getElementById('voiceCommandInput');
+    const command = input.value.trim();
+    
+    if (!command) return;
+    
+    try {
+        const response = await fetch('/smarthome/api/voice/command', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({command: command})
+        });
+        const data = await response.json();
+        
+        const responseDiv = document.getElementById('voiceResponse');
+        responseDiv.className = `alert ${data.success ? 'alert-success' : 'alert-danger'}`;
+        responseDiv.textContent = data.response;
+        responseDiv.classList.remove('d-none');
+        
+        if (data.success) {
+            input.value = '';
+            setTimeout(loadDevices, 500);
+        }
+    } catch (error) {
+        showError('Error processing voice command: ' + error.message);
+    }
+}
+
+function updateCounts(devices) {
+    const counts = {
+        light: 0,
+        switch: 0,
+        climate: 0,
+        sensor: 0
+    };
+    
+    devices.forEach(device => {
+        if (counts.hasOwnProperty(device.domain)) {
+            counts[device.domain]++;
+        }
+    });
+    
+    document.getElementById('lightsCount').textContent = counts.light;
+    document.getElementById('switchesCount').textContent = counts.switch;
+    document.getElementById('climateCount').textContent = counts.climate;
+    document.getElementById('sensorsCount').textContent = counts.sensor;
+}
+
+function refreshDevices() {
+    loadDevices();
+    showSuccess('Refreshing devices...');
+}
+
+function showSuccess(message) {
+    console.log('Success:', message);
+}
+
+function showError(message) {
+    console.error('Error:', message);
+    alert(message);
+}
+
+document.getElementById('deviceSearch').addEventListener('input', function(e) {
+    const search = e.target.value.toLowerCase();
+    const filtered = allDevices.filter(d => 
+        d.name.toLowerCase().includes(search) || 
+        d.entity_id.toLowerCase().includes(search)
+    );
+    displayDevices(filtered);
+});
+
+document.getElementById('deviceFilter').addEventListener('change', function(e) {
+    const domain = e.target.value;
+    const filtered = domain ? allDevices.filter(d => d.domain === domain) : allDevices;
+    displayDevices(filtered);
+});
+
+document.getElementById('voiceCommandInput').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        sendVoiceCommand();
+    }
+});
+
+loadDevices();
+loadAutomationTemplates();
+</script>
+{% endblock %}

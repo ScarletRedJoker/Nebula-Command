@@ -457,6 +457,28 @@
         
         <div style="padding: 20px 20px 12px; margin: 20px 0 0; border-top: 1px solid var(--border-color);">
             <div style="color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; margin-bottom: 12px;">
+                <i class="bi bi-house-heart"></i> Smart Home
+            </div>
+        </div>
+        
+        <ul>
+            <li class="nav-item">
+                <a href="/smarthome" class="nav-link cosmic {% if request.path.startswith('/smarthome') %}active{% endif %}">
+                    <i class="bi bi-house-heart"></i>
+                    <span>Home Control</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="https://home.evindrake.net" target="_blank" rel="noopener noreferrer" class="nav-link" style="opacity: 0.9;">
+                    <i class="bi bi-gear"></i>
+                    <span>Home Assistant</span>
+                    <i class="bi bi-box-arrow-up-right" style="margin-left: auto; font-size: 0.75rem;"></i>
+                </a>
+            </li>
+        </ul>
+        
+        <div style="padding: 20px 20px 12px; margin: 20px 0 0; border-top: 1px solid var(--border-color);">
+            <div style="color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; margin-bottom: 12px;">
                 <i class="bi bi-grid-3x3-gap"></i> Network Services
             </div>
         </div>

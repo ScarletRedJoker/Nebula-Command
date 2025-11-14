@@ -5,7 +5,20 @@ This project provides a comprehensive web-based dashboard for managing a Ubuntu 
 
 ## Recent Changes (November 2025)
 
-**🎙️ Voice-Controlled Smart Home Integration (NEW):**
+**🏠 Smart Home Control Dashboard (BRAND NEW - November 14, 2025):**
+- 🎛️ Visual dashboard for controlling all smart home devices (lights, switches, climate, sensors)
+- 🤖 Full Home Assistant integration with real-time device status
+- 🗣️ Google Home voice command support with natural language processing
+- ⚡ 8 pre-made automation templates (Good Morning, Good Night, Movie Time, etc.)
+- 🎨 Beautiful device control cards with sliders for brightness and color
+- 🔍 Search and filter devices by type or name
+- 📊 Real-time device count statistics
+- 🎯 One-click automation triggers
+- 📱 Google Home setup instructions and display cards
+- 🛠️ API endpoints for programmatic device control
+- See: SMART_HOME_SETUP.md for complete setup guide
+
+**🎙️ Voice-Controlled Smart Home Integration:**
 - 🏠 Home Assistant integration for IoT automation and Google Home voice control
 - 🗣️ Jarvis Voice API - Deploy websites, create databases, manage SSL via voice commands
 - 🔐 Secure API key authentication for Home Assistant integration
