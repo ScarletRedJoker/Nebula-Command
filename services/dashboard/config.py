@@ -7,6 +7,29 @@ class Config:
     # Flask settings
     SECRET_KEY = os.environ.get('SESSION_SECRET') or secrets.token_urlsafe(32)
     
+    # Database settings (Jarvis Platform)
+    JARVIS_DATABASE_URL = os.environ.get('JARVIS_DATABASE_URL')
+    
+    # Redis settings
+    REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+    
+    # Celery settings
+    CELERY_BROKER_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+    CELERY_RESULT_BACKEND = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+    CELERY_TASK_SERIALIZER = 'json'
+    CELERY_RESULT_SERIALIZER = 'json'
+    CELERY_ACCEPT_CONTENT = ['json']
+    CELERY_TIMEZONE = 'America/New_York'
+    CELERY_ENABLE_UTC = True
+    CELERY_TASK_TRACK_STARTED = True
+    CELERY_TASK_TIME_LIMIT = 30 * 60
+    CELERY_TASK_SOFT_TIME_LIMIT = 25 * 60
+    
+    # WebSocket settings
+    WEBSOCKET_PING_INTERVAL = 25
+    WEBSOCKET_PING_TIMEOUT = 60
+    DASHBOARD_API_KEY = os.environ.get('DASHBOARD_API_KEY', secrets.token_urlsafe(32))
+    
     # Docker settings
     DOCKER_HOST = os.environ.get('DOCKER_HOST', 'unix:///var/run/docker.sock')
     
@@ -22,6 +45,17 @@ class Config:
     # URLs
     NOVNC_URL = os.environ.get('NOVNC_URL', 'https://vnc.evindrake.net')
     WINDOWS_KVM_IP = os.environ.get('WINDOWS_KVM_IP', '')
+    
+    # MinIO configuration
+    MINIO_ENDPOINT = os.environ.get('MINIO_ENDPOINT', 'minio:9000')
+    MINIO_ACCESS_KEY = os.environ.get('MINIO_ROOT_USER', 'admin')
+    MINIO_SECRET_KEY = os.environ.get('MINIO_ROOT_PASSWORD', 'minio_admin_password')
+    MINIO_SECURE = os.environ.get('MINIO_SECURE', 'False').lower() == 'true'
+    
+    # Upload limits
+    MAX_UPLOAD_SIZE = int(os.environ.get('MAX_UPLOAD_SIZE', 500 * 1024 * 1024))  # 500MB default
+    ALLOWED_EXTENSIONS = os.environ.get('ALLOWED_EXTENSIONS', 'zip,tar,gz,html,css,js,py,php,java,go,rs,dockerfile,sh,bash').split(',')
+    UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER', '/tmp/jarvis_uploads')
     
     # Services configuration (used for dashboard UI)
     SERVICES = {

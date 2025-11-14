@@ -8,7 +8,13 @@ from config import Config
 from routes.api import api_bp
 from routes.web import web_bp
 from routes.deployment_api import deployment_bp
+from routes.websocket_routes import ws_bp
+from routes.upload_routes import upload_bp
+from routes.analysis_routes import analysis_bp
 from services.activity_service import activity_service
+from services.db_service import db_service
+from services.websocket_service import websocket_service
+import redis
 
 logging.basicConfig(
     level=logging.INFO,
@@ -70,6 +76,57 @@ CORS(app, resources={r"/api/*": {
 app.register_blueprint(api_bp)
 app.register_blueprint(web_bp)
 app.register_blueprint(deployment_bp)
+app.register_blueprint(ws_bp)
+app.register_blueprint(upload_bp)
+app.register_blueprint(analysis_bp)
+
+# Initialize WebSocket service
+websocket_service.init_app(app)
+logger.info("✓ WebSocket service initialized")
+
+# Initialize database and run migrations
+logger.info("=" * 60)
+logger.info("Initializing Jarvis Platform Database")
+logger.info("=" * 60)
+
+if db_service.is_available:
+    logger.info("Database service is available, running migrations...")
+    if db_service.run_migrations():
+        logger.info("✓ Database migrations completed successfully")
+        db_status = db_service.health_check()
+        if db_status['healthy']:
+            logger.info("✓ Database health check passed")
+            migration_status = db_service.get_migration_status()
+            if migration_status.get('available'):
+                logger.info(f"✓ Current migration: {migration_status.get('current_revision', 'None')}")
+                logger.info(f"✓ Latest migration: {migration_status.get('head_revision', 'None')}")
+        else:
+            logger.warning(f"⚠ Database health check failed: {db_status.get('error')}")
+    else:
+        logger.warning("⚠ Database migrations failed or skipped")
+else:
+    logger.warning("⚠ Database service not available (JARVIS_DATABASE_URL not set)")
+    logger.warning("  The dashboard will run without database-backed features")
+
+logger.info("=" * 60)
+
+# Test Redis connection
+logger.info("=" * 60)
+logger.info("Testing Redis Connection")
+logger.info("=" * 60)
+
+try:
+    redis_client = redis.from_url(Config.REDIS_URL)
+    redis_client.ping()
+    logger.info("✓ Redis connection successful")
+    redis_info = redis_client.info('server')
+    logger.info(f"  Redis version: {redis_info.get('redis_version', 'unknown')}")
+    logger.info(f"  Redis URL: {Config.REDIS_URL}")
+except Exception as e:
+    logger.warning(f"⚠ Redis connection failed: {e}")
+    logger.warning("  Workflow engine features will be unavailable")
+
+logger.info("=" * 60)
 
 activity_service.log_activity(
     'system',
@@ -80,7 +137,25 @@ activity_service.log_activity(
 
 @app.route('/health')
 def health():
-    return {'status': 'healthy', 'message': 'Homelab Dashboard is running'}
+    """Health check endpoint with service status"""
+    health_status = {
+        'status': 'healthy',
+        'message': 'Homelab Dashboard is running',
+        'services': {
+            'database': db_service.is_available,
+            'redis': False,
+            'websocket': True
+        }
+    }
+    
+    try:
+        redis_client = redis.from_url(Config.REDIS_URL)
+        redis_client.ping()
+        health_status['services']['redis'] = True
+    except:
+        pass
+    
+    return health_status
 
 if __name__ == '__main__':
     logger.info("Starting Homelab Dashboard...")

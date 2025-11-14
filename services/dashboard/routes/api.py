@@ -486,7 +486,7 @@ def get_connection_examples(container_name):
         examples = database_service.get_connection_examples(
             db_type=db_type,
             container_name=container_name,
-            port=int(port),
+            host_port=int(port),
             password=password,
             username=username,
             database=database
