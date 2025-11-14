@@ -17,7 +17,9 @@
   --glass-cosmic-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
 }
 
-/* CRITICAL: Fix unreadable text on dark backgrounds */
+/* ==================== WCAG AA CONTRAST FIXES ==================== */
+/* All text must be readable on dark backgrounds (4.5:1 contrast ratio minimum) */
+
 body, .main-content {
   color: #E5E7EB !important;
 }
@@ -27,18 +29,222 @@ body, .main-content {
   opacity: 1 !important;
 }
 
+/* Override Bootstrap text utilities with high-contrast colors */
+.text-primary {
+  color: #93C5FD !important; /* Light blue - readable on dark */
+}
+
+.text-secondary {
+  color: #D1D5DB !important; /* Light gray */
+}
+
+.text-info {
+  color: #7DD3FC !important; /* Light cyan - readable */
+}
+
+.text-success {
+  color: #86EFAC !important; /* Light green */
+}
+
+.text-warning {
+  color: #FCD34D !important; /* Light yellow */
+}
+
+.text-danger {
+  color: #FCA5A5 !important; /* Light red */
+}
+
+.text-light {
+  color: #F3F4F6 !important;
+}
+
+.text-dark {
+  color: #E5E7EB !important; /* Override to be light on dark backgrounds */
+}
+
+.text-white {
+  color: #FFFFFF !important;
+}
+
+/* Card text */
 .card {
   background-color: rgba(31, 41, 55, 0.8) !important;
   border: 1px solid rgba(139, 92, 246, 0.2) !important;
   color: #E5E7EB !important;
 }
 
-.card-body, .card-header {
+.card-body, .card-header, .card-title, .card-text {
   color: #E5E7EB !important;
 }
 
+/* Headings */
 h1, h2, h3, h4, h5, h6 {
   color: #F9FAFB !important;
+}
+
+/* Form controls */
+.form-control, .form-select, textarea {
+  background-color: rgba(31, 41, 55, 0.6) !important;
+  border: 1px solid rgba(139, 92, 246, 0.3) !important;
+  color: #F9FAFB !important;
+}
+
+.form-control::placeholder, .form-select::placeholder, textarea::placeholder {
+  color: #9CA3AF !important;
+  opacity: 1 !important;
+}
+
+.form-label {
+  color: #E5E7EB !important;
+}
+
+/* Buttons - ensure text is always readable */
+.btn {
+  color: #FFFFFF !important;
+  font-weight: 500;
+}
+
+.btn-primary {
+  background-color: #8B5CF6 !important;
+  border-color: #8B5CF6 !important;
+  color: #FFFFFF !important;
+}
+
+.btn-secondary {
+  background-color: #6B7280 !important;
+  border-color: #6B7280 !important;
+  color: #FFFFFF !important;
+}
+
+.btn-outline-primary, .btn-outline-secondary, .btn-outline-info {
+  color: #E5E7EB !important;
+  border-color: rgba(139, 92, 246, 0.5) !important;
+}
+
+.btn-outline-primary:hover, .btn-outline-secondary:hover, .btn-outline-info:hover {
+  background-color: #8B5CF6 !important;
+  border-color: #8B5CF6 !important;
+  color: #FFFFFF !important;
+}
+
+/* Modal text */
+.modal-content {
+  background-color: rgba(17, 24, 39, 0.95) !important;
+  color: #E5E7EB !important;
+}
+
+.modal-header, .modal-body, .modal-footer {
+  color: #E5E7EB !important;
+  border-color: rgba(139, 92, 246, 0.2) !important;
+}
+
+.modal-title {
+  color: #F9FAFB !important;
+}
+
+/* Lists */
+ul, ol, li, p, span, div {
+  color: inherit;
+}
+
+/* AI Assistant Chat - CRITICAL FIX */
+.chat-message, .ai-message, .user-message, .assistant-message {
+  color: #E5E7EB !important;
+}
+
+.chat-input, .message-input {
+  background-color: rgba(31, 41, 55, 0.6) !important;
+  border: 1px solid rgba(139, 92, 246, 0.3) !important;
+  color: #F9FAFB !important;
+}
+
+/* Badges */
+.badge {
+  font-weight: 600;
+  color: #FFFFFF !important;
+}
+
+.badge-primary {
+  background-color: #8B5CF6 !important;
+}
+
+.badge-success {
+  background-color: #10B981 !important;
+}
+
+.badge-warning {
+  background-color: #F59E0B !important;
+}
+
+.badge-danger {
+  background-color: #EF4444 !important;
+}
+
+.badge-info {
+  background-color: #06B6D4 !important;
+}
+
+/* Alerts */
+.alert {
+  color: #E5E7EB !important;
+  border: 1px solid rgba(139, 92, 246, 0.3) !important;
+}
+
+.alert-info {
+  background-color: rgba(6, 182, 212, 0.2) !important;
+  border-color: #06B6D4 !important;
+  color: #E0F2FE !important;
+}
+
+.alert-success {
+  background-color: rgba(16, 185, 129, 0.2) !important;
+  border-color: #10B981 !important;
+  color: #D1FAE5 !important;
+}
+
+.alert-warning {
+  background-color: rgba(245, 158, 11, 0.2) !important;
+  border-color: #F59E0B !important;
+  color: #FEF3C7 !important;
+}
+
+.alert-danger {
+  background-color: rgba(239, 68, 68, 0.2) !important;
+  border-color: #EF4444 !important;
+  color: #FEE2E2 !important;
+}
+
+/* Links */
+a {
+  color: #93C5FD !important;
+  text-decoration: none;
+}
+
+a:hover {
+  color: #BFDBFE !important;
+  text-decoration: underline;
+}
+
+/* Tables */
+.table {
+  color: #E5E7EB !important;
+}
+
+.table thead th {
+  color: #F9FAFB !important;
+  border-color: rgba(139, 92, 246, 0.2) !important;
+}
+
+.table tbody td {
+  color: #E5E7EB !important;
+  border-color: rgba(75, 85, 99, 0.3) !important;
+}
+
+/* Code blocks */
+code, pre, .code-block {
+  background-color: rgba(17, 24, 39, 0.8) !important;
+  color: #F9FAFB !important;
+  border: 1px solid rgba(139, 92, 246, 0.2) !important;
 }
 
 .connection-code {
@@ -46,6 +252,13 @@ h1, h2, h3, h4, h5, h6 {
   border: 1px solid rgba(139, 92, 246, 0.3) !important;
   color: #F9FAFB !important;
 }
+
+/* Ensure all children of cards inherit readable colors */
+.card * {
+  color: inherit;
+}
+
+/* ==================== END WCAG AA FIXES ==================== */
 
 /* Animated Starfield Background */
 .cosmic-bg {
