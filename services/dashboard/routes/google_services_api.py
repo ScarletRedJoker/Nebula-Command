@@ -50,6 +50,21 @@ def add_security_headers(response):
     return response
 
 
+def validate_csrf_token():
+    """Validate CSRF token from request"""
+    token = request.headers.get('X-CSRFToken') or request.form.get('csrf_token')
+    if not token:
+        logger.warning(f"Missing CSRF token from {request.remote_addr}")
+        return jsonify({'success': False, 'error': 'CSRF token missing'}), 403
+    
+    try:
+        validate_csrf(token)
+        return None
+    except Exception as e:
+        logger.warning(f"Invalid CSRF token from {request.remote_addr}: {e}")
+        return jsonify({'success': False, 'error': 'Invalid CSRF token'}), 403
+
+
 @google_services_bp.after_request
 def after_request(response):
     """Add security headers to all responses"""
@@ -168,6 +183,10 @@ def get_configuration():
 @limiter.limit("10 per hour")
 def reset_connections():
     """Reset all service connections (clear cached tokens)"""
+    csrf_error = validate_csrf_token()
+    if csrf_error:
+        return csrf_error
+    
     try:
         result = google_orchestrator.reset_connections()
         
@@ -262,6 +281,10 @@ def get_calendar_automations():
 @limiter.limit("20 per hour")
 def create_calendar_automation():
     """Create new calendar automation"""
+    csrf_error = validate_csrf_token()
+    if csrf_error:
+        return csrf_error
+    
     try:
         data = request.get_json()
         
@@ -318,6 +341,10 @@ def create_calendar_automation():
 @limiter.limit("20 per hour")
 def update_calendar_automation(automation_id: str):
     """Update calendar automation"""
+    csrf_error = validate_csrf_token()
+    if csrf_error:
+        return csrf_error
+    
     try:
         data = request.get_json()
         
@@ -371,6 +398,10 @@ def update_calendar_automation(automation_id: str):
 @limiter.limit("20 per hour")
 def delete_calendar_automation(automation_id: str):
     """Delete calendar automation"""
+    csrf_error = validate_csrf_token()
+    if csrf_error:
+        return csrf_error
+    
     try:
         if not db_service.is_available:
             return jsonify({'success': False, 'error': 'Database unavailable'}), 503
@@ -408,6 +439,10 @@ def delete_calendar_automation(automation_id: str):
 @limiter.limit("30 per hour")
 def send_email():
     """Send email via Gmail"""
+    csrf_error = validate_csrf_token()
+    if csrf_error:
+        return csrf_error
+    
     try:
         data = request.get_json()
         

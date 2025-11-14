@@ -99,32 +99,46 @@ def poll_calendar_events(self):
                             logger.info(f"Triggering automation '{automation.name}' for event: {event['summary']}")
                             
                             # Call Home Assistant service if configured
-                            if (automation.ha_service_domain and
-                                automation.ha_service_name and
-                                home_assistant_service.enabled):
-                                
-                                result = home_assistant_service.call_service(
-                                    domain=automation.ha_service_domain,
-                                    service=automation.ha_service_name,
-                                    **automation.ha_service_data
-                                )
-                                
-                                if result:
-                                    automation.last_triggered = datetime.utcnow()
-                                    automation.trigger_count += 1
-                                    triggered_count += 1
+                            if automation.ha_service_domain and automation.ha_service_name:
+                                try:
+                                    # Check if Home Assistant is available
+                                    if not hasattr(home_assistant_service, 'enabled') or not home_assistant_service.enabled:
+                                        logger.warning(f"Home Assistant not available, skipping automation: {automation.name}")
+                                        automation.last_error = "Home Assistant service not available"
+                                        error_count += 1
+                                        continue
                                     
-                                    # Publish event
-                                    websocket_service.publish_event('google_services', {
-                                        'type': 'automation_triggered',
-                                        'automation_id': str(automation.id),
-                                        'automation_name': automation.name,
-                                        'event_summary': event['summary'],
-                                        'timestamp': datetime.utcnow().isoformat()
-                                    })
-                                else:
-                                    logger.error(f"Failed to call HA service for automation: {automation.name}")
-                                    automation.last_error = "Failed to call Home Assistant service"
+                                    result = home_assistant_service.call_service(
+                                        domain=automation.ha_service_domain,
+                                        service=automation.ha_service_name,
+                                        **automation.ha_service_data
+                                    )
+                                    
+                                    if result:
+                                        automation.last_triggered = datetime.utcnow()
+                                        automation.trigger_count += 1
+                                        triggered_count += 1
+                                        
+                                        # Publish event
+                                        websocket_service.publish_event('google_services', {
+                                            'type': 'automation_triggered',
+                                            'automation_id': str(automation.id),
+                                            'automation_name': automation.name,
+                                            'event_summary': event['summary'],
+                                            'timestamp': datetime.utcnow().isoformat()
+                                        })
+                                    else:
+                                        logger.error(f"Failed to call HA service for automation: {automation.name}")
+                                        automation.last_error = "Failed to call Home Assistant service"
+                                        error_count += 1
+                                
+                                except AttributeError as e:
+                                    logger.warning(f"Home Assistant service not configured: {e}")
+                                    automation.last_error = "Home Assistant service not configured"
+                                    error_count += 1
+                                except Exception as e:
+                                    logger.error(f"Error calling Home Assistant service: {e}", exc_info=True)
+                                    automation.last_error = f"Error calling HA service: {str(e)}"
                                     error_count += 1
                 
                 except Exception as e:
@@ -268,11 +282,25 @@ def backup_to_drive_task(
     """
     logger.info(f"Starting Drive backup: {len(file_paths)} files")
     
+    # Resource limits
+    MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024  # 2GB per file
+    MIN_DISK_SPACE = 1 * 1024 * 1024 * 1024  # 1GB minimum free space
+    
     uploaded_count = 0
     failed_count = 0
     total_size = 0
     
     try:
+        # Check available disk space
+        try:
+            stat = os.statvfs('/')
+            available_space = stat.f_bavail * stat.f_frsize
+            if available_space < MIN_DISK_SPACE:
+                logger.error(f"Insufficient disk space: {available_space} bytes available, {MIN_DISK_SPACE} required")
+                raise RuntimeError(f"Insufficient disk space for backup operation")
+        except Exception as e:
+            logger.warning(f"Unable to check disk space: {e}")
+        
         for file_path in file_paths:
             backup_id = None
             
@@ -284,6 +312,17 @@ def backup_to_drive_task(
                 
                 file_size = os.path.getsize(file_path)
                 file_name = os.path.basename(file_path)
+                
+                # Check file size limit
+                if file_size > MAX_FILE_SIZE:
+                    logger.error(f"File too large: {file_name} ({file_size} bytes, max {MAX_FILE_SIZE})")
+                    failed_count += 1
+                    continue
+                
+                # Check if adding this file would exceed reasonable total
+                if total_size + file_size > 10 * 1024 * 1024 * 1024:  # 10GB total limit per batch
+                    logger.warning(f"Batch size limit reached, skipping remaining files")
+                    break
                 
                 # Create backup record
                 if db_service.is_available:
