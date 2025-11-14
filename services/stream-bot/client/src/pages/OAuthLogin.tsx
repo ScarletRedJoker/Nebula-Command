@@ -42,80 +42,94 @@ export default function OAuthLogin() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1 text-center">
-          <CardTitle className="text-3xl font-bold">Welcome to StreamBot</CardTitle>
-          <CardDescription className="text-base">
+    <div className="min-h-screen flex items-center justify-center candy-animated-bg p-4">
+      <div className="candy-glass-card w-full max-w-md p-8 candy-fade-in">
+        <div className="space-y-1 text-center mb-6">
+          <h1 className="text-3xl font-bold candy-gradient-text">Welcome to StreamBot</h1>
+          <p className="text-base text-white/80">
             Sign in with your streaming platform to get started
-          </CardDescription>
-        </CardHeader>
+          </p>
+        </div>
         
-        <CardContent className="space-y-4">
+        <div className="space-y-4">
           {error && (
-            <Alert variant="destructive">
+            <Alert variant="destructive" className="candy-bounce">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
 
           {success && (
-            <Alert className="bg-green-50 text-green-900 border-green-200">
+            <Alert className="bg-green-50 text-green-900 border-green-200 candy-bounce">
               <AlertDescription>{success}</AlertDescription>
             </Alert>
           )}
 
           <div className="space-y-3">
-            <Button
+            <button
               onClick={handleTwitchLogin}
-              className="w-full h-12 text-base bg-[#9146FF] hover:bg-[#7d3bd1] text-white"
-              size="lg"
+              className="w-full h-12 text-base text-white font-semibold rounded-2xl transition-all duration-300 hover:scale-105 hover:shadow-lg"
+              style={{
+                background: 'linear-gradient(135deg, #9146FF 0%, #772CE8 100%)',
+                boxShadow: '0 4px 15px rgba(145, 70, 255, 0.3)'
+              }}
             >
-              <Twitch className="mr-2 h-5 w-5" />
-              Sign in with Twitch
-            </Button>
+              <div className="flex items-center justify-center gap-2">
+                <Twitch className="h-5 w-5" />
+                Sign in with Twitch
+              </div>
+            </button>
 
-            <Button
+            <button
               onClick={handleYouTubeLogin}
-              className="w-full h-12 text-base bg-[#FF0000] hover:bg-[#cc0000] text-white"
-              size="lg"
+              className="w-full h-12 text-base text-white font-semibold rounded-2xl transition-all duration-300 hover:scale-105 hover:shadow-lg"
+              style={{
+                background: 'linear-gradient(135deg, #FF0000 0%, #CC0000 100%)',
+                boxShadow: '0 4px 15px rgba(255, 0, 0, 0.3)'
+              }}
             >
-              <Youtube className="mr-2 h-5 w-5" />
-              Sign in with YouTube
-            </Button>
+              <div className="flex items-center justify-center gap-2">
+                <Youtube className="h-5 w-5" />
+                Sign in with YouTube
+              </div>
+            </button>
 
-            <Button
+            <button
               disabled
-              className="w-full h-12 text-base bg-[#53FC18] hover:bg-[#45d614] text-black opacity-50 cursor-not-allowed"
-              size="lg"
+              className="w-full h-12 text-base text-black/50 font-semibold rounded-2xl cursor-not-allowed opacity-50"
+              style={{
+                background: 'linear-gradient(135deg, #53FC18 0%, #45D614 100%)',
+              }}
               title="Kick authentication coming soon"
             >
-              <svg 
-                className="mr-2 h-5 w-5" 
-                viewBox="0 0 24 24" 
-                fill="currentColor"
-              >
-                <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"/>
-              </svg>
-              Sign in with Kick (Coming Soon)
-            </Button>
+              <div className="flex items-center justify-center gap-2">
+                <svg 
+                  className="h-5 w-5" 
+                  viewBox="0 0 24 24" 
+                  fill="currentColor"
+                >
+                  <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"/>
+                </svg>
+                Sign in with Kick (Coming Soon)
+              </div>
+            </button>
           </div>
 
-          <div className="mt-6 text-center text-sm text-muted-foreground">
+          <div className="mt-6 text-center text-sm text-white/70">
             <p>
               By signing in, you agree to let StreamBot manage your chat bot
               and access your streaming data.
             </p>
           </div>
 
-          <div className="mt-4 text-center text-xs text-muted-foreground">
+          <div className="mt-4 text-center text-xs text-white/60">
             <p>
               <strong>New to StreamBot?</strong> Just click a button above!
               We'll automatically create your account when you sign in for the first time.
             </p>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

@@ -12129,3 +12129,178 @@ img[loading="lazy"] {
         display: none;
     }
 }
+
+/* ========================================
+   SLICK MODERN ANIMATIONS - November 2025
+   ======================================== */
+
+/* Smooth Page Load Animation */
+.page-content {
+    animation: smoothFadeIn 0.8s ease-out;
+}
+
+@keyframes smoothFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Card Hover Lift Effect */
+.card:not(.proximity-glow-card) {
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), 
+                box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card:not(.proximity-glow-card):hover {
+    transform: translateY(-8px);
+    box-shadow: 0 12px 24px rgba(255, 40, 81, 0.2);
+}
+
+/* Button Press Animation */
+.btn {
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(255, 40, 81, 0.3);
+}
+
+.btn:active {
+    transform: translateY(0px);
+    box-shadow: 0 2px 4px rgba(255, 40, 81, 0.2);
+}
+
+/* Ripple Effect on Click */
+.btn::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.5);
+    transform: translate(-50%, -50%);
+    transition: width 0.6s, height 0.6s;
+}
+
+.btn:active::after {
+    width: 300px;
+    height: 300px;
+}
+
+/* Navbar Links Smooth Underline */
+.nav-link {
+    position: relative;
+    transition: color 0.3s ease;
+}
+
+.nav-link::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 50%;
+    width: 0;
+    height: 2px;
+    background: linear-gradient(90deg, #ff2851, #ff5073);
+    transform: translateX(-50%);
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.nav-link:hover::after,
+.nav-link.active::after {
+    width: 100%;
+}
+
+/* Image Zoom on Hover */
+.img-fluid {
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.img-fluid:hover {
+    transform: scale(1.05);
+}
+
+/* Staggered Card Animation on Scroll */
+.row > .col-md-4 {
+    animation: staggerFadeIn 0.6s ease-out backwards;
+}
+
+.row > .col-md-4:nth-child(1) {
+    animation-delay: 0.1s;
+}
+
+.row > .col-md-4:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.row > .col-md-4:nth-child(3) {
+    animation-delay: 0.3s;
+}
+
+@keyframes staggerFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Text Gradient Animation */
+.terminal {
+    background: linear-gradient(90deg, #ff2851, #ff5073, #ff2851);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: gradientShift 3s ease infinite;
+}
+
+@keyframes gradientShift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+/* Smooth Scroll Behavior */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Link Hover Glow */
+a:not(.btn):not(.nav-link) {
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+a:not(.btn):not(.nav-link):hover {
+    text-shadow: 0 0 10px rgba(255, 40, 81, 0.5);
+}
+
+/* Card Body Content Fade In */
+.card-body {
+    animation: contentFadeIn 0.8s ease-out 0.2s backwards;
+}
+
+@keyframes contentFadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+/* Preserve existing slide effect if user added it */
+/* DO NOT modify existing .exp-slide, .contact-slide, or similar classes */
