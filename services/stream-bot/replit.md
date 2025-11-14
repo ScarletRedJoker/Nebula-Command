@@ -76,6 +76,12 @@ StreamBot is a multi-tenant SaaS platform enabling users to deploy and manage AI
 - **Session Store**: `connect-pg-simple` for PostgreSQL session management.
 
 ## Recent Changes (November 14, 2025)
+- ✅ **Kick Integration Documentation Clarified**:
+  - Removed misleading root-level documentation that mixed Jarvis and stream-bot features
+  - Created comprehensive `docs/KICK_INTEGRATION.md` with technical implementation details
+  - Kick integration is fully functional in stream-bot (OAuth, chat bot, multi-platform support)
+  - Updated setup guide with clear Kick connection instructions
+  - **Note**: Kick integration was NEVER part of Jarvis homelab AI - it has always been a stream-bot feature
 - ✅ **Command Permission System**:
   - Implemented permission levels for custom commands: broadcaster, moderator, subscriber, everyone
   - Added `checkUserPermission()` method in BotWorker to validate user badges/roles

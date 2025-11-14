@@ -11,15 +11,35 @@ The Google Services integration provides:
 
 ## Prerequisites
 
-- Replit account with access to connectors
 - Google account for Calendar, Gmail, and Drive access
 - Running Jarvis dashboard instance
 - Redis for token caching
 - PostgreSQL database for tracking automations and backups
 
+### Deployment Options
+
+This integration supports two deployment scenarios with different authentication methods:
+
+#### Option 1: Replit Deployment (Recommended for Development)
+- Uses **Replit Connectors** for automatic OAuth token management
+- Simplifies authentication with built-in token refresh
+- No need to manage service account credentials
+- Prerequisites:
+  - Replit account with access to connectors
+  - Google Calendar, Gmail, and Drive connectors configured
+
+#### Option 2: Ubuntu/Self-Hosted Deployment (Production)
+- Uses **Google Service Account** credentials
+- Full control over authentication and permissions
+- Prerequisites:
+  - Google Cloud Platform project
+  - Service Account with Calendar, Gmail, and Drive API access
+  - Service Account JSON key file
+  - Domain-wide delegation configured (for Gmail/Calendar)
+
 ## Environment Variables
 
-The following environment variables are required:
+### For Replit Deployment
 
 ```bash
 # Replit Connector Configuration
@@ -32,6 +52,72 @@ REDIS_URL=redis://localhost:6379/0
 # Optional: Default email recipient
 DEFAULT_EMAIL_RECIPIENT=your-email@example.com
 ```
+
+### For Ubuntu/Self-Hosted Deployment
+
+```bash
+# Google Service Account Configuration
+GOOGLE_SERVICE_ACCOUNT_FILE=/path/to/service-account-key.json
+GOOGLE_DELEGATED_USER_EMAIL=admin@yourdomain.com  # For domain-wide delegation
+
+# Redis Configuration (for token caching)
+REDIS_URL=redis://localhost:6379/0
+
+# Optional: Default email recipient
+DEFAULT_EMAIL_RECIPIENT=your-email@example.com
+```
+
+### Setting Up Google Service Account (Ubuntu/Self-Hosted)
+
+1. **Create a Google Cloud Project**
+   - Go to [Google Cloud Console](https://console.cloud.google.com/)
+   - Create a new project or select existing one
+
+2. **Enable Required APIs**
+   ```bash
+   # Enable Google Calendar API
+   gcloud services enable calendar-json.googleapis.com
+   
+   # Enable Gmail API
+   gcloud services enable gmail.googleapis.com
+   
+   # Enable Google Drive API
+   gcloud services enable drive.googleapis.com
+   ```
+
+3. **Create Service Account**
+   - Navigate to IAM & Admin > Service Accounts
+   - Click "Create Service Account"
+   - Name: `jarvis-google-services`
+   - Grant roles: None needed (API access is scope-based)
+   - Create and download JSON key file
+
+4. **Configure Domain-Wide Delegation** (for Gmail and Calendar)
+   - Go to Service Account > Edit
+   - Enable "Domain-wide Delegation"
+   - Note the Client ID
+   - Go to Google Workspace Admin Console
+   - Security > API Controls > Domain-wide Delegation
+   - Add new delegation:
+     - Client ID: `<service-account-client-id>`
+     - Scopes:
+       ```
+       https://www.googleapis.com/auth/calendar.readonly
+       https://www.googleapis.com/auth/gmail.send
+       https://www.googleapis.com/auth/drive.file
+       ```
+
+5. **Update Environment Variables**
+   ```bash
+   export GOOGLE_SERVICE_ACCOUNT_FILE=/path/to/key.json
+   export GOOGLE_DELEGATED_USER_EMAIL=admin@yourdomain.com
+   ```
+
+6. **Restart Services**
+   ```bash
+   systemctl restart jarvis-dashboard
+   systemctl restart jarvis-celery
+   ```
 
 ## Setup Instructions
 
@@ -236,11 +322,38 @@ The integration includes several background tasks:
 
 ### Common Issues
 
-**Authentication Errors**
+**Authentication Errors (Replit Deployment)**
 
 - Verify `REPLIT_CONNECTORS_HOSTNAME` is set correctly
-- Check that Google services are authorized in Replit
-- Try disconnecting and reconnecting the service
+- Verify `REPL_IDENTITY` or `WEB_REPL_RENEWAL` environment variable is set
+- Check that Google Calendar, Gmail, and Drive connectors are configured in Replit
+- Try disconnecting and reconnecting the service in Replit connector settings
+- Verify token is being retrieved correctly:
+  ```python
+  from services.dashboard.services.google.google_client import google_client_manager
+  print(google_client_manager.get_access_token('google-calendar'))
+  ```
+
+**Authentication Errors (Ubuntu/Self-Hosted Deployment)**
+
+- Verify `GOOGLE_SERVICE_ACCOUNT_FILE` points to valid JSON key file
+- Check file permissions on service account key file (should be readable by app user)
+- Verify `GOOGLE_DELEGATED_USER_EMAIL` is set to a valid Google Workspace user
+- Confirm domain-wide delegation is configured correctly in Google Workspace Admin
+- Verify all required API scopes are granted in domain-wide delegation
+- Check service account has correct permissions:
+  ```bash
+  # Test service account authentication
+  python3 -c "
+  from google.oauth2 import service_account
+  credentials = service_account.Credentials.from_service_account_file(
+      '/path/to/key.json',
+      scopes=['https://www.googleapis.com/auth/calendar.readonly']
+  )
+  print('Service account loaded successfully')
+  "
+  ```
+- If using domain-wide delegation, ensure the delegated user email is valid
 
 **Calendar Automations Not Triggering**
 
