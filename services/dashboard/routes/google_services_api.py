@@ -2,18 +2,22 @@
 from flask import Blueprint, jsonify, request, render_template
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from flask_wtf.csrf import generate_csrf
+from flask_wtf.csrf import generate_csrf, validate_csrf
+from flask_wtf import FlaskForm
+from wtforms import StringField, IntegerField, TextAreaField, BooleanField
+from wtforms.validators import DataRequired, Email, Length, Optional as OptionalValidator
 import logging
 from typing import Dict, Any
 from datetime import datetime, timedelta
+import os
 
-from services.google.orchestrator import google_orchestrator
-from services.google.calendar_service import calendar_service
-from services.google.gmail_service import gmail_service
-from services.google.drive_service import drive_service
-from services.db_service import db_service
-from services.websocket_service import websocket_service
-from models.google_integration import (
+from services.dashboard.services.google.orchestrator import google_orchestrator
+from services.dashboard.services.google.calendar_service import calendar_service
+from services.dashboard.services.google.gmail_service import gmail_service
+from services.dashboard.services.google.drive_service import drive_service
+from services.dashboard.services.db_service import db_service
+from services.dashboard.services.websocket_service import websocket_service
+from services.dashboard.models.google_integration import (
     GoogleServiceStatus,
     CalendarAutomation,
     EmailNotification,
@@ -23,16 +27,18 @@ from models.google_integration import (
     EmailNotificationStatus,
     BackupStatus
 )
-from utils.auth import require_auth
+from services.dashboard.utils.auth import require_auth
 
 logger = logging.getLogger(__name__)
 
 google_services_bp = Blueprint('google_services', __name__, url_prefix='/google')
 
+# Use Redis for rate limiting in production
+redis_url = os.environ.get('REDIS_URL', 'redis://redis:6379/1')
 limiter = Limiter(
     key_func=get_remote_address,
     default_limits=["500 per hour"],
-    storage_uri="memory://"
+    storage_uri=redis_url
 )
 
 
