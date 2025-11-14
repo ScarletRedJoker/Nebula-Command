@@ -21,6 +21,7 @@ from .task import Task
 from .artifact import Artifact
 from .deployment import Deployment
 from .domain_record import DomainRecord
+from .jarvis import Project, ArtifactBuild, ComposeSpec, SSLCertificate, AISession
 
 __all__ = [
     'Base',
@@ -30,5 +31,10 @@ __all__ = [
     'Task',
     'Artifact',
     'Deployment',
-    'DomainRecord'
+    'DomainRecord',
+    'Project',
+    'ArtifactBuild',
+    'ComposeSpec',
+    'SSLCertificate',
+    'AISession'
 ]

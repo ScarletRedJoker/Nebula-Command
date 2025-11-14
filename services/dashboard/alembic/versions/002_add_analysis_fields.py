@@ -1,7 +1,7 @@
 """Add analysis fields to artifacts table
 
-Revision ID: 002_add_analysis_fields
-Revises: 001_initial_schema
+Revision ID: 002
+Revises: 001
 Create Date: 2025-11-14
 
 """
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision = '002_add_analysis_fields'
-down_revision = '001_initial_schema'
+revision = '002'
+down_revision = '001'
 branch_labels = None
 depends_on = None
 

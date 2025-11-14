@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, Enum as SQLEnum, ForeignKey
+from sqlalchemy import Column, String, DateTime, Text, Enum as SQLEnum, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID, JSON
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -32,9 +32,18 @@ class Deployment(Base):
     configuration = Column(JSON, nullable=True, default=dict)
     health_status = Column(SQLEnum(HealthStatus), nullable=False, default=HealthStatus.unknown)
     last_health_check = Column(DateTime(timezone=True), nullable=True)
+    rollout_strategy = Column(String(50), nullable=True, default='rolling')
+    previous_deployment_id = Column(UUID(as_uuid=True), ForeignKey('deployments.id', ondelete='SET NULL'), nullable=True)
+    ssl_certificate_id = Column(UUID(as_uuid=True), ForeignKey('ssl_certificates.id', ondelete='SET NULL'), nullable=True)
+    compose_spec_id = Column(UUID(as_uuid=True), ForeignKey('compose_specs.id', ondelete='SET NULL'), nullable=True)
+    health_check_url = Column(Text, nullable=True)
+    health_check_status = Column(String(20), nullable=True)
     
     workflow = relationship("Workflow", backref="deployments", foreign_keys=[workflow_id])
     artifact = relationship("Artifact", backref="deployments", foreign_keys=[artifact_id])
+    previous_deployment = relationship("Deployment", remote_side=[id], foreign_keys=[previous_deployment_id])
+    ssl_certificate = relationship("SSLCertificate", foreign_keys=[ssl_certificate_id])
+    compose_spec = relationship("ComposeSpec", foreign_keys=[compose_spec_id])
     
     def __repr__(self):
         return f"<Deployment(id={self.id}, service_name='{self.service_name}', status='{self.status.value}')>"
@@ -42,14 +51,20 @@ class Deployment(Base):
     def to_dict(self):
         return {
             'id': str(self.id),
-            'workflow_id': str(self.workflow_id),
+            'workflow_id': str(self.workflow_id) if self.workflow_id else None,
             'artifact_id': str(self.artifact_id) if self.artifact_id else None,
             'service_name': self.service_name,
             'service_type': self.service_type,
             'domain': self.domain,
-            'status': self.status.value,
+            'status': self.status.value if self.status else None,
             'deployed_at': self.deployed_at.isoformat() if self.deployed_at else None,
             'configuration': self.configuration,
-            'health_status': self.health_status.value,
-            'last_health_check': self.last_health_check.isoformat() if self.last_health_check else None
+            'health_status': self.health_status.value if self.health_status else None,
+            'last_health_check': self.last_health_check.isoformat() if self.last_health_check else None,
+            'rollout_strategy': self.rollout_strategy,
+            'previous_deployment_id': str(self.previous_deployment_id) if self.previous_deployment_id else None,
+            'ssl_certificate_id': str(self.ssl_certificate_id) if self.ssl_certificate_id else None,
+            'compose_spec_id': str(self.compose_spec_id) if self.compose_spec_id else None,
+            'health_check_url': self.health_check_url,
+            'health_check_status': self.health_check_status
         }

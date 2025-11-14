@@ -34,6 +34,12 @@ class DomainRecord(Base):
     status = Column(SQLEnum(RecordStatus), nullable=False, default=RecordStatus.pending)
     verified_at = Column(DateTime(timezone=True), nullable=True)
     record_metadata = Column(JSON, nullable=True, default=dict)
+    managed_by = Column(String(20), nullable=True, default='automatic')
+    verification_token = Column(String(255), nullable=True)
+    priority = Column(Integer, nullable=True)
+    provider = Column(String(50), nullable=True)
+    provider_record_id = Column(String(255), nullable=True)
+    last_verified = Column(DateTime(timezone=True), nullable=True)
     
     deployment = relationship("Deployment", backref="domain_records", foreign_keys=[deployment_id])
     
@@ -46,12 +52,18 @@ class DomainRecord(Base):
             'deployment_id': str(self.deployment_id) if self.deployment_id else None,
             'domain': self.domain,
             'subdomain': self.subdomain,
-            'record_type': self.record_type.value,
+            'record_type': self.record_type.value if self.record_type else None,
             'record_value': self.record_value,
             'ttl': self.ttl,
             'auto_managed': self.auto_managed,
             'dns_provider': self.dns_provider,
-            'status': self.status.value,
+            'status': self.status.value if self.status else None,
             'verified_at': self.verified_at.isoformat() if self.verified_at else None,
-            'record_metadata': self.record_metadata
+            'record_metadata': self.record_metadata,
+            'managed_by': self.managed_by,
+            'verification_token': self.verification_token,
+            'priority': self.priority,
+            'provider': self.provider,
+            'provider_record_id': self.provider_record_id,
+            'last_verified': self.last_verified.isoformat() if self.last_verified else None
         }
