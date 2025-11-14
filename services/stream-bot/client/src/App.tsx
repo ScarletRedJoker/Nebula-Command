@@ -20,6 +20,9 @@ import History from "@/pages/history";
 import Commands from "@/pages/commands";
 import Moderation from "@/pages/moderation";
 import Giveaways from "@/pages/giveaways";
+import Shoutouts from "@/pages/shoutouts";
+import Games from "@/pages/games";
+import Statistics from "@/pages/statistics";
 import NotFound from "@/pages/not-found";
 import SpotifyOverlay from "@/pages/spotify-overlay";
 import YouTubeOverlay from "@/pages/youtube-overlay";
@@ -69,9 +72,12 @@ function ProtectedRouter() {
               <Route path="/trigger" component={Trigger} />
               <Route path="/activity" component={Activity} />
               <Route path="/history" component={History} />
+              <Route path="/statistics" component={Statistics} />
               <Route path="/commands" component={Commands} />
               <Route path="/moderation" component={Moderation} />
               <Route path="/giveaways" component={Giveaways} />
+              <Route path="/shoutouts" component={Shoutouts} />
+              <Route path="/games" component={Games} />
               <Route path="/settings" component={Settings} />
               <Route path="/profile" component={Profile} />
               <Route component={NotFound} />

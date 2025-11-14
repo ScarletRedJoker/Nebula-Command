@@ -16,13 +16,30 @@ import type {
   GiveawayEntry,
   GiveawayWinner,
   Shoutout,
+  GameSettings,
+  GameHistory,
+  ActiveTriviaQuestion,
   InsertModerationLog,
   InsertGiveaway,
   InsertGiveawayEntry,
   InsertGiveawayWinner,
   InsertShoutout,
+  InsertGameSettings,
+  InsertGameHistory,
+  InsertActiveTriviaQuestion,
   UpdateGiveaway,
   UpdateShoutout,
+  UpdateGameSettings,
+  CurrencySettings,
+  UserBalance,
+  CurrencyTransaction,
+  CurrencyReward,
+  InsertCurrencySettings,
+  InsertCurrencyReward,
+  UpdateCurrencySettings,
+  UpdateCurrencyReward,
+  ShoutoutSettings,
+  UpdateShoutoutSettings,
 } from "@shared/schema";
 
 export class UserStorage {
@@ -177,6 +194,88 @@ export class UserStorage {
 
   async deleteShoutout(id: string): Promise<void> {
     return storage.deleteShoutout(this.userId, id);
+  }
+
+  // Game Settings
+  async getGameSettings(): Promise<GameSettings | undefined> {
+    return storage.getGameSettings(this.userId);
+  }
+
+  async createGameSettings(data: InsertGameSettings): Promise<GameSettings> {
+    return storage.createGameSettings(this.userId, data);
+  }
+
+  async updateGameSettings(data: UpdateGameSettings): Promise<GameSettings> {
+    return storage.updateGameSettings(this.userId, data);
+  }
+
+  // Game History
+  async getGameHistory(limit?: number): Promise<GameHistory[]> {
+    return storage.getGameHistory(this.userId, limit);
+  }
+
+  async getGameHistoryByType(gameType: string, limit?: number): Promise<GameHistory[]> {
+    return storage.getGameHistoryByType(this.userId, gameType, limit);
+  }
+
+  async createGameHistory(data: InsertGameHistory): Promise<GameHistory> {
+    return storage.createGameHistory(data);
+  }
+
+  // Active Trivia Questions
+  async getActiveTriviaQuestion(player: string, platform: string): Promise<ActiveTriviaQuestion | undefined> {
+    return storage.getActiveTriviaQuestion(this.userId, player, platform);
+  }
+
+  async createActiveTriviaQuestion(data: InsertActiveTriviaQuestion): Promise<ActiveTriviaQuestion> {
+    return storage.createActiveTriviaQuestion(data);
+  }
+
+  async deleteActiveTriviaQuestion(id: string): Promise<void> {
+    return storage.deleteActiveTriviaQuestion(id);
+  }
+
+  // Currency Settings
+  async getCurrencySettings(): Promise<CurrencySettings | undefined> {
+    return storage.getCurrencySettings(this.userId);
+  }
+
+  async createCurrencySettings(data: InsertCurrencySettings): Promise<CurrencySettings> {
+    return storage.createCurrencySettings(this.userId, data);
+  }
+
+  async updateCurrencySettings(data: UpdateCurrencySettings): Promise<CurrencySettings> {
+    return storage.updateCurrencySettings(this.userId, data);
+  }
+
+  // Currency Rewards
+  async getCurrencyRewards(): Promise<CurrencyReward[]> {
+    return storage.getCurrencyRewards(this.userId);
+  }
+
+  async getCurrencyReward(id: string): Promise<CurrencyReward | undefined> {
+    return storage.getCurrencyReward(this.userId, id);
+  }
+
+  async createCurrencyReward(data: InsertCurrencyReward): Promise<CurrencyReward> {
+    return storage.createCurrencyReward(this.userId, data);
+  }
+
+  async updateCurrencyReward(id: string, data: UpdateCurrencyReward): Promise<CurrencyReward> {
+    return storage.updateCurrencyReward(this.userId, id, data);
+  }
+
+  async deleteCurrencyReward(id: string): Promise<void> {
+    return storage.deleteCurrencyReward(this.userId, id);
+  }
+
+  // Shoutout Settings
+  async getShoutoutSettings(): Promise<ShoutoutSettings | undefined> {
+    return storage.getShoutoutSettings(this.userId);
+  }
+
+  async updateShoutoutSettings(data: UpdateShoutoutSettings): Promise<ShoutoutSettings> {
+    return storage.updateShoutoutSettings(this.userId, data);
   }
 }
 

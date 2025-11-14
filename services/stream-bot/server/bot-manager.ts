@@ -251,6 +251,18 @@ export class BotManager {
     }
   }
 
+  // Notify chat about giveaway start
+  async notifyGiveawayStart(userId: string, giveaway: any): Promise<void> {
+    const worker = this.workers.get(userId);
+
+    if (!worker) {
+      console.log(`[BotManager] No worker found for user ${userId} to announce giveaway start`);
+      return;
+    }
+
+    await worker.announceGiveawayStart(giveaway);
+  }
+
   // Notify chat about giveaway winners
   async notifyGiveawayEnd(userId: string, giveaway: any, winners: any[]): Promise<void> {
     const worker = this.workers.get(userId);

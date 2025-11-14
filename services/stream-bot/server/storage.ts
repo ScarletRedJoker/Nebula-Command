@@ -11,6 +11,13 @@ import {
   giveawayEntries,
   giveawayWinners,
   shoutouts,
+  shoutoutSettings,
+  shoutoutHistory,
+  gameSettings,
+  gameHistory,
+  activeTriviaQuestions,
+  currencySettings,
+  currencyRewards,
   type PlatformConnection,
   type BotConfig,
   type MessageHistory,
@@ -22,6 +29,13 @@ import {
   type GiveawayEntry,
   type GiveawayWinner,
   type Shoutout,
+  type ShoutoutSettings,
+  type ShoutoutHistory,
+  type GameSettings,
+  type GameHistory,
+  type ActiveTriviaQuestion,
+  type CurrencySettings,
+  type CurrencyReward,
   type InsertPlatformConnection,
   type InsertBotConfig,
   type InsertMessageHistory,
@@ -33,12 +47,23 @@ import {
   type InsertGiveawayEntry,
   type InsertGiveawayWinner,
   type InsertShoutout,
+  type InsertShoutoutSettings,
+  type InsertShoutoutHistory,
+  type InsertGameSettings,
+  type InsertGameHistory,
+  type InsertActiveTriviaQuestion,
+  type InsertCurrencySettings,
+  type InsertCurrencyReward,
   type UpdateBotConfig,
   type UpdatePlatformConnection,
   type UpdateCustomCommand,
   type UpdateModerationRule,
   type UpdateGiveaway,
   type UpdateShoutout,
+  type UpdateShoutoutSettings,
+  type UpdateGameSettings,
+  type UpdateCurrencySettings,
+  type UpdateCurrencyReward,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, gte, sql, and } from "drizzle-orm";
@@ -134,6 +159,43 @@ export interface IStorage {
   createShoutout(userId: string, data: InsertShoutout): Promise<Shoutout>;
   updateShoutout(userId: string, id: string, data: UpdateShoutout): Promise<Shoutout>;
   deleteShoutout(userId: string, id: string): Promise<void>;
+
+  // Shoutout Settings
+  getShoutoutSettings(userId: string): Promise<ShoutoutSettings | undefined>;
+  createShoutoutSettings(userId: string, data: InsertShoutoutSettings): Promise<ShoutoutSettings>;
+  updateShoutoutSettings(userId: string, data: UpdateShoutoutSettings): Promise<ShoutoutSettings>;
+
+  // Shoutout History
+  getShoutoutHistory(userId: string, limit?: number): Promise<ShoutoutHistory[]>;
+  createShoutoutHistory(data: InsertShoutoutHistory): Promise<ShoutoutHistory>;
+
+  // Game Settings
+  getGameSettings(userId: string): Promise<GameSettings | undefined>;
+  createGameSettings(userId: string, data: InsertGameSettings): Promise<GameSettings>;
+  updateGameSettings(userId: string, data: UpdateGameSettings): Promise<GameSettings>;
+
+  // Game History
+  getGameHistory(userId: string, limit?: number): Promise<GameHistory[]>;
+  getGameHistoryByType(userId: string, gameType: string, limit?: number): Promise<GameHistory[]>;
+  createGameHistory(data: InsertGameHistory): Promise<GameHistory>;
+
+  // Active Trivia Questions
+  getActiveTriviaQuestion(userId: string, player: string, platform: string): Promise<ActiveTriviaQuestion | undefined>;
+  createActiveTriviaQuestion(data: InsertActiveTriviaQuestion): Promise<ActiveTriviaQuestion>;
+  deleteActiveTriviaQuestion(id: string): Promise<void>;
+  cleanupExpiredTriviaQuestions(): Promise<void>;
+
+  // Currency Settings
+  getCurrencySettings(userId: string): Promise<CurrencySettings | undefined>;
+  createCurrencySettings(userId: string, data: InsertCurrencySettings): Promise<CurrencySettings>;
+  updateCurrencySettings(userId: string, data: UpdateCurrencySettings): Promise<CurrencySettings>;
+
+  // Currency Rewards
+  getCurrencyRewards(userId: string): Promise<CurrencyReward[]>;
+  getCurrencyReward(userId: string, id: string): Promise<CurrencyReward | undefined>;
+  createCurrencyReward(userId: string, data: InsertCurrencyReward): Promise<CurrencyReward>;
+  updateCurrencyReward(userId: string, id: string, data: UpdateCurrencyReward): Promise<CurrencyReward>;
+  deleteCurrencyReward(userId: string, id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -922,6 +984,285 @@ export class DatabaseStorage implements IStorage {
         and(
           eq(shoutouts.userId, userId),
           eq(shoutouts.id, id)
+        )
+      );
+  }
+
+  // Shoutout Settings
+  async getShoutoutSettings(userId: string): Promise<ShoutoutSettings | undefined> {
+    const [settings] = await db
+      .select()
+      .from(shoutoutSettings)
+      .where(eq(shoutoutSettings.userId, userId));
+    return settings || undefined;
+  }
+
+  async createShoutoutSettings(userId: string, data: InsertShoutoutSettings): Promise<ShoutoutSettings> {
+    const [settings] = await db
+      .insert(shoutoutSettings)
+      .values({
+        ...data,
+        userId,
+      })
+      .returning();
+    return settings;
+  }
+
+  async updateShoutoutSettings(userId: string, data: UpdateShoutoutSettings): Promise<ShoutoutSettings> {
+    // Get existing settings
+    let existing = await this.getShoutoutSettings(userId);
+    
+    // Create default settings if they don't exist
+    if (!existing) {
+      existing = await this.createShoutoutSettings(userId, {
+        userId,
+        enableAutoShoutouts: false,
+        shoutoutTemplate: "Check out @{username}! They were last streaming {game} with {viewers} viewers! {url}",
+        enableRaidShoutouts: false,
+        enableHostShoutouts: false,
+        recentFollowerShoutouts: false,
+      });
+    }
+
+    // Update settings
+    const { userId: _userId, ...safeData } = data as any;
+    
+    const [settings] = await db
+      .update(shoutoutSettings)
+      .set({
+        ...safeData,
+        updatedAt: new Date(),
+      })
+      .where(eq(shoutoutSettings.userId, userId))
+      .returning();
+    return settings;
+  }
+
+  // Shoutout History
+  async getShoutoutHistory(userId: string, limit: number = 50): Promise<ShoutoutHistory[]> {
+    return await db
+      .select()
+      .from(shoutoutHistory)
+      .where(eq(shoutoutHistory.userId, userId))
+      .orderBy(desc(shoutoutHistory.timestamp))
+      .limit(limit);
+  }
+
+  async createShoutoutHistory(data: InsertShoutoutHistory): Promise<ShoutoutHistory> {
+    const [history] = await db
+      .insert(shoutoutHistory)
+      .values(data)
+      .returning();
+    return history;
+  }
+
+  // Game Settings
+  async getGameSettings(userId: string): Promise<GameSettings | undefined> {
+    const [settings] = await db
+      .select()
+      .from(gameSettings)
+      .where(eq(gameSettings.userId, userId));
+    return settings || undefined;
+  }
+
+  async createGameSettings(userId: string, data: InsertGameSettings): Promise<GameSettings> {
+    const [settings] = await db
+      .insert(gameSettings)
+      .values({
+        ...data,
+        userId,
+      })
+      .returning();
+    return settings;
+  }
+
+  async updateGameSettings(userId: string, data: UpdateGameSettings): Promise<GameSettings> {
+    let existing = await this.getGameSettings(userId);
+    
+    if (!existing) {
+      existing = await this.createGameSettings(userId, {
+        userId,
+        enableGames: true,
+        cooldownMinutes: 5,
+        pointsPerWin: 10,
+        enable8Ball: true,
+        enableTrivia: true,
+        enableDuel: true,
+        enableSlots: true,
+        enableRoulette: true,
+      });
+    }
+
+    const { userId: _userId, ...safeData } = data as any;
+    
+    const [settings] = await db
+      .update(gameSettings)
+      .set({
+        ...safeData,
+        updatedAt: new Date(),
+      })
+      .where(eq(gameSettings.userId, userId))
+      .returning();
+    return settings;
+  }
+
+  // Game History
+  async getGameHistory(userId: string, limit: number = 100): Promise<GameHistory[]> {
+    return await db
+      .select()
+      .from(gameHistory)
+      .where(eq(gameHistory.userId, userId))
+      .orderBy(desc(gameHistory.timestamp))
+      .limit(limit);
+  }
+
+  async getGameHistoryByType(userId: string, gameType: string, limit: number = 100): Promise<GameHistory[]> {
+    return await db
+      .select()
+      .from(gameHistory)
+      .where(
+        and(
+          eq(gameHistory.userId, userId),
+          eq(gameHistory.gameType, gameType)
+        )
+      )
+      .orderBy(desc(gameHistory.timestamp))
+      .limit(limit);
+  }
+
+  async createGameHistory(data: InsertGameHistory): Promise<GameHistory> {
+    const [history] = await db
+      .insert(gameHistory)
+      .values(data)
+      .returning();
+    return history;
+  }
+
+  // Active Trivia Questions
+  async getActiveTriviaQuestion(userId: string, player: string, platform: string): Promise<ActiveTriviaQuestion | undefined> {
+    const [question] = await db
+      .select()
+      .from(activeTriviaQuestions)
+      .where(
+        and(
+          eq(activeTriviaQuestions.userId, userId),
+          eq(activeTriviaQuestions.player, player),
+          eq(activeTriviaQuestions.platform, platform)
+        )
+      );
+    return question || undefined;
+  }
+
+  async createActiveTriviaQuestion(data: InsertActiveTriviaQuestion): Promise<ActiveTriviaQuestion> {
+    const [question] = await db
+      .insert(activeTriviaQuestions)
+      .values(data)
+      .returning();
+    return question;
+  }
+
+  async deleteActiveTriviaQuestion(id: string): Promise<void> {
+    await db
+      .delete(activeTriviaQuestions)
+      .where(eq(activeTriviaQuestions.id, id));
+  }
+
+  async cleanupExpiredTriviaQuestions(): Promise<void> {
+    const now = new Date();
+    await db
+      .delete(activeTriviaQuestions)
+      .where(gte(now, activeTriviaQuestions.expiresAt));
+  }
+
+  // Currency Settings
+  async getCurrencySettings(userId: string): Promise<CurrencySettings | undefined> {
+    const [settings] = await db
+      .select()
+      .from(currencySettings)
+      .where(eq(currencySettings.userId, userId))
+      .limit(1);
+    return settings || undefined;
+  }
+
+  async createCurrencySettings(userId: string, data: InsertCurrencySettings): Promise<CurrencySettings> {
+    const [settings] = await db
+      .insert(currencySettings)
+      .values({
+        ...data,
+        userId,
+        updatedAt: new Date(),
+      })
+      .returning();
+    return settings;
+  }
+
+  async updateCurrencySettings(userId: string, data: UpdateCurrencySettings): Promise<CurrencySettings> {
+    const [settings] = await db
+      .update(currencySettings)
+      .set({
+        ...data,
+        updatedAt: new Date(),
+      })
+      .where(eq(currencySettings.userId, userId))
+      .returning();
+    return settings;
+  }
+
+  // Currency Rewards
+  async getCurrencyRewards(userId: string): Promise<CurrencyReward[]> {
+    return await db
+      .select()
+      .from(currencyRewards)
+      .where(eq(currencyRewards.botUserId, userId))
+      .orderBy(currencyRewards.cost);
+  }
+
+  async getCurrencyReward(userId: string, id: string): Promise<CurrencyReward | undefined> {
+    const [reward] = await db
+      .select()
+      .from(currencyRewards)
+      .where(
+        and(
+          eq(currencyRewards.id, id),
+          eq(currencyRewards.botUserId, userId)
+        )
+      )
+      .limit(1);
+    return reward || undefined;
+  }
+
+  async createCurrencyReward(userId: string, data: InsertCurrencyReward): Promise<CurrencyReward> {
+    const [reward] = await db
+      .insert(currencyRewards)
+      .values({
+        ...data,
+        botUserId: userId,
+      })
+      .returning();
+    return reward;
+  }
+
+  async updateCurrencyReward(userId: string, id: string, data: UpdateCurrencyReward): Promise<CurrencyReward> {
+    const [reward] = await db
+      .update(currencyRewards)
+      .set(data)
+      .where(
+        and(
+          eq(currencyRewards.id, id),
+          eq(currencyRewards.botUserId, userId)
+        )
+      )
+      .returning();
+    return reward;
+  }
+
+  async deleteCurrencyReward(userId: string, id: string): Promise<void> {
+    await db
+      .delete(currencyRewards)
+      .where(
+        and(
+          eq(currencyRewards.id, id),
+          eq(currencyRewards.botUserId, userId)
         )
       );
   }

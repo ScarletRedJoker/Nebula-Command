@@ -7,6 +7,10 @@ import { sendYouTubeChatMessage, getActiveYouTubeLivestream } from "./youtube-cl
 import { parseCommandVariables, type CommandContext } from "./command-variables";
 import { moderationService } from "./moderation-service";
 import { giveawayService } from "./giveaway-service";
+import { statsService } from "./stats-service";
+import { streamerInfoService } from "./streamer-info";
+import { GamesService } from "./games-service";
+import { currencyService } from "./currency-service";
 import type { BotConfig, PlatformConnection, CustomCommand, ModerationRule, LinkWhitelist } from "@shared/schema";
 
 type BotEvent = {
@@ -24,15 +28,21 @@ export class BotWorker {
   private cronJob: cron.ScheduledTask | null = null;
   private randomTimeout: NodeJS.Timeout | null = null;
   private heartbeatInterval: NodeJS.Timeout | null = null;
+  private viewerTrackingInterval: NodeJS.Timeout | null = null;
   private isRunning = false;
   private config: BotConfig | null = null;
   private commandCooldowns: Map<string, number> = new Map(); // commandId -> lastUsedTimestamp
+  private gameCooldowns: Map<string, number> = new Map(); // userId+gameType -> lastPlayedTimestamp
+  private activePlatforms: Set<string> = new Set();
+  private gamesService: GamesService;
 
   constructor(
     private userId: string,
     private storage: UserStorage,
     private onEvent: (event: BotEvent) => void
-  ) {}
+  ) {
+    this.gamesService = new GamesService(storage);
+  }
 
   async start(): Promise<void> {
     if (this.isRunning) return;
@@ -74,6 +84,23 @@ export class BotWorker {
       ) {
         this.setupRandomInterval(this.config.randomMinMinutes, this.config.randomMaxMinutes);
       }
+
+      // Track active platforms and create sessions
+      if (twitchConnection?.isConnected) {
+        this.activePlatforms.add("twitch");
+        await statsService.createSession(this.userId, "twitch");
+      }
+      if (youtubeConnection?.isConnected) {
+        this.activePlatforms.add("youtube");
+        await statsService.createSession(this.userId, "youtube");
+      }
+      if (kickConnection?.isConnected) {
+        this.activePlatforms.add("kick");
+        await statsService.createSession(this.userId, "kick");
+      }
+
+      // Start viewer tracking (every 5 minutes)
+      this.startViewerTracking();
 
       // Start heartbeat
       this.startHeartbeat();
@@ -136,6 +163,21 @@ export class BotWorker {
         this.heartbeatInterval = null;
       }
 
+      // Stop viewer tracking
+      if (this.viewerTrackingInterval) {
+        clearInterval(this.viewerTrackingInterval);
+        this.viewerTrackingInterval = null;
+      }
+
+      // End sessions for all active platforms
+      for (const platform of this.activePlatforms) {
+        const session = await statsService.getCurrentSession(this.userId, platform);
+        if (session) {
+          await statsService.endSession(session.id);
+        }
+      }
+      this.activePlatforms.clear();
+
       this.emitEvent({
         type: "status_changed",
         userId: this.userId,
@@ -172,12 +214,14 @@ export class BotWorker {
     platform: string
   ): Promise<{ allowed: boolean; action?: string; reason?: string; timeoutDuration?: number }> {
     try {
-      const [rules, whitelist] = await Promise.all([
+      const [rules, whitelist, config] = await Promise.all([
         this.storage.getModerationRules(),
         this.storage.getLinkWhitelist(),
+        this.storage.getBotConfig(),
       ]);
 
-      const decision = await moderationService.checkMessage(message, username, rules, whitelist);
+      const bannedWords = config?.bannedWords || [];
+      const decision = await moderationService.checkMessage(message, username, rules, whitelist, bannedWords);
 
       if (!decision.allow) {
         await this.storage.createModerationLog({
@@ -237,6 +281,231 @@ export class BotWorker {
       }
     } catch (error) {
       console.error(`[BotWorker] Error executing moderation action:`, error);
+    }
+  }
+
+  private async executeShoutoutCommand(
+    message: string,
+    platform: string
+  ): Promise<string | null> {
+    try {
+      // Parse the command: !so username or !shoutout username
+      const parts = message.trim().split(/\s+/);
+      if (parts.length < 2) {
+        return "Usage: !so <username> or !shoutout <username>";
+      }
+
+      const targetUsername = parts[1].replace("@", ""); // Remove @ if present
+
+      // Execute the shoutout
+      const result = await shoutoutService.executeShoutout(
+        this.userId,
+        targetUsername,
+        platform,
+        "command"
+      );
+
+      if (result.success) {
+        return result.message;
+      } else {
+        return `Failed to shoutout ${targetUsername}.`;
+      }
+    } catch (error) {
+      console.error(`[BotWorker] Error executing shoutout command:`, error);
+      return null;
+    }
+  }
+
+  private async handleRaidShoutout(
+    username: string,
+    platform: string,
+    viewerCount?: number
+  ): Promise<string | null> {
+    try {
+      const settings = await this.storage.getShoutoutSettings();
+      
+      if (!settings || !settings.enableRaidShoutouts) {
+        return null; // Auto-shoutouts on raid are disabled
+      }
+
+      const result = await shoutoutService.executeShoutout(
+        this.userId,
+        username,
+        platform,
+        "raid"
+      );
+
+      if (result.success) {
+        return result.message;
+      }
+      return null;
+    } catch (error) {
+      console.error(`[BotWorker] Error handling raid shoutout:`, error);
+      return null;
+    }
+  }
+
+  private async handleHostShoutout(
+    username: string,
+    platform: string
+  ): Promise<string | null> {
+    try {
+      const settings = await this.storage.getShoutoutSettings();
+      
+      if (!settings || !settings.enableHostShoutouts) {
+        return null; // Auto-shoutouts on host are disabled
+      }
+
+      const result = await shoutoutService.executeShoutout(
+        this.userId,
+        username,
+        platform,
+        "host"
+      );
+
+      if (result.success) {
+        return result.message;
+      }
+      return null;
+    } catch (error) {
+      console.error(`[BotWorker] Error handling host shoutout:`, error);
+      return null;
+    }
+  }
+
+  private async handleGameCommand(
+    message: string,
+    username: string,
+    platform: string
+  ): Promise<{ response: string | null; shouldTimeout?: boolean; timeoutDuration?: number }> {
+    try {
+      const settings = await this.storage.getGameSettings();
+      
+      if (!settings || !settings.enableGames) {
+        return { response: null };
+      }
+
+      const parts = message.trim().split(/\s+/);
+      const command = parts[0].toLowerCase();
+      
+      // Check game-specific enabled status
+      if (command === "!8ball" && !settings.enable8Ball) return { response: null };
+      if (command === "!trivia" && !settings.enableTrivia) return { response: null };
+      if (command === "!duel" && !settings.enableDuel) return { response: null };
+      if (command === "!slots" && !settings.enableSlots) return { response: null };
+      if (command === "!roulette" && !settings.enableRoulette) return { response: null };
+
+      // Check cooldown
+      const gameType = command.substring(1); // Remove "!"
+      const cooldownKey = `${username}-${gameType}`;
+      const now = Date.now();
+      const lastPlayed = this.gameCooldowns.get(cooldownKey) || 0;
+      const cooldownMs = settings.cooldownMinutes * 60 * 1000;
+      
+      if (now - lastPlayed < cooldownMs) {
+        const remainingSeconds = Math.ceil((cooldownMs - (now - lastPlayed)) / 1000);
+        return { response: `@${username}, please wait ${remainingSeconds} seconds before playing ${gameType} again.` };
+      }
+
+      let result;
+      let opponent: string | undefined;
+
+      switch (command) {
+        case "!8ball":
+          const question = parts.slice(1).join(" ");
+          if (!question) {
+            return { response: "Usage: !8ball <your question>" };
+          }
+          result = await this.gamesService.play8Ball(question);
+          break;
+
+        case "!trivia":
+          const difficulty: "easy" | "medium" | "hard" = (parts[1]?.toLowerCase() as any) || "medium";
+          result = await this.gamesService.playTrivia(difficulty, username, this.userId, platform);
+          break;
+
+        case "!duel":
+          opponent = parts[1]?.replace("@", "");
+          if (!opponent) {
+            return { response: "Usage: !duel @username" };
+          }
+          result = await this.gamesService.playDuel(username, opponent);
+          break;
+
+        case "!slots":
+          result = await this.gamesService.playSlots();
+          break;
+
+        case "!roulette":
+          result = await this.gamesService.playRoulette(username);
+          break;
+
+        default:
+          return { response: null };
+      }
+
+      if (result && result.success) {
+        // Update cooldown
+        this.gameCooldowns.set(cooldownKey, now);
+
+        // Track game play
+        await this.gamesService.trackGamePlay(
+          gameType as any,
+          username,
+          result.outcome || "neutral",
+          platform,
+          result.pointsAwarded || 0,
+          opponent,
+          result.details
+        );
+
+        // Handle roulette timeout
+        if (command === "!roulette" && result.details?.shot) {
+          return {
+            response: result.message,
+            shouldTimeout: true,
+            timeoutDuration: 30
+          };
+        }
+
+        return { response: result.message };
+      }
+
+      return { response: result?.message || null };
+    } catch (error) {
+      console.error(`[BotWorker] Error handling game command:`, error);
+      return { response: "Game error! Please try again later." };
+    }
+  }
+
+  private async handleTriviaAnswer(
+    message: string,
+    username: string,
+    platform: string
+  ): Promise<string | null> {
+    try {
+      const answer = message.trim();
+      const result = await this.gamesService.checkTriviaAnswer(username, this.userId, platform, answer);
+      
+      if (result) {
+        // Track the game result
+        await this.gamesService.trackGamePlay(
+          "trivia",
+          username,
+          result.outcome || "neutral",
+          platform,
+          result.pointsAwarded || 0,
+          undefined,
+          result.details
+        );
+
+        return result.message;
+      }
+
+      return null;
+    } catch (error) {
+      console.error(`[BotWorker] Error handling trivia answer:`, error);
+      return null;
     }
   }
 
@@ -344,6 +613,28 @@ export class BotWorker {
     }
   }
 
+  async announceGiveawayStart(giveaway: any): Promise<void> {
+    try {
+      const connections = await this.storage.getPlatformConnections();
+      const connectedPlatforms = connections.filter((c) => c.isConnected).map((c) => c.platform);
+
+      const subsText = giveaway.requiresSubscription ? " (Subscribers Only)" : "";
+      const winnersText = giveaway.maxWinners === 1 ? "1 winner" : `${giveaway.maxWinners} winners`;
+      const message = `🎁 Giveaway Started: "${giveaway.title}"${subsText}! Type ${giveaway.keyword} in chat to enter. Drawing ${winnersText}!`;
+
+      for (const platform of connectedPlatforms) {
+        try {
+          await this.postToPlatform(platform, message);
+          console.log(`[BotWorker] Announced giveaway start on ${platform}`);
+        } catch (error) {
+          console.error(`[BotWorker] Failed to announce giveaway start on ${platform}:`, error);
+        }
+      }
+    } catch (error) {
+      console.error(`[BotWorker] Error announcing giveaway start:`, error);
+    }
+  }
+
   async announceGiveawayWinners(giveaway: any, winners: any[]): Promise<void> {
     try {
       const connections = await this.storage.getPlatformConnections();
@@ -392,11 +683,55 @@ export class BotWorker {
         channels: [connection.platformUsername],
       });
 
+      // Raid event listener
+      this.twitchClient.on("raided", async (channel, username, viewers) => {
+        console.log(`[BotWorker] Raid detected: ${username} raided with ${viewers} viewers`);
+        
+        const shoutoutResponse = await this.handleRaidShoutout(username, "twitch", viewers);
+        
+        if (shoutoutResponse && this.twitchClient) {
+          await this.twitchClient.say(channel, shoutoutResponse);
+        }
+      });
+
+      // Host event listener (Note: Twitch deprecated hosting, but keeping for compatibility)
+      this.twitchClient.on("hosted", async (channel, username, viewers, autohost) => {
+        if (autohost) return; // Skip autohosts
+        
+        console.log(`[BotWorker] Host detected: ${username} is hosting with ${viewers} viewers`);
+        
+        const shoutoutResponse = await this.handleHostShoutout(username, "twitch");
+        
+        if (shoutoutResponse && this.twitchClient) {
+          await this.twitchClient.say(channel, shoutoutResponse);
+        }
+      });
+
       this.twitchClient.on("message", async (channel, tags, message, self) => {
         if (self) return;
 
         const trimmedMessage = message.trim();
         const username = tags.username || "unknown";
+        
+        // Track chat message for statistics
+        await statsService.trackChatMessage(this.userId, "twitch", username);
+        
+        // Award currency points for message
+        try {
+          const currencySettings = await this.storage.getCurrencySettings();
+          if (currencySettings && currencySettings.earnPerMessage > 0) {
+            await currencyService.addPoints(
+              this.userId,
+              username,
+              "twitch",
+              currencySettings.earnPerMessage,
+              "Chat message",
+              "earn_message"
+            );
+          }
+        } catch (error) {
+          console.error(`[BotWorker] Error awarding currency points:`, error);
+        }
         
         // Check moderation FIRST, before processing anything
         const moderationResult = await this.checkModeration(trimmedMessage, username, "twitch");
@@ -422,10 +757,58 @@ export class BotWorker {
           
           return;
         }
+
+        // Check for trivia answer (before commands, so users can answer without !)
+        const triviaResponse = await this.handleTriviaAnswer(trimmedMessage, username, "twitch");
+        if (triviaResponse && this.twitchClient) {
+          await this.twitchClient.say(channel, triviaResponse);
+          return;
+        }
         
         // Check for custom commands (starts with !)
         if (trimmedMessage.startsWith("!")) {
           const commandName = trimmedMessage.split(" ")[0]; // Get first word
+          
+          // Check for shoutout commands (!so or !shoutout)
+          if (commandName === "!so" || commandName === "!shoutout") {
+            const shoutoutResponse = await this.executeShoutoutCommand(trimmedMessage, "twitch");
+            
+            if (shoutoutResponse && this.twitchClient) {
+              await this.twitchClient.say(channel, shoutoutResponse);
+              return;
+            }
+          }
+
+          // Check for game commands (!8ball, !trivia, !duel, !slots, !roulette)
+          if (["!8ball", "!trivia", "!duel", "!slots", "!roulette"].includes(commandName)) {
+            const gameResult = await this.handleGameCommand(trimmedMessage, username, "twitch");
+            
+            if (gameResult.response && this.twitchClient) {
+              await this.twitchClient.say(channel, gameResult.response);
+              
+              // Handle roulette timeout
+              if (gameResult.shouldTimeout && gameResult.timeoutDuration) {
+                await this.twitchClient.timeout(
+                  channel,
+                  username,
+                  gameResult.timeoutDuration,
+                  "Lost Russian roulette!"
+                );
+              }
+              return;
+            }
+          }
+
+          // Check for currency commands (!balance, !gamble, !leaderboard, !redeem)
+          if (["!balance", "!gamble", "!leaderboard", "!redeem"].includes(commandName)) {
+            const currencyResponse = await this.handleCurrencyCommand(trimmedMessage, username, "twitch");
+            
+            if (currencyResponse && this.twitchClient) {
+              await this.twitchClient.say(channel, currencyResponse);
+              return;
+            }
+          }
+          
           const response = await this.executeCustomCommand(commandName, username, tags);
           
           if (response && this.twitchClient) {
@@ -525,6 +908,10 @@ export class BotWorker {
 
       this.kickClient.on("ChatMessage", async (message: any) => {
         const trimmedContent = message.content.trim();
+        const username = message.sender.username || "unknown";
+        
+        // Track chat message for statistics
+        await statsService.trackChatMessage(this.userId, "kick", username);
         
         // Check for custom commands (starts with !)
         if (trimmedContent.startsWith("!")) {
@@ -723,6 +1110,191 @@ export class BotWorker {
         // For now, just keep the interval running to prevent orphaned workers
       }
     }, 30000);
+  }
+
+  private startViewerTracking() {
+    // Track viewer counts every 5 minutes
+    const FIVE_MINUTES = 5 * 60 * 1000;
+    
+    // Track immediately on start
+    this.fetchViewerCounts();
+    
+    // Then track every 5 minutes
+    this.viewerTrackingInterval = setInterval(async () => {
+      if (this.isRunning) {
+        await this.fetchViewerCounts();
+      }
+    }, FIVE_MINUTES);
+  }
+
+  private async fetchViewerCounts() {
+    for (const platform of this.activePlatforms) {
+      try {
+        let viewerCount = 0;
+        
+        switch (platform) {
+          case "twitch":
+            viewerCount = await this.fetchTwitchViewerCount();
+            break;
+          case "youtube":
+            viewerCount = await this.fetchYouTubeViewerCount();
+            break;
+          case "kick":
+            viewerCount = await this.fetchKickViewerCount();
+            break;
+        }
+        
+        await statsService.trackViewerCount(this.userId, platform, viewerCount);
+        console.log(`[BotWorker] Tracked ${viewerCount} viewers for ${platform}`);
+      } catch (error) {
+        console.error(`[BotWorker] Error fetching viewer count for ${platform}:`, error);
+      }
+    }
+  }
+
+  private async fetchTwitchViewerCount(): Promise<number> {
+    try {
+      const connection = await this.storage.getPlatformConnectionByPlatform("twitch");
+      if (!connection?.platformUsername) return 0;
+
+      const info = await streamerInfoService.fetchTwitchStreamerInfo(connection.platformUsername);
+      return info?.viewers || 0;
+    } catch (error) {
+      console.error(`[BotWorker] Error fetching Twitch viewer count:`, error);
+      return 0;
+    }
+  }
+
+  private async fetchYouTubeViewerCount(): Promise<number> {
+    try {
+      const connection = await this.storage.getPlatformConnectionByPlatform("youtube");
+      if (!connection?.channelId) return 0;
+
+      const info = await streamerInfoService.fetchYouTubeChannelInfo(connection.channelId);
+      return info?.viewers || 0;
+    } catch (error) {
+      console.error(`[BotWorker] Error fetching YouTube viewer count:`, error);
+      return 0;
+    }
+  }
+
+  private async fetchKickViewerCount(): Promise<number> {
+    try {
+      const connection = await this.storage.getPlatformConnectionByPlatform("kick");
+      if (!connection?.platformUsername) return 0;
+
+      const info = await streamerInfoService.fetchKickChannelInfo(connection.platformUsername);
+      return info?.viewers || 0;
+    } catch (error) {
+      console.error(`[BotWorker] Error fetching Kick viewer count:`, error);
+      return 0;
+    }
+  }
+
+  private async handleCurrencyCommand(
+    message: string,
+    username: string,
+    platform: string
+  ): Promise<string | null> {
+    try {
+      const parts = message.trim().split(/\s+/);
+      const command = parts[0].toLowerCase();
+      
+      const currencySettings = await this.storage.getCurrencySettings();
+      const symbol = currencySettings?.currencySymbol || "⭐";
+      const currencyName = currencySettings?.currencyName || "Points";
+
+      if (command === "!balance") {
+        const balance = await currencyService.getBalance(this.userId, username, platform);
+        if (balance) {
+          return `@${username}, you have ${balance.balance} ${symbol} ${currencyName}!`;
+        } else {
+          return `@${username}, you have 0 ${symbol} ${currencyName}!`;
+        }
+      }
+
+      if (command === "!leaderboard") {
+        const leaderboard = await currencyService.getLeaderboard(this.userId, 10);
+        if (leaderboard.length === 0) {
+          return "The leaderboard is empty!";
+        }
+        
+        const top5 = leaderboard.slice(0, 5);
+        const leaderboardText = top5
+          .map((entry, index) => `${index + 1}. ${entry.username}: ${entry.balance} ${symbol}`)
+          .join(" | ");
+        
+        return `💰 Top ${currencyName}: ${leaderboardText}`;
+      }
+
+      if (command === "!gamble") {
+        if (!currencySettings?.enableGambling) {
+          return `@${username}, gambling is currently disabled!`;
+        }
+
+        const wagerStr = parts[1];
+        if (!wagerStr) {
+          return `@${username}, please specify an amount to gamble! Usage: !gamble <amount>`;
+        }
+
+        const wager = parseInt(wagerStr);
+        if (isNaN(wager) || wager <= 0) {
+          return `@${username}, please enter a valid amount!`;
+        }
+
+        const result = await currencyService.gamblePoints(
+          this.userId,
+          username,
+          platform,
+          wager
+        );
+
+        if (!result.success) {
+          return `@${username}, ${result.error}`;
+        }
+
+        if (result.won) {
+          return `@${username} won ${wager} ${symbol}! You now have ${result.newBalance} ${symbol}! 🎉`;
+        } else {
+          return `@${username} lost ${wager} ${symbol}! You now have ${result.newBalance} ${symbol}. 😢`;
+        }
+      }
+
+      if (command === "!redeem") {
+        const rewardName = parts.slice(1).join(" ");
+        if (!rewardName) {
+          return `@${username}, please specify a reward to redeem! Usage: !redeem <reward name>`;
+        }
+
+        // Find reward by name
+        const rewards = await this.storage.getCurrencyRewards();
+        const reward = rewards.find(
+          r => r.rewardName.toLowerCase() === rewardName.toLowerCase() && r.isActive
+        );
+
+        if (!reward) {
+          return `@${username}, reward "${rewardName}" not found!`;
+        }
+
+        const result = await currencyService.redeemReward(
+          this.userId,
+          username,
+          platform,
+          reward.id
+        );
+
+        if (!result.success) {
+          return `@${username}, ${result.error}`;
+        }
+
+        return `@${username} redeemed "${reward.rewardName}" for ${reward.cost} ${symbol}! You have ${result.newBalance} ${symbol} remaining.`;
+      }
+
+      return null;
+    } catch (error) {
+      console.error(`[BotWorker] Error handling currency command:`, error);
+      return null;
+    }
   }
 
   private emitEvent(event: BotEvent) {

@@ -11,6 +11,7 @@ import {
   updateCustomCommandSchema,
   updateModerationRuleSchema,
   insertGiveawaySchema,
+  updateShoutoutSettingsSchema,
 } from "@shared/schema";
 import { getAvailableVariables } from "./command-variables";
 import authRoutes from "./auth/routes";
@@ -21,6 +22,9 @@ import oauthTwitchRoutes from "./oauth-twitch";
 import overlayRoutes from "./overlay-routes";
 import { requireAuth } from "./auth/middleware";
 import { sessionMiddleware } from "./index";
+import { shoutoutService } from "./shoutout-service";
+import { statsService } from "./stats-service";
+import { GamesService } from "./games-service";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/auth", authRoutes);
@@ -466,6 +470,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validated = insertGiveawaySchema.parse(req.body);
       const giveaway = await giveawayService.createGiveaway(req.user!.id, validated);
+      
+      botManager.notifyGiveawayStart(req.user!.id, giveaway);
+      
       res.json(giveaway);
     } catch (error: any) {
       if (error.name === "ZodError") {
@@ -511,6 +518,97 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: error.message });
       }
       res.status(500).json({ error: "Failed to cancel giveaway" });
+    }
+  });
+
+  // Shoutouts
+  app.get("/api/shoutouts/settings", requireAuth, async (req, res) => {
+    try {
+      let settings = await storage.getShoutoutSettings(req.user!.id);
+      
+      // Create default settings if none exist
+      if (!settings) {
+        settings = await storage.createShoutoutSettings(req.user!.id, {
+          userId: req.user!.id,
+          enableAutoShoutouts: false,
+          shoutoutTemplate: "Check out @{username}! They were last streaming {game} with {viewers} viewers! {url}",
+          enableRaidShoutouts: false,
+          enableHostShoutouts: false,
+          recentFollowerShoutouts: false,
+        });
+      }
+      
+      res.json(settings);
+    } catch (error) {
+      console.error("Failed to fetch shoutout settings:", error);
+      res.status(500).json({ error: "Failed to fetch shoutout settings" });
+    }
+  });
+
+  app.patch("/api/shoutouts/settings", requireAuth, async (req, res) => {
+    try {
+      const validated = updateShoutoutSettingsSchema.parse(req.body);
+      const settings = await storage.updateShoutoutSettings(req.user!.id, validated);
+      res.json(settings);
+    } catch (error: any) {
+      if (error.name === "ZodError") {
+        return res.status(400).json({ error: "Invalid settings data", details: error.errors });
+      }
+      console.error("Failed to update shoutout settings:", error);
+      res.status(500).json({ error: "Failed to update shoutout settings" });
+    }
+  });
+
+  app.post("/api/shoutouts", requireAuth, async (req, res) => {
+    try {
+      const { targetUsername, platform } = req.body;
+      
+      if (!targetUsername || !platform) {
+        return res.status(400).json({ error: "Missing required fields: targetUsername and platform" });
+      }
+      
+      const result = await shoutoutService.executeShoutout(
+        req.user!.id,
+        targetUsername,
+        platform,
+        "manual"
+      );
+      
+      if (result.success) {
+        // Post the shoutout to the platform via the bot
+        const userBot = botManager.getUserBot(req.user!.id);
+        if (userBot) {
+          await userBot.postToPlatform(platform, result.message);
+        }
+        
+        res.json({ success: true, message: result.message });
+      } else {
+        res.status(400).json({ success: false, error: result.message });
+      }
+    } catch (error: any) {
+      console.error("Failed to execute manual shoutout:", error);
+      res.status(500).json({ error: "Failed to execute shoutout", details: error.message });
+    }
+  });
+
+  app.get("/api/shoutouts/history", requireAuth, async (req, res) => {
+    try {
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
+      const history = await storage.getShoutoutHistory(req.user!.id, limit);
+      res.json(history);
+    } catch (error) {
+      console.error("Failed to fetch shoutout history:", error);
+      res.status(500).json({ error: "Failed to fetch shoutout history" });
+    }
+  });
+
+  app.get("/api/shoutouts/stats", requireAuth, async (req, res) => {
+    try {
+      const stats = await shoutoutService.getShoutoutStats(req.user!.id);
+      res.json(stats);
+    } catch (error) {
+      console.error("Failed to fetch shoutout stats:", error);
+      res.status(500).json({ error: "Failed to fetch shoutout stats" });
     }
   });
 
@@ -604,6 +702,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Bulk Moderation Settings (convenience endpoint)
+  app.get("/api/moderation/settings", requireAuth, async (req, res) => {
+    try {
+      let rules = await storage.getModerationRules(req.user!.id);
+      
+      // Initialize default rules if none exist
+      if (rules.length === 0) {
+        rules = await storage.initializeDefaultModerationRules(req.user!.id);
+      }
+      
+      const [whitelist, botConfig] = await Promise.all([
+        storage.getLinkWhitelist(req.user!.id),
+        storage.getBotSettings(req.user!.id),
+      ]);
+
+      const settings = {
+        rules,
+        whitelistedLinks: whitelist,
+        bannedWords: botConfig?.bannedWords || [],
+        enableToxicFilter: rules.find(r => r.ruleType === "toxic")?.isEnabled || false,
+        enableSpamFilter: rules.find(r => r.ruleType === "spam")?.isEnabled || false,
+        enableLinkFilter: rules.find(r => r.ruleType === "links")?.isEnabled || false,
+        enableCapsFilter: rules.find(r => r.ruleType === "caps")?.isEnabled || false,
+        enableSymbolFilter: rules.find(r => r.ruleType === "symbols")?.isEnabled || false,
+        autoTimeoutDuration: rules.find(r => r.action === "timeout")?.timeoutDuration || 300,
+      };
+      
+      res.json(settings);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch moderation settings" });
+    }
+  });
+
+  app.patch("/api/moderation/settings", requireAuth, async (req, res) => {
+    try {
+      const { bannedWords } = req.body;
+      
+      // Update banned words in bot config if provided
+      if (bannedWords !== undefined) {
+        if (!Array.isArray(bannedWords)) {
+          return res.status(400).json({ error: "bannedWords must be an array" });
+        }
+        
+        await storage.updateBotSettings(req.user!.id, { bannedWords });
+      }
+      
+      // Return updated settings
+      const [rules, whitelist, botConfig] = await Promise.all([
+        storage.getModerationRules(req.user!.id),
+        storage.getLinkWhitelist(req.user!.id),
+        storage.getBotSettings(req.user!.id),
+      ]);
+
+      const settings = {
+        rules,
+        whitelistedLinks: whitelist,
+        bannedWords: botConfig?.bannedWords || [],
+        enableToxicFilter: rules.find(r => r.ruleType === "toxic")?.isEnabled || false,
+        enableSpamFilter: rules.find(r => r.ruleType === "spam")?.isEnabled || false,
+        enableLinkFilter: rules.find(r => r.ruleType === "links")?.isEnabled || false,
+        enableCapsFilter: rules.find(r => r.ruleType === "caps")?.isEnabled || false,
+        enableSymbolFilter: rules.find(r => r.ruleType === "symbols")?.isEnabled || false,
+        autoTimeoutDuration: rules.find(r => r.action === "timeout")?.timeoutDuration || 300,
+      };
+      
+      res.json(settings);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update moderation settings" });
+    }
+  });
+
   // Moderation Logs
   app.get("/api/moderation/logs", requireAuth, async (req, res) => {
     try {
@@ -658,6 +827,208 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to remove domain from whitelist" });
+    }
+  });
+
+  // Stream Statistics
+  app.get("/api/stream-stats/current", requireAuth, async (req, res) => {
+    try {
+      const platform = req.query.platform as string;
+      
+      if (!platform) {
+        return res.status(400).json({ error: "Platform is required" });
+      }
+      
+      const session = await statsService.getCurrentSession(req.user!.id, platform);
+      
+      if (!session) {
+        return res.json(null);
+      }
+      
+      const stats = await statsService.getSessionStats(session.id);
+      res.json(stats);
+    } catch (error) {
+      console.error("Failed to fetch current stream stats:", error);
+      res.status(500).json({ error: "Failed to fetch current stream stats" });
+    }
+  });
+
+  app.get("/api/stream-stats/sessions", requireAuth, async (req, res) => {
+    try {
+      const platform = req.query.platform as string;
+      const limit = parseInt(req.query.limit as string) || 10;
+      
+      const sessions = await statsService.getRecentSessions(req.user!.id, platform, limit);
+      res.json(sessions);
+    } catch (error) {
+      console.error("Failed to fetch session history:", error);
+      res.status(500).json({ error: "Failed to fetch session history" });
+    }
+  });
+
+  app.get("/api/stream-stats/sessions/:id", requireAuth, async (req, res) => {
+    try {
+      const stats = await statsService.getSessionStats(req.params.id);
+      
+      if (!stats) {
+        return res.status(404).json({ error: "Session not found" });
+      }
+      
+      // Verify the session belongs to the authenticated user
+      if (stats.userId !== req.user!.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      res.json(stats);
+    } catch (error) {
+      console.error("Failed to fetch session details:", error);
+      res.status(500).json({ error: "Failed to fetch session details" });
+    }
+  });
+
+  app.get("/api/stream-stats/top-chatters", requireAuth, async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 10;
+      const sessionId = req.query.sessionId as string;
+      
+      const topChatters = await statsService.getTopChatters(req.user!.id, limit, sessionId);
+      res.json(topChatters);
+    } catch (error) {
+      console.error("Failed to fetch top chatters:", error);
+      res.status(500).json({ error: "Failed to fetch top chatters" });
+    }
+  });
+
+  app.get("/api/stream-stats/heatmap/:sessionId", requireAuth, async (req, res) => {
+    try {
+      const heatmap = await statsService.getChatActivityHeatmap(req.params.sessionId);
+      
+      // Get session to verify ownership
+      const stats = await statsService.getSessionStats(req.params.sessionId);
+      if (!stats) {
+        return res.status(404).json({ error: "Session not found" });
+      }
+      
+      if (stats.userId !== req.user!.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      res.json(heatmap);
+    } catch (error) {
+      console.error("Failed to fetch chat activity heatmap:", error);
+      res.status(500).json({ error: "Failed to fetch chat activity heatmap" });
+    }
+  });
+
+  app.get("/api/stream-stats/viewer-history/:sessionId", requireAuth, async (req, res) => {
+    try {
+      const viewerHistory = await statsService.getViewerHistory(req.params.sessionId);
+      
+      // Get session to verify ownership
+      const stats = await statsService.getSessionStats(req.params.sessionId);
+      if (!stats) {
+        return res.status(404).json({ error: "Session not found" });
+      }
+      
+      if (stats.userId !== req.user!.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      res.json(viewerHistory);
+    } catch (error) {
+      console.error("Failed to fetch viewer history:", error);
+      res.status(500).json({ error: "Failed to fetch viewer history" });
+    }
+  });
+
+  // ===== GAMES ROUTES =====
+  
+  app.get("/api/games/settings", requireAuth, async (req, res) => {
+    try {
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const settings = await userStorage.getGameSettings();
+      
+      // Return default settings if none exist
+      if (!settings) {
+        return res.json({
+          userId: req.user!.id,
+          enableGames: true,
+          enable8Ball: true,
+          enableTrivia: true,
+          enableDuel: true,
+          enableSlots: true,
+          enableRoulette: true,
+          cooldownMinutes: 1,
+          pointsPerWin: 10,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      }
+      
+      res.json(settings);
+    } catch (error) {
+      console.error("Failed to fetch game settings:", error);
+      res.status(500).json({ error: "Failed to fetch game settings" });
+    }
+  });
+
+  app.patch("/api/games/settings", requireAuth, async (req, res) => {
+    try {
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const updatedSettings = await userStorage.updateGameSettings(req.body);
+      res.json(updatedSettings);
+    } catch (error) {
+      console.error("Failed to update game settings:", error);
+      res.status(500).json({ error: "Failed to update game settings" });
+    }
+  });
+
+  app.get("/api/games/history", requireAuth, async (req, res) => {
+    try {
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const limit = parseInt(req.query.limit as string) || 50;
+      const gameType = req.query.gameType as string | undefined;
+      
+      const history = await userStorage.getGameHistory(limit, gameType as any);
+      res.json(history);
+    } catch (error) {
+      console.error("Failed to fetch game history:", error);
+      res.status(500).json({ error: "Failed to fetch game history" });
+    }
+  });
+
+  app.get("/api/games/stats", requireAuth, async (req, res) => {
+    try {
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const stats = await userStorage.getGameStats();
+      res.json(stats);
+    } catch (error) {
+      console.error("Failed to fetch game stats:", error);
+      res.status(500).json({ error: "Failed to fetch game stats" });
+    }
+  });
+
+  app.post("/api/games/trivia/check", requireAuth, async (req, res) => {
+    try {
+      const { username, platform, answer } = req.body;
+      
+      if (!username || !platform || !answer) {
+        return res.status(400).json({ error: "Missing required fields: username, platform, answer" });
+      }
+      
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const gamesService = new GamesService(userStorage);
+      
+      const result = await gamesService.checkTriviaAnswer(username, req.user!.id, platform, answer);
+      
+      if (!result) {
+        return res.status(404).json({ error: "No active trivia question for this player" });
+      }
+      
+      res.json(result);
+    } catch (error) {
+      console.error("Failed to check trivia answer:", error);
+      res.status(500).json({ error: "Failed to check trivia answer" });
     }
   });
 

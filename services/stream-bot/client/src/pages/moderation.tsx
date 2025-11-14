@@ -83,12 +83,12 @@ const ruleTypeLabels: Record<string, { label: string; icon: any; description: st
   caps: {
     label: "Caps Lock",
     icon: Shield,
-    description: "Flags messages with excessive uppercase letters (>70%)",
+    description: "Flags messages with excessive uppercase letters (>50%)",
   },
   symbols: {
     label: "Symbol Spam",
     icon: Shield,
-    description: "Detects repeated characters and symbol spam",
+    description: "Detects repeated characters and symbol spam (>30%)",
   },
 };
 
@@ -107,6 +107,7 @@ const actionColors: Record<string, string> = {
 export default function Moderation() {
   const { toast } = useToast();
   const [newDomain, setNewDomain] = useState("");
+  const [newBannedWord, setNewBannedWord] = useState("");
   const [realtimeLogs, setRealtimeLogs] = useState<ModerationLog[]>([]);
 
   const { data: rules } = useQuery<ModerationRule[]>({
@@ -123,6 +124,10 @@ export default function Moderation() {
 
   const { data: stats } = useQuery<ModerationStats>({
     queryKey: ["/api/moderation/stats"],
+  });
+
+  const { data: settings } = useQuery<{ bannedWords: string[] }>({
+    queryKey: ["/api/moderation/settings"],
   });
 
   const { lastMessage } = useWebSocket();
@@ -234,6 +239,58 @@ export default function Moderation() {
   const handleAddDomain = () => {
     if (!newDomain.trim()) return;
     addWhitelistMutation.mutate(newDomain.trim());
+  };
+
+  const addBannedWordMutation = useMutation({
+    mutationFn: async (word: string) => {
+      const currentWords = settings?.bannedWords || [];
+      return await apiRequest("PATCH", "/api/moderation/settings", { 
+        bannedWords: [...currentWords, word] 
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/moderation/settings"] });
+      setNewBannedWord("");
+      toast({
+        title: "Word added",
+        description: "Banned word has been added to the list.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to add banned word",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const removeBannedWordMutation = useMutation({
+    mutationFn: async (word: string) => {
+      const currentWords = settings?.bannedWords || [];
+      return await apiRequest("PATCH", "/api/moderation/settings", { 
+        bannedWords: currentWords.filter(w => w !== word) 
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/moderation/settings"] });
+      toast({
+        title: "Word removed",
+        description: "Banned word has been removed from the list.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to remove banned word",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleAddBannedWord = () => {
+    if (!newBannedWord.trim()) return;
+    addBannedWordMutation.mutate(newBannedWord.trim());
   };
 
   const getSeverityValue = (severity: string): number => {
@@ -372,51 +429,99 @@ export default function Moderation() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Link Whitelist</CardTitle>
-          <CardDescription>
-            Domains on this list are exempt from link filtering
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex space-x-2">
-            <Input
-              placeholder="example.com"
-              value={newDomain}
-              onChange={(e) => setNewDomain(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleAddDomain()}
-            />
-            <Button onClick={handleAddDomain} disabled={!newDomain.trim()}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add
-            </Button>
-          </div>
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Banned Words</CardTitle>
+            <CardDescription>
+              Messages containing these words will be automatically blocked
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex space-x-2">
+              <Input
+                placeholder="Add banned word..."
+                value={newBannedWord}
+                onChange={(e) => setNewBannedWord(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAddBannedWord()}
+              />
+              <Button onClick={handleAddBannedWord} disabled={!newBannedWord.trim()}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add
+              </Button>
+            </div>
 
-          <div className="space-y-2">
-            {whitelist?.map((entry) => (
-              <div
-                key={entry.id}
-                className="flex items-center justify-between p-2 border rounded"
-              >
-                <span className="text-sm">{entry.domain}</span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => removeWhitelistMutation.mutate(entry.domain)}
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {settings?.bannedWords?.map((word, index) => (
+                <div
+                  key={index}
+                  className="flex items-center justify-between p-2 border rounded"
                 >
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
-              </div>
-            ))}
-            {(!whitelist || whitelist.length === 0) && (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                No whitelisted domains
-              </p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+                  <span className="text-sm font-mono">{word}</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeBannedWordMutation.mutate(word)}
+                  >
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </div>
+              ))}
+              {(!settings?.bannedWords || settings.bannedWords.length === 0) && (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No banned words
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Link Whitelist</CardTitle>
+            <CardDescription>
+              Domains on this list are exempt from link filtering
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex space-x-2">
+              <Input
+                placeholder="example.com"
+                value={newDomain}
+                onChange={(e) => setNewDomain(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAddDomain()}
+              />
+              <Button onClick={handleAddDomain} disabled={!newDomain.trim()}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add
+              </Button>
+            </div>
+
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {whitelist?.map((entry) => (
+                <div
+                  key={entry.id}
+                  className="flex items-center justify-between p-2 border rounded"
+                >
+                  <span className="text-sm">{entry.domain}</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeWhitelistMutation.mutate(entry.domain)}
+                  >
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </div>
+              ))}
+              {(!whitelist || whitelist.length === 0) && (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No whitelisted domains
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       <Card>
         <CardHeader>

@@ -1,217 +1,119 @@
-import axios from "axios";
+import { streamerInfoService, type StreamerInfo } from "./streamer-info";
 import { storage } from "./storage";
-import { getTwitchAccessToken } from "./oauth-twitch";
-import { getEnv } from "./env";
-import type { Shoutout, InsertShoutout } from "@shared/schema";
-
-interface StreamerInfo {
-  username: string;
-  displayName: string;
-  platform: string;
-  game?: string;
-  viewers?: number;
-  url: string;
-  profileImageUrl?: string;
-  isLive?: boolean;
-  title?: string;
-}
-
-interface CachedStreamerInfo extends StreamerInfo {
-  cachedAt: number;
-}
+import type { Shoutout, InsertShoutout, ShoutoutHistory } from "@shared/schema";
 
 export class ShoutoutService {
-  private cache: Map<string, CachedStreamerInfo> = new Map();
-  private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
-
   async getStreamerInfo(username: string, platform: string): Promise<StreamerInfo | null> {
-    const cacheKey = `${platform}:${username.toLowerCase()}`;
-    
-    // Check cache first
-    const cached = this.cache.get(cacheKey);
-    if (cached && Date.now() - cached.cachedAt < this.CACHE_TTL) {
-      console.log(`[ShoutoutService] Using cached info for ${username} on ${platform}`);
-      const { cachedAt, ...info } = cached;
-      return info;
-    }
-
-    // Fetch fresh data based on platform
-    let info: StreamerInfo | null = null;
-    
     try {
       switch (platform.toLowerCase()) {
         case "twitch":
-          info = await this.getTwitchStreamerInfo(username);
-          break;
+          return await streamerInfoService.fetchTwitchStreamerInfo(username);
         case "youtube":
-          info = await this.getYouTubeStreamerInfo(username);
-          break;
+          return await streamerInfoService.fetchYouTubeChannelInfo(username);
         case "kick":
-          info = await this.getKickStreamerInfo(username);
-          break;
+          return await streamerInfoService.fetchKickChannelInfo(username);
         default:
           console.error(`[ShoutoutService] Unsupported platform: ${platform}`);
           return null;
       }
-
-      if (info) {
-        // Cache the result
-        this.cache.set(cacheKey, {
-          ...info,
-          cachedAt: Date.now(),
-        });
-      }
-
-      return info;
     } catch (error: any) {
       console.error(`[ShoutoutService] Error fetching info for ${username} on ${platform}:`, error.message);
       return null;
     }
   }
 
-  private async getTwitchStreamerInfo(username: string): Promise<StreamerInfo | null> {
-    try {
-      const clientId = getEnv("TWITCH_CLIENT_ID");
-      if (!clientId) {
-        console.error("[ShoutoutService] TWITCH_CLIENT_ID not configured");
-        return null;
-      }
-
-      // We need to get access token from a connected user
-      // For now, we'll use app access token instead of user token
-      // This is a limitation - in production you'd want to use the broadcaster's token
-      const clientSecret = getEnv("TWITCH_CLIENT_SECRET");
-      if (!clientSecret) {
-        console.error("[ShoutoutService] TWITCH_CLIENT_SECRET not configured");
-        return null;
-      }
-
-      // Get app access token
-      const tokenResponse = await axios.post(
-        "https://id.twitch.tv/oauth2/token",
-        null,
-        {
-          params: {
-            client_id: clientId,
-            client_secret: clientSecret,
-            grant_type: "client_credentials",
-          },
-        }
-      );
-
-      const accessToken = tokenResponse.data.access_token;
-
-      // Get user info
-      const userResponse = await axios.get(
-        "https://api.twitch.tv/helix/users",
-        {
-          params: { login: username },
-          headers: {
-            "Client-ID": clientId,
-            "Authorization": `Bearer ${accessToken}`,
-          },
-        }
-      );
-
-      if (!userResponse.data.data || userResponse.data.data.length === 0) {
-        console.log(`[ShoutoutService] Twitch user not found: ${username}`);
-        return null;
-      }
-
-      const user = userResponse.data.data[0];
-      const userId = user.id;
-
-      // Get stream info (to check if live and get game/viewers)
-      const streamResponse = await axios.get(
-        "https://api.twitch.tv/helix/streams",
-        {
-          params: { user_id: userId },
-          headers: {
-            "Client-ID": clientId,
-            "Authorization": `Bearer ${accessToken}`,
-          },
-        }
-      );
-
-      const stream = streamResponse.data.data?.[0];
-
-      return {
-        username: user.login,
-        displayName: user.display_name,
-        platform: "twitch",
-        game: stream?.game_name || "Unknown",
-        viewers: stream?.viewer_count || 0,
-        url: `https://twitch.tv/${user.login}`,
-        profileImageUrl: user.profile_image_url,
-        isLive: !!stream,
-        title: stream?.title,
-      };
-    } catch (error: any) {
-      console.error(`[ShoutoutService] Twitch API error:`, error.response?.data || error.message);
-      return null;
-    }
-  }
-
-  private async getYouTubeStreamerInfo(username: string): Promise<StreamerInfo | null> {
-    // YouTube API integration would require API key and channel ID resolution
-    // For now, return basic info
-    console.log(`[ShoutoutService] YouTube API not fully implemented yet`);
-    
-    return {
-      username: username,
-      displayName: username,
-      platform: "youtube",
-      game: "Unknown",
-      viewers: 0,
-      url: `https://youtube.com/@${username}`,
-      isLive: false,
-    };
-  }
-
-  private async getKickStreamerInfo(username: string): Promise<StreamerInfo | null> {
-    // Kick API integration
-    // Note: Kick doesn't have an official public API yet, this is a placeholder
-    console.log(`[ShoutoutService] Kick API not fully implemented yet`);
-    
-    return {
-      username: username,
-      displayName: username,
-      platform: "kick",
-      game: "Unknown",
-      viewers: 0,
-      url: `https://kick.com/${username}`,
-      isLive: false,
-    };
-  }
-
   async generateShoutoutMessage(
-    userId: string,
-    targetUsername: string,
-    targetPlatform: string,
-    customTemplate?: string
+    streamerInfo: StreamerInfo,
+    template: string
   ): Promise<string> {
-    // Get bot config for template
-    const botConfig = await storage.getBotConfig(userId);
-    const template = customTemplate || botConfig?.shoutoutMessageTemplate || 
-      "Check out @{username}! They were last streaming {game} with {viewers} viewers! {url}";
-
-    // Get streamer info
-    const info = await this.getStreamerInfo(targetUsername, targetPlatform);
-    
-    if (!info) {
-      // Fallback message if we can't fetch info
-      return `Check out @${targetUsername}! Go give them a follow at ${this.getPlatformUrl(targetUsername, targetPlatform)}!`;
-    }
-
     // Replace template variables
     let message = template
-      .replace(/{username}/g, info.displayName || info.username)
-      .replace(/{game}/g, info.game || "Unknown")
-      .replace(/{viewers}/g, (info.viewers || 0).toString())
-      .replace(/{url}/g, info.url)
-      .replace(/{platform}/g, info.platform);
+      .replace(/{username}/g, streamerInfo.displayName || streamerInfo.username)
+      .replace(/{game}/g, streamerInfo.game || "Unknown")
+      .replace(/{viewers}/g, (streamerInfo.viewers || 0).toString())
+      .replace(/{url}/g, streamerInfo.url)
+      .replace(/{platform}/g, streamerInfo.platform)
+      .replace(/{title}/g, streamerInfo.title || "their channel");
 
     return message;
+  }
+
+  async executeShoutout(
+    userId: string,
+    targetUsername: string,
+    platform: string,
+    type: "manual" | "raid" | "host" | "command"
+  ): Promise<{ success: boolean; message: string }> {
+    try {
+      // Get shoutout settings to get the template
+      const settings = await storage.getShoutoutSettings(userId);
+      const template = settings?.shoutoutTemplate || 
+        "Check out @{username}! They were last streaming {game} with {viewers} viewers! {url}";
+
+      // Get streamer info
+      const streamerInfo = await this.getStreamerInfo(targetUsername, platform);
+      
+      if (!streamerInfo) {
+        // Fallback message if we can't fetch info
+        const fallbackMessage = `Check out @${targetUsername}! Go give them a follow at ${this.getPlatformUrl(targetUsername, platform)}!`;
+        
+        // Still log the shoutout even with fallback
+        await this.logShoutout({
+          userId,
+          targetUsername,
+          platform,
+          shoutoutType: type,
+          message: fallbackMessage,
+        });
+
+        return {
+          success: true,
+          message: fallbackMessage,
+        };
+      }
+
+      // Generate the shoutout message
+      const message = await this.generateShoutoutMessage(streamerInfo, template);
+
+      // Log the shoutout to history
+      await this.logShoutout({
+        userId,
+        targetUsername: streamerInfo.username,
+        platform,
+        shoutoutType: type,
+        message,
+      });
+
+      // Record the shoutout (for tracking counts)
+      await this.recordShoutout(userId, streamerInfo.username, platform);
+
+      return {
+        success: true,
+        message,
+      };
+    } catch (error: any) {
+      console.error(`[ShoutoutService] Error executing shoutout:`, error);
+      return {
+        success: false,
+        message: `Failed to execute shoutout: ${error.message}`,
+      };
+    }
+  }
+
+  async logShoutout(data: {
+    userId: string;
+    targetUsername: string;
+    platform: string;
+    shoutoutType: "manual" | "raid" | "host" | "command";
+    message: string;
+  }): Promise<ShoutoutHistory> {
+    return await storage.createShoutoutHistory({
+      userId: data.userId,
+      targetUsername: data.targetUsername,
+      platform: data.platform,
+      shoutoutType: data.shoutoutType,
+      message: data.message,
+    });
   }
 
   private getPlatformUrl(username: string, platform: string): string {
@@ -227,11 +129,10 @@ export class ShoutoutService {
     }
   }
 
-  async recordShoutout(
+  private async recordShoutout(
     userId: string,
     targetUsername: string,
-    targetPlatform: string,
-    customMessage?: string
+    targetPlatform: string
   ): Promise<Shoutout> {
     // Check if shoutout record already exists
     const existing = await storage.getShoutoutByTarget(userId, targetUsername, targetPlatform);
@@ -248,14 +149,13 @@ export class ShoutoutService {
         userId,
         targetUsername,
         targetPlatform,
-        customMessage,
         usageCount: 1,
       });
     }
   }
 
-  async getShoutoutHistory(userId: string, limit: number = 50): Promise<Shoutout[]> {
-    return await storage.getShoutouts(userId, limit);
+  async getShoutoutHistory(userId: string, limit: number = 50): Promise<ShoutoutHistory[]> {
+    return await storage.getShoutoutHistory(userId, limit);
   }
 
   async getShoutoutStats(userId: string): Promise<{
@@ -284,7 +184,7 @@ export class ShoutoutService {
   }
 
   clearCache(): void {
-    this.cache.clear();
+    streamerInfoService.clearCache();
   }
 }
 

@@ -40,9 +40,18 @@ class ModerationService {
     message: string,
     username: string,
     rules: ModerationRule[],
-    whitelist: LinkWhitelist[]
+    whitelist: LinkWhitelist[],
+    bannedWords?: string[]
   ): Promise<ModerationDecision> {
     this.cleanCache();
+
+    // Check banned words first (if provided)
+    if (bannedWords && bannedWords.length > 0) {
+      const bannedWordDecision = this.checkBannedWords(message, bannedWords);
+      if (!bannedWordDecision.allow) {
+        return bannedWordDecision;
+      }
+    }
 
     const enabledRules = rules.filter(r => r.isEnabled);
     
@@ -263,6 +272,32 @@ class ModerationService {
     return { allow: true, action: "allow" };
   }
 
+  private checkBannedWords(
+    message: string,
+    bannedWords: string[]
+  ): ModerationDecision {
+    const lowerMessage = message.toLowerCase();
+    
+    for (const word of bannedWords) {
+      const lowerWord = word.toLowerCase().trim();
+      if (!lowerWord) continue;
+      
+      const wordRegex = new RegExp(`\\b${lowerWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+      if (wordRegex.test(message)) {
+        return {
+          allow: false,
+          action: "timeout",
+          ruleTriggered: "banned_words",
+          severity: "high",
+          reason: `Banned word detected: ${word}`,
+          timeoutDuration: 300
+        };
+      }
+    }
+
+    return { allow: true, action: "allow" };
+  }
+
   private checkCaps(
     message: string,
     rule: ModerationRule
@@ -279,7 +314,7 @@ class ModerationService {
     const uppercase = message.replace(/[^A-Z]/g, '');
     const capsPercentage = (uppercase.length / letters.length) * 100;
 
-    if (capsPercentage > 70) {
+    if (capsPercentage > 50) {
       return {
         allow: false,
         action: rule.action,
@@ -316,7 +351,7 @@ class ModerationService {
     const symbolCount = symbols ? symbols.length : 0;
     const totalChars = message.length;
     
-    if (totalChars > 0 && (symbolCount / totalChars) > 0.5) {
+    if (totalChars > 0 && (symbolCount / totalChars) > 0.3) {
       return {
         allow: false,
         action: rule.action,

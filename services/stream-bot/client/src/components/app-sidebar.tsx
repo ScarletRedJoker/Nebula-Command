@@ -1,4 +1,4 @@
-import { Home, Settings, Activity, Zap, History, MessageSquare, Shield, Trophy } from "lucide-react";
+import { Home, Settings, Activity, Zap, History, MessageSquare, Shield, Trophy, Megaphone, BarChart3, Gamepad2 } from "lucide-react";
 import { SiTwitch, SiYoutube, SiKick } from "react-icons/si";
 import {
   Sidebar,
@@ -35,6 +35,11 @@ const mainItems = [
     icon: History,
   },
   {
+    title: "Statistics",
+    url: "/statistics",
+    icon: BarChart3,
+  },
+  {
     title: "Commands",
     url: "/commands",
     icon: MessageSquare,
@@ -48,6 +53,16 @@ const mainItems = [
     title: "Giveaways",
     url: "/giveaways",
     icon: Trophy,
+  },
+  {
+    title: "Shoutouts",
+    url: "/shoutouts",
+    icon: Megaphone,
+  },
+  {
+    title: "Games",
+    url: "/games",
+    icon: Gamepad2,
   },
   {
     title: "Settings",

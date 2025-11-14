@@ -66,6 +66,9 @@ export const botConfigs = pgTable("bot_configs", {
   autoShoutoutOnHost: boolean("auto_shoutout_on_host").default(false).notNull(),
   shoutoutMessageTemplate: text("shoutout_message_template").default("Check out @{username}! They were last streaming {game} with {viewers} viewers! {url}"),
   
+  // Moderation settings
+  bannedWords: text("banned_words").array().default(sql`ARRAY[]::text[]`).notNull(),
+  
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -210,6 +213,164 @@ export const shoutouts = pgTable("shoutouts", {
   ),
 }));
 
+// Shoutout Settings - Per-user shoutout configuration
+export const shoutoutSettings = pgTable("shoutout_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }).unique(),
+  enableAutoShoutouts: boolean("enable_auto_shoutouts").default(false).notNull(),
+  shoutoutTemplate: text("shoutout_template").default("Check out @{username}! They were last streaming {game} with {viewers} viewers! {url}").notNull(),
+  enableRaidShoutouts: boolean("enable_raid_shoutouts").default(false).notNull(),
+  enableHostShoutouts: boolean("enable_host_shoutouts").default(false).notNull(),
+  recentFollowerShoutouts: boolean("recent_follower_shoutouts").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Shoutout History - Log of all shoutout executions
+export const shoutoutHistory = pgTable("shoutout_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  targetUsername: text("target_username").notNull(),
+  platform: text("platform").notNull(), // Platform where shoutout was posted
+  shoutoutType: text("shoutout_type").notNull(), // 'manual', 'raid', 'host', 'command'
+  message: text("message").notNull(), // The actual shoutout message sent
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+});
+
+// Stream Sessions - Track individual streaming sessions
+export const streamSessions = pgTable("stream_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  platform: text("platform").notNull(), // 'twitch', 'youtube', 'kick'
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  endedAt: timestamp("ended_at"),
+  peakViewers: integer("peak_viewers").default(0).notNull(),
+  totalMessages: integer("total_messages").default(0).notNull(),
+  uniqueChatters: integer("unique_chatters").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Viewer Snapshots - Track viewer count over time for each session
+export const viewerSnapshots = pgTable("viewer_snapshots", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().references(() => streamSessions.id, { onDelete: "cascade" }),
+  viewerCount: integer("viewer_count").default(0).notNull(),
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+});
+
+// Chat Activity - Track chat messages for heatmap generation
+export const chatActivity = pgTable("chat_activity", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().references(() => streamSessions.id, { onDelete: "cascade" }),
+  username: text("username").notNull(),
+  messageCount: integer("message_count").default(1).notNull(),
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+});
+
+// Game Settings - Per-user mini-games configuration
+export const gameSettings = pgTable("game_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }).unique(),
+  enableGames: boolean("enable_games").default(true).notNull(),
+  cooldownMinutes: integer("cooldown_minutes").default(5).notNull(),
+  pointsPerWin: integer("points_per_win").default(10).notNull(),
+  enable8Ball: boolean("enable_8ball").default(true).notNull(),
+  enableTrivia: boolean("enable_trivia").default(true).notNull(),
+  enableDuel: boolean("enable_duel").default(true).notNull(),
+  enableSlots: boolean("enable_slots").default(true).notNull(),
+  enableRoulette: boolean("enable_roulette").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Game History - Track all game plays and outcomes
+export const gameHistory = pgTable("game_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  gameType: text("game_type").notNull(), // '8ball', 'trivia', 'duel', 'slots', 'roulette'
+  player: text("player").notNull(), // Username of the player
+  opponent: text("opponent"), // For duel games
+  outcome: text("outcome").notNull(), // 'win', 'loss', 'neutral'
+  pointsAwarded: integer("points_awarded").default(0).notNull(),
+  details: jsonb("details"), // Game-specific data (question, answer, slot results, etc.)
+  platform: text("platform").notNull(), // 'twitch', 'youtube', 'kick'
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+});
+
+// Active Trivia Questions - Track pending trivia questions
+export const activeTriviaQuestions = pgTable("active_trivia_questions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  player: text("player").notNull(),
+  platform: text("platform").notNull(),
+  question: text("question").notNull(),
+  correctAnswer: text("correct_answer").notNull(),
+  difficulty: text("difficulty").notNull(), // 'easy', 'medium', 'hard'
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Currency Settings - Per-user currency configuration
+export const currencySettings = pgTable("currency_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }).unique(),
+  currencyName: text("currency_name").default("Points").notNull(),
+  currencySymbol: text("currency_symbol").default("⭐").notNull(),
+  earnPerMessage: integer("earn_per_message").default(1).notNull(),
+  earnPerMinute: integer("earn_per_minute").default(2).notNull(),
+  enableGambling: boolean("enable_gambling").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// User Balances - Track viewer currency balances
+export const userBalances = pgTable("user_balances", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  botUserId: varchar("bot_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  username: text("username").notNull(),
+  platform: text("platform").notNull(), // 'twitch', 'youtube', 'kick'
+  balance: integer("balance").default(0).notNull(),
+  totalEarned: integer("total_earned").default(0).notNull(),
+  totalSpent: integer("total_spent").default(0).notNull(),
+  lastEarned: timestamp("last_earned"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  userBalanceIdx: uniqueIndex("user_balances_bot_user_id_username_platform_unique").on(
+    table.botUserId,
+    table.username,
+    table.platform
+  ),
+}));
+
+// Currency Transactions - History of all currency transactions
+export const currencyTransactions = pgTable("currency_transactions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  balanceId: varchar("balance_id").notNull().references(() => userBalances.id, { onDelete: "cascade" }),
+  type: text("type").notNull(), // 'earn_message', 'earn_watch', 'gamble_win', 'gamble_loss', 'reward_purchase', 'admin_adjust'
+  amount: integer("amount").notNull(), // Can be negative for spending
+  description: text("description").notNull(),
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+});
+
+// Currency Rewards - Custom rewards that viewers can redeem
+export const currencyRewards = pgTable("currency_rewards", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  botUserId: varchar("bot_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  rewardName: text("reward_name").notNull(),
+  cost: integer("cost").default(100).notNull(),
+  rewardType: text("reward_type").notNull(), // 'timeout_immunity', 'song_request', 'highlight_message', 'custom_command'
+  rewardData: jsonb("reward_data"), // Type-specific data (duration, command, etc.)
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  userRewardIdx: uniqueIndex("currency_rewards_bot_user_id_reward_name_unique").on(
+    table.botUserId,
+    table.rewardName
+  ),
+}));
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users, {
   email: z.string().email("Invalid email address"),
@@ -304,6 +465,118 @@ export const insertShoutoutSchema = createInsertSchema(shoutouts, {
   lastUsedAt: true,
 });
 
+export const insertShoutoutSettingsSchema = createInsertSchema(shoutoutSettings, {
+  shoutoutTemplate: z.string().min(1, "Template is required").max(500, "Template too long"),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertShoutoutHistorySchema = createInsertSchema(shoutoutHistory, {
+  targetUsername: z.string().min(1, "Target username is required").max(100, "Username too long"),
+  platform: z.enum(["twitch", "youtube", "kick"]),
+  shoutoutType: z.enum(["manual", "raid", "host", "command"]),
+  message: z.string().min(1, "Message is required").max(500, "Message too long"),
+}).omit({
+  id: true,
+  timestamp: true,
+});
+
+export const insertStreamSessionSchema = createInsertSchema(streamSessions, {
+  platform: z.enum(["twitch", "youtube", "kick"]),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertViewerSnapshotSchema = createInsertSchema(viewerSnapshots).omit({
+  id: true,
+  timestamp: true,
+});
+
+export const insertChatActivitySchema = createInsertSchema(chatActivity, {
+  username: z.string().min(1, "Username is required").max(100, "Username too long"),
+  messageCount: z.coerce.number().min(1),
+}).omit({
+  id: true,
+  timestamp: true,
+});
+
+export const insertGameSettingsSchema = createInsertSchema(gameSettings, {
+  cooldownMinutes: z.coerce.number().min(0).max(60),
+  pointsPerWin: z.coerce.number().min(0).max(1000),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertGameHistorySchema = createInsertSchema(gameHistory, {
+  gameType: z.enum(["8ball", "trivia", "duel", "slots", "roulette"]),
+  player: z.string().min(1, "Player is required").max(100, "Player name too long"),
+  opponent: z.string().max(100, "Opponent name too long").optional(),
+  outcome: z.enum(["win", "loss", "neutral"]),
+  pointsAwarded: z.coerce.number().min(0),
+  platform: z.enum(["twitch", "youtube", "kick"]),
+}).omit({
+  id: true,
+  timestamp: true,
+});
+
+export const insertActiveTriviaQuestionSchema = createInsertSchema(activeTriviaQuestions, {
+  player: z.string().min(1, "Player is required").max(100, "Player name too long"),
+  platform: z.enum(["twitch", "youtube", "kick"]),
+  question: z.string().min(1, "Question is required"),
+  correctAnswer: z.string().min(1, "Answer is required"),
+  difficulty: z.enum(["easy", "medium", "hard"]),
+}).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertCurrencySettingsSchema = createInsertSchema(currencySettings, {
+  currencyName: z.string().min(1, "Currency name is required").max(50, "Currency name too long"),
+  currencySymbol: z.string().min(1, "Currency symbol is required").max(10, "Currency symbol too long"),
+  earnPerMessage: z.coerce.number().min(0).max(1000),
+  earnPerMinute: z.coerce.number().min(0).max(1000),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertUserBalanceSchema = createInsertSchema(userBalances, {
+  username: z.string().min(1, "Username is required").max(100, "Username too long"),
+  platform: z.enum(["twitch", "youtube", "kick"]),
+  balance: z.coerce.number().min(0),
+  totalEarned: z.coerce.number().min(0),
+  totalSpent: z.coerce.number().min(0),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertCurrencyTransactionSchema = createInsertSchema(currencyTransactions, {
+  type: z.enum(["earn_message", "earn_watch", "gamble_win", "gamble_loss", "reward_purchase", "admin_adjust"]),
+  amount: z.coerce.number(),
+  description: z.string().min(1, "Description is required").max(500, "Description too long"),
+}).omit({
+  id: true,
+  timestamp: true,
+});
+
+export const insertCurrencyRewardSchema = createInsertSchema(currencyRewards, {
+  rewardName: z.string().min(1, "Reward name is required").max(100, "Reward name too long"),
+  cost: z.coerce.number().min(1).max(1000000),
+  rewardType: z.enum(["timeout_immunity", "song_request", "highlight_message", "custom_command"]),
+}).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Update schemas for partial updates
 export const updateUserSchema = insertUserSchema.partial();
 export const updateBotConfigSchema = insertBotConfigSchema.partial();
@@ -313,6 +586,12 @@ export const updateCustomCommandSchema = insertCustomCommandSchema.partial();
 export const updateModerationRuleSchema = insertModerationRuleSchema.partial();
 export const updateGiveawaySchema = insertGiveawaySchema.partial();
 export const updateShoutoutSchema = insertShoutoutSchema.partial();
+export const updateShoutoutSettingsSchema = insertShoutoutSettingsSchema.partial();
+export const updateStreamSessionSchema = insertStreamSessionSchema.partial();
+export const updateGameSettingsSchema = insertGameSettingsSchema.partial();
+export const updateCurrencySettingsSchema = insertCurrencySettingsSchema.partial();
+export const updateUserBalanceSchema = insertUserBalanceSchema.partial();
+export const updateCurrencyRewardSchema = insertCurrencyRewardSchema.partial();
 
 // Signup schema - for user registration
 export const signupSchema = z.object({
@@ -340,6 +619,18 @@ export type Giveaway = typeof giveaways.$inferSelect;
 export type GiveawayEntry = typeof giveawayEntries.$inferSelect;
 export type GiveawayWinner = typeof giveawayWinners.$inferSelect;
 export type Shoutout = typeof shoutouts.$inferSelect;
+export type ShoutoutSettings = typeof shoutoutSettings.$inferSelect;
+export type ShoutoutHistory = typeof shoutoutHistory.$inferSelect;
+export type StreamSession = typeof streamSessions.$inferSelect;
+export type ViewerSnapshot = typeof viewerSnapshots.$inferSelect;
+export type ChatActivity = typeof chatActivity.$inferSelect;
+export type GameSettings = typeof gameSettings.$inferSelect;
+export type GameHistory = typeof gameHistory.$inferSelect;
+export type ActiveTriviaQuestion = typeof activeTriviaQuestions.$inferSelect;
+export type CurrencySettings = typeof currencySettings.$inferSelect;
+export type UserBalance = typeof userBalances.$inferSelect;
+export type CurrencyTransaction = typeof currencyTransactions.$inferSelect;
+export type CurrencyReward = typeof currencyRewards.$inferSelect;
 
 // Insert types
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -355,6 +646,18 @@ export type InsertGiveaway = z.infer<typeof insertGiveawaySchema>;
 export type InsertGiveawayEntry = z.infer<typeof insertGiveawayEntrySchema>;
 export type InsertGiveawayWinner = z.infer<typeof insertGiveawayWinnerSchema>;
 export type InsertShoutout = z.infer<typeof insertShoutoutSchema>;
+export type InsertShoutoutSettings = z.infer<typeof insertShoutoutSettingsSchema>;
+export type InsertShoutoutHistory = z.infer<typeof insertShoutoutHistorySchema>;
+export type InsertStreamSession = z.infer<typeof insertStreamSessionSchema>;
+export type InsertViewerSnapshot = z.infer<typeof insertViewerSnapshotSchema>;
+export type InsertChatActivity = z.infer<typeof insertChatActivitySchema>;
+export type InsertGameSettings = z.infer<typeof insertGameSettingsSchema>;
+export type InsertGameHistory = z.infer<typeof insertGameHistorySchema>;
+export type InsertActiveTriviaQuestion = z.infer<typeof insertActiveTriviaQuestionSchema>;
+export type InsertCurrencySettings = z.infer<typeof insertCurrencySettingsSchema>;
+export type InsertUserBalance = z.infer<typeof insertUserBalanceSchema>;
+export type InsertCurrencyTransaction = z.infer<typeof insertCurrencyTransactionSchema>;
+export type InsertCurrencyReward = z.infer<typeof insertCurrencyRewardSchema>;
 
 // Update types
 export type UpdateUser = z.infer<typeof updateUserSchema>;
@@ -365,6 +668,12 @@ export type UpdateCustomCommand = z.infer<typeof updateCustomCommandSchema>;
 export type UpdateModerationRule = z.infer<typeof updateModerationRuleSchema>;
 export type UpdateGiveaway = z.infer<typeof updateGiveawaySchema>;
 export type UpdateShoutout = z.infer<typeof updateShoutoutSchema>;
+export type UpdateShoutoutSettings = z.infer<typeof updateShoutoutSettingsSchema>;
+export type UpdateStreamSession = z.infer<typeof updateStreamSessionSchema>;
+export type UpdateGameSettings = z.infer<typeof updateGameSettingsSchema>;
+export type UpdateCurrencySettings = z.infer<typeof updateCurrencySettingsSchema>;
+export type UpdateUserBalance = z.infer<typeof updateUserBalanceSchema>;
+export type UpdateCurrencyReward = z.infer<typeof updateCurrencyRewardSchema>;
 
 // Auth types
 export type Signup = z.infer<typeof signupSchema>;
