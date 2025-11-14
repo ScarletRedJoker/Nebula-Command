@@ -1,13 +1,8 @@
-node_modules
-npm-debug.log
 .env
 .env.local
 .env.*.local
 .git
 .gitignore
-dist
-build
-coverage
 *.md
 README.md
 .vscode
@@ -16,10 +11,5 @@ README.md
 Thumbs.db
 logs
 *.log
-.eslintrc.json
-.prettierrc
-tsconfig.json
-vite.config.ts
 .replit
 replit.nix
-attached_assets

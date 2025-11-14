@@ -1,3 +1,30 @@
+# Environment
+.env
+.env.local
+.env.*.local
+*.env
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -22,10 +49,9 @@ MANIFEST
 .pytest_cache/
 .coverage
 htmlcov/
-.env
-.venv
-env/
 venv/
+env/
+.venv
 ENV/
 env.bak/
 venv.bak/
@@ -35,18 +61,25 @@ instance/
 .dmypy.json
 dmypy.json
 .pyre/
-.idea/
-.vscode/
-*.swp
-*.swo
-*~
-.DS_Store
-src/static/uploads/*
-!src/static/uploads/.gitkeep
+
+# Node
+node_modules/
+dist/
+build/
+.next/
+out/
+
+# Replit
+.replit
+.upm
+replit.nix
+.breakpoints
 
 # Attached Assets (generated files, user uploads, embed images)
 attached_assets/
 **/attached_assets/
+src/static/uploads/*
+!src/static/uploads/.gitkeep
 
 # Service data and logs (prevent sync conflicts)
 services/plex/config/
@@ -59,7 +92,6 @@ services/n8n/data/
 postgres_data/
 caddy_data/
 caddy_config/
-*.log
 *.db-shm
 *.db-wal
 
