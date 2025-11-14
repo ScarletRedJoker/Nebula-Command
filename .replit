@@ -19,6 +19,10 @@ author = "agent"
 task = "workflow.run"
 args = "dashboard"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "stream-bot"
+
 [[workflows.workflow]]
 name = "dashboard"
 author = "agent"
@@ -31,13 +35,33 @@ waitForPort = 5000
 [workflows.workflow.metadata]
 outputType = "webview"
 
-[[ports]]
-localPort = 5000
-externalPort = 80
+[[workflows.workflow]]
+name = "stream-bot"
+author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd services/stream-bot && TWITCH_REDIRECT_URI=\"https://${REPLIT_DEV_DOMAIN}/api/auth/twitch/callback\" APP_URL=\"https://${REPLIT_DEV_DOMAIN}\" PORT=3000 npm run dev"
+waitForPort = 3000
 
 [[ports]]
-localPort = 42753
+localPort = 3000
+externalPort = 3000
+
+[[ports]]
+localPort = 5000
+externalPort = 5000
+
+[[ports]]
+localPort = 24678
 externalPort = 3001
+
+[[ports]]
+localPort = 34397
+externalPort = 80
 
 [[ports]]
 localPort = 46877
