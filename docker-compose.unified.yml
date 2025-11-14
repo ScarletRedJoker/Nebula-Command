@@ -8,6 +8,7 @@ volumes:
   caddy_data:
   caddy_config:
   vnc_home:
+  code_server_data:
 
 services:
   # ============================================
@@ -256,6 +257,31 @@ services:
     shm_size: '2gb'
     healthcheck:
       test: ["CMD-SHELL", "wget --spider -q http://localhost:6079 || curl -f http://localhost:6079 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ============================================
+  # Code-Server (VS Code in Browser)
+  # ============================================
+  code-server:
+    image: codercom/code-server:latest
+    container_name: code-server
+    restart: unless-stopped
+    networks:
+      - homelab
+    environment:
+      - PASSWORD=${CODE_SERVER_PASSWORD}
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+    volumes:
+      - code_server_data:/home/coder/.config
+      - /home/${SERVICE_USER:-evin}/contain:/home/coder/projects
+      - ./config/code-server:/home/coder/.local/share/code-server
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
       interval: 30s
       timeout: 10s
       retries: 3

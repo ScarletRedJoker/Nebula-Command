@@ -121,17 +121,29 @@ class DatabaseService:
             logger.error(f"Error listing databases: {e}")
             raise
     
-    def create_database(self, db_type: str, container_name: str, 
-                       port: int, password: str, volume_name: Optional[str] = None) -> Dict:
+    def create_database(self, db_type: str, name: str = '', 
+                       database_name: str = '', username: str = '', 
+                       custom_password: Optional[str] = None, volume_name: Optional[str] = None) -> Dict:
         """Deploy a new database container"""
         if db_type not in self.db_templates:
             raise ValueError(f"Unsupported database type: {db_type}")
+        
+        # Set defaults
+        container_name = name if name else f"{db_type}-{secrets.token_hex(4)}"
+        password = custom_password if custom_password else secrets.token_urlsafe(16)
+        if not database_name:
+            database_name = 'mydb'
+        if not username:
+            username = 'admin' if db_type != 'redis' else ''
         
         # Normalize empty strings to None (matching SDK behavior)
         if volume_name is not None and not volume_name.strip():
             volume_name = None
         
         template = self.db_templates[db_type]
+        
+        # Find available port
+        port = self._find_available_port(template['default_port'])
         
         try:
             # Check if container already exists
@@ -145,15 +157,24 @@ class DatabaseService:
             if check_result.returncode == 0:
                 raise Exception(f"Container '{container_name}' already exists")
             
-            # Prepare environment variables
+            # Prepare environment variables based on db type
             env_args = []
-            for key, default_value in template['env_vars'].items():
-                if 'PASSWORD' in key:
-                    env_args.extend(['-e', f'{key}={password}'])
-                elif 'DATABASE' in key or 'DB' in key:
-                    env_args.extend(['-e', f'{key}=mydb'])
-                else:
-                    env_args.extend(['-e', f'{key}={default_value}'])
+            if db_type == 'postgresql':
+                env_args.extend(['-e', f'POSTGRES_PASSWORD={password}'])
+                env_args.extend(['-e', f'POSTGRES_USER={username}'])
+                env_args.extend(['-e', f'POSTGRES_DB={database_name}'])
+            elif db_type in ['mysql', 'mariadb']:
+                env_args.extend(['-e', f'MYSQL_ROOT_PASSWORD={password}'])
+                env_args.extend(['-e', f'MYSQL_DATABASE={database_name}'])
+                if username:
+                    env_args.extend(['-e', f'MYSQL_USER={username}'])
+                    env_args.extend(['-e', f'MYSQL_PASSWORD={password}'])
+            elif db_type == 'mongodb':
+                env_args.extend(['-e', f'MONGO_INITDB_ROOT_USERNAME={username}'])
+                env_args.extend(['-e', f'MONGO_INITDB_ROOT_PASSWORD={password}'])
+                env_args.extend(['-e', f'MONGO_INITDB_DATABASE={database_name}'])
+            elif db_type == 'redis':
+                env_args.extend(['-e', f'REDIS_PASSWORD={password}'])
             
             # Create and prepare volume (matching SDK behavior)
             # Auto-generate volume name if not provided (SDK default behavior)
@@ -256,7 +277,10 @@ class DatabaseService:
                 'container_name': container_name,
                 'type': db_type,
                 'port': port,
-                'connection_info': self.get_connection_examples(db_type, container_name, port, password)
+                'username': username,
+                'password': password,
+                'database_name': database_name,
+                'connection_info': self.get_connection_examples(db_type, container_name, port, password, username, database_name)
             }
             
         except Exception as e:
@@ -414,8 +438,13 @@ class DatabaseService:
     
     def get_connection_examples(self, db_type: str, container_name: str, 
                                 port: int, password: str, 
-                                username: str = None, database: str = None) -> Dict:
+                                username: Optional[str] = None, database: Optional[str] = None,
+                                host_port: Optional[int] = None) -> Dict:
         """Get connection string examples for different programming languages"""
+        
+        # Use host_port if provided, otherwise use port for both host and container connections
+        if host_port is None:
+            host_port = port
         
         # Set defaults based on db type if not provided
         if not username:
@@ -425,27 +454,27 @@ class DatabaseService:
         
         examples = {
             'postgresql': {
-                'url': f'postgresql://{username}:{password}@localhost:{port}/{database}',
-                'python': f'psycopg2.connect("host=localhost port={port} dbname={database} user={username} password={password}")',
-                'node': f'postgres://{username}:{password}@localhost:{port}/{database}',
+                'url': f'postgresql://{username}:{password}@localhost:{host_port}/{database}',
+                'python': f'psycopg2.connect("host=localhost port={host_port} dbname={database} user={username} password={password}")',
+                'node': f'postgres://{username}:{password}@localhost:{host_port}/{database}',
                 'docker': f'postgresql://{container_name}:5432/{database}'
             },
             'mysql': {
-                'url': f'mysql://{username}:{password}@localhost:{port}/{database}',
-                'python': f'mysql.connector.connect(host="localhost", port={port}, user="{username}", password="{password}", database="{database}")',
-                'node': f'mysql://{username}:{password}@localhost:{port}/{database}',
+                'url': f'mysql://{username}:{password}@localhost:{host_port}/{database}',
+                'python': f'mysql.connector.connect(host="localhost", port={host_port}, user="{username}", password="{password}", database="{database}")',
+                'node': f'mysql://{username}:{password}@localhost:{host_port}/{database}',
                 'docker': f'mysql://{container_name}:3306/{database}'
             },
             'mongodb': {
-                'url': f'mongodb://{username}:{password}@localhost:{port}/{database}?authSource=admin',
-                'python': f'MongoClient("mongodb://{username}:{password}@localhost:{port}/{database}?authSource=admin")',
-                'node': f'mongodb://{username}:{password}@localhost:{port}/{database}?authSource=admin',
+                'url': f'mongodb://{username}:{password}@localhost:{host_port}/{database}?authSource=admin',
+                'python': f'MongoClient("mongodb://{username}:{password}@localhost:{host_port}/{database}?authSource=admin")',
+                'node': f'mongodb://{username}:{password}@localhost:{host_port}/{database}?authSource=admin',
                 'docker': f'mongodb://{container_name}:27017/{database}'
             },
             'redis': {
-                'url': f'redis://localhost:{port}',
-                'python': f'redis.Redis(host="localhost", port={port})',
-                'node': f'redis://localhost:{port}',
+                'url': f'redis://localhost:{host_port}',
+                'python': f'redis.Redis(host="localhost", port={host_port})',
+                'node': f'redis://localhost:{host_port}',
                 'docker': f'redis://{container_name}:6379'
             }
         }
@@ -465,6 +494,27 @@ class DatabaseService:
                         ports[container_port] = host_port
         
         return ports
+    
+    def _find_available_port(self, preferred_port: int) -> int:
+        """Find an available port starting from preferred_port"""
+        import socket
+        
+        port = preferred_port
+        max_attempts = 100
+        
+        for offset in range(max_attempts):
+            test_port = port + offset
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(1)
+                result = sock.connect_ex(('localhost', test_port))
+                sock.close()
+                if result != 0:
+                    return test_port
+            except:
+                return test_port
+        
+        return port + max_attempts
     
     def _backup_postgresql(self, container_name: str, backup_path: str) -> Dict:
         """Backup PostgreSQL database"""

@@ -59,6 +59,7 @@ git pull
 | **Plex** | plex.evindrake.net | Plex Server | SQLite |
 | **n8n** | n8n.evindrake.net | Node.js | SQLite |
 | **VNC Desktop** | vnc.evindrake.net | noVNC | None |
+| **Code-Server** | code.evindrake.net | VS Code | None |
 | **Static Site** | scarletredjoker.com | HTML/CSS/JS | None |
 
 All services automatically receive SSL certificates via **Caddy**.

@@ -60,6 +60,34 @@ vnc.evindrake.net {
     reverse_proxy vnc-desktop:80
 }
 
+code.evindrake.net {
+    reverse_proxy code-server:8080 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Forwarded-Host {host}
+        
+        # WebSocket support for VS Code
+        header_up Upgrade {>Upgrade}
+        header_up Connection {>Connection}
+    }
+    
+    # Security headers
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        
+        # Disable caching for dynamic content
+        Cache-Control "no-cache, no-store, must-revalidate"
+        Pragma "no-cache"
+        Expires "0"
+    }
+}
+
 game.evindrake.net {
     handle / {
         redir /game-connect permanent
