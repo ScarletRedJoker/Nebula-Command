@@ -189,20 +189,34 @@ def deploy_project():
             
             logger.info(f"Started deployment task {task.id} for project {project_name}")
             
+            enhanced = personality.enhance_deployment_response(
+                success=True,
+                project_name=project_name,
+                status='started'
+            )
+            
             return jsonify({
                 'success': True,
                 'session_id': str(ai_session.id),
                 'status': 'started',
-                'message': f'Deployment of {project_name} has been initiated',
+                'message': enhanced['message'],
                 'project_id': str(project.id),
                 'task_id': task.id
             }), 202
     
+    except ValueError as ve:
+        error_msg = personality.wrap_error('validation_error', str(ve))
+        logger.error(f"Validation error in voice deploy: {ve}")
+        return jsonify({
+            'success': False,
+            'error': error_msg
+        }), 400
     except Exception as e:
+        error_msg = personality.wrap_error('deploy_failed', str(e))
         logger.error(f"Error in voice deploy endpoint: {e}", exc_info=True)
         return jsonify({
             'success': False,
-            'error': str(e)
+            'error': error_msg
         }), 500
 
 
