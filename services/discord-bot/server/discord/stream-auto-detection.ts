@@ -81,11 +81,23 @@ export async function autoDetectStreamingUsers(
   };
 
   try {
-    // Fetch all members in the guild
-    const members = await guild.members.fetch();
+    // Check if GuildPresences intent is enabled
+    const client = guild.client;
+    if (!client.options.intents.has('GuildPresences')) {
+      console.warn('[Auto-Detection] GuildPresences intent is not enabled. Auto-detection will not work properly. Please enable it in the Discord Developer Portal.');
+      throw new Error('GuildPresences intent is required for auto-detection');
+    }
+
+    // Fetch all members in the guild WITH presence data
+    console.log(`[Auto-Detection] Fetching members with presence data...`);
+    const members = await guild.members.fetch({ withPresences: true });
     result.totalMembers = members.size;
     console.log(`[Auto-Detection] Found ${members.size} members in ${guild.name}`);
 
+    // Fetch the tracked user list once and index by userId for O(1) lookups
+    const existingTrackedUsers = await storage.getStreamTrackedUsers(guild.id);
+    const trackedUserMap = new Map(existingTrackedUsers.map(u => [u.userId, u]));
+    
     // Track which users we've already added/updated
     const processedUsers = new Set<string>();
 
@@ -95,6 +107,13 @@ export async function autoDetectStreamingUsers(
       if (member.user.bot) continue;
 
       try {
+        // Check if presence data is available
+        // The withPresences: true option should have populated this during the initial fetch
+        // Note: Members who are offline won't have presence data, which is expected
+        if (!member.presence) {
+          continue;
+        }
+        
         // Get the user's connected accounts via presence activities
         // Discord exposes streaming status through presence when users are streaming
         const connectedPlatforms = await detectConnectedStreamingPlatforms(member);
@@ -102,9 +121,8 @@ export async function autoDetectStreamingUsers(
         if (connectedPlatforms.length > 0) {
           result.membersWithStreaming++;
           
-          // Check if user is already tracked
-          const existingTrackedUsers = await storage.getStreamTrackedUsers(guild.id);
-          const existingUser = existingTrackedUsers.find(u => u.userId === memberId);
+          // Check if user is already tracked (O(1) lookup)
+          const existingUser = trackedUserMap.get(memberId);
           
           // Build platform data
           const platforms = connectedPlatforms.map(p => p.type);

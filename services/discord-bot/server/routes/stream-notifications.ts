@@ -10,6 +10,8 @@ const streamSettingsSchema = z.object({
   notificationChannelId: z.string(),
   customMessage: z.string().nullable().optional(),
   isEnabled: z.boolean().optional(),
+  autoDetectEnabled: z.boolean().optional(),
+  autoSyncIntervalMinutes: z.number().min(15).max(1440).optional(),
 });
 
 const trackedUserSchema = z.object({
@@ -64,7 +66,9 @@ router.get("/settings/:serverId", isAuthenticated, async (req: Request, res: Res
       serverId,
       notificationChannelId: null,
       customMessage: null,
-      isEnabled: false
+      isEnabled: false,
+      autoDetectEnabled: false,
+      autoSyncIntervalMinutes: 60
     });
   } catch (error) {
     console.error("Failed to get stream notification settings:", error);
@@ -189,6 +193,45 @@ router.delete("/tracked-users/:serverId/:userId", isAuthenticated, async (req: R
   } catch (error) {
     console.error("Failed to remove tracked user:", error);
     res.status(500).json({ error: "Failed to remove tracked user" });
+  }
+});
+
+// POST trigger manual auto-detection scan
+router.post("/scan/:serverId", isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { serverId } = req.params;
+
+    // Check access
+    const hasAccess = await userHasServerAccess(req, serverId);
+    if (!hasAccess) {
+      return res.status(403).json({ error: "You don't have permission to access this server" });
+    }
+
+    // Check if auto-detection is enabled
+    const settings = await storage.getStreamNotificationSettings(serverId);
+    if (!settings || !settings.autoDetectEnabled) {
+      return res.status(400).json({ error: "Auto-detection is not enabled for this server" });
+    }
+
+    // Import and trigger manual scan
+    const { getDiscordClient } = await import("../discord/bot");
+    const { triggerManualScan } = await import("../discord/stream-auto-detection");
+    
+    const client = getDiscordClient();
+    if (!client) {
+      return res.status(503).json({ error: "Discord bot is not connected" });
+    }
+
+    const guild = client.guilds.cache.get(serverId);
+    if (!guild) {
+      return res.status(404).json({ error: "Server not found or bot is not a member" });
+    }
+
+    const result = await triggerManualScan(guild, storage);
+    res.json(result);
+  } catch (error) {
+    console.error("Failed to trigger manual scan:", error);
+    res.status(500).json({ error: "Failed to trigger manual scan" });
   }
 });
 
