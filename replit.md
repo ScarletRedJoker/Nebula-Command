@@ -122,15 +122,19 @@ A single PostgreSQL container manages multiple databases (`ticketbot`, `streambo
 ### November 15, 2025 - DNS Configuration & Page Fixes
 - **Game Streaming Page Fix**: Corrected HTML typo (`</card>` → `</div>`) in `game_streaming.html` that was causing scrolling issues
 - **Caddyfile Cleanup**: Updated Caddyfile to prevent SSL certificate errors for domains without DNS records
-  - Commented out `rig-city.com` apex domain (needs A record in ZoneEdit)
-  - Commented out `scarletredjoker.com` entries (no DNS configured)
+  - Initially commented out `rig-city.com` apex and `scarletredjoker.com` (missing DNS)
+  - User added DNS records for both domains in ZoneEdit
+  - Re-enabled both domains in Caddyfile after DNS configuration confirmed
   - All evindrake.net subdomains working correctly
   - Discord bot and stream bot subdomains active
-- **DNS Documentation**: Created comprehensive `DNS_SETUP_GUIDE.md` with instructions for missing records
-- **DNS Status**:
-  - ✅ Working (9 services): host, code, game, home, n8n, plex, vnc (evindrake.net) + bot, stream (rig-city.com)
-  - ⚠️ Needs DNS: rig-city.com apex, scarletredjoker.com
+- **DNS Documentation**: Created comprehensive `DNS_SETUP_GUIDE.md` and `DNS_CONFIGURED_NEXT_STEPS.md`
+- **DNS Status**: ✅ All domains configured correctly
+  - ✅ All 11 services have proper DNS records
+  - ✅ rig-city.com apex domain: A record → 74.76.32.151
+  - ✅ scarletredjoker.com: A record → 74.76.32.151
+  - ✅ All www subdomains: CNAME redirects configured
 - **Backup Created**: Original Caddyfile saved to `Caddyfile.backup`
+- **Next Step**: Restart Caddy after DNS propagation (15-30 min) to obtain SSL certificates
 
 ### November 15, 2025 - Discord Bot: Auto-Detection for Stream Notifications
 - **Automatic Streamer Discovery**: Implemented passive presence-based detection that automatically discovers server members with connected Twitch, YouTube, or Kick accounts
