@@ -68,6 +68,15 @@ def logs():
 def ai_assistant():
     return render_template('ai_assistant.html')
 
+@web_bp.route('/aiassistant')
+@require_web_auth
+def ai_assistant_chat():
+    response = make_response(render_template('ai_assistant_chat.html'))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
 @web_bp.route('/file-manager')
 @require_web_auth
 def file_manager():

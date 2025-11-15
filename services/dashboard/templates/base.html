@@ -582,9 +582,15 @@
         </div>
         <ul class="category-content">
             <li class="nav-item">
+                <a href="/aiassistant" class="nav-link cosmic {% if request.path == '/aiassistant' %}active{% endif %}">
+                    <i class="bi bi-mic"></i>
+                    <span>Voice Chat (Jarvis)</span>
+                </a>
+            </li>
+            <li class="nav-item">
                 <a href="/ai-assistant" class="nav-link cosmic {% if request.path == '/ai-assistant' %}active{% endif %}">
                     <i class="bi bi-robot"></i>
-                    <span>AI Assistant (Jarvis)</span>
+                    <span>AI Assistant (Text)</span>
                 </a>
             </li>
             <li class="nav-item">

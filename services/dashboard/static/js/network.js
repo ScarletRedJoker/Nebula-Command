@@ -35,14 +35,22 @@ function getMACAddress(addresses) {
 
 // Load network statistics
 async function loadNetworkStats() {
+    console.log('[Network Stats] Loading...');
     try {
         const response = await fetch('/api/network/stats', {
             credentials: 'include'
         });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
         const result = await response.json();
+        console.log('[Network Stats] Response:', result);
         
         if (result.success && result.data) {
             const stats = result.data;
+            console.log('[Network Stats] Data loaded successfully');
             
             // Update statistics table
             const statsTable = document.getElementById('network-stats');
@@ -81,14 +89,19 @@ async function loadNetworkStats() {
                 </tr>
             `;
         }
+        } else {
+            console.error('[Network Stats] Invalid response format:', result);
+            throw new Error(result.message || 'Invalid response format');
+        }
     } catch (error) {
-        console.error('Failed to load network stats:', error);
+        console.error('[Network Stats] Error:', error);
         const statsTable = document.getElementById('network-stats');
         if (statsTable) {
             statsTable.innerHTML = `
                 <tr>
                     <td colspan="2" class="text-center text-danger">
-                        <i class="fas fa-exclamation-triangle"></i> Failed to load stats
+                        <i class="fas fa-exclamation-triangle"></i> Failed to load stats<br>
+                        <small>${error.message}</small>
                     </td>
                 </tr>
             `;
@@ -98,11 +111,18 @@ async function loadNetworkStats() {
 
 // Load bandwidth usage
 async function loadBandwidth() {
+    console.log('[Bandwidth] Loading...');
     try {
         const response = await fetch('/api/network/bandwidth', {
             credentials: 'include'
         });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
         const result = await response.json();
+        console.log('[Bandwidth] Response received');
         
         if (result.success && result.data) {
             const data = result.data;
@@ -127,10 +147,15 @@ async function loadBandwidth() {
             // Update chart
             updateBandwidthChart();
         }
+        } else {
+            console.error('[Bandwidth] Invalid response:', result);
+        }
     } catch (error) {
-        console.error('Failed to load bandwidth:', error);
-        document.getElementById('upload-speed').textContent = 'N/A';
-        document.getElementById('download-speed').textContent = 'N/A';
+        console.error('[Bandwidth] Error:', error);
+        const uploadEl = document.getElementById('upload-speed');
+        const downloadEl = document.getElementById('download-speed');
+        if (uploadEl) uploadEl.textContent = 'Error';
+        if (downloadEl) downloadEl.textContent = 'Error';
     }
 }
 
@@ -203,13 +228,25 @@ function updateBandwidthChart() {
 
 // Load network interfaces
 async function loadNetworkInterfaces() {
+    console.log('[Network Interfaces] Loading...');
     const container = document.getElementById('network-interfaces');
+    
+    if (!container) {
+        console.error('[Network Interfaces] Container element not found!');
+        return;
+    }
     
     try {
         const response = await fetch('/api/network/interfaces', {
             credentials: 'include'
         });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
         const result = await response.json();
+        console.log('[Network Interfaces] Response:', result);
         
         if (result.success && result.data) {
             const interfaces = result.data;
@@ -270,25 +307,44 @@ async function loadNetworkInterfaces() {
             
             container.innerHTML = html;
         }
+        } else {
+            console.error('[Network Interfaces] Invalid response:', result);
+            throw new Error(result.message || 'Invalid response');
+        }
     } catch (error) {
-        console.error('Failed to load network interfaces:', error);
-        container.innerHTML = `
-            <p class="text-center text-danger">
-                <i class="fas fa-exclamation-triangle"></i> Failed to load interfaces
-            </p>
-        `;
+        console.error('[Network Interfaces] Error:', error);
+        if (container) {
+            container.innerHTML = `
+                <p class="text-center text-danger">
+                    <i class="fas fa-exclamation-triangle"></i> Failed to load interfaces<br>
+                    <small>${error.message}</small>
+                </p>
+            `;
+        }
     }
 }
 
 // Load listening ports
 async function loadListeningPorts() {
+    console.log('[Listening Ports] Loading...');
     const container = document.getElementById('listening-ports');
+    
+    if (!container) {
+        console.error('[Listening Ports] Container element not found!');
+        return;
+    }
     
     try {
         const response = await fetch('/api/network/ports', {
             credentials: 'include'
         });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
         const result = await response.json();
+        console.log('[Listening Ports] Response:', result);
         
         if (result.success && result.data) {
             const ports = result.data;
@@ -329,25 +385,39 @@ async function loadListeningPorts() {
             
             container.innerHTML = html;
         }
+        } else {
+            console.error('[Listening Ports] Invalid response:', result);
+            throw new Error(result.message || 'Invalid response');
+        }
     } catch (error) {
-        console.error('Failed to load listening ports:', error);
-        container.innerHTML = `
-            <tr>
-                <td colspan="4" class="text-center text-danger">
-                    <i class="fas fa-exclamation-triangle"></i> Failed to load ports
-                </td>
-            </tr>
-        `;
+        console.error('[Listening Ports] Error:', error);
+        if (container) {
+            container.innerHTML = `
+                <tr>
+                    <td colspan="4" class="text-center text-danger">
+                        <i class="fas fa-exclamation-triangle"></i> Failed to load ports<br>
+                        <small>${error.message}</small>
+                    </td>
+                </tr>
+            `;
+        }
     }
 }
 
 // Load active connections
 async function loadActiveConnections() {
+    console.log('[Active Connections] Loading...');
     try {
         const response = await fetch('/api/network/connections', {
             credentials: 'include'
         });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
         const result = await response.json();
+        console.log('[Active Connections] Response:', result);
         
         if (result.success && result.data) {
             const data = result.data;
@@ -419,15 +489,19 @@ async function loadActiveConnections() {
             });
             
             container.innerHTML = html;
+        } else {
+            console.error('[Active Connections] Invalid response:', result);
+            throw new Error(result.message || 'Invalid response');
         }
     } catch (error) {
-        console.error('Failed to load active connections:', error);
+        console.error('[Active Connections] Error:', error);
         const container = document.getElementById('active-connections');
         if (container) {
             container.innerHTML = `
                 <tr>
                     <td colspan="5" class="text-center text-danger">
-                        <i class="fas fa-exclamation-triangle"></i> Failed to load connections
+                        <i class="fas fa-exclamation-triangle"></i> Failed to load connections<br>
+                        <small>${error.message}</small>
                     </td>
                 </tr>
             `;
@@ -448,20 +522,64 @@ async function loadAllNetworkData() {
 
 // Initialize page
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('Network monitoring page loaded');
+    console.log('✓ Network monitoring page loaded - initialization starting');
+    
+    // Check if Chart.js is loaded
+    if (typeof Chart === 'undefined') {
+        console.error('Chart.js is not loaded! Bandwidth chart will not work.');
+        const ctx = document.getElementById('bandwidthChart');
+        if (ctx) {
+            ctx.getContext('2d').fillText('Chart.js failed to load', 10, 50);
+        }
+    } else {
+        console.log('✓ Chart.js is available, version:', Chart.version);
+    }
+    
+    // Verify all required DOM elements exist
+    const requiredElements = [
+        'upload-speed', 'download-speed', 'bandwidthChart',
+        'network-stats', 'network-interfaces', 'listening-ports',
+        'active-connections', 'total-connections', 'tcp-connections',
+        'udp-connections', 'established-connections'
+    ];
+    
+    let allElementsFound = true;
+    requiredElements.forEach(id => {
+        const element = document.getElementById(id);
+        if (!element) {
+            console.error(`Missing required element: ${id}`);
+            allElementsFound = false;
+        }
+    });
+    
+    if (allElementsFound) {
+        console.log('✓ All required DOM elements found');
+    } else {
+        console.error('Some required DOM elements are missing!');
+    }
     
     // Load initial data
-    loadAllNetworkData();
+    console.log('Loading initial network data...');
+    loadAllNetworkData().then(() => {
+        console.log('✓ Initial network data loaded successfully');
+    }).catch(error => {
+        console.error('Failed to load initial network data:', error);
+    });
     
     // Set up auto-refresh every 5 seconds
     if (refreshInterval) {
         clearInterval(refreshInterval);
     }
-    refreshInterval = setInterval(loadAllNetworkData, 5000);
+    refreshInterval = setInterval(() => {
+        console.log('Auto-refreshing network data...');
+        loadAllNetworkData();
+    }, 5000);
+    console.log('✓ Auto-refresh interval set to 5 seconds');
 });
 
 // Clean up on page unload
 window.addEventListener('beforeunload', function() {
+    console.log('Cleaning up network monitoring page...');
     if (refreshInterval) {
         clearInterval(refreshInterval);
     }
