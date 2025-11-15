@@ -8,7 +8,6 @@ volumes:
   caddy_data:
   caddy_config:
   vnc_home:
-  code_server_data:
   redis_data:
   minio_data:
   homeassistant_config:
@@ -456,7 +455,7 @@ services:
       - PASSWORD=${CODE_SERVER_PASSWORD}
       - TZ=America/New_York
     volumes:
-      - code_server_data:/home/coder/.config
+      - ./volumes/code-server:/home/coder/.config
       - /home/${SERVICE_USER:-evin}/contain:/home/coder/projects
       - ./config/code-server:/home/coder/.local/share/code-server
     healthcheck:
