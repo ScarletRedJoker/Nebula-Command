@@ -649,14 +649,121 @@ code, pre, .code-block {
   }
 }
 
-/* Responsive Adjustments */
+/* ========== MOBILE PERFORMANCE OPTIMIZATIONS ========== */
+
+/* Reduce animation complexity on mobile devices */
 @media (max-width: 768px) {
+  /* Slower twinkle animation for better performance */
   .cosmic-bg::before {
-    animation: twinkle 90s linear infinite;
+    animation: twinkle 120s linear infinite;
   }
   
+  /* Reduce blur intensity for better performance */
   .cosmic-glass-card {
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+
+  /* Reduce nebula opacity on mobile */
+  .nebula-overlay {
+    opacity: 0.2;
+  }
+
+  /* Disable or reduce expensive animations on mobile */
+  .cosmic-float {
+    animation: none;
+  }
+
+  .cosmic-shimmer::after {
+    animation: shimmer 6s infinite;
+  }
+
+  /* Simplify gradient backgrounds */
+  .cosmic-gradient {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  }
+
+  /* Reduce glow effects */
+  .cosmic-glow {
+    box-shadow: 0 4px 16px rgba(139, 92, 246, 0.2);
+  }
+}
+
+/* Very small screens - further optimizations */
+@media (max-width: 480px) {
+  /* Even slower animations */
+  .cosmic-bg::before {
+    animation: twinkle 150s linear infinite;
+  }
+
+  /* Further reduce blur */
+  .cosmic-glass-card {
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  /* Minimal nebula effect */
+  .nebula-overlay {
+    opacity: 0.15;
+  }
+
+  /* Remove shimmer on very small screens */
+  .cosmic-shimmer::after {
+    display: none;
+  }
+}
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  .cosmic-bg::before {
+    animation: none;
+  }
+
+  .cosmic-float {
+    animation: none;
+  }
+
+  .cosmic-shimmer::after {
+    animation: none;
+  }
+
+  .cosmic-pulse {
+    animation: none;
+  }
+
+  /* Disable all cosmic animations */
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Battery saver / low power mode optimizations */
+@media (prefers-reduced-motion: reduce), (prefers-contrast: high) {
+  /* Disable starfield canvas on low power mode */
+  #starfield-canvas {
+    display: none !important;
+  }
+
+  /* Simplify backgrounds */
+  .cosmic-bg {
+    background: linear-gradient(180deg, #0a0a0a 0%, #1a1a2e 100%);
+  }
+
+  .nebula-overlay {
+    display: none;
+  }
+}
+
+/* High contrast mode - ensure visibility */
+@media (prefers-contrast: high) {
+  .cosmic-glass-card {
+    background: rgba(17, 24, 39, 0.95);
+    border: 2px solid rgba(139, 92, 246, 0.5);
+  }
+
+  .cosmic-glow {
+    box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.8);
   }
 }

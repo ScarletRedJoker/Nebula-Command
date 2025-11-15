@@ -451,8 +451,50 @@
     box-shadow: 0 6px 24px rgba(139, 92, 246, 0.7);
 }
 
-/* Mobile Responsive */
+/* ==================== MOBILE RESPONSIVE STYLES ==================== */
+
+/* Touch-friendly buttons and interactive elements */
 @media (max-width: 768px) {
+    /* Ensure all buttons are touch-friendly (min 44px height) */
+    .btn, .btn-sm, .btn-primary, .btn-secondary, .btn-success, .btn-danger, .btn-warning, button {
+        min-height: 44px;
+        min-width: 44px;
+        padding: 12px 16px;
+        font-size: 0.95rem;
+    }
+
+    /* Touch-friendly nav links */
+    .nav-link {
+        min-height: 48px;
+        padding: 14px 16px;
+        font-size: 1rem;
+    }
+
+    /* Status LED indicators should be larger on mobile */
+    .status-led, .hex-led {
+        width: 12px;
+        height: 12px;
+    }
+
+    /* Make all text readable (min 14px) */
+    body {
+        font-size: 14px;
+    }
+
+    h1 { font-size: 1.75rem; }
+    h2 { font-size: 1.5rem; }
+    h3 { font-size: 1.25rem; }
+    h4 { font-size: 1.1rem; }
+    h5 { font-size: 1rem; }
+    h6 { font-size: 0.95rem; }
+
+    /* Ensure readable body text */
+    p, span, div, li, td, th {
+        font-size: 14px;
+        line-height: 1.5;
+    }
+
+    /* Panels and customization */
     .customization-panel {
         width: 100%;
         right: -100%;
@@ -460,6 +502,7 @@
     
     .command-palette-content {
         width: 95vw;
+        margin: 0 10px;
     }
     
     #customization-toggle {
@@ -468,6 +511,270 @@
         width: 48px;
         height: 48px;
         font-size: 1.3rem;
+        min-height: 48px;
+        min-width: 48px;
+    }
+
+    /* Cards should have less padding on mobile */
+    .card {
+        padding: 16px;
+        margin-bottom: 16px;
+    }
+
+    /* Tables - ensure horizontal scroll with touch */
+    .table-responsive, table {
+        -webkit-overflow-scrolling: touch;
+        overflow-x: auto;
+        display: block;
+        width: 100%;
+    }
+
+    .table {
+        min-width: 100%;
+        font-size: 14px;
+    }
+
+    .table th, .table td {
+        padding: 10px 8px;
+        white-space: nowrap;
+    }
+
+    /* Ensure button groups wrap on mobile */
+    .btn-group {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    /* Stack alert messages properly */
+    .alert {
+        margin-bottom: 12px;
+        font-size: 14px;
+        padding: 12px;
+    }
+
+    /* Modals should fit mobile screens */
+    .modal-content {
+        margin: 10px;
+        max-width: calc(100vw - 20px);
+    }
+
+    /* Breadcrumb navigation */
+    .breadcrumb-nav {
+        font-size: 0.8rem;
+        flex-wrap: wrap;
+    }
+
+    /* Widget improvements for mobile */
+    .widget {
+        padding: 16px;
+    }
+
+    .widget-header {
+        margin-bottom: 12px;
+    }
+
+    /* Notification positioning */
+    .notification {
+        top: 20px;
+        right: 10px;
+        left: 10px;
+        width: auto;
+    }
+}
+
+/* Tablet Landscape (768px - 1024px) */
+@media (min-width: 768px) and (max-width: 1024px) {
+    .sidebar {
+        width: 240px;
+    }
+
+    .main-content {
+        margin-left: 240px;
+        padding: 24px;
+    }
+
+    /* Adjust grid columns for tablet */
+    .dashboard-grid {
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    }
+
+    /* Cards can be slightly smaller on tablet */
+    .card {
+        padding: 20px;
+    }
+}
+
+/* Phone - Portrait (320px - 480px) */
+@media (max-width: 480px) {
+    /* Extra small screens need even more compact layout */
+    .main-content {
+        padding: 15px 10px;
+    }
+
+    .header {
+        margin: -15px -10px 20px -10px;
+        padding: 12px 10px;
+    }
+
+    .header h2 {
+        font-size: 1.25rem;
+    }
+
+    .theme-toggle {
+        padding: 8px 12px;
+        font-size: 0.85rem;
+    }
+
+    /* Stack everything to single column on very small screens */
+    .dashboard-grid,
+    .status-grid,
+    .row {
+        grid-template-columns: 1fr !important;
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* Reduce card padding further */
+    .card {
+        padding: 12px;
+        margin-bottom: 12px;
+    }
+
+    /* Compact buttons */
+    .btn-sm {
+        padding: 8px 12px;
+        font-size: 0.85rem;
+        min-height: 44px;
+    }
+
+    /* Smaller badges */
+    .badge {
+        font-size: 0.75rem;
+        padding: 3px 8px;
+    }
+
+    /* Reduce spacing in lists */
+    .nav-item {
+        margin-bottom: 4px;
+    }
+
+    /* Compact status bar */
+    .status-bar {
+        gap: 8px;
+        padding: 10px;
+        flex-wrap: wrap;
+    }
+
+    .status-group {
+        font-size: 0.75rem;
+    }
+
+    /* Smaller LED panel */
+    .led-panel {
+        gap: 8px;
+        padding: 10px;
+    }
+
+    .led-group {
+        gap: 4px;
+    }
+
+    .led-label {
+        font-size: 0.65rem;
+    }
+}
+
+/* Phone - Landscape & Small Tablets (481px - 767px) */
+@media (min-width: 481px) and (max-width: 767px) {
+    .main-content {
+        padding: 18px 12px;
+    }
+
+    /* Two column grid for landscape phones */
+    .dashboard-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 12px;
+    }
+
+    /* Some widgets can span full width */
+    .widget[data-widget-id="performance"],
+    .widget[data-widget-id="networkStatus"] {
+        grid-column: span 2;
+    }
+}
+
+/* Ensure no horizontal scroll on any screen size */
+@media (max-width: 1024px) {
+    body {
+        overflow-x: hidden;
+    }
+
+    .main-content {
+        overflow-x: hidden;
+        max-width: 100vw;
+    }
+
+    /* Prevent cards from causing overflow */
+    .card, .widget {
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+
+    /* Charts should be responsive */
+    .chart-container, canvas {
+        max-width: 100%;
+        height: auto !important;
+    }
+
+    /* Ensure images don't overflow */
+    img {
+        max-width: 100%;
+        height: auto;
+    }
+}
+
+/* Very wide screens (1920px+) */
+@media (min-width: 1920px) {
+    .sidebar {
+        width: 280px;
+    }
+
+    .main-content {
+        margin-left: 280px;
+        max-width: 1800px;
+        margin-right: auto;
+    }
+
+    .dashboard-grid {
+        grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    }
+}
+
+/* Reduce motion for accessibility and performance */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+
+    .cosmic-bg::before {
+        animation: none;
+    }
+
+    #starfield-canvas {
+        display: none;
+    }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .card, .widget {
+        border-width: 2px;
+    }
+
+    .btn {
+        border-width: 2px;
     }
 }
 

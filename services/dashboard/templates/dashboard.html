@@ -473,6 +473,165 @@
         border: 1px solid rgba(239, 68, 68, 0.3);
         color: var(--accent-red);
     }
+
+    /* ========== MOBILE RESPONSIVENESS ========== */
+    
+    /* Phone - Portrait (320px - 480px) */
+    @media (max-width: 480px) {
+        /* Stack all widgets to single column */
+        .dashboard-grid {
+            grid-template-columns: 1fr !important;
+            gap: 16px;
+        }
+
+        /* Remove column spanning on mobile */
+        .widget[data-widget-id="performance"] {
+            grid-column: span 1 !important;
+        }
+
+        /* Make metrics more compact */
+        .widget {
+            padding: 16px;
+        }
+
+        .widget-header {
+            margin-bottom: 16px;
+        }
+
+        .widget-icon {
+            width: 32px;
+            height: 32px;
+            font-size: 1.1rem;
+        }
+
+        .widget-title {
+            font-size: 0.85rem;
+        }
+
+        .metric-value {
+            font-size: 2rem;
+        }
+
+        .metric-label {
+            font-size: 0.8rem;
+        }
+
+        /* Reduce chart heights on mobile */
+        .chart-container {
+            height: 180px !important;
+        }
+
+        /* Smaller progress rings */
+        .progress-ring {
+            width: 100px;
+            height: 100px;
+        }
+
+        .progress-ring svg {
+            width: 100px;
+            height: 100px;
+        }
+
+        /* Status grid to single column */
+        .status-grid {
+            grid-template-columns: 1fr;
+        }
+
+        /* Activity items more compact */
+        .activity-item {
+            padding: 10px;
+            gap: 10px;
+        }
+
+        .activity-icon {
+            width: 28px;
+            height: 28px;
+            font-size: 0.9rem;
+        }
+
+        /* LED panel wraps on small screens */
+        .led-panel {
+            flex-wrap: wrap;
+            gap: 8px;
+            padding: 10px;
+        }
+
+        .led-group {
+            flex: 0 0 auto;
+        }
+    }
+
+    /* Phone - Landscape & Small Tablets (481px - 767px) */
+    @media (min-width: 481px) and (max-width: 767px) {
+        /* Two column grid for landscape phones */
+        .dashboard-grid {
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 16px;
+        }
+
+        /* Performance widget spans full width */
+        .widget[data-widget-id="performance"] {
+            grid-column: span 2;
+        }
+
+        /* Charts slightly smaller */
+        .chart-container {
+            height: 200px !important;
+        }
+    }
+
+    /* Tablet (768px - 1024px) */
+    @media (min-width: 768px) and (max-width: 1024px) {
+        .dashboard-grid {
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 18px;
+        }
+
+        .widget {
+            padding: 20px;
+        }
+
+        .chart-container {
+            height: 220px !important;
+        }
+    }
+
+    /* Touch-friendly buttons on mobile */
+    @media (max-width: 768px) {
+        .btn-favicon-settings {
+            min-width: 44px;
+            min-height: 44px;
+            padding: 10px;
+        }
+
+        .file-input-label {
+            min-height: 48px;
+            padding: 14px 20px;
+        }
+
+        .btn-modal {
+            min-height: 48px;
+            padding: 14px 20px;
+        }
+
+        /* Modal adjustments for mobile */
+        .favicon-modal {
+            padding: 24px;
+            width: calc(100% - 20px);
+            margin: 10px;
+        }
+
+        .favicon-preview {
+            width: 100px;
+            height: 100px;
+        }
+
+        /* LED panel responsive */
+        .led-panel {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+    }
 </style>
 {% endblock %}
 

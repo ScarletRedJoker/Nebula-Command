@@ -61,6 +61,55 @@
             overflow-x: hidden;
         }
 
+        .hamburger-menu {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1100;
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(59, 130, 246, 0.2));
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(139, 92, 246, 0.3);
+            border-radius: 12px;
+            width: 48px;
+            height: 48px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+        }
+
+        .hamburger-menu:hover {
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.3), rgba(59, 130, 246, 0.3));
+            border-color: rgba(139, 92, 246, 0.5);
+            transform: scale(1.05);
+        }
+
+        .hamburger-menu i {
+            font-size: 1.5rem;
+            color: var(--text-primary);
+        }
+
+        .mobile-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(4px);
+            z-index: 999;
+            display: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .mobile-overlay.show {
+            display: block;
+            opacity: 1;
+        }
+
         .sidebar {
             position: fixed;
             top: 0;
@@ -358,16 +407,38 @@
         }
 
         @media (max-width: 768px) {
+            .hamburger-menu {
+                display: flex;
+            }
+
             .sidebar {
                 transform: translateX(-100%);
             }
 
             .sidebar.show {
                 transform: translateX(0);
+                box-shadow: 4px 0 24px rgba(0, 0, 0, 0.6);
             }
 
             .main-content {
                 margin-left: 0;
+                padding: 20px 15px;
+            }
+
+            .header {
+                margin: -20px -15px 24px -15px;
+                padding: 16px 15px;
+                flex-direction: column;
+                gap: 12px;
+                align-items: flex-start;
+            }
+
+            .header h2 {
+                font-size: 1.5rem;
+            }
+
+            .theme-toggle {
+                align-self: flex-end;
             }
         }
 
@@ -408,7 +479,13 @@
     <canvas id="starfield-canvas"></canvas>
     <div class="nebula-overlay"></div>
     
-    <nav class="sidebar cosmic">
+    <button class="hamburger-menu" id="hamburger-menu" aria-label="Toggle navigation">
+        <i class="bi bi-list"></i>
+    </button>
+    
+    <div class="mobile-overlay" id="mobile-overlay"></div>
+    
+    <nav class="sidebar cosmic" id="sidebar">
         <div class="sidebar-brand">
             <h4><i class="bi bi-stars"></i> Cosmic Homelab</h4>
         </div>
@@ -723,6 +800,36 @@
                 icon.className = 'bi bi-sun';
                 text.textContent = 'Light Mode';
             }
+
+            // Mobile sidebar toggle
+            const hamburgerMenu = document.getElementById('hamburger-menu');
+            const sidebar = document.getElementById('sidebar');
+            const mobileOverlay = document.getElementById('mobile-overlay');
+
+            function toggleSidebar() {
+                sidebar.classList.toggle('show');
+                mobileOverlay.classList.toggle('show');
+                const icon = hamburgerMenu.querySelector('i');
+                icon.className = sidebar.classList.contains('show') ? 'bi bi-x' : 'bi bi-list';
+            }
+
+            if (hamburgerMenu) {
+                hamburgerMenu.addEventListener('click', toggleSidebar);
+            }
+
+            if (mobileOverlay) {
+                mobileOverlay.addEventListener('click', toggleSidebar);
+            }
+
+            // Close sidebar when clicking a link on mobile
+            const navLinks = sidebar.querySelectorAll('.nav-link');
+            navLinks.forEach(link => {
+                link.addEventListener('click', () => {
+                    if (window.innerWidth <= 768) {
+                        toggleSidebar();
+                    }
+                });
+            });
         });
     </script>
     {% block extra_js %}{% endblock %}

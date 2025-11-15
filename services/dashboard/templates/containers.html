@@ -7,6 +7,7 @@
 <style>
     #container-list {
         overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
     }
     
     #container-list .table {
@@ -22,6 +23,76 @@
     
     #container-list .table td:first-child {
         min-width: 150px;
+    }
+
+    /* ========== MOBILE RESPONSIVENESS ========== */
+
+    /* Touch-friendly buttons on mobile */
+    @media (max-width: 768px) {
+        #container-list .btn-sm {
+            min-width: 44px;
+            min-height: 44px;
+            padding: 10px 14px;
+            font-size: 0.875rem;
+            margin: 2px;
+        }
+
+        #container-list .table {
+            min-width: 700px;
+            font-size: 14px;
+        }
+
+        #container-list .table th,
+        #container-list .table td {
+            padding: 12px 8px;
+        }
+
+        /* Make badges more visible on mobile */
+        .badge {
+            padding: 6px 10px;
+            font-size: 0.8rem;
+            min-width: 70px;
+            text-align: center;
+        }
+
+        /* Ensure card is full width on mobile */
+        .card {
+            margin-left: -10px;
+            margin-right: -10px;
+            border-radius: 0;
+        }
+
+        .card-header {
+            font-size: 1.1rem;
+            padding: 14px 16px;
+        }
+    }
+
+    /* Very small screens - reduce table complexity */
+    @media (max-width: 480px) {
+        #container-list .table {
+            min-width: 600px;
+            font-size: 13px;
+        }
+
+        #container-list .table th,
+        #container-list .table td {
+            padding: 10px 6px;
+        }
+
+        #container-list .btn-sm {
+            padding: 8px 12px;
+            font-size: 0.75rem;
+        }
+
+        #container-list .btn-sm i {
+            font-size: 0.85rem;
+        }
+
+        /* Stack buttons vertically for very small screens */
+        #container-list .table td:last-child {
+            min-width: 100px;
+        }
     }
 </style>
 {% endblock %}
