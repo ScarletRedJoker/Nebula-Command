@@ -36,6 +36,13 @@ function getMACAddress(addresses) {
 // Load network statistics
 async function loadNetworkStats() {
     console.log('[Network Stats] Loading...');
+    const statsTable = document.getElementById('network-stats');
+    
+    if (!statsTable) {
+        console.warn('[Network Stats] Stats table element not found');
+        return;
+    }
+    
     try {
         const response = await fetch('/api/network/stats', {
             credentials: 'include'
@@ -53,7 +60,6 @@ async function loadNetworkStats() {
             console.log('[Network Stats] Data loaded successfully');
             
             // Update statistics table
-            const statsTable = document.getElementById('network-stats');
             statsTable.innerHTML = `
                 <tr>
                     <td><strong>Total Sent</strong></td>
@@ -88,7 +94,6 @@ async function loadNetworkStats() {
                     <td class="${stats.drops_out > 0 ? 'text-warning' : ''}">${stats.drops_out}</td>
                 </tr>
             `;
-        }
         } else {
             console.error('[Network Stats] Invalid response format:', result);
             throw new Error(result.message || 'Invalid response format');
@@ -128,8 +133,11 @@ async function loadBandwidth() {
             const data = result.data;
             
             // Update current bandwidth display
-            document.getElementById('upload-speed').textContent = data.upload_mbps.toFixed(2) + ' Mbps';
-            document.getElementById('download-speed').textContent = data.download_mbps.toFixed(2) + ' Mbps';
+            const uploadEl = document.getElementById('upload-speed');
+            const downloadEl = document.getElementById('download-speed');
+            
+            if (uploadEl) uploadEl.textContent = data.upload_mbps.toFixed(2) + ' Mbps';
+            if (downloadEl) downloadEl.textContent = data.download_mbps.toFixed(2) + ' Mbps';
             
             // Add to history
             const now = new Date();
@@ -146,7 +154,6 @@ async function loadBandwidth() {
             
             // Update chart
             updateBandwidthChart();
-        }
         } else {
             console.error('[Bandwidth] Invalid response:', result);
         }
@@ -162,7 +169,16 @@ async function loadBandwidth() {
 // Initialize and update bandwidth chart
 function updateBandwidthChart() {
     const ctx = document.getElementById('bandwidthChart');
-    if (!ctx) return;
+    if (!ctx) {
+        console.warn('[Bandwidth Chart] Canvas element not found');
+        return;
+    }
+    
+    // Check if Chart.js is available
+    if (typeof Chart === 'undefined') {
+        console.error('[Bandwidth Chart] Chart.js is not loaded');
+        return;
+    }
     
     if (!bandwidthChart) {
         bandwidthChart = new Chart(ctx, {
@@ -306,7 +322,6 @@ async function loadNetworkInterfaces() {
             });
             
             container.innerHTML = html;
-        }
         } else {
             console.error('[Network Interfaces] Invalid response:', result);
             throw new Error(result.message || 'Invalid response');
@@ -384,7 +399,6 @@ async function loadListeningPorts() {
             });
             
             container.innerHTML = html;
-        }
         } else {
             console.error('[Listening Ports] Invalid response:', result);
             throw new Error(result.message || 'Invalid response');
@@ -422,14 +436,24 @@ async function loadActiveConnections() {
         if (result.success && result.data) {
             const data = result.data;
             
-            // Update connection summary
-            document.getElementById('total-connections').textContent = data.total || 0;
-            document.getElementById('tcp-connections').textContent = data.by_protocol?.TCP || 0;
-            document.getElementById('udp-connections').textContent = data.by_protocol?.UDP || 0;
-            document.getElementById('established-connections').textContent = data.by_status?.ESTABLISHED || 0;
+            // Update connection summary with null checks
+            const totalEl = document.getElementById('total-connections');
+            const tcpEl = document.getElementById('tcp-connections');
+            const udpEl = document.getElementById('udp-connections');
+            const establishedEl = document.getElementById('established-connections');
+            
+            if (totalEl) totalEl.textContent = data.total || 0;
+            if (tcpEl) tcpEl.textContent = data.by_protocol?.TCP || 0;
+            if (udpEl) udpEl.textContent = data.by_protocol?.UDP || 0;
+            if (establishedEl) establishedEl.textContent = data.by_status?.ESTABLISHED || 0;
             
             // Update connections table
             const container = document.getElementById('active-connections');
+            
+            if (!container) {
+                console.warn('[Active Connections] Container element not found');
+                return;
+            }
             
             if (data.error) {
                 container.innerHTML = `

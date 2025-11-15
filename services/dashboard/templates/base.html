@@ -813,10 +813,20 @@
             const mobileOverlay = document.getElementById('mobile-overlay');
 
             function toggleSidebar() {
+                if (!sidebar || !mobileOverlay) {
+                    console.warn('[Sidebar] Required elements not found');
+                    return;
+                }
+                
                 sidebar.classList.toggle('show');
                 mobileOverlay.classList.toggle('show');
-                const icon = hamburgerMenu.querySelector('i');
-                icon.className = sidebar.classList.contains('show') ? 'bi bi-x' : 'bi bi-list';
+                
+                if (hamburgerMenu) {
+                    const icon = hamburgerMenu.querySelector('i');
+                    if (icon) {
+                        icon.className = sidebar.classList.contains('show') ? 'bi bi-x' : 'bi bi-list';
+                    }
+                }
             }
 
             if (hamburgerMenu) {
@@ -828,14 +838,16 @@
             }
 
             // Close sidebar when clicking a link on mobile
-            const navLinks = sidebar.querySelectorAll('.nav-link');
-            navLinks.forEach(link => {
-                link.addEventListener('click', () => {
-                    if (window.innerWidth <= 768) {
-                        toggleSidebar();
-                    }
+            if (sidebar) {
+                const navLinks = sidebar.querySelectorAll('.nav-link');
+                navLinks.forEach(link => {
+                    link.addEventListener('click', () => {
+                        if (window.innerWidth <= 768) {
+                            toggleSidebar();
+                        }
+                    });
                 });
-            });
+            }
         });
     </script>
     {% block extra_js %}{% endblock %}
