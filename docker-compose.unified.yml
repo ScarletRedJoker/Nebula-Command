@@ -11,6 +11,8 @@ volumes:
   redis_data:
   minio_data:
   homeassistant_config:
+  code_server_config:
+  code_server_data:
 
 services:
   # ============================================
@@ -465,9 +467,9 @@ services:
       - PROXY_DOMAIN=code.evindrake.net
       - CS_DISABLE_GETTING_STARTED_OVERRIDE=true
     volumes:
-      - ./volumes/code-server:/home/coder/.config
-      - /home/${SERVICE_USER:-evin}/contain:/home/coder/projects
-      - ./config/code-server:/home/coder/.local/share/code-server
+      - code_server_config:/home/coder/.config
+      - /home/${SERVICE_USER:-evin}/contain:/home/coder/projects:ro
+      - code_server_data:/home/coder/.local/share/code-server
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
       interval: 30s
