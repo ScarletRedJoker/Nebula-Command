@@ -535,6 +535,9 @@ export const streamNotificationSettings = pgTable("stream_notification_settings"
   isEnabled: boolean("is_enabled").default(true), // Whether stream notifications are enabled
   mentionRole: text("mention_role"), // Optional role to @ mention in notifications
   customMessage: text("custom_message"), // Optional custom message template
+  autoDetectEnabled: boolean("auto_detect_enabled").default(false), // Auto-detect users with connected streaming accounts
+  autoSyncIntervalMinutes: integer("auto_sync_interval_minutes").default(60), // How often to rescan server members (in minutes)
+  lastAutoSyncAt: timestamp("last_auto_sync_at"), // When we last auto-scanned the server
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -547,6 +550,9 @@ export const streamTrackedUsers = pgTable("stream_tracked_users", {
   username: text("username"), // Cache of username for display
   isActive: boolean("is_active").default(true), // Whether to track this user
   lastNotifiedAt: timestamp("last_notified_at"), // When we last sent a notification for this user
+  autoDetected: boolean("auto_detected").default(false), // Whether this user was auto-detected vs manually added
+  connectedPlatforms: text("connected_platforms"), // JSON array of connected platforms (twitch, youtube, kick)
+  platformUsernames: text("platform_usernames"), // JSON object mapping platform to username
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
