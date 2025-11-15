@@ -137,15 +137,13 @@ game.evindrake.net {
 # ============================================
 # Scarlet Red Joker Personal Website
 # ============================================
-# TEMPORARILY DISABLED - DNS propagation in progress
-# Uncomment after DNS shows 74.76.32.151 for scarletredjoker.com
-# scarletredjoker.com {
-#     reverse_proxy scarletredjoker-web:80
-# }
-# 
-# www.scarletredjoker.com {
-#     redir https://scarletredjoker.com{uri} permanent
-# }
+scarletredjoker.com {
+    reverse_proxy scarletredjoker-web:80
+}
+
+www.scarletredjoker.com {
+    redir https://scarletredjoker.com{uri} permanent
+}
 
 # ============================================
 # Home Assistant - Smart Home Hub
