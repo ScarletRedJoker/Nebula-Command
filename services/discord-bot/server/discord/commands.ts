@@ -1147,6 +1147,67 @@ commands.set('ticket', createTicketCommand);
 commands.set('ping', pingCommand);
 commands.set('heartbeat', heartbeatCommand);
 commands.set('setup-ticket-panel', setupTicketPanelCommand);
+
+// Stream notification scan command
+const streamScanCommand: Command = {
+  data: new SlashCommandBuilder()
+    .setName('stream-scan')
+    .setDescription('Manually scan server members for connected streaming accounts')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
+  async execute(interaction, { storage }) {
+    await interaction.deferReply({ ephemeral: true });
+    
+    try {
+      if (!interaction.guild) {
+        await interaction.editReply('This command can only be used in a server!');
+        return;
+      }
+
+      // Check if auto-detection is enabled for this server
+      const settings = await storage.getStreamNotificationSettings(interaction.guild.id);
+      if (!settings) {
+        await interaction.editReply({
+          content: '❌ Stream notifications are not configured for this server. Please set up stream notifications first.'
+        });
+        return;
+      }
+
+      if (!settings.autoDetectEnabled) {
+        await interaction.editReply({
+          content: '⚠️ Auto-detection is not enabled for this server. Enable it in the stream notifications settings to use this command.'
+        });
+        return;
+      }
+
+      // Import and trigger manual scan
+      const { triggerManualScan } = await import('./stream-auto-detection');
+      const result = await triggerManualScan(interaction.guild, storage);
+
+      // Build result message
+      const embed = new EmbedBuilder()
+        .setTitle('🔍 Stream Auto-Detection Scan Complete')
+        .setColor('#9146FF')
+        .setDescription(`Scanned **${result.totalMembers}** server members for connected streaming accounts.`)
+        .addFields(
+          { name: '👥 Members with Streaming', value: result.membersWithStreaming.toString(), inline: true },
+          { name: '➕ Newly Added', value: result.newlyAdded.toString(), inline: true },
+          { name: '🔄 Updated', value: result.updated.toString(), inline: true },
+          { name: '❌ Errors', value: result.errors.toString(), inline: true }
+        )
+        .setFooter({ text: 'Stream notifications will be sent automatically when tracked users go live' })
+        .setTimestamp();
+
+      await interaction.editReply({ embeds: [embed] });
+    } catch (error) {
+      console.error('Error in stream-scan command:', error);
+      await interaction.editReply({
+        content: '❌ An error occurred while scanning for streaming accounts. Please try again later.'
+      });
+    }
+  }
+};
+
+commands.set('stream-scan', streamScanCommand);
 commands.set('panels', panelsCommand);
 
 // Stream Notification Commands

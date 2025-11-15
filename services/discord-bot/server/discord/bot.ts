@@ -21,12 +21,14 @@ import {
   syncTicketStatusToThread
 } from './thread-sync';
 import { handlePresenceUpdate, initializeStreamTracking } from './stream-notifications';
+import { initializeAutoDetection, scheduleAutoDetectionScans } from './stream-auto-detection';
 
 // Discord bot instance
 let client: Client | null = null;
 
 // Background job handles for cleanup
 let ticketMappingRefreshInterval: NodeJS.Timeout | null = null;
+let autoDetectionScanInterval: NodeJS.Timeout | null = null;
 
 // Map to track Discord channels/threads to ticket IDs
 const channelToTicketMap = new Map<string, number>();
@@ -1999,6 +2001,14 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
       
       // Initialize stream tracking
       await initializeStreamTracking(client!, storage);
+      
+      // Initialize auto-detection for stream notifications
+      console.log('[Bot] Initializing stream notification auto-detection...');
+      await initializeAutoDetection(client!, storage);
+      
+      // Schedule periodic auto-detection scans
+      console.log('[Bot] Scheduling auto-detection periodic scans...');
+      autoDetectionScanInterval = scheduleAutoDetectionScans(client!, storage);
     });
 
     // Setup error handlers

@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Trash2, UserPlus, Radio } from "lucide-react";
+import { Loader2, Trash2, UserPlus, Radio, Scan, Sparkles } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -21,14 +21,22 @@ interface StreamSettings {
   channelId: string | null;
   customMessage: string | null;
   enabled: boolean;
+  autoDetectEnabled?: boolean;
+  autoSyncIntervalMinutes?: number;
+  lastAutoSyncAt?: Date | null;
 }
 
 interface TrackedUser {
   id: number;
   serverId: string;
   userId: string;
+  username?: string | null;
   customMessage: string | null;
   lastNotifiedAt: Date | null;
+  autoDetected?: boolean;
+  connectedPlatforms?: string | null;
+  platformUsernames?: string | null;
+  isActive?: boolean;
   createdAt: Date;
 }
 
@@ -51,6 +59,8 @@ export default function StreamNotificationsTab() {
     channelId: null,
     customMessage: null,
     enabled: false,
+    autoDetectEnabled: false,
+    autoSyncIntervalMinutes: 60,
   });
 
   // Tracked users state
@@ -58,6 +68,7 @@ export default function StreamNotificationsTab() {
   const [newUserId, setNewUserId] = useState("");
   const [newUserMessage, setNewUserMessage] = useState("");
   const [addingUser, setAddingUser] = useState(false);
+  const [scanning, setScanning] = useState(false);
 
   // Fetch channels
   useEffect(() => {
@@ -127,6 +138,8 @@ export default function StreamNotificationsTab() {
           channelId: settings.channelId,
           customMessage: settings.customMessage || null,
           enabled: settings.enabled,
+          autoDetectEnabled: settings.autoDetectEnabled,
+          autoSyncIntervalMinutes: settings.autoSyncIntervalMinutes,
         }),
       });
 
@@ -231,6 +244,43 @@ export default function StreamNotificationsTab() {
     }
   };
 
+  const handleManualScan = async () => {
+    setScanning(true);
+    try {
+      const response = await fetch(`/api/stream-notifications/scan/${selectedServerId}`, {
+        method: "POST",
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to trigger scan");
+      }
+
+      const result = await response.json();
+      
+      // Reload tracked users after scan
+      const usersResponse = await fetch(`/api/stream-notifications/tracked-users/${selectedServerId}`, {
+        credentials: "include",
+      });
+      const usersData = await usersResponse.json();
+      setTrackedUsers(usersData);
+      
+      toast({
+        title: "Auto-Detection Scan Complete",
+        description: `Found ${result.membersWithStreaming} members with streaming accounts. ${result.newlyAdded} newly added.`,
+      });
+    } catch (error) {
+      console.error("Failed to trigger scan:", error);
+      toast({
+        title: "Error",
+        description: "Failed to trigger auto-detection scan",
+        variant: "destructive",
+      });
+    } finally {
+      setScanning(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -313,6 +363,84 @@ export default function StreamNotificationsTab() {
             </p>
           </div>
 
+          {/* Auto-Detection Section */}
+          <div className="space-y-4 p-4 rounded-lg bg-discord-dark border border-discord-darker">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="autoDetect" className="text-white flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-discord-blue" />
+                  Auto-Detect Streaming Accounts
+                </Label>
+                <p className="text-sm text-discord-muted">
+                  Automatically track server members with connected Twitch/YouTube/Kick accounts
+                </p>
+              </div>
+              <Switch
+                id="autoDetect"
+                checked={settings.autoDetectEnabled || false}
+                onCheckedChange={(checked) =>
+                  setSettings({ ...settings, autoDetectEnabled: checked })
+                }
+              />
+            </div>
+
+            {settings.autoDetectEnabled && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="syncInterval" className="text-white">Auto-Sync Interval (minutes)</Label>
+                  <Input
+                    id="syncInterval"
+                    type="number"
+                    min="15"
+                    max="1440"
+                    value={settings.autoSyncIntervalMinutes || 60}
+                    onChange={(e) =>
+                      setSettings({ ...settings, autoSyncIntervalMinutes: parseInt(e.target.value) || 60 })
+                    }
+                    className="bg-discord-darker border-discord-dark text-white"
+                  />
+                  <p className="text-xs text-discord-muted">
+                    How often to scan for new members with streaming accounts (15-1440 minutes)
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    onClick={handleManualScan}
+                    disabled={scanning}
+                    variant="outline"
+                    className="border-discord-blue text-discord-blue hover:bg-discord-blue hover:text-white"
+                  >
+                    {scanning ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Scanning...
+                      </>
+                    ) : (
+                      <>
+                        <Scan className="mr-2 h-4 w-4" />
+                        Scan Now
+                      </>
+                    )}
+                  </Button>
+                  {settings.lastAutoSyncAt && (
+                    <p className="text-xs text-discord-muted">
+                      Last scanned: {new Date(settings.lastAutoSyncAt).toLocaleString()}
+                    </p>
+                  )}
+                </div>
+
+                <div className="rounded-lg bg-discord-darker p-3 border border-discord-blue/30">
+                  <p className="text-xs text-discord-muted">
+                    <strong className="text-discord-blue">How it works:</strong> This feature passively detects users when they go live. 
+                    It requires at least one stream session to detect their accounts. Users are only tracked if they're in this server 
+                    and have streaming accounts connected to Discord.
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
+
           <Button
             onClick={handleSaveSettings}
             disabled={saving}
@@ -392,36 +520,75 @@ export default function StreamNotificationsTab() {
                 No users tracked yet. Add users above to start receiving stream notifications.
               </p>
             ) : (
-              trackedUsers.map((user) => (
-                <div
-                  key={user.id}
-                  className="flex items-center justify-between p-4 rounded-lg bg-discord-dark border border-discord-darker hover:border-discord-blue transition-colors"
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white font-medium">
-                      User ID: <code className="text-discord-blue">{user.userId}</code>
-                    </p>
-                    {user.customMessage && (
-                      <p className="text-sm text-discord-muted mt-1 truncate">
-                        {user.customMessage}
-                      </p>
-                    )}
-                    {user.lastNotifiedAt && (
-                      <p className="text-xs text-discord-muted mt-1">
-                        Last notified: {new Date(user.lastNotifiedAt).toLocaleString()}
-                      </p>
-                    )}
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleRemoveUser(user.userId)}
-                    className="text-red-400 hover:text-red-300 hover:bg-red-400/10 ml-4"
+              trackedUsers.map((user) => {
+                const platforms = user.connectedPlatforms ? JSON.parse(user.connectedPlatforms) : [];
+                const platformUsernames = user.platformUsernames ? JSON.parse(user.platformUsernames) : {};
+                
+                return (
+                  <div
+                    key={user.id}
+                    className="flex items-center justify-between p-4 rounded-lg bg-discord-dark border border-discord-darker hover:border-discord-blue transition-colors"
                   >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))
+                    <div className="flex-1 min-w-0 space-y-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-white font-medium">
+                          {user.username ? (
+                            <>
+                              {user.username} <span className="text-discord-muted text-sm">({user.userId})</span>
+                            </>
+                          ) : (
+                            <>User ID: <code className="text-discord-blue">{user.userId}</code></>
+                          )}
+                        </p>
+                        {user.autoDetected && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-discord-blue/20 text-discord-blue border border-discord-blue/30">
+                            <Sparkles className="h-3 w-3" />
+                            Auto-detected
+                          </span>
+                        )}
+                        {!user.isActive && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-gray-500/20 text-gray-400 border border-gray-500/30">
+                            Inactive
+                          </span>
+                        )}
+                      </div>
+                      
+                      {platforms.length > 0 && (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {platforms.map((platform: string) => (
+                            <span key={platform} className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-purple-500/10 text-purple-300 border border-purple-500/30">
+                              {platform === 'twitch' && '🟣'}
+                              {platform === 'youtube' && '🔴'}
+                              {platform === 'kick' && '🟢'}
+                              {platform.charAt(0).toUpperCase() + platform.slice(1)}
+                              {platformUsernames[platform] && `: ${platformUsernames[platform]}`}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      
+                      {user.customMessage && (
+                        <p className="text-sm text-discord-muted truncate">
+                          {user.customMessage}
+                        </p>
+                      )}
+                      {user.lastNotifiedAt && (
+                        <p className="text-xs text-discord-muted">
+                          Last notified: {new Date(user.lastNotifiedAt).toLocaleString()}
+                        </p>
+                      )}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleRemoveUser(user.userId)}
+                      className="text-red-400 hover:text-red-300 hover:bg-red-400/10 ml-4"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                );
+              })
             )}
           </div>
         </CardContent>
