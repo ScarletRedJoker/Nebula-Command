@@ -82,7 +82,7 @@ app = Flask(__name__,
 app.config.from_object(Config)
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=12)
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-app.config['SESSION_COOKIE_SECURE'] = True
+app.config['SESSION_COOKIE_SECURE'] = False  # Disabled for Replit webview (localhost HTTP)
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 
 csrf = CSRFProtect(app)
@@ -196,11 +196,12 @@ app.register_blueprint(ha_bp)
 app.register_blueprint(ai_foundry_bp)
 app.register_blueprint(ide_api_bp)
 
-# Exempt web blueprint from CSRF in demo mode (MUST be after blueprint registration)
-# Use the cached DEMO_MODE variable computed earlier (defaults to true)
-if DEMO_MODE:
-    csrf.exempt(web_bp)
-    logger.warning("⚠️  CSRF disabled for web routes in DEMO_MODE")
+# Exempt web blueprint and API blueprints from CSRF (MUST be after blueprint registration)
+# APIs should use header-based auth, not CSRF tokens
+csrf.exempt(web_bp)
+csrf.exempt(jarvis_voice_bp)
+csrf.exempt(ide_api_bp)
+logger.warning("⚠️  CSRF disabled for web routes and API endpoints")
 
 # Initialize WebSocket service
 websocket_service.init_app(app)
