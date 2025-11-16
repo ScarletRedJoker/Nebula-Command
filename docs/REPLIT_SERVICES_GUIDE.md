@@ -17,11 +17,31 @@ This guide explains how to test all services on Replit and switch between them.
 **Features**: Multi-platform bot management, OAuth, Commands, AI Moderation  
 **URL**: https://your-repl.replit.dev:3000/
 
-### ⚠️ Discord Bot (Port 3001)
-**Status**: ⚠️ Can run but needs Discord token  
-**Access**: Backend only (no web UI)  
-**Features**: Support tickets, role management  
-**Testing**: Requires DISCORD_BOT_TOKEN environment variable
+### ✅ Discord Bot (Port 3001)
+**Status**: ⚠️ Partial (needs DISCORD_BOT_TOKEN)  
+**Access**: Via port 3001  
+**Features**: Ticket system, server management, role management  
+**URL**: https://your-repl.replit.dev:3001/
+
+**Setup Discord Token:**
+1. Go to https://discord.com/developers/applications
+2. Create or select your application
+3. Go to "Bot" section
+4. Click "Reset Token" and copy the token
+5. In Replit: Tools → Secrets → Add `DISCORD_BOT_TOKEN`
+6. Restart discord-bot workflow
+
+**What Works Without Token:**
+- ✅ Web dashboard
+- ✅ API endpoints
+- ✅ Database operations
+- ✅ User authentication
+- ✅ Ticket system UI
+
+**What Needs Token:**
+- ⚠️ Discord connection
+- ⚠️ Bot commands
+- ⚠️ Server events
 
 ### ❌ Other Services
 **n8n, Plex, VNC Desktop**: Require Docker (not available on Replit)  

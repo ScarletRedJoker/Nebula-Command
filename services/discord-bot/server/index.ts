@@ -32,6 +32,7 @@ import { dbStorage as storage } from "./database-storage";
 import * as dotenv from 'dotenv';
 import { db } from "./db";
 import { logger, getHealthStatus } from "./health";
+import { logEnvironmentConfig, ENV_CONFIG, IS_REPLIT } from './config/env.js';
 
 /**
  * Logging utility function
@@ -46,6 +47,26 @@ function log(message: string, source = "express") {
  * Must be called before accessing process.env values
  */
 dotenv.config();
+
+/**
+ * Log environment configuration on startup
+ */
+logEnvironmentConfig();
+
+/**
+ * Add warning if no Discord token
+ */
+if (!ENV_CONFIG.discordToken) {
+  logger.warn('⚠️  DISCORD_BOT_TOKEN not set - Bot will not connect to Discord', {
+    component: 'startup'
+  });
+  logger.warn('⚠️  Web dashboard and API will still work for testing', {
+    component: 'startup'
+  });
+  logger.warn('⚠️  Set DISCORD_BOT_TOKEN in Secrets to enable bot features', {
+    component: 'startup'
+  });
+}
 
 /**
  * PRODUCTION SECURITY: Validate SESSION_SECRET
@@ -336,11 +357,12 @@ app.use((req, res, next) => {
   /**
    * Port Configuration
    * 
-   * Preferred port: 5000 (required for Replit port forwarding)
-   * Fallback: Use PORT environment variable if set
+   * Uses ENV_CONFIG which auto-detects environment:
+   * - Replit: Port 3001 (to avoid conflicts with dashboard on 5000)
+   * - Ubuntu: Port 5000 (default)
+   * - Can be overridden with PORT environment variable
    */
-  const preferredPort = 5000;
-  const port = process.env.PORT ? parseInt(process.env.PORT) : preferredPort;
+  const port = ENV_CONFIG.port;
   
   /**
    * Server error handler
