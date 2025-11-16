@@ -10,6 +10,32 @@ let refreshInterval = null;
 const addDomainModal = new bootstrap.Modal(document.getElementById('addDomainModal'));
 const deleteDomainModal = new bootstrap.Modal(document.getElementById('deleteDomainModal'));
 
+/**
+ * Check if response indicates authentication failure
+ */
+function isAuthError(response) {
+    return response.redirected || response.url.includes('/login') || response.status === 401;
+}
+
+/**
+ * Show authentication error
+ */
+function showAuthError() {
+    const container = document.querySelector('.domain-management-page') || document.querySelector('.container-fluid');
+    if (container) {
+        container.innerHTML = `
+            <div class="alert alert-warning mt-4" role="alert">
+                <h4 class="alert-heading"><i class="bi bi-exclamation-triangle"></i> Authentication Required</h4>
+                <p>⚠️ Your session has expired. Please log in again to continue.</p>
+                <hr>
+                <a href="/login" class="btn btn-primary">
+                    <i class="bi bi-box-arrow-in-right"></i> Login Now
+                </a>
+            </div>
+        `;
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     loadDomains();
     setupEventListeners();
@@ -53,6 +79,12 @@ async function loadDomains(silent = false) {
         }
 
         const response = await fetch('/api/domains/');
+        
+        if (isAuthError(response)) {
+            showAuthError();
+            return;
+        }
+        
         const result = await response.json();
 
         if (result.success) {

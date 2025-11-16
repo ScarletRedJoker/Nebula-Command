@@ -11,6 +11,32 @@ let wsReconnectAttempts = 0;
 let maxReconnectAttempts = 5;
 let pollingInterval = null;
 
+/**
+ * Check if response indicates authentication failure
+ */
+function isAuthError(response) {
+    return response.redirected || response.url.includes('/login') || response.status === 401;
+}
+
+/**
+ * Show authentication error
+ */
+function showAuthError() {
+    const container = document.querySelector('.code-review-container') || document.querySelector('.container-fluid');
+    if (container) {
+        container.innerHTML = `
+            <div class="alert alert-warning mt-4" role="alert">
+                <h4 class="alert-heading"><i class="bi bi-exclamation-triangle"></i> Authentication Required</h4>
+                <p>⚠️ Your session has expired. Please log in again to continue.</p>
+                <hr>
+                <a href="/login" class="btn btn-primary">
+                    <i class="bi bi-box-arrow-in-right"></i> Login Now
+                </a>
+            </div>
+        `;
+    }
+}
+
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
     loadTasks();
@@ -30,6 +56,12 @@ async function loadTasks() {
         params.append('status', 'pending');
         
         const response = await fetch(`/api/jarvis/tasks?${params.toString()}`);
+        
+        if (isAuthError(response)) {
+            showAuthError();
+            return;
+        }
+        
         const data = await response.json();
         
         if (data.success) {
@@ -87,6 +119,12 @@ function renderTaskList(tasks) {
 async function selectTask(taskId) {
     try {
         const response = await fetch(`/api/jarvis/tasks/${taskId}`);
+        
+        if (isAuthError(response)) {
+            showAuthError();
+            return;
+        }
+        
         const data = await response.json();
         
         if (data.success) {
@@ -241,6 +279,9 @@ async function approveTask(taskId) {
         return;
     }
     
+    const approveBtn = event.target.closest('button');
+    setButtonLoading(approveBtn, true, 'Approving...');
+    
     try {
         const response = await fetch(`/api/jarvis/tasks/${taskId}/approve`, {
             method: 'POST',
@@ -251,7 +292,7 @@ async function approveTask(taskId) {
         const data = await response.json();
         
         if (data.success) {
-            showSuccess('Task approved successfully');
+            showToast('Task approved successfully', 'success');
             await loadTasks();
             selectedTask = null;
             document.getElementById('task-detail').innerHTML = `
@@ -262,11 +303,13 @@ async function approveTask(taskId) {
                 </div>
             `;
         } else {
-            showError(data.error || 'Failed to approve task');
+            showToast(data.error || 'Failed to approve task', 'danger');
         }
     } catch (error) {
         console.error('Failed to approve task:', error);
-        showError('Failed to approve task');
+        showToast('Failed to approve task', 'danger');
+    } finally {
+        setButtonLoading(approveBtn, false);
     }
 }
 
@@ -277,13 +320,16 @@ async function rejectTask(taskId) {
     const comments = document.getElementById('task-comments')?.value;
     
     if (!comments) {
-        showError('Please provide a reason for rejection');
+        showToast('Please provide a reason for rejection', 'warning');
         return;
     }
     
     if (!confirm('Are you sure you want to reject this task?')) {
         return;
     }
+    
+    const rejectBtn = event.target.closest('button');
+    setButtonLoading(rejectBtn, true, 'Rejecting...');
     
     try {
         const response = await fetch(`/api/jarvis/tasks/${taskId}/reject`, {
@@ -295,7 +341,7 @@ async function rejectTask(taskId) {
         const data = await response.json();
         
         if (data.success) {
-            showSuccess('Task rejected');
+            showToast('Task rejected', 'info');
             await loadTasks();
             selectedTask = null;
             document.getElementById('task-detail').innerHTML = `
@@ -306,11 +352,13 @@ async function rejectTask(taskId) {
                 </div>
             `;
         } else {
-            showError(data.error || 'Failed to reject task');
+            showToast(data.error || 'Failed to reject task', 'danger');
         }
     } catch (error) {
         console.error('Failed to reject task:', error);
-        showError('Failed to reject task');
+        showToast('Failed to reject task', 'danger');
+    } finally {
+        setButtonLoading(rejectBtn, false);
     }
 }
 
@@ -321,9 +369,12 @@ async function requestChanges(taskId) {
     const comments = document.getElementById('task-comments')?.value;
     
     if (!comments) {
-        showError('Please describe the changes needed');
+        showToast('Please describe the changes needed', 'warning');
         return;
     }
+    
+    const changesBtn = event.target.closest('button');
+    setButtonLoading(changesBtn, true, 'Requesting...');
     
     try {
         const response = await fetch(`/api/jarvis/tasks/${taskId}/request-changes`, {
@@ -335,7 +386,7 @@ async function requestChanges(taskId) {
         const data = await response.json();
         
         if (data.success) {
-            showSuccess('Changes requested');
+            showToast('Changes requested', 'success');
             await loadTasks();
             selectedTask = null;
             document.getElementById('task-detail').innerHTML = `
@@ -346,11 +397,13 @@ async function requestChanges(taskId) {
                 </div>
             `;
         } else {
-            showError(data.error || 'Failed to request changes');
+            showToast(data.error || 'Failed to request changes', 'danger');
         }
     } catch (error) {
         console.error('Failed to request changes:', error);
-        showError('Failed to request changes');
+        showToast('Failed to request changes', 'danger');
+    } finally {
+        setButtonLoading(changesBtn, false);
     }
 }
 
@@ -361,9 +414,12 @@ async function respondToTask(taskId) {
     const response = document.getElementById('task-comments')?.value;
     
     if (!response) {
-        showError('Please provide a response');
+        showToast('Please provide a response', 'warning');
         return;
     }
+    
+    const respondBtn = event.target.closest('button');
+    setButtonLoading(respondBtn, true, 'Sending...');
     
     try {
         const apiResponse = await fetch(`/api/jarvis/tasks/${taskId}/respond`, {
@@ -375,7 +431,7 @@ async function respondToTask(taskId) {
         const data = await apiResponse.json();
         
         if (data.success) {
-            showSuccess('Response recorded');
+            showToast('Response recorded', 'success');
             await loadTasks();
             selectedTask = null;
             document.getElementById('task-detail').innerHTML = `
@@ -386,11 +442,13 @@ async function respondToTask(taskId) {
                 </div>
             `;
         } else {
-            showError(data.error || 'Failed to send response');
+            showToast(data.error || 'Failed to send response', 'danger');
         }
     } catch (error) {
         console.error('Failed to respond:', error);
-        showError('Failed to send response');
+        showToast('Failed to send response', 'danger');
+    } finally {
+        setButtonLoading(respondBtn, false);
     }
 }
 
@@ -518,7 +576,7 @@ function setupAutoRefresh() {
  */
 function refreshTasks() {
     loadTasks();
-    showSuccess('Tasks refreshed');
+    showToast('Tasks refreshed', 'success');
 }
 
 /**
@@ -552,13 +610,4 @@ function formatDateTime(dateString) {
     return new Date(dateString).toLocaleString();
 }
 
-function showSuccess(message) {
-    // Simple notification (can be enhanced with toast library)
-    console.log('Success:', message);
-    alert(message);
-}
-
-function showError(message) {
-    console.error('Error:', message);
-    alert('Error: ' + message);
-}
+// showSuccess and showError removed - using showToast from common-utils.js

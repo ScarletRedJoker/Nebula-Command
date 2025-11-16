@@ -415,7 +415,25 @@ class JarvisVoiceChat {
             
             this.removeTypingIndicator();
             
+            // Check if redirected to login
+            if (response.redirected || response.url.includes('/login')) {
+                this.conversationHistory.pop(); // Remove user message
+                this.addMessage('assistant', '⚠️ Your session has expired. Please <a href="/login">log in</a> again to continue. <a href="/login" class="btn btn-primary btn-sm ms-2">Login Now</a>');
+                this.elements.chatInput.disabled = true;
+                this.elements.sendButton.disabled = true;
+                this.elements.micButton.disabled = true;
+                return;
+            }
+            
             if (!response.ok) {
+                if (response.status === 401) {
+                    this.conversationHistory.pop();
+                    this.addMessage('assistant', '⚠️ Authentication required. Please <a href="/login">log in</a> to continue. <a href="/login" class="btn btn-primary btn-sm ms-2">Login Now</a>');
+                    this.elements.chatInput.disabled = true;
+                    this.elements.sendButton.disabled = true;
+                    this.elements.micButton.disabled = true;
+                    return;
+                }
                 const errorData = await response.json();
                 throw new Error(errorData.message || `Server error (${response.status})`);
             }
@@ -700,6 +718,23 @@ class JarvisVoiceChat {
     async checkAIStatus() {
         try {
             const response = await fetch('/api/ai/status');
+            
+            // Check if redirected to login
+            if (response.redirected || response.url.includes('/login')) {
+                const statusDot = this.elements.jarvisStatus.querySelector('.status-dot');
+                const statusText = this.elements.jarvisStatus.querySelector('.status-text');
+                statusDot.classList.add('error');
+                statusText.textContent = 'Not authenticated';
+                
+                this.addMessage('assistant', '⚠️ Please <a href="/login">log in</a> to use the AI assistant. <a href="/login" class="btn btn-primary btn-sm ms-2">Login Now</a>');
+                
+                // Disable input
+                this.elements.chatInput.disabled = true;
+                this.elements.sendButton.disabled = true;
+                this.elements.micButton.disabled = true;
+                return;
+            }
+            
             const data = await response.json();
             
             const statusDot = this.elements.jarvisStatus.querySelector('.status-dot');

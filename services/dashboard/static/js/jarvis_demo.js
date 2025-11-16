@@ -10,6 +10,32 @@ let demoData = {
     activities: []
 };
 
+/**
+ * Check if response indicates authentication failure
+ */
+function isAuthError(response) {
+    return response.redirected || response.url.includes('/login') || response.status === 401;
+}
+
+/**
+ * Show authentication error
+ */
+function showAuthError() {
+    const container = document.querySelector('.container-fluid');
+    if (container) {
+        container.innerHTML = `
+            <div class="alert alert-warning mt-4" role="alert">
+                <h4 class="alert-heading"><i class="bi bi-exclamation-triangle"></i> Authentication Required</h4>
+                <p>⚠️ Your session has expired. Please log in again to continue.</p>
+                <hr>
+                <a href="/login" class="btn btn-primary">
+                    <i class="bi bi-box-arrow-in-right"></i> Login Now
+                </a>
+            </div>
+        `;
+    }
+}
+
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
     loadDemoData();
@@ -35,6 +61,12 @@ async function loadDemoData() {
 async function loadJarvisStatus() {
     try {
         const response = await fetch('/api/jarvis/status');
+        
+        if (isAuthError(response)) {
+            showAuthError();
+            return;
+        }
+        
         const data = await response.json();
         
         if (data.success) {
@@ -318,7 +350,7 @@ function setupAutoRefresh() {
  */
 function refreshDemo() {
     loadDemoData();
-    showSuccess('Demo data refreshed');
+    showToast('Demo data refreshed', 'success');
 }
 
 /**
@@ -342,8 +374,4 @@ function formatTimeAgo(dateString) {
     if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
     if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
     return `${Math.floor(seconds / 86400)}d ago`;
-}
-
-function showSuccess(message) {
-    console.log('Success:', message);
 }

@@ -109,23 +109,23 @@
                 <h5 style="margin: 0; font-weight: 600;">QUICK ACCESS TERMINAL</h5>
             </div>
             <div style="display: grid; gap: 12px;">
-                <a href="/dashboard" class="control-btn" style="text-decoration: none; text-align: center;">
-                    <i class="bi bi-speedometer2"></i> MISSION CONTROL DASHBOARD
+                <a href="/dashboard" class="control-btn" style="text-decoration: none; text-align: center;" aria-label="Go to Mission Control Dashboard">
+                    <i class="bi bi-speedometer2" aria-hidden="true"></i> MISSION CONTROL DASHBOARD
                 </a>
-                <a href="/containers" class="control-btn" style="text-decoration: none; text-align: center;">
-                    <i class="bi bi-box-seam"></i> CONTAINER MANAGEMENT
+                <a href="/containers" class="control-btn" style="text-decoration: none; text-align: center;" aria-label="Go to Container Management">
+                    <i class="bi bi-box-seam" aria-hidden="true"></i> CONTAINER MANAGEMENT
                 </a>
-                <a href="/system" class="control-btn" style="text-decoration: none; text-align: center;">
-                    <i class="bi bi-cpu"></i> SYSTEM DIAGNOSTICS
+                <a href="/system" class="control-btn" style="text-decoration: none; text-align: center;" aria-label="Go to System Diagnostics">
+                    <i class="bi bi-cpu" aria-hidden="true"></i> SYSTEM DIAGNOSTICS
                 </a>
-                <a href="/network" class="control-btn" style="text-decoration: none; text-align: center;">
-                    <i class="bi bi-diagram-3"></i> NETWORK MONITOR
+                <a href="/network" class="control-btn" style="text-decoration: none; text-align: center;" aria-label="Go to Network Monitor">
+                    <i class="bi bi-diagram-3" aria-hidden="true"></i> NETWORK MONITOR
                 </a>
-                <a href="/domains" class="control-btn" style="text-decoration: none; text-align: center;">
-                    <i class="bi bi-globe"></i> DOMAIN HEALTH CHECK
+                <a href="/domains" class="control-btn" style="text-decoration: none; text-align: center;" aria-label="Go to Domain Health Check">
+                    <i class="bi bi-globe" aria-hidden="true"></i> DOMAIN HEALTH CHECK
                 </a>
-                <a href="/logs" class="control-btn" style="text-decoration: none; text-align: center;">
-                    <i class="bi bi-file-text"></i> SYSTEM LOGS
+                <a href="/logs" class="control-btn" style="text-decoration: none; text-align: center;" aria-label="Go to System Logs">
+                    <i class="bi bi-file-text" aria-hidden="true"></i> SYSTEM LOGS
                 </a>
             </div>
         </div>
@@ -268,29 +268,39 @@ async function loadSystemData() {
             const total = containers.data.length;
             const running = containers.data.filter(c => c.status && c.status.includes('Up')).length;
             
-            document.getElementById('container-count').textContent = total;
-            document.getElementById('running-count').textContent = running;
+            const containerCountEl = document.getElementById('container-count');
+            const runningCountEl = document.getElementById('running-count');
+            
+            if (containerCountEl) containerCountEl.textContent = total;
+            if (runningCountEl) runningCountEl.textContent = running;
         }
         
         if (stats.success && stats.data) {
             const data = stats.data;
             
-            if (data.hostname) document.getElementById('hostname').textContent = data.hostname.toUpperCase();
-            if (data.platform) document.getElementById('platform').textContent = data.platform.toUpperCase();
-            if (data.architecture) document.getElementById('arch').textContent = data.architecture.toUpperCase();
+            const hostnameEl = document.getElementById('hostname');
+            const platformEl = document.getElementById('platform');
+            const archEl = document.getElementById('arch');
+            const uptimeEl = document.getElementById('uptime');
             
-            if (data.uptime) {
+            if (data.hostname && hostnameEl) hostnameEl.textContent = data.hostname.toUpperCase();
+            if (data.platform && platformEl) platformEl.textContent = data.platform.toUpperCase();
+            if (data.architecture && archEl) archEl.textContent = data.architecture.toUpperCase();
+            
+            if (data.uptime && uptimeEl) {
                 const days = Math.floor(data.uptime / 86400);
                 const hours = Math.floor((data.uptime % 86400) / 3600);
                 const mins = Math.floor((data.uptime % 3600) / 60);
-                document.getElementById('uptime').textContent = `${days}D ${hours}H ${mins}M`;
+                uptimeEl.textContent = `${days}D ${hours}H ${mins}M`;
             }
         }
         
-        document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+        const lastUpdateEl = document.getElementById('last-update');
+        if (lastUpdateEl) lastUpdateEl.textContent = new Date().toLocaleTimeString();
         
     } catch (error) {
         console.error('Failed to load system data:', error);
+        showToast('Failed to load system data', 'error');
     }
 }
 

@@ -1,7 +1,40 @@
 # Homelab Dashboard Project
 
 ## Overview
-This project delivers a comprehensive web-based dashboard for managing a Ubuntu homelab server. Its primary goal is to provide a unified, user-friendly interface to minimize operational overhead, improve server reliability, and enable intelligent automation and monitoring. Key functionalities include one-click database deployments, game streaming integration, robust domain health monitoring, and integrations with Google Services and Smart Home platforms. The project aims for production readiness, with the ambitious vision of an AI-first homelab copilot, Jarvis, capable of autonomous diagnosis, remediation, and execution of homelab issues. This includes zero-touch domain provisioning, autonomous DNS/SSL remediation, and self-healing infrastructure capabilities.
+This project delivers a comprehensive, production-ready web-based dashboard for managing Ubuntu homelab servers. Built as an **enterprise-grade platform**, it provides a unified, AI-powered interface that minimizes operational overhead, maximizes reliability, and enables fully autonomous operations. Key capabilities include:
+
+- **Jarvis AI Agent**: GPT-4 powered autonomous agent with voice control, self-diagnosis, and self-healing
+- **Zero-Touch Domain Management**: Complete automation from DNS setup to SSL certificate provisioning
+- **Multi-Service Orchestration**: 8 production services across 3 domains with automatic SSL
+- **Autonomous Healing**: 3-tier action system (Diagnose → Remediate → Proactive) with 20+ autonomous actions
+- **Enterprise Security**: Session auth, API keys, rate limiting, audit logging, secrets management
+- **Production Ready**: Blue-green deployments, health checks, automatic backups, comprehensive monitoring
+
+### Recent Major Features (Q4 2024)
+
+✅ **Jarvis Task System** (November 2024)
+- Complete autonomous task execution framework
+- Database models: JarvisTask, JarvisAction, DomainTask
+- 20+ pre-built autonomous actions across 3 tiers
+- Approval workflow for destructive operations
+- Real-time task status tracking and history
+- Voice-controlled task execution
+
+✅ **Domain Management System** (November 2024)
+- End-to-end domain lifecycle automation
+- ZoneEdit DNS API integration with CRUD operations
+- Caddy configuration automation with safe rollback
+- SSL certificate monitoring and autonomous renewal
+- 8-step automated provisioning workflow
+- Import/Export functionality (JSON/CSV)
+- Real-time health monitoring with alerts
+
+✅ **Unified Deployment System** (November 2024)
+- Single master deployment script (`deploy.sh`)
+- Interactive homelab manager CLI
+- Automated backup/restore workflows
+- Health-based deployment with auto-rollback
+- Comprehensive logging and diagnostics
 
 ## User Preferences
 - User: Evin
@@ -29,20 +62,117 @@ The Homelab Dashboard features a cosmic theme with deep space backgrounds, anima
 ### Technical Implementations
 
 **Homelab Dashboard**
-- **Stack**: Flask, Python, Bootstrap 5, Chart.js, SQLAlchemy, Alembic, Redis, Celery, MinIO.
-- **Core Features**: Docker management, system monitoring, AI assistant (Jarvis, powered by gpt-5), network analytics, domain health checks, one-click database deployments, game streaming integration, intelligent deployment analyzer, secure file upload.
-- **Jarvis Autonomous Framework**: 
-  - **Tier 1 (DIAGNOSE)**: 8 diagnostic actions monitoring DNS, SSL, services, git sync, deployments.
-  - **Tier 2 (REMEDIATE)**: 7 autonomous healing actions for infrastructure failures with auto-execution and safety checks.
-  - **Tier 3 (PROACTIVE)**: Scheduled maintenance tasks.
-  - **SafeCommandExecutor**: For config file editing with validation, automatic backups, and rollback.
-  - **Code Workspace**: For safe autonomous code generation with diff preview and approval workflow.
-- **Domain Management System**: Complete end-to-end autonomous domain lifecycle management including database models (DomainRecord, DomainEvent, DomainTask), REST API with 9 production-ready endpoints, Celery workers for async tasks (health checks, SSL monitoring, provisioning), and a full UI for domain management.
-- **ZoneEdit DNS Integration**: API wrapper for programmatic DNS management (CRUD operations, propagation verification, public IP detection).
-- **Caddy Automation**: Safe configuration management with auto-generation, injection with backup/validation/apply workflow, smart block removal, timestamped backups, automatic rollback, and zero-downtime reloads.
-- **SSL Lifecycle Management**: Autonomous certificate monitoring and renewal with alerts and an 8-step renewal workflow.
-- **Autonomous Provisioning Workflow**: An 8-step process for detecting public IP, creating DNS records, verifying propagation, generating Caddy configs, reloading Caddy, waiting for SSL, and verifying HTTPS.
-- **Import/Export Functionality**: For domains (JSON/CSV).
+- **Stack**: Flask, Python 3.11, Bootstrap 5, Chart.js, SQLAlchemy, Alembic, Redis, Celery, MinIO
+- **Core Features**: 
+  - Docker container orchestration and management
+  - Real-time system monitoring (CPU, memory, disk, network)
+  - AI assistant (Jarvis, powered by GPT-4)
+  - Network analytics and visualization
+  - Domain health monitoring with alerts
+  - One-click database deployments
+  - Intelligent deployment analyzer
+  - Secure file upload with virus scanning
+  - Google Services integration (Calendar, Gmail, Drive)
+  - Home Assistant smart home integration
+
+**Jarvis Autonomous Framework (2024 Implementation)**
+- **Architecture**:
+  - **Task System**: Complete CRUD API for autonomous tasks
+  - **Action Library**: 20+ pre-built YAML actions across 3 tiers
+  - **Safe Executor**: Sandboxed command execution with automatic rollback
+  - **Code Workspace**: AI code generation with diff preview and approval
+  - **Policy Engine**: Permission-based action execution
+  - **Observability**: Complete audit logging and real-time monitoring
+
+- **Tier 1 (DIAGNOSE)** - 8 Diagnostic Actions:
+  - DNS propagation verification
+  - SSL certificate validation
+  - Service health monitoring
+  - Git sync status verification
+  - Deployment health checks
+  - Disk usage analysis
+  - Log analysis and error detection
+  - Endpoint health verification
+
+- **Tier 2 (REMEDIATE)** - 7 Autonomous Healing Actions:
+  - DNS record remediation
+  - SSL certificate renewal
+  - ddclient configuration fixes
+  - Service restart and recovery
+  - Git sync recovery
+  - Configuration rollback
+  - Database optimization
+
+- **Tier 3 (PROACTIVE)** - 5 Maintenance Tasks:
+  - Temporary file cleanup
+  - Old log rotation
+  - Redis cache clearing
+  - Database vacuum/reindex
+  - System resource optimization
+
+**Domain Management System (Complete Implementation)**
+- **Database Models**:
+  - `DomainRecord`: Primary domain configuration and status
+  - `DomainEvent`: Complete audit trail of all domain operations
+  - `DomainTask`: Async task tracking for background operations
+  
+- **REST API** (9 Production Endpoints):
+  - `GET /api/domains` - List all domains with health status
+  - `POST /api/domains` - Create new domain with validation
+  - `GET /api/domains/:id` - Get domain details
+  - `PATCH /api/domains/:id` - Update domain configuration
+  - `DELETE /api/domains/:id` - Remove domain
+  - `POST /api/domains/:id/provision` - Trigger auto-provisioning
+  - `GET /api/domains/:id/health` - Real-time health check
+  - `POST /api/domains/:id/renew-ssl` - Force SSL renewal
+  - `POST /api/domains/import` - Bulk import (JSON/CSV)
+
+- **Celery Workers** (Background Tasks):
+  - Domain health monitoring (every 5 minutes)
+  - SSL expiration monitoring (daily)
+  - DNS propagation verification
+  - Automated provisioning workflows
+  - Certificate renewal execution
+
+- **ZoneEdit DNS Integration**:
+  - Full CRUD operations via REST API
+  - Automatic public IP detection
+  - DNS propagation verification (multi-server check)
+  - TTL management
+  - Bulk record updates
+
+- **Caddy Configuration Automation**:
+  - Template-based config generation
+  - Safe injection with validation
+  - Automatic backup before changes
+  - Syntax validation (caddy validate)
+  - Zero-downtime reloads
+  - Automatic rollback on failure
+  - Smart block removal (preserves other configs)
+
+- **SSL Certificate Lifecycle**:
+  - Expiration monitoring (checks every 24h)
+  - Automatic renewal (30 days before expiry)
+  - Multi-step renewal workflow with validation
+  - HTTPS verification after renewal
+  - Alert system for failures
+  - Manual renewal API endpoint
+
+- **Autonomous Provisioning Workflow** (8 Steps):
+  1. Detect server public IP
+  2. Create DNS A record in ZoneEdit
+  3. Verify DNS propagation (multi-server)
+  4. Generate Caddy configuration block
+  5. Inject config with validation
+  6. Reload Caddy server
+  7. Wait for SSL certificate acquisition
+  8. Verify HTTPS accessibility
+
+- **Import/Export**:
+  - JSON export with full domain data
+  - CSV export for spreadsheet editing
+  - Bulk import with validation
+  - Conflict detection and resolution
 
 **Discord Ticket Bot**
 - **Stack**: TypeScript, React, Express, Discord.js, Drizzle ORM, PostgreSQL.

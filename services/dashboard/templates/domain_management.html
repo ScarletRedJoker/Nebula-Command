@@ -11,8 +11,8 @@
                     <h2><i class="bi bi-globe"></i> Domain Management</h2>
                     <p class="text-muted mb-0">Manage DNS records, SSL certificates, and reverse proxy configuration</p>
                 </div>
-                <button class="btn btn-primary btn-lg" onclick="showAddDomainModal()">
-                    <i class="bi bi-plus-circle"></i> Add New Domain
+                <button class="btn btn-primary btn-lg" onclick="showAddDomainModal()" aria-label="Add new domain">
+                    <i class="bi bi-plus-circle" aria-hidden="true"></i> Add New Domain
                 </button>
             </div>
         </div>
@@ -71,8 +71,8 @@
                 <div class="panel-header">
                     <h5><i class="bi bi-list-ul"></i> Domain List</h5>
                     <div class="panel-actions">
-                        <input type="text" class="form-control search-input" id="domain-search" placeholder="Search domains...">
-                        <select class="form-select filter-select" id="service-type-filter">
+                        <input type="text" class="form-control search-input" id="domain-search" placeholder="Search domains..." aria-label="Search domains">
+                        <select class="form-select filter-select" id="service-type-filter" aria-label="Filter by service type">
                             <option value="">All Service Types</option>
                             <option value="web">Web</option>
                             <option value="api">API</option>
@@ -81,15 +81,15 @@
                             <option value="static">Static</option>
                             <option value="proxy">Proxy</option>
                         </select>
-                        <select class="form-select filter-select" id="status-filter">
+                        <select class="form-select filter-select" id="status-filter" aria-label="Filter by status">
                             <option value="">All Statuses</option>
                             <option value="active">Active</option>
                             <option value="provisioning">Provisioning</option>
                             <option value="error">Error</option>
                             <option value="pending">Pending</option>
                         </select>
-                        <button class="btn btn-sm btn-outline-primary" onclick="refreshDomains()">
-                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        <button class="btn btn-sm btn-outline-primary" onclick="refreshDomains()" aria-label="Refresh domain list">
+                            <i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Refresh
                         </button>
                     </div>
                 </div>
@@ -97,13 +97,13 @@
                     <table class="table domain-table">
                         <thead>
                             <tr>
-                                <th onclick="sortTable('status')">Status <i class="bi bi-chevron-expand"></i></th>
-                                <th onclick="sortTable('domain')">Domain <i class="bi bi-chevron-expand"></i></th>
-                                <th onclick="sortTable('service_type')">Service Type <i class="bi bi-chevron-expand"></i></th>
-                                <th onclick="sortTable('ip')">IP Address <i class="bi bi-chevron-expand"></i></th>
-                                <th onclick="sortTable('ssl')">SSL <i class="bi bi-chevron-expand"></i></th>
-                                <th onclick="sortTable('last_checked')">Last Checked <i class="bi bi-chevron-expand"></i></th>
-                                <th>Actions</th>
+                                <th scope="col" onclick="sortTable('status')" role="button" tabindex="0" aria-label="Sort by status">Status <i class="bi bi-chevron-expand" aria-hidden="true"></i></th>
+                                <th scope="col" onclick="sortTable('domain')" role="button" tabindex="0" aria-label="Sort by domain">Domain <i class="bi bi-chevron-expand" aria-hidden="true"></i></th>
+                                <th scope="col" onclick="sortTable('service_type')" role="button" tabindex="0" aria-label="Sort by service type">Service Type <i class="bi bi-chevron-expand" aria-hidden="true"></i></th>
+                                <th scope="col" onclick="sortTable('ip')" role="button" tabindex="0" aria-label="Sort by IP address">IP Address <i class="bi bi-chevron-expand" aria-hidden="true"></i></th>
+                                <th scope="col" onclick="sortTable('ssl')" role="button" tabindex="0" aria-label="Sort by SSL status">SSL <i class="bi bi-chevron-expand" aria-hidden="true"></i></th>
+                                <th scope="col" onclick="sortTable('last_checked')" role="button" tabindex="0" aria-label="Sort by last checked">Last Checked <i class="bi bi-chevron-expand" aria-hidden="true"></i></th>
+                                <th scope="col">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="domains-tbody">
@@ -119,12 +119,12 @@
                     </table>
                 </div>
                 <div class="pagination-controls">
-                    <button class="btn btn-sm btn-outline-secondary" id="prev-page" onclick="changePage(-1)" disabled>
-                        <i class="bi bi-chevron-left"></i> Previous
+                    <button class="btn btn-sm btn-outline-secondary" id="prev-page" onclick="changePage(-1)" disabled aria-label="Go to previous page">
+                        <i class="bi bi-chevron-left" aria-hidden="true"></i> Previous
                     </button>
-                    <span class="page-info" id="page-info">Page 1 of 1</span>
-                    <button class="btn btn-sm btn-outline-secondary" id="next-page" onclick="changePage(1)" disabled>
-                        Next <i class="bi bi-chevron-right"></i>
+                    <span class="page-info" id="page-info" role="status" aria-live="polite">Page 1 of 1</span>
+                    <button class="btn btn-sm btn-outline-secondary" id="next-page" onclick="changePage(1)" disabled aria-label="Go to next page">
+                        Next <i class="bi bi-chevron-right" aria-hidden="true"></i>
                     </button>
                 </div>
             </div>
@@ -188,14 +188,14 @@
                             </dl>
                         </div>
                         <div class="detail-actions">
-                            <button class="btn btn-primary btn-sm" onclick="editDomain()">
-                                <i class="bi bi-pencil"></i> Edit
+                            <button class="btn btn-primary btn-sm" onclick="editDomain()" aria-label="Edit domain settings">
+                                <i class="bi bi-pencil" aria-hidden="true"></i> Edit
                             </button>
-                            <button class="btn btn-success btn-sm" onclick="runHealthCheck()">
-                                <i class="bi bi-heart-pulse"></i> Refresh Health
+                            <button class="btn btn-success btn-sm" onclick="runHealthCheck()" aria-label="Refresh domain health check">
+                                <i class="bi bi-heart-pulse" aria-hidden="true"></i> Refresh Health
                             </button>
-                            <button class="btn btn-danger btn-sm" onclick="confirmDeleteDomain()">
-                                <i class="bi bi-trash"></i> Delete
+                            <button class="btn btn-danger btn-sm" onclick="confirmDeleteDomain()" aria-label="Delete domain">
+                                <i class="bi bi-trash" aria-hidden="true"></i> Delete
                             </button>
                         </div>
                     </div>
@@ -209,8 +209,8 @@
                                     <i class="bi bi-hourglass-split"></i> Loading DNS records...
                                 </div>
                             </div>
-                            <button class="btn btn-sm btn-outline-primary mt-3" onclick="verifyDNS()">
-                                <i class="bi bi-arrow-repeat"></i> Verify DNS
+                            <button class="btn btn-sm btn-outline-primary mt-3" onclick="verifyDNS()" aria-label="Verify DNS records">
+                                <i class="bi bi-arrow-repeat" aria-hidden="true"></i> Verify DNS
                             </button>
                         </div>
                     </div>
@@ -231,8 +231,8 @@
                                 <dt class="col-sm-6">Status:</dt>
                                 <dd class="col-sm-6" id="ssl-status">-</dd>
                             </dl>
-                            <button class="btn btn-sm btn-warning mt-3" onclick="forceSSLRenewal()">
-                                <i class="bi bi-arrow-clockwise"></i> Force Renewal
+                            <button class="btn btn-sm btn-warning mt-3" onclick="forceSSLRenewal()" aria-label="Force SSL certificate renewal">
+                                <i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Force Renewal
                             </button>
                         </div>
                     </div>
@@ -253,8 +253,8 @@
                                 <dt class="col-sm-6">Last Check:</dt>
                                 <dd class="col-sm-6" id="health-last-check">-</dd>
                             </dl>
-                            <button class="btn btn-sm btn-success mt-3" onclick="runHealthCheck()">
-                                <i class="bi bi-heart-pulse"></i> Run Health Check
+                            <button class="btn btn-sm btn-success mt-3" onclick="runHealthCheck()" aria-label="Run health check">
+                                <i class="bi bi-heart-pulse" aria-hidden="true"></i> Run Health Check
                             </button>
                         </div>
                     </div>
@@ -359,10 +359,10 @@
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" id="submitDomainBtn" onclick="submitDomain()">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" aria-label="Cancel domain creation">Cancel</button>
+                <button type="button" class="btn btn-primary" id="submitDomainBtn" onclick="submitDomain()" aria-label="Submit new domain">
                     <span class="btn-text">Add Domain</span>
-                    <span class="spinner-border spinner-border-sm d-none" role="status"></span>
+                    <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
                 </button>
             </div>
         </div>
@@ -394,8 +394,8 @@
                 <input type="text" class="form-control" id="delete-confirmation" placeholder="DELETE">
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-danger" id="confirmDeleteBtn" onclick="deleteDomain()" disabled>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" aria-label="Cancel domain deletion">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn" onclick="deleteDomain()" disabled aria-label="Confirm domain deletion">
                     Delete Domain
                 </button>
             </div>
