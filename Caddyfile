@@ -4,15 +4,6 @@
 
 {
     email evin@evindrake.net
-    
-    # Explicit automation policy to force certificate generation for all domains
-    acme_ca https://acme-v02.api.letsencrypt.org/directory
-    
-    on_demand_tls {
-        ask https://host.evindrake.net/api/caddy/allow
-        interval 2m
-        burst 5
-    }
 }
 
 # ============================================
@@ -45,10 +36,12 @@ stream.rig-city.com {
 # Rig City Community Website
 # ============================================
 rig-city.com {
+    tls
     reverse_proxy rig-city-site:80
 }
 
 www.rig-city.com {
+    tls
     redir https://rig-city.com{uri} permanent
 }
 
@@ -95,6 +88,7 @@ vnc.evindrake.net {
 # Code Server (VS Code in Browser)
 # ============================================
 code.evindrake.net {
+    tls
     reverse_proxy code-server:8080 {
         # Standard proxy headers
         header_up Host {host}
@@ -144,6 +138,7 @@ code.evindrake.net {
 # Game Streaming Connection Page
 # ============================================
 game.evindrake.net {
+    tls
     handle / {
         redir /game-connect permanent
     }
@@ -176,6 +171,7 @@ www.scarletredjoker.com {
 # Home Assistant - Smart Home Hub
 # ============================================
 home.evindrake.net {
+    tls
     reverse_proxy homeassistant:8123 {
         header_up Host {host}
         header_up X-Real-IP {remote_host}
