@@ -38,6 +38,7 @@ from routes.dns_api import dns_bp
 from routes.nas_api import nas_bp
 from routes.marketplace_api import marketplace_bp
 from routes.agent_api import agent_bp
+from routes.ide_api import ide_api_bp
 from services.activity_service import activity_service
 from services.db_service import db_service
 from services.websocket_service import websocket_service
@@ -193,6 +194,7 @@ app.register_blueprint(marketplace_bp)
 app.register_blueprint(agent_bp)
 app.register_blueprint(ha_bp)
 app.register_blueprint(ai_foundry_bp)
+app.register_blueprint(ide_api_bp)
 
 # Exempt web blueprint from CSRF in demo mode (MUST be after blueprint registration)
 # Use the cached DEMO_MODE variable computed earlier (defaults to true)
