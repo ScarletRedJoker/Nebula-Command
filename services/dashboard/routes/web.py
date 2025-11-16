@@ -145,6 +145,15 @@ def network():
 def domains():
     return render_template('domains.html')
 
+@web_bp.route('/domain-management')
+@require_web_auth
+def domain_management():
+    response = make_response(render_template('domain_management.html'))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
 @web_bp.route('/monitoring')
 @require_web_auth
 def monitoring():

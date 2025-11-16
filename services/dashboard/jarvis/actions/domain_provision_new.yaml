@@ -1,0 +1,67 @@
+name: domain_provision_new
+description: Autonomously provision a new domain with DNS, SSL, and reverse proxy configuration
+category: infrastructure
+tier: tier2_remediate
+enabled: true
+auto_execute: true
+
+conditions:
+  - provisioning_status: pending
+  - auto_managed: true
+
+steps:
+  - name: validate_domain
+    command: validate_domain_format
+    description: Validate domain format and DNS availability
+    timeout: 30
+
+  - name: detect_public_ip
+    command: detect_public_ip
+    description: Detect server public IP address
+    timeout: 30
+
+  - name: create_dns_record
+    command: zoneedit_create_record
+    description: Create DNS A record pointing to public IP via ZoneEdit
+    timeout: 60
+
+  - name: verify_propagation
+    command: verify_dns_propagation
+    description: Wait for DNS propagation across nameservers
+    timeout: 600
+
+  - name: configure_caddy
+    command: add_caddy_domain
+    description: Add reverse proxy configuration to Caddyfile
+    timeout: 60
+
+  - name: reload_proxy
+    command: reload_caddy
+    description: Reload Caddy with new configuration
+    timeout: 60
+
+  - name: obtain_ssl
+    command: wait_for_ssl_certificate
+    description: Wait for Let's Encrypt SSL certificate acquisition
+    timeout: 300
+
+  - name: verify_endpoint
+    command: verify_https_endpoint
+    description: Verify domain is accessible via HTTPS
+    timeout: 60
+
+success_actions:
+  - update_domain_status: active
+  - create_event: provision_completed
+  - send_notification: Domain {domain} provisioned successfully
+
+failure_actions:
+  - update_domain_status: error
+  - create_event: provision_failed
+  - rollback_dns_changes
+  - send_alert: Domain {domain} provisioning failed
+
+risk_level: medium
+estimated_duration_seconds: 900
+max_retries: 3
+retry_delay_seconds: 120

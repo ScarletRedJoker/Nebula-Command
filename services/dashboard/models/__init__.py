@@ -20,7 +20,9 @@ from .workflow import Workflow
 from .task import Task
 from .artifact import Artifact
 from .deployment import Deployment
-from .domain_record import DomainRecord
+from .domain_record import DomainRecord, RecordType, RecordStatus
+from .domain_event import DomainEvent
+from .domain_task import DomainTask
 from .jarvis import Project, ArtifactBuild, ComposeSpec, SSLCertificate, AISession
 from .google_integration import GoogleServiceStatus, CalendarAutomation, EmailNotification, DriveBackup
 from .jarvis_action import JarvisAction, ActionStatus, ActionType
@@ -36,6 +38,10 @@ __all__ = [
     'Artifact',
     'Deployment',
     'DomainRecord',
+    'RecordType',
+    'RecordStatus',
+    'DomainEvent',
+    'DomainTask',
     'Project',
     'ArtifactBuild',
     'ComposeSpec',

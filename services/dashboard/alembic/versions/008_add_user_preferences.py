@@ -1,7 +1,7 @@
 """add user preferences
 
-Revision ID: 008_add_user_preferences
-Revises: 007_add_celery_job_history
+Revision ID: 008
+Revises: 007
 Create Date: 2025-11-15 12:00:00.000000
 
 """
@@ -9,8 +9,8 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
 
-revision = '008_add_user_preferences'
-down_revision = '007_add_celery_job_history'
+revision = '008'
+down_revision = '007'
 branch_labels = None
 depends_on = None
 

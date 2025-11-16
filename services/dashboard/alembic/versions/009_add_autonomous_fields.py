@@ -1,7 +1,7 @@
 """Add autonomous execution fields to jarvis_actions
 
-Revision ID: 009_add_autonomous_fields
-Revises: 008_add_user_preferences
+Revision ID: 009
+Revises: 008
 Create Date: 2025-11-15 12:00:00.000000
 
 """
@@ -9,8 +9,8 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
 
-revision = '009_add_autonomous_fields'
-down_revision = '008_add_user_preferences'
+revision = '009'
+down_revision = '008'
 branch_labels = None
 depends_on = None
 

@@ -12,6 +12,9 @@ import time
 from typing import Dict, Optional, Tuple
 from datetime import datetime
 import re
+import os
+from pathlib import Path
+import shutil
 
 logger = logging.getLogger(__name__)
 
@@ -278,3 +281,368 @@ class CaddyService:
         logger.info(f"Caddy status: running={is_running}")
         
         return status
+    
+    def generate_domain_config(
+        self,
+        domain: str,
+        target_url: str,
+        ssl_enabled: bool = True,
+        custom_config: str = None
+    ) -> str:
+        """Generate Caddyfile snippet for a domain
+        
+        Args:
+            domain: Domain name
+            target_url: Target URL for reverse proxy
+            ssl_enabled: Enable automatic SSL
+            custom_config: Custom Caddy directives
+            
+        Returns:
+            Caddyfile configuration string
+        """
+        logger.info(f"Generating Caddy config for {domain}")
+        
+        config_lines = [f"{domain} {{"]
+        
+        config_lines.append(f"    reverse_proxy {target_url}")
+        config_lines.append("    encode gzip")
+        config_lines.append("    log {")
+        config_lines.append(f"        output file /var/log/caddy/{domain}.log")
+        config_lines.append("    }")
+        
+        if custom_config:
+            config_lines.append("")
+            config_lines.append("    # Custom configuration")
+            for line in custom_config.strip().split('\n'):
+                config_lines.append(f"    {line}")
+        
+        config_lines.append("}")
+        
+        return '\n'.join(config_lines)
+    
+    def backup_caddyfile(self, config_path: str = "/etc/caddy/Caddyfile") -> Tuple[bool, str]:
+        """Backup Caddyfile with timestamp
+        
+        Args:
+            config_path: Path to Caddyfile inside container
+            
+        Returns:
+            Tuple of (success, backup_path)
+        """
+        logger.info("Creating Caddyfile backup")
+        
+        try:
+            backup_dir = Path("/tmp/caddy_backups")
+            backup_dir.mkdir(exist_ok=True)
+            
+            timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+            backup_filename = f"Caddyfile.backup.{timestamp}"
+            backup_path = backup_dir / backup_filename
+            
+            result = subprocess.run(
+                ['docker', 'cp', f'{self.container_name}:{config_path}', str(backup_path)],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            
+            if result.returncode != 0:
+                logger.error(f"Backup failed: {result.stderr}")
+                return False, ""
+            
+            existing_backups = sorted(backup_dir.glob("Caddyfile.backup.*"))
+            if len(existing_backups) > 10:
+                for old_backup in existing_backups[:-10]:
+                    old_backup.unlink()
+                    logger.info(f"Removed old backup: {old_backup}")
+            
+            logger.info(f"Caddyfile backed up to {backup_path}")
+            return True, str(backup_path)
+            
+        except Exception as e:
+            logger.error(f"Backup error: {e}")
+            return False, ""
+    
+    def add_domain_to_caddyfile(
+        self,
+        domain: str,
+        target_url: str,
+        ssl_enabled: bool = True,
+        custom_config: str = None,
+        config_path: str = "/etc/caddy/Caddyfile"
+    ) -> Tuple[bool, str]:
+        """Add domain configuration to Caddyfile
+        
+        Args:
+            domain: Domain name
+            target_url: Target URL for reverse proxy
+            ssl_enabled: Enable automatic SSL
+            custom_config: Custom Caddy directives
+            config_path: Path to Caddyfile inside container
+            
+        Returns:
+            Tuple of (success, message)
+        """
+        logger.info(f"Adding {domain} to Caddyfile")
+        
+        backup_success, backup_path = self.backup_caddyfile(config_path)
+        if not backup_success:
+            return False, "Failed to create backup"
+        
+        try:
+            temp_caddyfile = Path("/tmp/Caddyfile.temp")
+            
+            result = subprocess.run(
+                ['docker', 'cp', f'{self.container_name}:{config_path}', str(temp_caddyfile)],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            
+            if result.returncode != 0:
+                logger.error(f"Failed to retrieve Caddyfile: {result.stderr}")
+                return False, "Failed to retrieve Caddyfile"
+            
+            with open(temp_caddyfile, 'r') as f:
+                existing_content = f.read()
+            
+            if domain in existing_content:
+                logger.warning(f"Domain {domain} already exists in Caddyfile")
+                return False, f"Domain {domain} already configured"
+            
+            new_config = self.generate_domain_config(domain, target_url, ssl_enabled, custom_config)
+            
+            updated_content = existing_content.rstrip() + "\n\n" + new_config + "\n"
+            
+            with open(temp_caddyfile, 'w') as f:
+                f.write(updated_content)
+            
+            copy_result = subprocess.run(
+                ['docker', 'cp', str(temp_caddyfile), f'{self.container_name}:{config_path}'],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            
+            if copy_result.returncode != 0:
+                logger.error(f"Failed to copy updated Caddyfile: {copy_result.stderr}")
+                return False, "Failed to update Caddyfile"
+            
+            is_valid, validation_msg = self.validate_caddyfile(config_path)
+            if not is_valid:
+                logger.error(f"New configuration invalid: {validation_msg}")
+                self.rollback_caddyfile(backup_path, config_path)
+                return False, f"Invalid configuration: {validation_msg}"
+            
+            temp_caddyfile.unlink()
+            
+            with open('/tmp/jarvis_audit.log', 'a') as f:
+                f.write(f"{datetime.utcnow().isoformat()} - Added domain to Caddy: {domain} -> {target_url}\n")
+            
+            logger.info(f"Successfully added {domain} to Caddyfile")
+            return True, f"Domain {domain} added successfully"
+            
+        except Exception as e:
+            logger.error(f"Error adding domain: {e}")
+            if backup_path:
+                self.rollback_caddyfile(backup_path, config_path)
+            return False, f"Error: {str(e)}"
+    
+    def remove_domain_from_caddyfile(
+        self,
+        domain: str,
+        config_path: str = "/etc/caddy/Caddyfile"
+    ) -> Tuple[bool, str]:
+        """Remove domain configuration from Caddyfile
+        
+        Args:
+            domain: Domain name to remove
+            config_path: Path to Caddyfile inside container
+            
+        Returns:
+            Tuple of (success, message)
+        """
+        logger.info(f"Removing {domain} from Caddyfile")
+        
+        backup_success, backup_path = self.backup_caddyfile(config_path)
+        if not backup_success:
+            return False, "Failed to create backup"
+        
+        try:
+            temp_caddyfile = Path("/tmp/Caddyfile.temp")
+            
+            result = subprocess.run(
+                ['docker', 'cp', f'{self.container_name}:{config_path}', str(temp_caddyfile)],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            
+            if result.returncode != 0:
+                logger.error(f"Failed to retrieve Caddyfile: {result.stderr}")
+                return False, "Failed to retrieve Caddyfile"
+            
+            with open(temp_caddyfile, 'r') as f:
+                lines = f.readlines()
+            
+            new_lines = []
+            in_domain_block = False
+            brace_count = 0
+            removed = False
+            
+            for line in lines:
+                if domain in line and '{' in line:
+                    in_domain_block = True
+                    removed = True
+                    brace_count = 1
+                    continue
+                
+                if in_domain_block:
+                    brace_count += line.count('{')
+                    brace_count -= line.count('}')
+                    
+                    if brace_count == 0:
+                        in_domain_block = False
+                    continue
+                
+                new_lines.append(line)
+            
+            if not removed:
+                logger.warning(f"Domain {domain} not found in Caddyfile")
+                return False, f"Domain {domain} not found"
+            
+            with open(temp_caddyfile, 'w') as f:
+                f.writelines(new_lines)
+            
+            copy_result = subprocess.run(
+                ['docker', 'cp', str(temp_caddyfile), f'{self.container_name}:{config_path}'],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            
+            if copy_result.returncode != 0:
+                logger.error(f"Failed to copy updated Caddyfile: {copy_result.stderr}")
+                return False, "Failed to update Caddyfile"
+            
+            is_valid, validation_msg = self.validate_caddyfile(config_path)
+            if not is_valid:
+                logger.error(f"Configuration invalid after removal: {validation_msg}")
+                self.rollback_caddyfile(backup_path, config_path)
+                return False, f"Invalid configuration: {validation_msg}"
+            
+            temp_caddyfile.unlink()
+            
+            with open('/tmp/jarvis_audit.log', 'a') as f:
+                f.write(f"{datetime.utcnow().isoformat()} - Removed domain from Caddy: {domain}\n")
+            
+            logger.info(f"Successfully removed {domain} from Caddyfile")
+            return True, f"Domain {domain} removed successfully"
+            
+        except Exception as e:
+            logger.error(f"Error removing domain: {e}")
+            if backup_path:
+                self.rollback_caddyfile(backup_path, config_path)
+            return False, f"Error: {str(e)}"
+    
+    def rollback_caddyfile(
+        self,
+        backup_path: str,
+        config_path: str = "/etc/caddy/Caddyfile"
+    ) -> Tuple[bool, str]:
+        """Restore Caddyfile from backup
+        
+        Args:
+            backup_path: Path to backup file
+            config_path: Path to Caddyfile inside container
+            
+        Returns:
+            Tuple of (success, message)
+        """
+        logger.info(f"Rolling back Caddyfile from {backup_path}")
+        
+        try:
+            if not Path(backup_path).exists():
+                return False, "Backup file not found"
+            
+            result = subprocess.run(
+                ['docker', 'cp', backup_path, f'{self.container_name}:{config_path}'],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            
+            if result.returncode != 0:
+                logger.error(f"Rollback failed: {result.stderr}")
+                return False, f"Rollback failed: {result.stderr}"
+            
+            is_valid, validation_msg = self.validate_caddyfile(config_path)
+            if not is_valid:
+                logger.error(f"Rolled back config is invalid: {validation_msg}")
+                return False, f"Backup config invalid: {validation_msg}"
+            
+            logger.info("Caddyfile successfully rolled back")
+            return True, "Rollback successful"
+            
+        except Exception as e:
+            logger.error(f"Rollback error: {e}")
+            return False, f"Rollback error: {str(e)}"
+    
+    def reload_caddy(self, config_path: str = "/etc/caddy/Caddyfile") -> Tuple[bool, str]:
+        """Reload Caddy configuration without restart
+        
+        Args:
+            config_path: Path to Caddyfile inside container
+            
+        Returns:
+            Tuple of (success, message)
+        """
+        logger.info("Reloading Caddy configuration")
+        
+        if not self._is_container_running():
+            return False, "Caddy container is not running"
+        
+        is_valid, validation_msg = self.validate_caddyfile(config_path)
+        if not is_valid:
+            logger.error(f"Cannot reload - config invalid: {validation_msg}")
+            return False, f"Reload aborted - invalid config: {validation_msg}"
+        
+        try:
+            result = subprocess.run(
+                ['docker', 'exec', self.container_name, 'caddy', 'reload', '--config', config_path],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            
+            if result.returncode == 0:
+                logger.info("Caddy reloaded successfully")
+                
+                time.sleep(2)
+                
+                health_check = subprocess.run(
+                    ['docker', 'logs', self.container_name, '--tail', '20'],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                
+                logs = health_check.stdout + health_check.stderr
+                
+                if 'error' in logs.lower() or 'fatal' in logs.lower():
+                    logger.warning("Caddy reloaded but has errors in logs")
+                    return True, "Reloaded with warnings (check logs)"
+                
+                return True, "Caddy reloaded successfully"
+            else:
+                error_msg = result.stderr or result.stdout
+                logger.error(f"Caddy reload failed: {error_msg}")
+                return False, f"Reload failed: {error_msg}"
+                
+        except subprocess.TimeoutExpired:
+            logger.error("Caddy reload timed out")
+            return False, "Reload timeout"
+            
+        except Exception as e:
+            logger.error(f"Caddy reload error: {e}")
+            return False, f"Reload error: {str(e)}"

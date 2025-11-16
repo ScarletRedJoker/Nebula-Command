@@ -23,6 +23,7 @@ from routes.jarvis_approval_api import jarvis_approval_bp
 from routes.logs_api import logs_api_bp
 from routes.celery_analytics_api import celery_analytics_bp
 from routes.autonomous_api import autonomous_bp
+from routes.domain_api import domain_api_bp
 from services.activity_service import activity_service
 from services.db_service import db_service
 from services.websocket_service import websocket_service
@@ -146,6 +147,7 @@ app.register_blueprint(jarvis_approval_bp)
 app.register_blueprint(celery_analytics_bp)
 app.register_blueprint(logs_api_bp)
 app.register_blueprint(autonomous_bp)
+app.register_blueprint(domain_api_bp)
 
 # Initialize WebSocket service
 websocket_service.init_app(app)

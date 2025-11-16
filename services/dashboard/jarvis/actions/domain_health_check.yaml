@@ -1,0 +1,43 @@
+name: domain_health_check
+description: Monitor all domain health including DNS, SSL, and HTTP status
+category: monitoring
+tier: tier1_diagnose
+enabled: true
+auto_execute: true
+schedule: "*/15 * * * *"
+
+conditions: []
+
+steps:
+  - name: check_all_domains
+    command: run_domain_health_checks
+    description: Check DNS resolution, SSL validity, and HTTP status for all domains
+    timeout: 300
+
+  - name: detect_issues
+    command: identify_failing_domains
+    description: Identify domains with DNS, SSL, or HTTP errors
+    timeout: 60
+
+  - name: create_alerts
+    command: generate_domain_alerts
+    description: Create alert events for failing domains
+    timeout: 60
+
+  - name: update_metrics
+    command: update_domain_health_metrics
+    description: Update domain health metrics in database
+    timeout: 60
+
+success_actions:
+  - create_event: health_check_completed
+  - update_last_check_timestamp
+
+failure_actions:
+  - create_event: health_check_failed
+  - send_alert: Health check system failure
+
+risk_level: low
+estimated_duration_seconds: 420
+max_retries: 1
+retry_delay_seconds: 60
