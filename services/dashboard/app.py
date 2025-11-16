@@ -86,6 +86,12 @@ app.config['SESSION_COOKIE_HTTPONLY'] = True
 
 csrf = CSRFProtect(app)
 limiter.init_app(app)
+
+# Exempt login from CSRF in demo mode to allow investor testing without CSRF token issues
+if os.getenv('DEMO_MODE', 'false').lower() == 'true':
+    csrf.exempt(web_bp)  # Exempt entire web blueprint in demo mode for easier testing
+    logger.warning("⚠️  CSRF disabled for web routes in DEMO_MODE")
+
 logger.info("✓ CSRF Protection and Rate Limiting initialized")
 
 # Production logging configuration
