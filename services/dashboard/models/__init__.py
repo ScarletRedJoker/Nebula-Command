@@ -30,6 +30,7 @@ from .celery_job_history import CeleryJobHistory, JobStatus
 from .user_preferences import UserPreferences
 from .jarvis_task import JarvisTask
 from .dyndns_host import DynDNSHost
+from .nas_models import NASDevice, NASMount, BackupJob
 
 __all__ = [
     'Base',
@@ -60,5 +61,8 @@ __all__ = [
     'JobStatus',
     'UserPreferences',
     'JarvisTask',
-    'DynDNSHost'
+    'DynDNSHost',
+    'NASDevice',
+    'NASMount',
+    'BackupJob'
 ]

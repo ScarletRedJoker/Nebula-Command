@@ -13,7 +13,7 @@ celery_app = Celery(
     'jarvis_workflow_engine',
     broker=Config.CELERY_BROKER_URL,
     backend=Config.CELERY_RESULT_BACKEND,
-    include=['workers.workflow_worker', 'workers.analysis_worker', 'workers.google_tasks', 'workers.autonomous_worker', 'workers.dyndns_worker']
+    include=['workers.workflow_worker', 'workers.analysis_worker', 'workers.google_tasks', 'workers.autonomous_worker', 'workers.dyndns_worker', 'workers.nas_worker']
 )
 
 def save_job_history(task_id, task_name, status, **kwargs):
