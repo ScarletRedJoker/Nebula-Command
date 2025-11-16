@@ -195,7 +195,8 @@ app.register_blueprint(ha_bp)
 app.register_blueprint(ai_foundry_bp)
 
 # Exempt web blueprint from CSRF in demo mode (MUST be after blueprint registration)
-if os.getenv('DEMO_MODE', 'false').lower() == 'true':
+# Use the cached DEMO_MODE variable computed earlier (defaults to true)
+if DEMO_MODE:
     csrf.exempt(web_bp)
     logger.warning("⚠️  CSRF disabled for web routes in DEMO_MODE")
 
