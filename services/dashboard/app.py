@@ -74,6 +74,21 @@ logging.basicConfig(
 logger = structlog.get_logger('dashboard')
 logger = logger.bind(service='dashboard')
 
+# Import environment detection config
+try:
+    from env_config.env import EnvironmentConfig, IS_REPLIT, IS_UBUNTU
+    logger.info("=" * 60)
+    logger.info(f"🌍 Environment Detected: {EnvironmentConfig.ENVIRONMENT}")
+    logger.info(f"📊 Configuration Summary:")
+    for key, value in EnvironmentConfig.summary().items():
+        logger.info(f"  {key}: {value}")
+    logger.info("=" * 60)
+except ImportError:
+    # Fallback if env.py doesn't exist yet
+    logger.warning("⚠️  Environment config not found, using defaults")
+    IS_REPLIT = os.path.exists('/home/runner')
+    IS_UBUNTU = not IS_REPLIT
+
 app = Flask(__name__, 
             template_folder='templates',
             static_folder='static')
@@ -145,9 +160,13 @@ else:
         sys.exit(1)
 
 # Store in environment for other modules to access
-os.environ['WEB_USERNAME'] = WEB_USERNAME
-os.environ['WEB_PASSWORD'] = WEB_PASSWORD
-os.environ['DASHBOARD_API_KEY'] = DASHBOARD_API_KEY
+os.environ['WEB_USERNAME'] = WEB_USERNAME if WEB_USERNAME else ''
+os.environ['WEB_PASSWORD'] = WEB_PASSWORD if WEB_PASSWORD else ''
+os.environ['DASHBOARD_API_KEY'] = DASHBOARD_API_KEY if DASHBOARD_API_KEY else ''
+
+# Set secret key with proper type handling
+SECRET_KEY = DASHBOARD_API_KEY if DASHBOARD_API_KEY else secrets.token_urlsafe(32)
+app.config['SECRET_KEY'] = SECRET_KEY
 
 CORS(app, resources={r"/api/*": {
     "origins": [
@@ -248,9 +267,8 @@ if db_service.is_available:
             from services.marketplace_service import marketplace_service
             
             # Only load if catalog is empty
-            session = get_session()
-            template_count = session.query(ContainerTemplate).count()
-            session.close()
+            with db_service.get_session() as session:
+                template_count = session.query(ContainerTemplate).count()
             
             if template_count == 0:
                 logger.info("Marketplace catalog is empty, loading templates from catalog file...")
