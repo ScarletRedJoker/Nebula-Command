@@ -65,27 +65,83 @@ preflight_checks() {
     # Check if Docker is installed
     if ! command -v docker &> /dev/null; then
         log_error "Docker is not installed"
+        log_info "Install Docker: curl -fsSL https://get.docker.com | sh"
         exit 1
     fi
     
     # Check if Docker Compose is installed
     if ! command -v docker-compose &> /dev/null; then
         log_error "Docker Compose is not installed"
+        log_info "Install Docker Compose: sudo apt-get install docker-compose"
         exit 1
+    fi
+    
+    # Check if Docker daemon is running
+    if ! docker info &> /dev/null; then
+        log_warn "Docker daemon is not running. Attempting to start..."
+        sudo systemctl start docker 2>/dev/null || {
+            log_error "Failed to start Docker daemon"
+            exit 1
+        }
+        sleep 2
+        log_success "Docker daemon started"
     fi
     
     # Check if required environment variables exist
     if [ ! -f ".env" ]; then
         log_warn ".env file not found"
-        log_info "Run './deploy.sh setup' to create it"
+        log_info "Run './setup.sh' for interactive configuration"
+        log_info "Or run './deploy.sh setup' for basic setup"
+        exit 1
     fi
     
+    # Validate .env file has required variables
+    validate_env_file
+    
     log_success "Pre-flight checks passed"
+}
+
+# Validate environment file
+validate_env_file() {
+    local required_vars=(
+        "DISCORD_DB_PASSWORD"
+        "STREAMBOT_DB_PASSWORD"
+        "JARVIS_DB_PASSWORD"
+    )
+    
+    local missing_vars=()
+    
+    for var in "${required_vars[@]}"; do
+        if ! grep -q "^${var}=" .env 2>/dev/null || grep -q "^${var}=$" .env 2>/dev/null; then
+            missing_vars+=("$var")
+        fi
+    done
+    
+    if [ ${#missing_vars[@]} -gt 0 ]; then
+        log_error "Missing required environment variables:"
+        for var in "${missing_vars[@]}"; do
+            echo "  - $var"
+        done
+        log_info "Run './setup.sh' to configure these variables"
+        exit 1
+    fi
 }
 
 # Setup command
 cmd_setup() {
     log_info "Starting initial setup..."
+    
+    # Check if interactive setup is available
+    if [ -f "setup.sh" ] && [ -x "setup.sh" ]; then
+        log_info "Interactive setup wizard available: ./setup.sh"
+        log_warn "For guided setup with validation, run './setup.sh' instead"
+        echo ""
+        read -p "Continue with basic setup? (y/N) " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            exit 0
+        fi
+    fi
     
     # Create .env using existing generator
     if [ ! -f ".env" ]; then
@@ -94,17 +150,30 @@ cmd_setup() {
             bash deployment/generate-unified-env.sh
         else
             log_error "deployment/generate-unified-env.sh not found"
-            exit 1
+            log_info "Creating minimal .env file..."
+            
+            cat > .env << EOF
+# Minimal Configuration - Edit this file before running services
+DISCORD_DB_PASSWORD=$(openssl rand -base64 32)
+STREAMBOT_DB_PASSWORD=$(openssl rand -base64 32)
+JARVIS_DB_PASSWORD=$(openssl rand -base64 32)
+DASHBOARD_SESSION_SECRET=$(openssl rand -base64 48)
+DISCORD_SESSION_SECRET=$(openssl rand -base64 48)
+STREAMBOT_SESSION_SECRET=$(openssl rand -base64 48)
+SERVICE_USER=$(whoami)
+COMPOSE_PROJECT_DIR=$(pwd)
+EOF
+            log_warn "Minimal .env created - many features will be disabled"
         fi
     fi
     
     # Create required directories
-    mkdir -p backups logs data
+    mkdir -p backups logs data services/dashboard/logs
     
     # Set permissions
     chmod +x scripts/*.sh 2>/dev/null || true
     chmod +x deployment/*.sh 2>/dev/null || true
-    chmod +x deploy.sh
+    chmod +x deploy.sh setup.sh 2>/dev/null || true
     
     log_success "Setup complete!"
     log_info "Next steps:"
@@ -112,12 +181,106 @@ cmd_setup() {
     log_info "2. Run './deploy.sh start' to start services"
 }
 
-# Start command
+# Start command with self-healing
 cmd_start() {
     log_info "Starting services..."
-    docker-compose -f docker-compose.unified.yml up -d
-    log_success "Services started"
+    
+    # Check if services are already running
+    if docker-compose -f docker-compose.unified.yml ps | grep -q "Up"; then
+        log_warn "Some services are already running"
+        read -p "Restart them? (y/N) " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            cmd_restart
+            return
+        fi
+    fi
+    
+    # Start services with retry logic
+    local max_attempts=3
+    local attempt=1
+    
+    while [ $attempt -le $max_attempts ]; do
+        log_info "Start attempt $attempt/$max_attempts..."
+        
+        if docker-compose -f docker-compose.unified.yml up -d 2>&1 | tee /tmp/docker-start.log; then
+            log_success "Services started successfully"
+            break
+        else
+            log_warn "Start attempt $attempt failed"
+            
+            if grep -q "port is already allocated" /tmp/docker-start.log; then
+                log_error "Port conflict detected!"
+                log_info "Attempting to free ports..."
+                auto_fix_port_conflicts
+            fi
+            
+            if [ $attempt -lt $max_attempts ]; then
+                log_info "Retrying in 5 seconds..."
+                sleep 5
+            fi
+        fi
+        
+        attempt=$((attempt + 1))
+    done
+    
+    if [ $attempt -gt $max_attempts ]; then
+        log_error "Failed to start services after $max_attempts attempts"
+        log_info "Check logs: docker-compose -f docker-compose.unified.yml logs"
+        exit 1
+    fi
+    
+    # Wait for services to stabilize
+    log_info "Waiting for services to stabilize..."
+    sleep 5
+    
+    # Perform health check
+    cmd_health || {
+        log_warn "Health check failed, attempting auto-recovery..."
+        auto_recover_services
+    }
+    
     cmd_status
+}
+
+# Auto-fix port conflicts
+auto_fix_port_conflicts() {
+    log_info "Scanning for port conflicts..."
+    
+    # Stop any conflicting containers
+    local conflicting_ports=$(docker ps --format '{{.Names}} {{.Ports}}' | grep -oP '0\.0\.0\.0:\K\d+' | sort -u)
+    
+    for port in $conflicting_ports; do
+        if [ "$port" = "5000" ] || [ "$port" = "3000" ] || [ "$port" = "5432" ]; then
+            log_warn "Found conflicting container using port $port"
+            local container=$(docker ps --filter "publish=$port" --format '{{.Names}}' | head -1)
+            if [ -n "$container" ]; then
+                log_info "Stopping conflicting container: $container"
+                docker stop "$container" 2>/dev/null || true
+            fi
+        fi
+    done
+}
+
+# Auto-recover services
+auto_recover_services() {
+    log_info "Attempting automatic service recovery..."
+    
+    # Check each service
+    local services=$(docker-compose -f docker-compose.unified.yml config --services)
+    
+    for service in $services; do
+        if ! docker-compose -f docker-compose.unified.yml ps "$service" | grep -q "Up"; then
+            log_warn "Service $service is not running, attempting restart..."
+            docker-compose -f docker-compose.unified.yml up -d "$service" 2>&1 || {
+                log_error "Failed to restart $service"
+                log_info "Check logs: docker-compose -f docker-compose.unified.yml logs $service"
+            }
+        fi
+    done
+    
+    sleep 3
+    cmd_health
 }
 
 # Stop command  
