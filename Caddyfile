@@ -4,6 +4,18 @@
 
 {
     email evin@evindrake.net
+    
+    # Explicit automation policy for domains Caddy skips by default
+    auto_https {
+        disable_redirects off
+    }
+    
+    automation {
+        policies {
+            subjects rig-city.com www.rig-city.com code.evindrake.net home.evindrake.net game.evindrake.net
+            issuer acme
+        }
+    }
 }
 
 # ============================================
