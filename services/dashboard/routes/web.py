@@ -209,9 +209,16 @@ def monitoring():
 
 @web_bp.route('/game-connect')
 def game_connect():
-    response = make_response(render_template('game_connect.html',
-                          windows_kvm_ip=Config.WINDOWS_KVM_IP))
+    response = make_response(render_template('moonlight.html'))
     # Add proper cache headers to prevent Caddy caching
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
+@web_bp.route('/moonlight')
+def moonlight():
+    response = make_response(render_template('moonlight.html'))
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'

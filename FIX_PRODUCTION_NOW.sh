@@ -15,6 +15,14 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+# CRITICAL: Check that JARVIS_DB_PASSWORD is set
+if [ -z "$JARVIS_DB_PASSWORD" ]; then
+    print_error() { echo -e "${RED}✗${NC} $1"; }
+    print_error "JARVIS_DB_PASSWORD is not set!"
+    echo "Run: source .env && bash $0"
+    exit 1
+fi
+
 # Function to print status
 print_status() {
     echo -e "${GREEN}✓${NC} $1"
