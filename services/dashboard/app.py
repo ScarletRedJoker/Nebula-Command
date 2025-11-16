@@ -151,11 +151,18 @@ else:
         sys.exit(1)
 
 # Store in environment and Flask config for other modules to access
+# Username and password are guaranteed to be set (sys.exit(1) above if not)
+assert WEB_USERNAME is not None, "WEB_USERNAME must be set"
+assert WEB_PASSWORD is not None, "WEB_PASSWORD must be set"
 os.environ['WEB_USERNAME'] = WEB_USERNAME
 os.environ['WEB_PASSWORD'] = WEB_PASSWORD
 app.config['WEB_USERNAME'] = WEB_USERNAME
 app.config['WEB_PASSWORD'] = WEB_PASSWORD
-os.environ['DASHBOARD_API_KEY'] = DASHBOARD_API_KEY
+
+# API key may be None in some configurations - set to config regardless
+app.config['DASHBOARD_API_KEY'] = DASHBOARD_API_KEY
+if DASHBOARD_API_KEY is not None:
+    os.environ['DASHBOARD_API_KEY'] = DASHBOARD_API_KEY
 
 CORS(app, resources={r"/api/*": {
     "origins": [

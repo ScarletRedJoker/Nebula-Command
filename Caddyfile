@@ -153,7 +153,15 @@ code.evindrake.net {
 # Game Streaming Connection Page
 # ============================================
 game.evindrake.net {
-    rewrite * /game-connect
+    # Matcher for root path only
+    @root {
+        path /
+    }
+    
+    # Rewrite root requests to /game-connect
+    rewrite @root /game-connect
+    
+    # Proxy all requests (including rewritten ones)
     reverse_proxy homelab-dashboard:5000 {
         header_up Host {host}
         header_up X-Real-IP {remote_host}
@@ -161,7 +169,7 @@ game.evindrake.net {
         header_up X-Forwarded-Proto {scheme}
         header_up X-Forwarded-Host {host}
         
-        # Disable caching for game connection page
+        # Disable caching
         header_down Cache-Control "no-cache, no-store, must-revalidate"
         header_down Pragma "no-cache"
         header_down Expires "0"
