@@ -24,6 +24,7 @@ from routes.logs_api import logs_api_bp
 from routes.celery_analytics_api import celery_analytics_bp
 from routes.autonomous_api import autonomous_bp
 from routes.domain_api import domain_api_bp
+from routes.jarvis_task_api import jarvis_task_bp
 from services.activity_service import activity_service
 from services.db_service import db_service
 from services.websocket_service import websocket_service
@@ -148,10 +149,16 @@ app.register_blueprint(celery_analytics_bp)
 app.register_blueprint(logs_api_bp)
 app.register_blueprint(autonomous_bp)
 app.register_blueprint(domain_api_bp)
+app.register_blueprint(jarvis_task_bp)
 
 # Initialize WebSocket service
 websocket_service.init_app(app)
 logger.info("✓ WebSocket service initialized")
+
+# Initialize Jarvis Task WebSocket
+from routes.jarvis_task_api import init_websocket
+init_websocket(app)
+logger.info("✓ Jarvis Task WebSocket initialized")
 
 # Load persisted favicon configurations
 logger.info("Loading service favicon configurations...")

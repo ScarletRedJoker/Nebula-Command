@@ -5,7 +5,7 @@ integrations = ["python_openai_ai_integrations:1.0.0", "spotify:1.0.0", "google-
 
 [nix]
 channel = "stable-25_05"
-packages = ["cacert", "iana-etc", "libyaml", "unzip", "xcodebuild", "zlib", "shellcheck"]
+packages = ["cacert", "iana-etc", "libyaml", "shellcheck", "unzip", "xcodebuild", "zlib"]
 
 [workflows]
 runButton = "Project"
@@ -58,6 +58,10 @@ externalPort = 80
 [[ports]]
 localPort = 24678
 externalPort = 3001
+
+[[ports]]
+localPort = 43841
+externalPort = 3002
 
 [[ports]]
 localPort = 46877

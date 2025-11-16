@@ -28,6 +28,7 @@ from .google_integration import GoogleServiceStatus, CalendarAutomation, EmailNo
 from .jarvis_action import JarvisAction, ActionStatus, ActionType
 from .celery_job_history import CeleryJobHistory, JobStatus
 from .user_preferences import UserPreferences
+from .jarvis_task import JarvisTask
 
 __all__ = [
     'Base',
@@ -56,5 +57,6 @@ __all__ = [
     'ActionType',
     'CeleryJobHistory',
     'JobStatus',
-    'UserPreferences'
+    'UserPreferences',
+    'JarvisTask'
 ]

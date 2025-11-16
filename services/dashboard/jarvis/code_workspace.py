@@ -23,19 +23,30 @@ logger = logging.getLogger(__name__)
 class JarvisCodeWorkspace:
     """Safe code editing workspace with approval workflow"""
     
-    PATH_WHITELIST = [
-        "services/dashboard/jarvis/actions/*.yaml",
-        "scripts/*.sh",
-        "deployment/*.sh",
-        "services/dashboard/jarvis/*.py"
+    SAFE_PATHS = [
+        'services/dashboard/jarvis/',
+        'services/dashboard/scripts/',
+        'services/dashboard/services/',
+        'services/dashboard/routes/',
+        'services/dashboard/models/',
+        'services/dashboard/templates/',
+        'services/dashboard/static/',
+        'services/dashboard/workers/',
+        'services/dashboard/integrations/',
+        'services/dashboard/utils/',
+        'services/dashboard/alembic/versions/',
+        'services/dashboard/tests/',
+        'deployment/scripts/'
     ]
     
-    def __init__(self, audit_log_path: str = "/tmp/jarvis_code_edits.log"):
+    def __init__(self, base_path: str = ".", audit_log_path: str = "/tmp/jarvis_code_edits.log"):
         """Initialize code workspace
         
         Args:
+            base_path: Base path for file operations (defaults to current directory)
             audit_log_path: Path to audit log file
         """
+        self.base_path = base_path
         self.audit_log_path = audit_log_path
         self._pending_edits: Dict[str, Dict] = {}
         
@@ -68,7 +79,7 @@ class JarvisCodeWorkspace:
         """
         file_path = os.path.normpath(file_path)
         
-        for pattern in self.PATH_WHITELIST:
+        for pattern in self.SAFE_PATHS:
             if '*' in pattern:
                 import fnmatch
                 if fnmatch.fnmatch(file_path, pattern):
@@ -79,6 +90,17 @@ class JarvisCodeWorkspace:
         
         logger.warning(f"Path not whitelisted: {file_path}")
         return False
+    
+    def _is_safe_path(self, file_path: str) -> bool:
+        """Alias for _is_path_whitelisted for clarity
+        
+        Args:
+            file_path: Path to check
+            
+        Returns:
+            True if path is safe (whitelisted)
+        """
+        return self._is_path_whitelisted(file_path)
     
     def read_file(self, path: str) -> Tuple[bool, Optional[str], str]:
         """Safe file reading with path whitelist
@@ -343,3 +365,183 @@ class JarvisCodeWorkspace:
         logger.info(f"Edit {edit_id} rejected: {reason}")
         
         return True, f"Edit rejected: {edit_id}"
+    
+    def _analyze_complexity(self, prompt: str, files: List[str]) -> str:
+        """Analyze task complexity to determine execution strategy
+        
+        Args:
+            prompt: Task prompt/description
+            files: List of files involved
+            
+        Returns:
+            Complexity level: 'simple', 'medium', or 'complex'
+        """
+        # Complexity indicators
+        complexity_score = 0
+        
+        # Check prompt length (more words = more complex)
+        word_count = len(prompt.split())
+        if word_count > 100:
+            complexity_score += 3
+        elif word_count > 50:
+            complexity_score += 1
+        
+        # Check for complex keywords
+        if 'database' in prompt.lower() or 'migration' in prompt.lower():
+            complexity_score += 3
+        if 'security' in prompt.lower() or 'authentication' in prompt.lower():
+            complexity_score += 3
+        if 'refactor' in prompt.lower():
+            complexity_score += 2
+        if any(word in prompt.lower() for word in ['complex', 'advanced', 'enterprise']):
+            complexity_score += 2
+        
+        # Check file count
+        if len(files) > 3:
+            complexity_score += 2
+        elif len(files) > 1:
+            complexity_score += 1
+        
+        # Check file sizes
+        for file_path in files:
+            try:
+                if os.path.exists(file_path):
+                    with open(file_path, 'r') as f:
+                        lines = len(f.readlines())
+                        if lines > 500:
+                            complexity_score += 2
+                        elif lines > 200:
+                            complexity_score += 1
+            except Exception:
+                pass
+        
+        # Determine complexity level with adjusted thresholds
+        if complexity_score <= 3:
+            return 'simple'
+        elif complexity_score <= 7:
+            return 'medium'
+        else:
+            return 'complex'
+    
+    def write_file(self, path: str, content: str) -> Tuple[bool, str]:
+        """Write content to a file (for approved edits)
+        
+        Args:
+            path: File path to write
+            content: Content to write
+            
+        Returns:
+            Tuple of (success, message)
+        """
+        logger.info(f"Writing file: {path}")
+        
+        if not self._is_path_whitelisted(path):
+            return False, f"Path not in whitelist: {path}"
+        
+        try:
+            # Create directory if needed
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            
+            # Create backup if file exists
+            if os.path.exists(path):
+                backup_path = f"{path}.backup.{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+                import shutil
+                shutil.copy2(path, backup_path)
+                logger.info(f"Created backup: {backup_path}")
+            
+            # Write file
+            with open(path, 'w') as f:
+                f.write(content)
+            
+            audit_entry = {
+                'timestamp': datetime.utcnow().isoformat(),
+                'action': 'write_file',
+                'path': path,
+                'size_bytes': len(content)
+            }
+            self.audit_logger.info(json.dumps(audit_entry))
+            
+            logger.info(f"Successfully wrote {len(content)} bytes to {path}")
+            return True, f"Successfully wrote {path}"
+            
+        except Exception as e:
+            logger.error(f"Failed to write {path}: {e}")
+            return False, f"Write error: {str(e)}"
+    
+    def write_file_safe(self, file_path: str, content: str, create_backup: bool = True) -> dict:
+        """Safely write file with backup and validation
+        
+        Args:
+            file_path: Path to file to write
+            content: Content to write
+            create_backup: Whether to create backup if file exists
+            
+        Returns:
+            Dictionary with success status, file path, backup path, and message/error
+        """
+        try:
+            # Validate path
+            if not self._is_safe_path(file_path):
+                raise ValueError(f"Path not in whitelist: {file_path}")
+            
+            full_path = os.path.join(self.base_path, file_path)
+            
+            # Create backup if file exists
+            backup_path = None
+            if create_backup and os.path.exists(full_path):
+                backup_path = self._create_backup(full_path)
+            
+            # Ensure directory exists
+            os.makedirs(os.path.dirname(full_path), exist_ok=True)
+            
+            # Write file
+            with open(full_path, 'w') as f:
+                f.write(content)
+            
+            # Audit log
+            audit_entry = {
+                'timestamp': datetime.utcnow().isoformat(),
+                'action': 'write_file_safe',
+                'path': file_path,
+                'size_bytes': len(content),
+                'backup_path': backup_path
+            }
+            self.audit_logger.info(json.dumps(audit_entry))
+            
+            logger.info(f"Successfully wrote {len(content)} bytes to {file_path}")
+            
+            return {
+                'success': True,
+                'file': file_path,
+                'backup': backup_path,
+                'message': f'Successfully wrote {file_path}'
+            }
+        
+        except Exception as e:
+            logger.error(f"Failed to write file {file_path}: {str(e)}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    def _create_backup(self, file_path: str) -> str:
+        """Create timestamped backup of file
+        
+        Args:
+            file_path: Path to file to backup
+            
+        Returns:
+            Path to backup file
+        """
+        timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+        backup_dir = os.path.join(self.base_path, 'backups')
+        os.makedirs(backup_dir, exist_ok=True)
+        
+        file_name = os.path.basename(file_path)
+        backup_path = os.path.join(backup_dir, f"{file_name}.{timestamp}.backup")
+        
+        import shutil
+        shutil.copy2(file_path, backup_path)
+        
+        logger.info(f"Created backup: {backup_path}")
+        return backup_path

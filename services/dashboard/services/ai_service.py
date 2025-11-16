@@ -152,3 +152,177 @@ Be concise, practical, and action-oriented. When diagnosing issues, suggest spec
         except Exception as e:
             logger.error(f"Unexpected error in AI chat: {e}", exc_info=True)
             return f"An unexpected error occurred: {str(e)}. Please try again."
+    
+    def generate_code(self, prompt: str, files: List[str], context: Dict = None) -> Dict[str, any]:
+        """Generate production-ready code using GPT-5/GPT-4
+        
+        Args:
+            prompt: Description of the code to generate
+            files: List of file paths to modify
+            context: Additional context for code generation
+            
+        Returns:
+            Dictionary with success status, generated code, and metadata
+        """
+        if not self.enabled:
+            return {
+                'success': False,
+                'error': 'AI code generation is not available. Please check API configuration.'
+            }
+        
+        try:
+            import re
+            
+            # Read existing files for context
+            file_contents = {}
+            for file_path in files:
+                try:
+                    with open(file_path, 'r') as f:
+                        file_contents[file_path] = f.read()
+                except FileNotFoundError:
+                    file_contents[file_path] = "# New file"
+            
+            # Build comprehensive prompt
+            system_prompt = """You are Jarvis, an expert software engineer specializing in the Homelab Dashboard project.
+
+Project Stack:
+- Backend: Flask, Python 3.11, SQLAlchemy, Alembic
+- Frontend: Bootstrap 5, JavaScript (vanilla), Chart.js
+- Database: PostgreSQL
+- Task Queue: Celery, Redis
+- Architecture: Microservices with Docker
+
+Coding Standards:
+- Always use type hints for Python functions
+- Write comprehensive docstrings (Google style)
+- Handle all errors with try/except and logging
+- Use structured logging (logger.info/error)
+- Follow PEP 8 style guide
+- Write defensive code with input validation
+- Add database transactions where needed
+- Use environment variables for configuration
+
+Generate production-ready, tested, well-documented code."""
+
+            # Build user prompt with file context
+            files_info = '\n'.join(f"- {fp}: {len(fc)} lines" for fp, fc in file_contents.items())
+            context_snippets = '\n\n'.join(
+                f"# {fp}\n{fc[:500]}..." if len(fc) > 500 else f"# {fp}\n{fc}"
+                for fp, fc in file_contents.items()
+            )
+            
+            user_prompt = f"""Task: {prompt}
+
+Files to modify:
+{files_info}
+
+Existing code context:
+```python
+{context_snippets}
+```
+
+Generate complete, production-ready code that:
+1. Solves the task completely
+2. Maintains existing patterns and style
+3. Includes error handling
+4. Has type hints and docstrings
+5. Is secure and tested
+
+Return the complete code for each file wrapped in ```python code blocks."""
+
+            # Make API call
+            # the newest OpenAI model is "gpt-5" which was released August 7, 2025.
+            # do not change this unless explicitly requested by the user
+            response = self.client.chat.completions.create(
+                model="gpt-5",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                temperature=0.1,  # Low temperature for consistent code
+                max_completion_tokens=4000
+            )
+            
+            generated_code = response.choices[0].message.content
+            
+            # Parse response to extract code for each file
+            code_by_file = self._parse_generated_code(generated_code, files)
+            
+            logger.info(f"Successfully generated code for {len(code_by_file)} files")
+            
+            return {
+                'success': True,
+                'code': code_by_file,
+                'raw_response': generated_code,
+                'model': 'gpt-5',
+                'tokens_used': response.usage.total_tokens
+            }
+        
+        except AuthenticationError as e:
+            logger.error(f"OpenAI authentication error in generate_code: {e}")
+            return {
+                'success': False,
+                'error': 'Authentication failed. Your OpenAI API key may be invalid or expired.'
+            }
+        except RateLimitError as e:
+            logger.error(f"OpenAI rate limit error in generate_code: {e}")
+            return {
+                'success': False,
+                'error': 'Rate limit exceeded. Please try again in a few moments.'
+            }
+        except APIConnectionError as e:
+            logger.error(f"OpenAI connection error in generate_code: {e}")
+            return {
+                'success': False,
+                'error': 'Cannot connect to OpenAI API. Please check your internet connection.'
+            }
+        except APIError as e:
+            logger.error(f"OpenAI API error in generate_code: {e}")
+            return {
+                'success': False,
+                'error': f'OpenAI API error: {str(e)}'
+            }
+        except Exception as e:
+            logger.error(f"Unexpected error in code generation: {e}", exc_info=True)
+            return {
+                'success': False,
+                'error': f'Code generation failed: {str(e)}'
+            }
+    
+    def _parse_generated_code(self, response: str, files: List[str]) -> Dict[str, str]:
+        """Parse GPT response to extract code for each file
+        
+        Args:
+            response: Raw GPT response
+            files: List of expected files
+            
+        Returns:
+            Dictionary mapping file paths to generated code
+        """
+        import re
+        
+        code_by_file = {}
+        
+        # Look for code blocks wrapped in ```python
+        code_blocks = re.findall(r'```python\n(.*?)```', response, re.DOTALL)
+        
+        if len(code_blocks) == len(files):
+            # One code block per file
+            for i, file_path in enumerate(files):
+                code_by_file[file_path] = code_blocks[i]
+        elif len(code_blocks) == 1:
+            # Single code block, assign to first file
+            code_by_file[files[0]] = code_blocks[0]
+        else:
+            # Fallback: try to detect file sections in response
+            for file_path in files:
+                # Look for file path as a header
+                pattern = rf"{re.escape(file_path)}.*?```python\n(.*?)```"
+                match = re.search(pattern, response, re.DOTALL)
+                if match:
+                    code_by_file[file_path] = match.group(1)
+                else:
+                    # Last resort: use entire response for each file
+                    code_by_file[file_path] = response
+        
+        return code_by_file

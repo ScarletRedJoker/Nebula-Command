@@ -173,6 +173,26 @@ def game_connect():
     response.headers['Expires'] = '0'
     return response
 
+@web_bp.route('/jarvis_code_review')
+@require_web_auth
+def jarvis_code_review():
+    """Jarvis code review and task management interface"""
+    response = make_response(render_template('jarvis_code_review.html'))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
+@web_bp.route('/jarvis_demo')
+@require_web_auth
+def jarvis_demo():
+    """Jarvis investor demo dashboard"""
+    response = make_response(render_template('jarvis_demo.html'))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
 @web_bp.route('/api/preferences', methods=['GET'])
 @require_web_auth
 def get_preferences():
