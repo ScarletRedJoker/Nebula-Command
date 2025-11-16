@@ -38,7 +38,6 @@ from routes.dns_api import dns_bp
 from routes.nas_api import nas_bp
 from routes.marketplace_api import marketplace_bp
 from routes.agent_api import agent_bp
-from routes.ide_api import ide_api_bp
 from services.activity_service import activity_service
 from services.db_service import db_service
 from services.websocket_service import websocket_service
@@ -82,12 +81,11 @@ app = Flask(__name__,
 app.config.from_object(Config)
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=12)
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-app.config['SESSION_COOKIE_SECURE'] = False  # Disabled for Replit webview (localhost HTTP)
+app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 
 csrf = CSRFProtect(app)
 limiter.init_app(app)
-
 logger.info("✓ CSRF Protection and Rate Limiting initialized")
 
 # Production logging configuration
@@ -146,19 +144,10 @@ else:
         logger.error("=" * 60)
         sys.exit(1)
 
-# Store in environment and Flask config for other modules to access
-# Username and password are guaranteed to be set (sys.exit(1) above if not)
-assert WEB_USERNAME is not None, "WEB_USERNAME must be set"
-assert WEB_PASSWORD is not None, "WEB_PASSWORD must be set"
+# Store in environment for other modules to access
 os.environ['WEB_USERNAME'] = WEB_USERNAME
 os.environ['WEB_PASSWORD'] = WEB_PASSWORD
-app.config['WEB_USERNAME'] = WEB_USERNAME
-app.config['WEB_PASSWORD'] = WEB_PASSWORD
-
-# API key may be None in some configurations - set to config regardless
-app.config['DASHBOARD_API_KEY'] = DASHBOARD_API_KEY
-if DASHBOARD_API_KEY is not None:
-    os.environ['DASHBOARD_API_KEY'] = DASHBOARD_API_KEY
+os.environ['DASHBOARD_API_KEY'] = DASHBOARD_API_KEY
 
 CORS(app, resources={r"/api/*": {
     "origins": [
@@ -194,14 +183,6 @@ app.register_blueprint(marketplace_bp)
 app.register_blueprint(agent_bp)
 app.register_blueprint(ha_bp)
 app.register_blueprint(ai_foundry_bp)
-app.register_blueprint(ide_api_bp)
-
-# Exempt web blueprint and API blueprints from CSRF (MUST be after blueprint registration)
-# APIs should use header-based auth, not CSRF tokens
-csrf.exempt(web_bp)
-csrf.exempt(jarvis_voice_bp)
-csrf.exempt(ide_api_bp)
-logger.warning("⚠️  CSRF disabled for web routes and API endpoints")
 
 # Initialize WebSocket service
 websocket_service.init_app(app)
@@ -256,31 +237,32 @@ else:
 logger.info("=" * 60)
 
 # Auto-load marketplace catalog after migrations
-db_service.ensure_initialized()  # Retry initialization if DATABASE_URL is now available
 if db_service.is_available:
     logger.info("=" * 60)
     logger.info("Loading Marketplace Catalog")
     logger.info("=" * 60)
     
-    try:
-        from models.container_template import ContainerTemplate
-        from services.marketplace_service import marketplace_service
-        
-        # Use db_service.get_session() instead of get_session()
-        with db_service.get_session() as session:
+    with app.app_context():
+        try:
+            from models.container_template import ContainerTemplate
+            from services.marketplace_service import marketplace_service
+            
+            # Only load if catalog is empty
+            session = get_session()
             template_count = session.query(ContainerTemplate).count()
-        
-        if template_count == 0:
-            logger.info("Marketplace catalog is empty, loading templates from catalog file...")
-            success, message = marketplace_service.load_catalog_templates()
-            if success:
-                logger.info(f"✓ {message}")
+            session.close()
+            
+            if template_count == 0:
+                logger.info("Marketplace catalog is empty, loading templates from catalog file...")
+                success, message = marketplace_service.load_catalog_templates()
+                if success:
+                    logger.info(f"✓ {message}")
+                else:
+                    logger.warning(f"⚠ Failed to load marketplace catalog: {message}")
             else:
-                logger.warning(f"⚠ Failed to load marketplace catalog: {message}")
-        else:
-            logger.info(f"✓ Marketplace catalog already loaded ({template_count} templates)")
-    except Exception as e:
-        logger.error(f"⚠ Error loading marketplace catalog: {e}", exc_info=True)
+                logger.info(f"✓ Marketplace catalog already loaded ({template_count} templates)")
+        except Exception as e:
+            logger.error(f"⚠ Error loading marketplace catalog: {e}")
     
     logger.info("=" * 60)
 

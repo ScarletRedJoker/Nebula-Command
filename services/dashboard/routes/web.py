@@ -26,37 +26,23 @@ except:
     
 ai_service = AIService()
 
-@web_bp.route('/debug-config')
-def debug_config():
-    """DEBUG ONLY - Remove in production"""
-    from flask import current_app
-    return jsonify({
-        'config_username': current_app.config.get('WEB_USERNAME'),
-        'config_password_set': bool(current_app.config.get('WEB_PASSWORD')),
-        'config_password_length': len(current_app.config.get('WEB_PASSWORD', '')),
-        'demo_mode': current_app.config.get('DEMO_MODE', False)
-    })
-
 @web_bp.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
         
-        # Get credentials from app config (supports DEMO_MODE)
-        from flask import current_app
-        expected_username = current_app.config.get('WEB_USERNAME')
-        expected_password = current_app.config.get('WEB_PASSWORD')
+        # Get credentials from environment (NO DEFAULTS for security)
+        expected_username = os.environ.get('WEB_USERNAME')
+        expected_password = os.environ.get('WEB_PASSWORD')
         
-        # Security: Require credentials to be set
+        # Security: Require credentials to be set in environment
         if not expected_username or not expected_password:
-            logger.error("SECURITY ERROR: WEB_USERNAME or WEB_PASSWORD not configured!")
+            logger.error("SECURITY ERROR: WEB_USERNAME or WEB_PASSWORD not set in environment!")
             return render_template('login.html', error='Server configuration error. Contact administrator.')
         
         # Debug logging (never log passwords!)
         logger.info(f"Login attempt - Username: {username}")
-        logger.info(f"DEBUG: username={repr(username)}, expected={repr(expected_username)}, match={username == expected_username}")
-        logger.info(f"DEBUG: password length={len(password) if password else 0}, expected length={len(expected_password) if expected_password else 0}, match={password == expected_password}")
         
         if username == expected_username and password == expected_password:
             session['authenticated'] = True
@@ -222,16 +208,9 @@ def monitoring():
 
 @web_bp.route('/game-connect')
 def game_connect():
-    response = make_response(render_template('moonlight.html'))
+    response = make_response(render_template('game_connect.html',
+                          windows_kvm_ip=Config.WINDOWS_KVM_IP))
     # Add proper cache headers to prevent Caddy caching
-    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-    response.headers['Pragma'] = 'no-cache'
-    response.headers['Expires'] = '0'
-    return response
-
-@web_bp.route('/moonlight')
-def moonlight():
-    response = make_response(render_template('moonlight.html'))
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'

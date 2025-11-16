@@ -399,32 +399,19 @@ async function submitDeployment() {
         });
         
         if (result.success) {
-            // Check if this is a demo mode deployment
-            if (result.demo_mode && window.showFlashyDeploymentAlert) {
-                // Hide deployment progress toast
-                deploymentToastInstance.hide();
-                
-                // Show flashy demo alert
-                window.showFlashyDeploymentAlert(
-                    result.message || 'Service',
-                    result.production_link || 'https://host.evindrake.net'
-                );
+            showDeploymentProgress(`Deployment successful! Container starting...`);
+            
+            // Show credentials if any were generated
+            if (result.generated_passwords && Object.keys(result.generated_passwords).length > 0) {
+                setTimeout(() => {
+                    showCredentialsModal(result.deployment_id, result.access_url, result.generated_passwords);
+                }, 2000);
             } else {
-                // Production deployment - show normal success flow
-                showDeploymentProgress(`Deployment successful! Container starting...`);
-                
-                // Show credentials if any were generated
-                if (result.generated_passwords && Object.keys(result.generated_passwords).length > 0) {
-                    setTimeout(() => {
-                        showCredentialsModal(result.deployment_id, result.access_url, result.generated_passwords);
-                    }, 2000);
-                } else {
-                    showToast('Success', result.message || 'Deployment completed successfully', 'success');
-                }
-                
-                // Refresh deployments list
-                setTimeout(loadDeployments, 2000);
+                showToast('Success', result.message || 'Deployment completed successfully', 'success');
             }
+            
+            // Refresh deployments list
+            setTimeout(loadDeployments, 2000);
         } else {
             showToast('Error', result.error || 'Deployment failed', 'danger');
         }

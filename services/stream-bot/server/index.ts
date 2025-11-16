@@ -8,10 +8,10 @@ import { registerRoutes } from "./routes";
 import { serveStatic, log as httpLog } from "./http";
 import { pool } from "./db";
 import { getEnv } from "./env";
-import { getHealthStatus } from "./health";
+import { logger, getHealthStatus } from "./health";
 
-// Simple logging function
-const log = (message: string) => console.log(`[http] ${message}`);
+// Replace http log with winston logger
+const log = (message: string) => logger.info(message, { component: 'http' });
 
 const app = express();
 const PgSession = connectPg(session);
@@ -29,13 +29,17 @@ app.set('env', NODE_ENV);
 
 // PRODUCTION SECURITY: Validate SESSION_SECRET in production
 if (NODE_ENV === 'production' && !SESSION_SECRET) {
-  console.error("[startup] FATAL: SESSION_SECRET environment variable is required for production!");
-  console.error("[startup] Generate one with: openssl rand -base64 32");
+  logger.error("FATAL: SESSION_SECRET environment variable is required for production!", {
+    component: 'startup'
+  });
+  logger.error("Generate one with: openssl rand -base64 32", { component: 'startup' });
   process.exit(1);
 }
 
 if (!SESSION_SECRET && NODE_ENV !== 'production') {
-  console.warn("[startup] SESSION_SECRET or STREAMBOT_SESSION_SECRET not set! Using insecure default for development.");
+  logger.warn("SESSION_SECRET or STREAMBOT_SESSION_SECRET not set! Using insecure default for development.", {
+    component: 'startup'
+  });
 }
 
 // CORS Configuration

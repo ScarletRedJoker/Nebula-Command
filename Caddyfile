@@ -58,28 +58,10 @@ n8n.evindrake.net {
 }
 
 # ============================================
-# Homelab Dashboard - PRODUCTION (Private)
+# Homelab Dashboard (Main Control Panel)
 # ============================================
 host.evindrake.net {
     reverse_proxy homelab-dashboard:5000 {
-        header_up Host {host}
-        header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
-        header_up X-Forwarded-Host {host}
-        
-        # CRITICAL: Disable all caching for dashboard routes
-        header_down Cache-Control "no-cache, no-store, must-revalidate, private"
-        header_down Pragma "no-cache"
-        header_down Expires "0"
-    }
-}
-
-# ============================================
-# Demo Dashboard - PUBLIC (Investor/Demo Site)
-# ============================================
-test.evindrake.net {
-    reverse_proxy homelab-dashboard-demo:5000 {
         header_up Host {host}
         header_up X-Real-IP {remote_host}
         header_up X-Forwarded-For {remote_host}
@@ -153,15 +135,9 @@ code.evindrake.net {
 # Game Streaming Connection Page
 # ============================================
 game.evindrake.net {
-    # Matcher for root path only
-    @root {
-        path /
+    handle / {
+        redir /game-connect permanent
     }
-    
-    # Rewrite root requests to /game-connect
-    rewrite @root /game-connect
-    
-    # Proxy all requests (including rewritten ones)
     reverse_proxy homelab-dashboard:5000 {
         header_up Host {host}
         header_up X-Real-IP {remote_host}
@@ -169,7 +145,7 @@ game.evindrake.net {
         header_up X-Forwarded-Proto {scheme}
         header_up X-Forwarded-Host {host}
         
-        # Disable caching
+        # Disable caching for game connection page
         header_down Cache-Control "no-cache, no-store, must-revalidate"
         header_down Pragma "no-cache"
         header_down Expires "0"

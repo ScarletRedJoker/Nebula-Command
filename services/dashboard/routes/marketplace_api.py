@@ -154,40 +154,7 @@ def deploy_container():
                 'error': 'Invalid subdomain format. Use only letters, numbers, hyphens, and underscores.'
             }), 400
         
-        # DEMO MODE: Flashy response linking to production
-        if os.getenv('DEMO_MODE', 'false').lower() == 'true':
-            # Get template details for the response
-            template = marketplace_service.get_template_details(template_id)
-            template_name = template.get('name', 'Service') if template else 'Service'
-            
-            return jsonify({
-                'success': True,
-                'demo_mode': True,
-                'message': f'🎉 {template_name} deployment initiated!',
-                'status': 'running',
-                'deployment_id': f'demo-{template_id[:8]}',
-                'container_name': f'{subdomain}-demo',
-                'url': f'https://{subdomain}.demo.local',
-                'production_link': 'https://host.evindrake.net',
-                'notice': {
-                    'title': '✨ This is a demo environment',
-                    'message': 'Your deployment is being processed in the background! For real deployments with full functionality, visit:',
-                    'link_text': 'Open Production Dashboard',
-                    'details': [
-                        '✅ Container spinning up in isolated environment',
-                        '✅ SSL certificates being generated',
-                        '✅ Health checks running',
-                        '⚡ Deployment typically completes in 60-90 seconds'
-                    ]
-                },
-                'access_info': {
-                    'username': 'admin',
-                    'password': 'demo-password',
-                    'note': 'Mock credentials for demonstration purposes'
-                }
-            })
-        
-        # PRODUCTION MODE: Real deployment
+        # Deploy container
         success, result = marketplace_service.deploy_container(
             template_id=template_id,
             subdomain=subdomain,
