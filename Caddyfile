@@ -5,16 +5,13 @@
 {
     email evin@evindrake.net
     
-    # Explicit automation policy for domains Caddy skips by default
-    auto_https {
-        disable_redirects off
-    }
+    # Explicit automation policy to force certificate generation for all domains
+    acme_ca https://acme-v02.api.letsencrypt.org/directory
     
-    automation {
-        policies {
-            subjects rig-city.com www.rig-city.com code.evindrake.net home.evindrake.net game.evindrake.net
-            issuer acme
-        }
+    on_demand_tls {
+        ask https://host.evindrake.net/api/caddy/allow
+        interval 2m
+        burst 5
     }
 }
 
