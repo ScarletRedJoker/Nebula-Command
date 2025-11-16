@@ -31,6 +31,8 @@ from .user_preferences import UserPreferences
 from .jarvis_task import JarvisTask
 from .dyndns_host import DynDNSHost
 from .nas_models import NASDevice, NASMount, BackupJob
+from .container_template import ContainerTemplate
+from .deployed_container import DeployedContainer, ContainerStatus
 
 __all__ = [
     'Base',
@@ -64,5 +66,8 @@ __all__ = [
     'DynDNSHost',
     'NASDevice',
     'NASMount',
-    'BackupJob'
+    'BackupJob',
+    'ContainerTemplate',
+    'DeployedContainer',
+    'ContainerStatus'
 ]
