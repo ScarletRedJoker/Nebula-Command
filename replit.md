@@ -1,187 +1,159 @@
 # Homelab Dashboard Project
 
-## Recent Updates (November 2024)
+## Current Status (November 16, 2024)
 
-### Production Fixes & Master Fix Script
-**Date**: November 16, 2024  
-**Status**: Master recovery script created
+### MASTER_FIX_ALL.sh - The Recovery Solution
+**Status**: Production-ready
 
-**Issues Fixed:**
-1. **Auto-sync Bug**: Added DOCKER_COMPOSE detection in deployment/sync-from-replit.sh preventing hardened sync failures
-2. **Moonlight Page Readability**: Changed low-contrast text-muted to text-white/text-white-50 for better visibility
-3. **Master Fix Script**: Created MASTER_FIX_ALL.sh - ONE simple script that fixes everything
+**What It Does:**
+Simple one-command recovery script that fixes all production issues:
+- Validates .env configuration
+- Ensures infrastructure health (postgres, redis, minio)
+- Syncs database user passwords
+- Flushes Redis cache (fixes CSRF errors)
+- Rebuilds broken containers (discord-bot, stream-bot)
+- Restarts services in proper dependency order
+- Shows status and test URLs
 
-**MASTER_FIX_ALL.sh - The ONE Script to Fix Everything:**
-- **Step 1**: Validates .env has required passwords (JARVIS_DB_PASSWORD, STREAMBOT_DB_PASSWORD, POWERDNS_DB_PASSWORD)
-- **Step 2**: Ensures infrastructure healthy (postgres, redis, minio) with health checks
-- **Step 3**: Fixes all database user passwords and grants privileges
-- **Step 4**: Flushes Redis cache to clear stale CSRF/session data
-- **Step 5**: Rebuilds broken containers (discord-bot, stream-bot) with --no-cache
-- **Step 6**: Restarts all services in dependency order with health checks
-- **Step 7**: Shows status and test URLs
-
-**Run Command (Ubuntu):**
+**Run on Ubuntu:**
 ```bash
 cd /home/evin/contain/HomeLabHub
 bash MASTER_FIX_ALL.sh
 ```
 
-**What It Fixes:**
-- CSRF token errors (clears Redis cache)
-- Database authentication failures (syncs passwords)
-- discord-bot restart loops (missing winston package)
-- stream-bot crashes (bundling errors)
-- Service dependency issues (proper startup order)
+**Recent Fixes:**
+1. Auto-sync bug fixed (deployment/sync-from-replit.sh now detects DOCKER_COMPOSE)
+2. Moonlight page readability improved (text contrast fixed)
+3. All old fix scripts removed - ONE simple solution
 
-**Prerequisites:**
-- .env file must exist with required passwords
-- Docker and Docker Compose installed
-- Containers must be defined in docker-compose.unified.yml
+---
 
 ## Overview
-This project delivers a comprehensive, production-ready web-based dashboard for managing Ubuntu homelab servers. It functions as an enterprise-grade platform, providing a unified, AI-powered interface for minimizing operational overhead, maximizing reliability, and enabling intelligent automated operations. Key capabilities include:
 
-- **Jarvis AI Agent**: GPT-4 powered AI assistant with voice control, automated diagnostics, and guided remediation.
-- **Zero-Touch Domain Management**: Complete automation from DNS setup to SSL certificate provisioning.
-- **Multi-Service Orchestration**: Manages 8 production services across 3 domains with automatic SSL.
-- **Automated Health Monitoring**: 3-tier action system (Diagnose → Remediate with Approval → Proactive) with 20+ actions.
-- **Enterprise Security**: Session authentication, API keys, rate limiting, audit logging, and secrets management.
-- **Production Ready**: Rolling deployments with health checks, automatic backups, and comprehensive monitoring.
-- **Jarvis Control Center**: Unified intelligence hub with real-time stats, quick actions, and an activity feed.
-- **Container Marketplace**: 20 curated apps with one-click deployment and auto-provisioning.
-- **Agent Collaboration Mesh**: Real-time agent-to-agent communication.
-- **Jarvis Voice Commands**: NLP-powered natural language control for DNS, NAS, and Marketplace.
+Production-ready web dashboard for managing Ubuntu homelab servers across 3 domains (rig-city.com, evindrake.net, scarletredjoker.com).
 
-## User Preferences
-- User: Evin
-- Ubuntu 25.10 desktop homelab with Twingate VPN and dynamic DNS (ZoneEdit)
-- Manages domains: rig-city.com, evindrake.net, scarletredjoker.com
-- All projects stored in: `/home/evin/contain/` (production) and Replit (development)
-- Development workflow: Edit on Replit → Agent makes changes → Auto-sync to Ubuntu every 5 minutes
-- Services to manage:
-  - Discord Ticket Bot (bot.rig-city.com)
-  - Stream Bot / SnappleBotAI (stream.rig-city.com)
-  - Plex Server (plex.evindrake.net)
-  - n8n Automation (n8n.evindrake.net)
-  - Static Website (scarletredjoker.com)
-  - VNC Desktop (vnc.evindrake.net)
-  - Homelab Dashboard (test.evindrake.net)
-  - Home Assistant (home.evindrake.net)
-- Prefers centralized development environment with clean structure
-- Needs public HTTPS access with automatic SSL (port forwarding configured)
+**Key Features:**
+- Jarvis AI Assistant (GPT-4 powered with voice control)
+- Domain Management (ZoneEdit DNS integration, auto-SSL)
+- Container Marketplace (20 curated apps, one-click deploy)
+- Smart Home Integration (Home Assistant)
+- Game Streaming (Moonlight landing page)
+- Multi-service orchestration (8 services, automatic SSL)
 
-## System Architecture
+---
 
-### UI/UX Decisions
-The Homelab Dashboard features a cosmic theme with deep space backgrounds, animated starfields, nebula gradients, and glassmorphic UI panels, adhering to WCAG AA Accessibility standards. The Jarvis Voice Chat and mobile UI are fully responsive, incorporating cosmic themes and touch-friendly design. The Stream Bot uses a "candy theme" with gradients, glassmorphism, rounded edges, and glow effects.
+## User Setup
 
-### Technical Implementations
+**Environment:**
+- Ubuntu 25.10 desktop homelab
+- Twingate VPN + dynamic DNS (ZoneEdit)
+- Projects: `/home/evin/contain/` (production), Replit (development)
+- Auto-sync: Replit → Ubuntu every 5 minutes
 
-**Homelab Dashboard Core**
-- **Stack**: Flask, Python 3.11, Bootstrap 5, Chart.js, SQLAlchemy, Alembic, Redis, Celery, MinIO.
-- **Core Features**: Docker orchestration, real-time system monitoring, AI assistant (Jarvis), network analytics, domain health monitoring, one-click database deployments, intelligent deployment analyzer, secure file upload, Google Services integration, Home Assistant integration.
+**Managed Services:**
+- Discord Ticket Bot (bot.rig-city.com)
+- Stream Bot / SnappleBotAI (stream.rig-city.com)
+- Plex Server (plex.evindrake.net)
+- n8n Automation (n8n.evindrake.net)
+- Static Website (scarletredjoker.com)
+- VNC Desktop (vnc.evindrake.net)
+- Homelab Dashboard (test.evindrake.net - demo, host.evindrake.net - production)
+- Home Assistant (home.evindrake.net)
 
-**Jarvis Autonomous Framework**
-- **Architecture**: Task System with CRUD API, Action Library (20+ pre-built YAML actions), Safe Executor with automatic rollback, AI Code Workspace with diff preview, Policy Engine for permissions, and comprehensive audit logging.
-- **Action Tiers**:
-    - **Tier 1 (DIAGNOSE)**: 8 diagnostic actions including DNS propagation, SSL validation, service health, Git sync status, deployment health, disk usage, log analysis, and endpoint verification.
-    - **Tier 2 (REMEDIATE)**: 7 autonomous healing actions including DNS record remediation, SSL renewal, ddclient fixes, service restart, Git sync recovery, configuration rollback, and database optimization.
-    - **Tier 3 (PROACTIVE)**: 5 maintenance tasks including temporary file cleanup, log rotation, Redis cache clearing, database vacuum/reindex, and system resource optimization.
+**Access URLs:**
+- Demo Dashboard: https://test.evindrake.net (demo/demo)
+- Production Dashboard: https://host.evindrake.net (evin/homelab)
+- Game Streaming: https://game.evindrake.net
 
-**Container Marketplace ("Jarvis App Store")**
-- **Features**: Database models for ContainerTemplate and DeployedContainer, Marketplace Service for deployment and search, Smart Deployment Workflow (dependency check, auto-deploy, port conflict detection, compose generation, Caddy config, health check), REST API, App Store-style frontend, and a curated catalog of 20 production apps.
+---
 
-**Agent Collaboration System ("Multi-Agent Intelligence Mesh")**
-- **Features**: Database models for AgentMessage, WebSocket-enabled REST API for real-time messaging, a live feed frontend with avatars, and support for message types like task_delegation and status_update.
-
-**Jarvis Voice Commands**
-- **Features**: NLP parsing for domain, IP, DNS, app names, and mount commands. AI service enhancements to handle DNS, NAS, and Marketplace commands with intelligent routing and graceful fallbacks.
-
-**Smart Home Integration (November 16, 2024) - REAL FEATURE**
-- **Purpose**: Complete Home Assistant integration for IoT device control and automation
-- **Features**: Device discovery and control, automation management, energy monitoring dashboard, real-time stats (daily consumption, cost, peak hour)
-- **REST API**: 4 endpoints (/devices, /automations, /energy, /control) with authentication
-- **UI**: Professional cosmic-themed interface with device grid, automation list, energy cards
-- **Demo Mode**: Mock service providers for investor demos (detached from real Home Assistant)
-
-**Local AI Foundry (November 16, 2024) - REAL FEATURE**
-- **Purpose**: Ollama local AI model management and ChatGPT alternative
-- **Features**: AI model lifecycle (download, status, management), local chat interface, model selection, real-time AI responses
-- **REST API**: 2 endpoints (/models, /chat) for AI operations
-- **UI**: Model management grid, download progress, ChatGPT-style chat interface
-- **Models**: Llama 2, Mistral, CodeLlama with size and status tracking
-- **Demo Mode**: Mock AI responses for investor demos
-
-**Moonlight Game Streaming (November 16, 2024) - REAL FEATURE**
-- **Purpose**: NVIDIA GameStream alternative for remote gaming from Ubuntu rig
-- **Features**: 4K 120fps streaming, low latency (&lt;20ms local), hardware encoding (NVIDIA GPU), encrypted streams
-- **Landing Page**: game.evindrake.net shows polished Moonlight download page with platform-specific clients
-- **Routes**: /game-connect and /moonlight (public, no auth required for investor demos)
-- **Platforms**: Windows, Linux, Android, iOS, Apple TV with direct download links
-- **UI**: Gaming-themed page with neon effects, stat cards, quick start guide, platform buttons
-
-**Demo Mode System (November 16, 2024)**
-- **Purpose**: Investor-ready demo environment completely detached from production
-- **Features**: Auto-login credentials (demo/demo for test.evindrake.net), mock service registry for Docker/PowerDNS/HomeAssistant/NAS
-- **ServiceRegistry**: Protocol-based interfaces with factory pattern for demo/production switching
-- **Security**: Demo mode clearly marked, production mode requires explicit credentials
-- **UI Improvements**: Removed spinning background (kept twinkling stars), fixed scrollbar issues
-- **Flashy Demo Features (November 16, 2024)**: 
-  - Marketplace deployments show animated progress modal instead of actual deployment
-  - AI chat recognizes deployment requests and shows flashy response with production link
-  - All demo actions link to host.evindrake.net for real operations
-  - Impressive investor-friendly UI without touching production infrastructure
-
-**Jarvis Control Center**
-- **Features**: Hero Dashboard with real-time stats, Quick Actions Grid, Live Activity Feed, Featured Apps section, System Status indicators, and auto-refresh.
-
-**Domain Management System**
-- **Features**: Database models for `DomainRecord`, `DomainEvent`, `DomainTask`. 9 production REST API endpoints for domain CRUD, provisioning, health checks, SSL renewal, and import/export. Celery workers for background tasks like health monitoring and SSL expiration. ZoneEdit DNS integration for full CRUD operations. Caddy configuration automation with safe injection, validation, and auto-rollback. Full SSL certificate lifecycle management. 8-step autonomous provisioning workflow.
-
-**Discord Ticket Bot**
-- **Purpose**: Support ticket system and multi-platform streamer go-live notifications.
-
-**Stream Bot / SnappleBotAI**
-- **Purpose**: Multi-tenant SaaS for AI-powered stream bot management across Twitch, YouTube, and Kick.
-- **Key Features**: Custom commands, AI auto-moderation, giveaway system, stream statistics, mini-games, channel points, song requests, polls, alerts, AI chatbot personalities, advanced analytics.
-
-**Other Services**: Static Site, n8n (workflow automation), Plex (media streaming), VNC Desktop (Dockerized Ubuntu).
-
-### System Design Choices
-- **Database Architecture**: Single PostgreSQL container managing multiple service-specific databases.
-- **Unified Deployment System**: Orchestrated by `docker-compose.unified.yml` and `homelab-manager.sh` with Caddy for automatic SSL, and automated Replit → Ubuntu sync.
-- **Deployment Automation**: Rolling deployments with health checks, pre-deployment validation, backup/restore, and manual rollback.
-- **CI/CD Pipeline**: 5-stage pipeline (Validate → Test → Build → Deploy → Verify) with multi-environment support and security scanning.
-- **Security**: Session-based auth + API key, secure file validation, antivirus, rate limiting, audit logging, CSRF protection, Celery/Redis health monitoring with circuit breaker, command/path whitelisting, multi-tenant isolation, OAuth.
-- **Production Readiness**: Emphasizes comprehensive security, performance optimization, robust error handling, high reliability, extensive End-to-End and security testing, and centralized monitoring with structured JSON logging.
-
-## External Dependencies
+## Tech Stack
 
 **Dashboard:**
-- Flask (and related extensions)
-- docker (SDK), psutil, dnspython, paramiko
-- openai, tenacity
-- SQLAlchemy, Alembic, psycopg2-binary
-- Redis, Celery, eventlet
-- MinIO (S3-compatible object storage)
-- Google APIs: `google-api-python-client`, `google-auth`, `google-auth-httplib2`, `google-auth-oauthlib`
-- Bootstrap 5, Chart.js
+- Flask + Python 3.11
+- PostgreSQL (multi-database setup)
+- Redis (sessions/cache)
+- Celery (background tasks)
+- MinIO (object storage)
+- Bootstrap 5 + Chart.js
 
-**Discord Bot:**
-- `discord.js`, `express`, `drizzle-orm`, `pg`
-- `passport-discord`, `express-rate-limit`, `express-session`
-- React, Vite, Radix UI components, Tailwind CSS
-
-**Stream Bot:**
-- `tmi.js` (Twitch), `@retconned/kick-js` (Kick)
-- `openai` (GPT-5), `express`, `drizzle-orm`, `pg`
-- `passport`, `passport-twitch-new`, `passport-google-oauth20` (OAuth)
-- `express-rate-limit`, `express-session`
-- React, Vite, Radix UI, Tailwind CSS, Recharts
-- Spotify Web API, YouTube Data API v3
+**Bots:**
+- Discord Bot: Node.js, Discord.js, React, Drizzle ORM
+- Stream Bot: Node.js, Twitch/YouTube/Kick APIs, React, OpenAI
 
 **Infrastructure:**
-- Caddy (reverse proxy)
-- PostgreSQL 16 Alpine
-- Docker & Docker Compose
-- Let's Encrypt
+- Caddy (reverse proxy, auto-SSL)
+- Docker Compose (unified deployment)
+- PostgreSQL 16 Alpine (shared database)
+
+**Integrations:**
+- ZoneEdit (DNS)
+- Let's Encrypt (SSL)
+- OpenAI (Jarvis AI)
+- Home Assistant (IoT)
+- Google APIs (Calendar, Gmail)
+
+---
+
+## Architecture
+
+**Database Layout:**
+- `ticketbot` - Discord bot database
+- `streambot` - Stream bot database
+- `homelab_jarvis` - Production dashboard
+- `homelab_jarvis_demo` - Demo dashboard
+- `powerdns` - DNS management
+
+**Deployment System:**
+- `docker-compose.unified.yml` - All services
+- `MASTER_FIX_ALL.sh` - Recovery script
+- `deployment/sync-from-replit.sh` - Auto-sync (5-min cron)
+
+**Security:**
+- Session authentication + API keys
+- Rate limiting + CSRF protection
+- Audit logging
+- Secret management
+- Multi-tenant isolation
+
+---
+
+## Key Components
+
+### Jarvis AI Agent
+- GPT-4 powered assistant
+- Voice control
+- 20+ automated actions (diagnose, remediate, maintain)
+- Task approval workflow
+- Code workspace with diff preview
+
+### Container Marketplace
+- 20 curated production apps
+- One-click deployment
+- Auto port management
+- Caddy config automation
+- Health checks
+
+### Domain Management
+- ZoneEdit API integration
+- Full DNS CRUD operations
+- Automatic SSL provisioning
+- 8-step autonomous workflow
+- Health monitoring
+
+### Demo Mode
+- Investor-ready interface (test.evindrake.net)
+- Auto-login (demo/demo)
+- Mock services (no production access)
+- Flashy UI without touching real infrastructure
+
+---
+
+## Development Workflow
+
+1. Edit code on Replit
+2. Changes auto-sync to Ubuntu every 5 minutes
+3. Run MASTER_FIX_ALL.sh if services need restart
+4. Test on production URLs
+
+**Simple principle:** One command fixes everything.
