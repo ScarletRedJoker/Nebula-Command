@@ -1,5 +1,43 @@
 # Homelab Dashboard Project
 
+## Recent Updates (November 2024)
+
+### Production Fixes & Master Repair System
+**Date**: November 16, 2024  
+**Status**: Critical production fixes deployed
+
+**Issues Addressed:**
+1. **CSRF Token Fix**: Fixed test.evindrake.net login issue by moving CSRF blueprint exemption to occur AFTER blueprint registration (app.py line 200-203)
+2. **game.evindrake.net Routing**: Implemented matcher-based Caddy rewrite (`@root { path / }` + `rewrite @root /game-connect`) for proper Moonlight page routing
+3. **Master Repair Script**: Created MASTER_REPAIR.sh - comprehensive system health checker and auto-repair tool
+
+**MASTER_REPAIR.sh Capabilities:**
+- Phase 1: Container health check & auto-restart for all 15 critical containers
+- Phase 2: SSL certificate validation and Caddy config reload
+- Phase 3: PostgreSQL database health verification
+- Phase 4: Site connectivity tests for all 12 domains
+- Phase 5: Dashboard-specific login page validation
+- Detailed success/failure reporting with actionable guidance
+
+**Deployment Command (Ubuntu):**
+```bash
+cd /home/evin/contain/HomeLabHub
+bash MASTER_REPAIR.sh
+```
+
+**Known Working Services:**
+- scarletredjoker.com (Portfolio) ✓
+- DNS management (ZoneEdit) ✓
+- Caddy reverse proxy ✓
+- Database infrastructure ✓
+
+**Requires Attention on Ubuntu:**
+- stream.rig-city.com (stream-bot container)
+- bot.rig-city.com (discord-bot container)
+- home.evindrake.net (homeassistant container)
+- vnc.evindrake.net (vnc-desktop container)
+- rig-city.com (SSL certificate renewal)
+
 ## Overview
 This project delivers a comprehensive, production-ready web-based dashboard for managing Ubuntu homelab servers. It functions as an enterprise-grade platform, providing a unified, AI-powered interface for minimizing operational overhead, maximizing reliability, and enabling intelligent automated operations. Key capabilities include:
 

@@ -49,8 +49,8 @@ echo ""
 CRITICAL_CONTAINERS=(
     "caddy"
     "discord-bot-db"
-    "redis"
-    "minio"
+    "homelab-redis"
+    "homelab-minio"
     "homelab-dashboard"
     "homelab-dashboard-demo"
     "stream-bot"
@@ -242,19 +242,33 @@ echo ""
 # Test demo dashboard login page
 echo -ne "${YELLOW}Testing test.evindrake.net login page...${NC} "
 ((TOTAL_CHECKS++))
-LOGIN_PAGE=$(curl -s "https://test.evindrake.net/login" 2>/dev/null || echo "")
-if echo "$LOGIN_PAGE" | grep -qi "login\|username\|password"; then
-    if echo "$LOGIN_PAGE" | grep -qi "csrf"; then
-        echo -e "${RED}✗ CSRF token issue detected${NC}"
-        ((FAILED_CHECKS++))
-    else
-        echo -e "${GREEN}✓ Login page accessible${NC}"
-        ((PASSED_CHECKS++))
-    fi
-else
-    echo -e "${RED}✗ Login page not loading correctly${NC}"
+
+# Get both HTTP status and page content
+HTTP_CODE=$(curl -s -o /tmp/login_page.html -w "%{http_code}" "https://test.evindrake.net/login" 2>/dev/null || echo "000")
+LOGIN_PAGE=$(cat /tmp/login_page.html 2>/dev/null || echo "")
+
+# Check HTTP 200 response
+if [ "$HTTP_CODE" != "200" ]; then
+    echo -e "${RED}✗ HTTP $HTTP_CODE (expected 200)${NC}"
     ((FAILED_CHECKS++))
+# Check for required login form fields
+elif ! echo "$LOGIN_PAGE" | grep -qi "type=[\"']password[\"']\|password.*input\|input.*password"; then
+    echo -e "${RED}✗ Login form missing password field${NC}"
+    ((FAILED_CHECKS++))
+elif ! echo "$LOGIN_PAGE" | grep -qi "type=[\"']text[\"']\|username.*input\|input.*username\|type=[\"']email[\"']"; then
+    echo -e "${RED}✗ Login form missing username field${NC}"
+    ((FAILED_CHECKS++))
+# Only flag if there's an actual CSRF error message
+elif echo "$LOGIN_PAGE" | grep -qi "csrf.*session.*token.*missing\|csrf.*error\|csrf.*invalid"; then
+    echo -e "${RED}✗ CSRF session token is missing${NC}"
+    ((FAILED_CHECKS++))
+else
+    echo -e "${GREEN}✓ Login page accessible with valid form${NC}"
+    ((PASSED_CHECKS++))
 fi
+
+# Cleanup temp file
+rm -f /tmp/login_page.html 2>/dev/null
 
 echo ""
 
@@ -296,15 +310,12 @@ echo -e "${BLUE}═════════════════════�
 echo ""
 echo "  🏠 Production Dashboard:"
 echo "     https://host.evindrake.net"
-echo "     Credentials: evin / homelab"
 echo ""
 echo "  🧪 Demo Dashboard:"
 echo "     https://test.evindrake.net"
-echo "     Credentials: demo / demo"
 echo ""
 echo "  🎮 Moonlight Gaming:"
 echo "     https://game.evindrake.net"
-echo "     (No login required)"
 echo ""
 echo "  🤖 Stream Bot:"
 echo "     https://stream.rig-city.com"
