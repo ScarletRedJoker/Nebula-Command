@@ -36,9 +36,7 @@ def control_device():
     device_id = data.get('device_id')
     action = data.get('action')
     
-    return jsonify({
-        'success': True,
-        'device_id': device_id,
-        'action': action,
-        'message': f'Device {device_id} {action}'
-    })
+    ha_service = get_homeassistant_service()
+    result = ha_service.control_device(device_id, action)
+    
+    return jsonify(result)

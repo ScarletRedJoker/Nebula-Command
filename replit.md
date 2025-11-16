@@ -59,6 +59,28 @@ The Homelab Dashboard features a cosmic theme with deep space backgrounds, anima
 **Jarvis Voice Commands**
 - **Features**: NLP parsing for domain, IP, DNS, app names, and mount commands. AI service enhancements to handle DNS, NAS, and Marketplace commands with intelligent routing and graceful fallbacks.
 
+**Smart Home Integration (November 16, 2024) - REAL FEATURE**
+- **Purpose**: Complete Home Assistant integration for IoT device control and automation
+- **Features**: Device discovery and control, automation management, energy monitoring dashboard, real-time stats (daily consumption, cost, peak hour)
+- **REST API**: 4 endpoints (/devices, /automations, /energy, /control) with authentication
+- **UI**: Professional cosmic-themed interface with device grid, automation list, energy cards
+- **Demo Mode**: Mock service providers for investor demos (detached from real Home Assistant)
+
+**Local AI Foundry (November 16, 2024) - REAL FEATURE**
+- **Purpose**: Ollama local AI model management and ChatGPT alternative
+- **Features**: AI model lifecycle (download, status, management), local chat interface, model selection, real-time AI responses
+- **REST API**: 2 endpoints (/models, /chat) for AI operations
+- **UI**: Model management grid, download progress, ChatGPT-style chat interface
+- **Models**: Llama 2, Mistral, CodeLlama with size and status tracking
+- **Demo Mode**: Mock AI responses for investor demos
+
+**Demo Mode System (November 16, 2024)**
+- **Purpose**: Investor-ready demo environment completely detached from production
+- **Features**: Auto-login credentials (evin/homelab), mock service registry for Docker/PowerDNS/HomeAssistant/NAS
+- **ServiceRegistry**: Protocol-based interfaces with factory pattern for demo/production switching
+- **Security**: Demo mode clearly marked, production mode requires explicit credentials
+- **UI Improvements**: Removed spinning background (kept twinkling stars), fixed scrollbar issues
+
 **Jarvis Control Center**
 - **Features**: Hero Dashboard with real-time stats, Quick Actions Grid, Live Activity Feed, Featured Apps section, System Status indicators, and auto-refresh.
 
