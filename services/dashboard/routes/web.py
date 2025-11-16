@@ -359,3 +359,13 @@ def toggle_category(category_id):
         return jsonify({'success': False, 'error': str(e)}), 500
     finally:
         db_session.close()
+
+@web_bp.route('/marketplace')
+@require_web_auth
+def marketplace():
+    """Container Marketplace - App Store for Homelab"""
+    response = make_response(render_template('marketplace.html', services=Config.SERVICES))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response

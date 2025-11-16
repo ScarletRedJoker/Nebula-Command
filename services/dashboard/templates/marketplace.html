@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+
+{% block title %}App Marketplace - Homelab Dashboard{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/marketplace.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid marketplace-page">
+    <!-- Header Section -->
+    <div class="marketplace-header mb-4">
+        <div class="row align-items-center">
+            <div class="col-lg-8">
+                <h2><i class="bi bi-grid-3x3-gap"></i> App Marketplace</h2>
+                <p class="text-muted mb-0">One-click deployment for your homelab. Nextcloud, Jellyfin, and more.</p>
+            </div>
+            <div class="col-lg-4">
+                <div class="input-group search-bar">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="text" class="form-control" id="marketplace-search" placeholder="Search apps...">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Category Filter -->
+    <div class="category-filter mb-4">
+        <button class="category-badge active" data-category="all">
+            <span class="category-icon">📦</span> All Apps
+        </button>
+        <button class="category-badge" data-category="productivity">
+            <span class="category-icon">📝</span> Productivity
+        </button>
+        <button class="category-badge" data-category="media">
+            <span class="category-icon">🎬</span> Media
+        </button>
+        <button class="category-badge" data-category="security">
+            <span class="category-icon">🔒</span> Security
+        </button>
+        <button class="category-badge" data-category="monitoring">
+            <span class="category-icon">📊</span> Monitoring
+        </button>
+        <button class="category-badge" data-category="ai">
+            <span class="category-icon">🤖</span> AI/ML
+        </button>
+        <button class="category-badge" data-category="iot">
+            <span class="category-icon">🏠</span> IoT
+        </button>
+        <button class="category-badge" data-category="development">
+            <span class="category-icon">💻</span> Development
+        </button>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-9">
+            <!-- Featured Apps Carousel -->
+            <div class="featured-section mb-4">
+                <h4 class="section-title"><i class="bi bi-star-fill text-warning"></i> Featured Apps</h4>
+                <div id="featured-carousel" class="featured-apps-grid">
+                    <div class="loading-state">
+                        <div class="cosmic-loader"></div>
+                        <p class="mt-3 text-muted">Loading featured apps...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- All Apps Grid -->
+            <div class="apps-section">
+                <h4 class="section-title"><i class="bi bi-grid"></i> All Applications</h4>
+                <div id="apps-grid" class="apps-grid">
+                    <div class="loading-state">
+                        <div class="cosmic-loader"></div>
+                        <p class="mt-3 text-muted">Loading applications...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- My Deployments Sidebar -->
+        <div class="col-lg-3">
+            <div class="deployments-sidebar cosmic-glass-card">
+                <div class="sidebar-header">
+                    <h5><i class="bi bi-rocket-takeoff"></i> My Deployments</h5>
+                    <button class="btn btn-sm btn-outline-primary" onclick="refreshDeployments()" aria-label="Refresh deployments">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </button>
+                </div>
+                <div id="my-deployments" class="deployments-list">
+                    <div class="loading-state-small">
+                        <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                        <p class="small mt-2 text-muted">Loading...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Deploy Modal -->
+<div class="modal fade" id="deployModal" tabindex="-1" aria-labelledby="deployModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content cosmic-glass-card">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title" id="deployModalLabel">
+                        <i class="bi bi-rocket-takeoff"></i> Deploy Application
+                    </h5>
+                    <small class="text-muted" id="deploy-app-name"></small>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="deployForm">
+                    <input type="hidden" id="deploy-template-id">
+                    
+                    <div class="app-preview mb-4">
+                        <div class="row">
+                            <div class="col-md-3 text-center">
+                                <img id="deploy-app-icon" src="" alt="App icon" class="app-icon-large">
+                            </div>
+                            <div class="col-md-9">
+                                <h5 id="deploy-app-display-name"></h5>
+                                <p id="deploy-app-description" class="text-muted"></p>
+                                <div class="app-meta">
+                                    <span class="badge badge-category" id="deploy-app-category"></span>
+                                    <span class="badge bg-secondary" id="deploy-app-version"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="deploy-subdomain" class="form-label">
+                            Subdomain <span class="text-danger">*</span>
+                        </label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="deploy-subdomain" placeholder="nextcloud" required pattern="[a-z0-9-_]+">
+                            <span class="input-group-text">.evindrake.net</span>
+                        </div>
+                        <div class="form-text">Choose a subdomain for accessing this app (lowercase, no spaces)</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Environment Variables</label>
+                        <div id="deploy-env-vars" class="env-vars-container">
+                            <!-- Environment variables will be populated dynamically -->
+                        </div>
+                        <div class="form-text">Auto-generated passwords will be shown after deployment</div>
+                    </div>
+
+                    <div class="deployment-info alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>What happens next:</strong>
+                        <ul class="mb-0 mt-2">
+                            <li>Container will be deployed with Docker Compose</li>
+                            <li>Reverse proxy will be configured automatically</li>
+                            <li>SSL certificate will be provisioned via Let's Encrypt</li>
+                            <li>Service will be accessible at https://<strong id="preview-url"></strong></li>
+                        </ul>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="submitDeployment()">
+                    <i class="bi bi-rocket-takeoff"></i> Deploy Now
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Deployment Progress Toast -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+    <div id="deployment-toast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header cosmic-gradient">
+            <i class="bi bi-rocket-takeoff me-2"></i>
+            <strong class="me-auto">Deployment in Progress</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body">
+            <div id="deployment-progress-content">
+                <div class="cosmic-progress mb-2">
+                    <div class="cosmic-progress-fill" style="width: 50%"></div>
+                </div>
+                <p class="mb-0" id="deployment-status-text">Deploying container...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- App Detail Modal -->
+<div class="modal fade" id="appDetailModal" tabindex="-1" aria-labelledby="appDetailModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content cosmic-glass-card">
+            <div class="modal-header">
+                <h5 class="modal-title" id="appDetailModalLabel">
+                    <i class="bi bi-info-circle"></i> Application Details
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-4 text-center">
+                        <img id="detail-app-icon" src="" alt="App icon" class="app-icon-xl mb-3">
+                        <h4 id="detail-app-name"></h4>
+                        <div class="star-rating mb-3" id="detail-app-rating"></div>
+                        <button class="btn btn-primary btn-lg w-100" onclick="showDeployModalFromDetail()">
+                            <i class="bi bi-rocket-takeoff"></i> Deploy
+                        </button>
+                    </div>
+                    <div class="col-md-8">
+                        <h5>Description</h5>
+                        <p id="detail-app-description"></p>
+                        
+                        <h5 class="mt-4">Technical Details</h5>
+                        <ul>
+                            <li><strong>Category:</strong> <span id="detail-app-category"></span></li>
+                            <li><strong>Version:</strong> <span id="detail-app-version"></span></li>
+                            <li><strong>Author:</strong> <span id="detail-app-author"></span></li>
+                            <li><strong>Downloads:</strong> <span id="detail-app-downloads"></span></li>
+                        </ul>
+
+                        <div id="detail-app-dependencies" class="mt-3" style="display: none;">
+                            <h5>Dependencies</h5>
+                            <p class="text-muted" id="detail-dependencies-list"></p>
+                        </div>
+
+                        <div class="mt-4">
+                            <a id="detail-app-homepage" href="#" target="_blank" class="btn btn-outline-primary me-2">
+                                <i class="bi bi-house"></i> Homepage
+                            </a>
+                            <a id="detail-app-docs" href="#" target="_blank" class="btn btn-outline-info">
+                                <i class="bi bi-book"></i> Documentation
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/marketplace.js') }}"></script>
+<script>
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        initializeMarketplace();
+    });
+</script>
+{% endblock %}
