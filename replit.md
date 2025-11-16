@@ -74,6 +74,14 @@ The Homelab Dashboard features a cosmic theme with deep space backgrounds, anima
 - **Models**: Llama 2, Mistral, CodeLlama with size and status tracking
 - **Demo Mode**: Mock AI responses for investor demos
 
+**Moonlight Game Streaming (November 16, 2024) - REAL FEATURE**
+- **Purpose**: NVIDIA GameStream alternative for remote gaming from Ubuntu rig
+- **Features**: 4K 120fps streaming, low latency (&lt;20ms local), hardware encoding (NVIDIA GPU), encrypted streams
+- **Landing Page**: game.evindrake.net shows polished Moonlight download page with platform-specific clients
+- **Routes**: /game-connect and /moonlight (public, no auth required for investor demos)
+- **Platforms**: Windows, Linux, Android, iOS, Apple TV with direct download links
+- **UI**: Gaming-themed page with neon effects, stat cards, quick start guide, platform buttons
+
 **Demo Mode System (November 16, 2024)**
 - **Purpose**: Investor-ready demo environment completely detached from production
 - **Features**: Auto-login credentials (demo/demo for test.evindrake.net), mock service registry for Docker/PowerDNS/HomeAssistant/NAS
