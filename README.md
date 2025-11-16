@@ -10,7 +10,7 @@
 
 A comprehensive web-based platform for managing Ubuntu homelab servers with enterprise-grade reliability and intelligent automation. Built with Flask, PostgreSQL, and GPT-4 powered AI assistance.
 
-**Live Demo**: [host.evindrake.net](https://host.evindrake.net)
+**Live Demo**: [test.evindrake.net](https://test.evindrake.net) (Login: evin / homelab)
 
 ### Core Capabilities
 
@@ -76,7 +76,7 @@ POST /api/domains/:id/provision
 ### Multi-Service Platform
 
 **8 Production Services:**
-- Dashboard (host.evindrake.net)
+- Dashboard (test.evindrake.net - Demo / home.evindrake.net - Production)
 - Discord Bot (bot.rig-city.com)
 - Stream Bot (stream.rig-city.com)
 - Plex Media (plex.evindrake.net)
