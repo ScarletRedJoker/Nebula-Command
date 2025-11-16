@@ -30,6 +30,33 @@ bash MASTER_FIX_ALL.sh
 4. Enhanced MASTER_FIX_ALL.sh to fix rig-city.com SSL errors and include all services
 5. Added missing packages: winston (discord-bot), lodash (stream-bot)
 
+### Jarvis IDE Integration - Design Complete (November 16, 2025)
+**Status**: Design phase complete, ready for implementation
+
+**What It Is:**
+AI-powered coding assistant integrated directly into code-server (VS Code in browser) with multi-model collaboration.
+
+**Key Features:**
+- ✅ AI chat interface within IDE
+- ✅ Context-aware code generation (GPT-5, GPT-4, Ollama)
+- ✅ Multi-model collaboration (AI models discuss code with each other)
+- ✅ Code diff preview and apply
+- ✅ Bug detection and explanation
+- ✅ Project-wide code analysis
+
+**Architecture:** WebView Panel + REST API (`/api/ide/*`)
+
+**Documentation:**
+- `docs/CODE_SERVER_SETUP.md` - Setup & troubleshooting
+- `docs/JARVIS_IDE_INTEGRATION.md` - Full design document
+- `docs/JARVIS_IDE_API_SPEC.md` - API specifications
+- `JARVIS_IDE_SUMMARY.md` - Executive summary
+
+**Implementation Timeline:** 6 weeks (4 phases)
+**Estimated Effort:** 210 hours
+
+**Status:** ✅ Code-server WebSocket verified (PASSWORD configured correctly)
+
 ---
 
 ## Overview
@@ -61,6 +88,7 @@ Production-ready web dashboard for managing Ubuntu homelab servers across 3 doma
 - n8n Automation (n8n.evindrake.net)
 - Static Website (scarletredjoker.com)
 - VNC Desktop (vnc.evindrake.net)
+- Code-Server / VS Code (code.evindrake.net) - ✅ WebSocket configured
 - Homelab Dashboard (test.evindrake.net - demo, host.evindrake.net - production)
 - Home Assistant (home.evindrake.net)
 
@@ -68,6 +96,7 @@ Production-ready web dashboard for managing Ubuntu homelab servers across 3 doma
 - Demo Dashboard: https://test.evindrake.net (demo/demo)
 - Production Dashboard: https://host.evindrake.net (evin/homelab)
 - Game Streaming: https://game.evindrake.net
+- Code-Server (VS Code): https://code.evindrake.net (PASSWORD from .env)
 
 ---
 
