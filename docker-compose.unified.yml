@@ -13,6 +13,7 @@ volumes:
   minio_data:
   homeassistant_config:
   code_server_config:
+    external: true
   code_server_data:
 
 services:
