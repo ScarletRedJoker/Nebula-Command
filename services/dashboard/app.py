@@ -5,6 +5,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 import sys
 import os
+import secrets
 from datetime import timedelta
 import structlog
 import warnings
@@ -24,6 +25,8 @@ from routes.artifact_routes import artifact_bp
 from routes.jarvis_voice_api import jarvis_voice_bp
 from routes.smart_home_api import smart_home_bp, limiter
 from routes.google_services_api import google_services_bp
+from routes.homeassistant_api import ha_bp
+from routes.ai_foundry_api import ai_foundry_bp
 from routes.jarvis_approval_api import jarvis_approval_bp
 from routes.logs_api import logs_api_bp
 from routes.celery_analytics_api import celery_analytics_bp
@@ -106,32 +109,45 @@ if not app.debug and os.environ.get('FLASK_ENV') == 'production':
     
     logger.info("Production logging enabled - logs saved to logs/app.log")
 
-# CRITICAL: Validate required environment variables
-missing_vars = []
-if not os.environ.get('WEB_USERNAME'):
-    missing_vars.append('WEB_USERNAME')
-if not os.environ.get('WEB_PASSWORD'):
-    missing_vars.append('WEB_PASSWORD')
+# Demo Mode Configuration
+DEMO_MODE = os.getenv('DEMO_MODE', 'true').lower() == 'true'
 
-if missing_vars:
-    logger.error("=" * 60)
-    logger.error("CRITICAL: Missing required environment variables!")
-    logger.error(f"Missing: {', '.join(missing_vars)}")
-    logger.error("Set these in your .env file before starting the dashboard.")
-    logger.error("Example:")
-    logger.error("  WEB_USERNAME=your_username")
-    logger.error("  WEB_PASSWORD=your_secure_password")
-    logger.error("=" * 60)
-    sys.exit(1)
+# Authentication - Demo Mode Fallback
+if DEMO_MODE:
+    WEB_USERNAME = os.getenv('WEB_USERNAME', 'evin')
+    WEB_PASSWORD = os.getenv('WEB_PASSWORD', 'homelab')
+    DASHBOARD_API_KEY = os.getenv('DASHBOARD_API_KEY', 'demo-api-key-' + secrets.token_urlsafe(16))
+    logger.warning("=" * 60)
+    logger.warning("⚠️  DEMO MODE ENABLED - Using fallback credentials (evin/homelab)")
+    logger.warning("⚠️  This is for investor demos only - DO NOT use in production!")
+    logger.warning("=" * 60)
+else:
+    WEB_USERNAME = os.getenv('WEB_USERNAME')
+    WEB_PASSWORD = os.getenv('WEB_PASSWORD')
+    DASHBOARD_API_KEY = os.getenv('DASHBOARD_API_KEY')
+    
+    missing_vars = []
+    if not WEB_USERNAME:
+        missing_vars.append('WEB_USERNAME')
+    if not WEB_PASSWORD:
+        missing_vars.append('WEB_PASSWORD')
+    
+    if missing_vars:
+        logger.error("=" * 60)
+        logger.error("CRITICAL: Missing required environment variables!")
+        logger.error(f"Missing: {', '.join(missing_vars)}")
+        logger.error("Set these in your .env file before starting the dashboard.")
+        logger.error("Example:")
+        logger.error("  WEB_USERNAME=your_username")
+        logger.error("  WEB_PASSWORD=your_secure_password")
+        logger.error("Or set DEMO_MODE=true for demo/testing")
+        logger.error("=" * 60)
+        sys.exit(1)
 
-# Only show API key warning in development, not in production
-# (Production deployment via deploy.sh automatically generates the key)
-if not os.environ.get('DASHBOARD_API_KEY') and os.environ.get('FLASK_ENV') != 'production':
-    logger.warning("=" * 60)
-    logger.warning("DEVELOPMENT: DASHBOARD_API_KEY not set")
-    logger.warning("For production deployment, use: ./deploy.sh")
-    logger.warning("For manual setup, generate with: python -c 'import secrets; print(secrets.token_urlsafe(32))'")
-    logger.warning("=" * 60)
+# Store in environment for other modules to access
+os.environ['WEB_USERNAME'] = WEB_USERNAME
+os.environ['WEB_PASSWORD'] = WEB_PASSWORD
+os.environ['DASHBOARD_API_KEY'] = DASHBOARD_API_KEY
 
 CORS(app, resources={r"/api/*": {
     "origins": [
@@ -165,6 +181,8 @@ app.register_blueprint(dns_bp)
 app.register_blueprint(nas_bp)
 app.register_blueprint(marketplace_bp)
 app.register_blueprint(agent_bp)
+app.register_blueprint(ha_bp)
+app.register_blueprint(ai_foundry_bp)
 
 # Initialize WebSocket service
 websocket_service.init_app(app)

@@ -27,7 +27,7 @@ This project delivers a comprehensive, production-ready web-based dashboard for 
   - n8n Automation (n8n.evindrake.net)
   - Static Website (scarletredjoker.com)
   - VNC Desktop (vnc.evindrake.net)
-  - Homelab Dashboard (host.evindrake.net)
+  - Homelab Dashboard (test.evindrake.net)
   - Home Assistant (home.evindrake.net)
 - Prefers centralized development environment with clean structure
 - Needs public HTTPS access with automatic SSL (port forwarding configured)
