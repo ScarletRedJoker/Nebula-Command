@@ -1,0 +1,87 @@
+name: infrastructure_fix_ddclient
+tier: 2
+tier_name: REMEDIATE
+risk_level: medium
+category: infrastructure
+description: Restart ddclient service on authentication failures
+requires_approval: false
+auto_execute: true
+execution_interval_minutes: 60
+timeout_seconds: 60
+
+preconditions:
+  - type: ddclient_auth_failure
+    description: Execute only when ddclient authentication failures detected
+  - type: service_exists
+    service: ddclient
+    description: Verify ddclient service is installed
+
+command: |
+  echo "=== Checking ddclient status ===" && \
+  systemctl status ddclient --no-pager || true && \
+  echo "=== Restarting ddclient service ===" && \
+  systemctl restart ddclient && \
+  sleep 5 && \
+  systemctl status ddclient --no-pager && \
+  echo "=== Checking ddclient logs for authentication ===" && \
+  journalctl -u ddclient -n 20 --no-pager && \
+  echo "=== ddclient restart complete ==="
+
+rollback_plan: |
+  If ddclient fails to start or authentication continues to fail:
+  1. Check ddclient config: cat /etc/ddclient.conf (redact sensitive info)
+  2. Verify ZoneEdit credentials are correct
+  3. Check ZoneEdit API status
+  4. Password update requires manual approval - DO NOT auto-edit credentials
+  5. Manual intervention required for credential updates
+
+checkpoint_required: true
+checkpoint_command: systemctl is-active ddclient
+
+safety_checks:
+  - type: read_only_credentials
+    description: NEVER auto-edit passwords - requires manual approval
+    files_protected:
+      - /etc/ddclient.conf
+  
+  - type: restart_limit
+    max_per_hour: 6
+    description: Prevent restart loops - max 6 restarts per hour
+  
+  - type: service_health
+    service: ddclient
+    description: Verify service is running after restart
+
+expected_outputs:
+  - type: service_active
+    service: ddclient
+    description: ddclient service should be active after restart
+  - type: success_message
+    pattern: "SUCCESS|updated|good"
+    description: Look for successful update in logs
+
+alerting:
+  on_success: true
+  on_failure: true
+  metric_name: ddclient_fix_status
+  alert_message: "ddclient service restarted - verify DNS updates"
+  slack_channel: "#infrastructure-alerts"
+
+metadata:
+  tags:
+    - remediate
+    - dns
+    - ddclient
+    - tier2
+    - infrastructure
+  author: jarvis
+  version: "1.0"
+  last_updated: "2025-11-16"
+  autonomous_execution: true
+  notes: |
+    IMPORTANT: Password editing requires manual approval.
+    This action only restarts the service. For credential updates,
+    use infrastructure_update_ddclient_credentials with requires_approval: true
+  related_actions:
+    - infrastructure_diagnose_dns
+    - infrastructure_validate_ddclient

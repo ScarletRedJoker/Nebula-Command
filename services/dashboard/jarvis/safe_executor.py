@@ -17,6 +17,9 @@ from datetime import datetime
 from dataclasses import dataclass
 from enum import Enum
 import json
+import shutil
+import os
+from pathlib import Path
 
 from .command_whitelist import CommandWhitelist, CommandRiskLevel
 
@@ -66,6 +69,14 @@ class ExecutionResult:
 class SafeCommandExecutor:
     """Safe command executor with validation and logging"""
     
+    CONFIG_FILE_WHITELIST = [
+        "/etc/ddclient.conf",
+        "/home/evin/contain/HomeLabHub/Caddyfile",
+        "Caddyfile"
+    ]
+    
+    BACKUP_DIR = "var/backups/configs"
+    
     def __init__(
         self,
         default_timeout: int = 30,
@@ -86,6 +97,8 @@ class SafeCommandExecutor:
         self._execution_timestamps = []
         
         self._setup_audit_logging()
+        
+        os.makedirs(self.BACKUP_DIR, exist_ok=True)
     
     def _setup_audit_logging(self):
         """Setup audit logging to file"""
@@ -358,17 +371,194 @@ class SafeCommandExecutor:
             logger.error(f"Command execution error: {command} - {str(e)}")
             return result
     
-    def get_command_info(self, command: str) -> Dict:
+    def get_command_info(self, command: str) -> Optional[Dict]:
         """Get information about a command without executing
         
         Args:
             command: Command to analyze
             
         Returns:
-            Dictionary with command information
+            Dictionary with command information or None if not found
         """
         return CommandWhitelist.get_command_info(command)
     
     def list_safe_commands(self) -> Dict[str, list]:
         """Get list of all safe commands"""
         return CommandWhitelist.list_all_allowed_commands()
+    
+    def validate_config_file(self, file_path: str, config_type: str = "auto", skip_whitelist_check: bool = False) -> Tuple[bool, str]:
+        """Validate config file syntax before editing
+        
+        Args:
+            file_path: Path to config file
+            config_type: Type of config (auto, caddyfile, ddclient)
+            skip_whitelist_check: If True, skip whitelist validation (for temp files)
+            
+        Returns:
+            Tuple of (is_valid, message)
+        """
+        if not os.path.exists(file_path):
+            return False, f"File not found: {file_path}"
+        
+        if not skip_whitelist_check:
+            if file_path not in self.CONFIG_FILE_WHITELIST and not any(
+                file_path.endswith(wl) for wl in self.CONFIG_FILE_WHITELIST
+            ):
+                return False, f"File not in whitelist: {file_path}"
+        
+        if config_type == "auto":
+            if "Caddyfile" in file_path:
+                config_type = "caddyfile"
+            elif "ddclient" in file_path:
+                config_type = "ddclient"
+        
+        try:
+            if config_type == "caddyfile":
+                result = subprocess.run(
+                    ["docker", "exec", "caddy", "caddy", "validate", "--config", "/etc/caddy/Caddyfile"],
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+                if result.returncode == 0:
+                    return True, "Caddyfile validation passed"
+                else:
+                    return False, f"Caddyfile validation failed: {result.stderr}"
+            
+            elif config_type == "ddclient":
+                with open(file_path, 'r') as f:
+                    content = f.read()
+                
+                required_fields = ['protocol=', 'server=', 'login=']
+                missing = [field for field in required_fields if field not in content]
+                
+                if missing:
+                    return False, f"Missing required fields: {', '.join(missing)}"
+                
+                return True, "ddclient config syntax OK"
+            
+            else:
+                with open(file_path, 'r') as f:
+                    f.read()
+                return True, "Basic syntax check passed"
+                
+        except Exception as e:
+            return False, f"Validation error: {str(e)}"
+    
+    def backup_config_file(self, file_path: str) -> Tuple[bool, str]:
+        """Create timestamped backup in var/backups/configs/
+        
+        Args:
+            file_path: Path to file to backup
+            
+        Returns:
+            Tuple of (success, backup_path or error_message)
+        """
+        try:
+            if not os.path.exists(file_path):
+                return False, f"Source file not found: {file_path}"
+            
+            if file_path not in self.CONFIG_FILE_WHITELIST and not any(
+                file_path.endswith(wl) for wl in self.CONFIG_FILE_WHITELIST
+            ):
+                return False, f"File not in whitelist: {file_path}"
+            
+            timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+            filename = os.path.basename(file_path)
+            backup_filename = f"{filename}.{timestamp}.backup"
+            backup_path = os.path.join(self.BACKUP_DIR, backup_filename)
+            
+            shutil.copy2(file_path, backup_path)
+            
+            audit_entry = {
+                'timestamp': datetime.utcnow().isoformat(),
+                'action': 'config_backup',
+                'source': file_path,
+                'backup': backup_path
+            }
+            self.audit_logger.info(json.dumps(audit_entry))
+            
+            logger.info(f"Created backup: {file_path} -> {backup_path}")
+            
+            return True, backup_path
+            
+        except Exception as e:
+            logger.error(f"Backup failed for {file_path}: {e}")
+            return False, f"Backup error: {str(e)}"
+    
+    def edit_config_safely(
+        self,
+        file_path: str,
+        old_value: str,
+        new_value: str,
+        backup: bool = True
+    ) -> Tuple[bool, str]:
+        """Safe search/replace with validation
+        
+        Args:
+            file_path: Path to config file
+            old_value: Text to replace
+            new_value: Replacement text
+            backup: Whether to create backup before editing
+            
+        Returns:
+            Tuple of (success, message)
+        """
+        try:
+            if not os.path.exists(file_path):
+                return False, f"File not found: {file_path}"
+            
+            if file_path not in self.CONFIG_FILE_WHITELIST and not any(
+                file_path.endswith(wl) for wl in self.CONFIG_FILE_WHITELIST
+            ):
+                return False, f"File not in whitelist: {file_path}"
+            
+            if backup:
+                backup_success, backup_msg = self.backup_config_file(file_path)
+                if not backup_success:
+                    return False, f"Backup failed: {backup_msg}"
+                logger.info(f"Backup created: {backup_msg}")
+            
+            with open(file_path, 'r') as f:
+                content = f.read()
+            
+            if old_value not in content:
+                return False, f"String not found in file: {old_value}"
+            
+            new_content = content.replace(old_value, new_value)
+            
+            temp_file = f"{file_path}.tmp"
+            with open(temp_file, 'w') as f:
+                f.write(new_content)
+            
+            config_type = "auto"
+            if "Caddyfile" in file_path:
+                config_type = "caddyfile"
+            elif "ddclient" in file_path:
+                config_type = "ddclient"
+            
+            is_valid, validation_msg = self.validate_config_file(temp_file, config_type=config_type, skip_whitelist_check=True)
+            
+            if not is_valid:
+                os.remove(temp_file)
+                return False, f"Validation failed after edit: {validation_msg}"
+            
+            shutil.move(temp_file, file_path)
+            
+            audit_entry = {
+                'timestamp': datetime.utcnow().isoformat(),
+                'action': 'config_edit',
+                'file': file_path,
+                'old_value': old_value[:100],
+                'new_value': new_value[:100],
+                'backup_created': backup
+            }
+            self.audit_logger.info(json.dumps(audit_entry))
+            
+            logger.info(f"Config edited successfully: {file_path}")
+            
+            return True, f"Successfully edited {file_path}"
+            
+        except Exception as e:
+            logger.error(f"Config edit failed for {file_path}: {e}")
+            return False, f"Edit error: {str(e)}"

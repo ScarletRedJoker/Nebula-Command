@@ -1,0 +1,154 @@
+name: infrastructure_monitor_deployments
+tier: 1
+tier_name: DIAGNOSE
+risk_level: low
+category: infrastructure
+description: Monitor deployment pipeline and auto-sync system for failures
+requires_approval: false
+auto_execute: true
+execution_interval_minutes: 15
+timeout_seconds: 60
+
+command: |
+  #!/bin/bash
+  # Deployment System Health Monitor
+  
+  echo "=== Deployment System Health Check ==="
+  echo "Timestamp: $(date)"
+  echo ""
+  
+  PROJECT_DIR="/home/evin/contain/HomeLabHub"
+  ISSUES=0
+  
+  # Check Docker Compose status
+  echo "Checking Docker services..."
+  cd "$PROJECT_DIR" || exit 1
+  
+  if docker compose -f docker-compose.unified.yml ps --format json 2>/dev/null | jq -r '.State' | grep -q "running"; then
+    running_count=$(docker compose -f docker-compose.unified.yml ps --format json 2>/dev/null | jq -r 'select(.State == "running")' | wc -l)
+    total_count=$(docker compose -f docker-compose.unified.yml ps --format json 2>/dev/null | wc -l)
+    echo "✓ Docker services: $running_count/$total_count running"
+    
+    if [ "$running_count" -lt "$total_count" ]; then
+      stopped_services=$(docker compose -f docker-compose.unified.yml ps --format json 2>/dev/null | jq -r 'select(.State != "running") | .Service' | tr '\n' ', ')
+      echo "  ⚠ Stopped services: $stopped_services"
+      ISSUES=$((ISSUES + 1))
+    fi
+  else
+    echo "✗ No Docker services running"
+    ISSUES=$((ISSUES + 1))
+  fi
+  
+  # Check recent deployment logs
+  echo ""
+  echo "Checking deployment logs..."
+  
+  if [ -f "$PROJECT_DIR/var/log/replit-sync.log" ]; then
+    recent_deploy_errors=$(tail -100 "$PROJECT_DIR/var/log/replit-sync.log" 2>/dev/null | grep -c "ERROR\|FAILED" || echo "0")
+    
+    if [ "$recent_deploy_errors" -eq 0 ]; then
+      echo "✓ No recent deployment errors"
+    else
+      echo "✗ Recent deployment errors: $recent_deploy_errors"
+      ISSUES=$((ISSUES + 1))
+      
+      # Show last error
+      last_error=$(tail -100 "$PROJECT_DIR/var/log/replit-sync.log" 2>/dev/null | grep "ERROR" | tail -1)
+      if [ -n "$last_error" ]; then
+        echo "  Last error: $last_error"
+      fi
+    fi
+  else
+    echo "⚠ Deployment log not found"
+    ISSUES=$((ISSUES + 1))
+  fi
+  
+  # Check auto-sync timer status
+  echo ""
+  echo "Checking auto-sync system..."
+  
+  if systemctl is-active --quiet replit-sync.timer; then
+    echo "✓ Auto-sync timer: ACTIVE"
+    
+    # Check next scheduled run
+    next_run=$(systemctl status replit-sync.timer 2>/dev/null | grep "Trigger:" | awk '{print $2, $3, $4}')
+    if [ -n "$next_run" ]; then
+      echo "  Next sync: $next_run"
+    fi
+  else
+    echo "✗ Auto-sync timer: INACTIVE"
+    ISSUES=$((ISSUES + 1))
+  fi
+  
+  # Check for deployment lock files (indicates stuck deployment)
+  echo ""
+  echo "Checking for stuck deployments..."
+  
+  lock_files=$(find /tmp -name "homelab-*.lock" -mmin +30 2>/dev/null)
+  if [ -n "$lock_files" ]; then
+    echo "✗ Found stale lock files (>30 min old):"
+    echo "$lock_files"
+    ISSUES=$((ISSUES + 1))
+  else
+    echo "✓ No stale lock files"
+  fi
+  
+  # Check Caddy reverse proxy
+  echo ""
+  echo "Checking reverse proxy..."
+  
+  if docker ps | grep -q caddy; then
+    echo "✓ Caddy: RUNNING"
+    
+    # Quick health check
+    if timeout 5 curl -sI http://localhost:80 >/dev/null 2>&1; then
+      echo "  ✓ Caddy responding on port 80"
+    else
+      echo "  ✗ Caddy not responding on port 80"
+      ISSUES=$((ISSUES + 1))
+    fi
+  else
+    echo "✗ Caddy: NOT RUNNING"
+    ISSUES=$((ISSUES + 1))
+  fi
+  
+  # Summary
+  echo ""
+  echo "=== Deployment System Summary ==="
+  if [ "$ISSUES" -eq 0 ]; then
+    echo "✓ Deployment system healthy"
+    exit 0
+  else
+    echo "✗ Found $ISSUES issue(s) with deployment system"
+    exit 1
+  fi
+
+rollback_plan: null
+checkpoint_required: false
+
+safety_checks:
+  - type: read_only
+    description: Only monitors deployment status, no modifications
+  - type: no_modifications
+    description: Does not modify deployment or services
+
+expected_outputs:
+  - type: deployment_health_status
+    pattern: "Deployment system healthy|issue.*with deployment"
+
+alerting:
+  on_failure: true
+  metric_name: deployment_system_issues
+  alert_message: "Deployment system issues detected - may affect reliability"
+
+metadata:
+  tags:
+    - infrastructure
+    - deployment
+    - monitoring
+    - diagnostics
+    - tier1
+  author: jarvis
+  version: "1.0"
+  last_updated: "2025-11-16"
+  purpose: "Monitor deployment pipeline for investor demo reliability"
