@@ -76,10 +76,15 @@ The Homelab Dashboard features a cosmic theme with deep space backgrounds, anima
 
 **Demo Mode System (November 16, 2024)**
 - **Purpose**: Investor-ready demo environment completely detached from production
-- **Features**: Auto-login credentials (evin/homelab), mock service registry for Docker/PowerDNS/HomeAssistant/NAS
+- **Features**: Auto-login credentials (demo/demo for test.evindrake.net), mock service registry for Docker/PowerDNS/HomeAssistant/NAS
 - **ServiceRegistry**: Protocol-based interfaces with factory pattern for demo/production switching
 - **Security**: Demo mode clearly marked, production mode requires explicit credentials
 - **UI Improvements**: Removed spinning background (kept twinkling stars), fixed scrollbar issues
+- **Flashy Demo Features (November 16, 2024)**: 
+  - Marketplace deployments show animated progress modal instead of actual deployment
+  - AI chat recognizes deployment requests and shows flashy response with production link
+  - All demo actions link to host.evindrake.net for real operations
+  - Impressive investor-friendly UI without touching production infrastructure
 
 **Jarvis Control Center**
 - **Features**: Hero Dashboard with real-time stats, Quick Actions Grid, Live Activity Feed, Featured Apps section, System Status indicators, and auto-refresh.

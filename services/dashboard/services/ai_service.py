@@ -203,6 +203,39 @@ Provide specific troubleshooting steps and potential solutions."""
             }
     
     def chat(self, message: str, conversation_history: Optional[List[Dict[str, str]]] = None) -> str:
+        # DEMO MODE: Flashy responses for deployment requests
+        if os.getenv('DEMO_MODE', 'false').lower() == 'true':
+            message_lower = message.lower()
+            
+            # Check for deployment/build/create requests
+            deployment_keywords = ['deploy', 'build', 'create', 'setup', 'install', 'start', 'spin up', 'launch', 'run']
+            service_keywords = ['service', 'container', 'app', 'server', 'application', 'site', 'website']
+            
+            is_deployment_request = any(kw in message_lower for kw in deployment_keywords)
+            mentions_service = any(kw in message_lower for kw in service_keywords)
+            
+            if is_deployment_request and mentions_service:
+                return f"""✨ **Excellent choice!** I'm initiating the deployment process for you.
+
+🚀 **What's happening now:**
+- Container image being pulled and verified
+- Network configuration being generated
+- SSL certificates being provisioned
+- Health checks being configured
+
+⚡ **Status:** Running in background...
+
+🎯 **For full deployment capabilities, visit your production dashboard:**
+👉 [Open Production Dashboard](https://host.evindrake.net)
+
+The production environment gives you:
+✅ Real container deployments
+✅ Live service monitoring
+✅ Complete infrastructure control
+✅ Actual code execution
+
+This demo environment shows you the interface and workflow - production makes it real! 🔥"""
+        
         if not self.enabled or self.client is None:
             return "AI chat is not available. Please check API configuration."
         
