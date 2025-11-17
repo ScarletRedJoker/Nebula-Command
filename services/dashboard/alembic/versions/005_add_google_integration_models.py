@@ -17,41 +17,13 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Create enums for Google integration (idempotent)
-    op.execute("""
-        DO $$ BEGIN
-            CREATE TYPE serviceconnectionstatus AS ENUM ('connected', 'disconnected', 'error', 'pending');
-        EXCEPTION
-            WHEN duplicate_object THEN null;
-        END $$;
-    """)
-    op.execute("""
-        DO $$ BEGIN
-            CREATE TYPE automationstatus AS ENUM ('active', 'inactive', 'error');
-        EXCEPTION
-            WHEN duplicate_object THEN null;
-        END $$;
-    """)
-    op.execute("""
-        DO $$ BEGIN
-            CREATE TYPE emailnotificationstatus AS ENUM ('pending', 'sent', 'failed');
-        EXCEPTION
-            WHEN duplicate_object THEN null;
-        END $$;
-    """)
-    op.execute("""
-        DO $$ BEGIN
-            CREATE TYPE backupstatus AS ENUM ('pending', 'uploading', 'completed', 'failed');
-        EXCEPTION
-            WHEN duplicate_object THEN null;
-        END $$;
-    """)
+    # Using VARCHAR instead of ENUM to avoid type conflicts
     
     # Create google_service_status table
     op.create_table('google_service_status',
         sa.Column('id', postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column('service_name', sa.String(length=50), nullable=False),
-        sa.Column('status', postgresql.ENUM('connected', 'disconnected', 'error', 'pending', name='serviceconnectionstatus', create_type=False), nullable=False, server_default='disconnected'),
+        sa.Column('status', sa.String(length=20), nullable=False, server_default='disconnected'),
         sa.Column('last_connected', sa.DateTime(timezone=True), nullable=True),
         sa.Column('last_error', sa.Text(), nullable=True),
         sa.Column('error_count', sa.Integer(), nullable=False, server_default='0'),
@@ -75,7 +47,7 @@ def upgrade() -> None:
         sa.Column('ha_service_data', postgresql.JSON(astext_type=sa.Text()), nullable=True),
         sa.Column('lead_time_minutes', sa.Integer(), nullable=False, server_default='15'),
         sa.Column('lag_time_minutes', sa.Integer(), nullable=False, server_default='0'),
-        sa.Column('status', postgresql.ENUM('active', 'inactive', 'error', name='automationstatus', create_type=False), nullable=False, server_default='active'),
+        sa.Column('status', sa.String(length=20), nullable=False, server_default='active'),
         sa.Column('last_triggered', sa.DateTime(timezone=True), nullable=True),
         sa.Column('trigger_count', sa.Integer(), nullable=False, server_default='0'),
         sa.Column('last_error', sa.Text(), nullable=True),
@@ -91,7 +63,7 @@ def upgrade() -> None:
         sa.Column('recipient', sa.String(length=255), nullable=False),
         sa.Column('subject', sa.String(length=500), nullable=False),
         sa.Column('template_type', sa.String(length=50), nullable=False, server_default='custom'),
-        sa.Column('status', postgresql.ENUM('pending', 'sent', 'failed', name='emailnotificationstatus', create_type=False), nullable=False, server_default='pending'),
+        sa.Column('status', sa.String(length=20), nullable=False, server_default='pending'),
         sa.Column('gmail_message_id', sa.String(length=255), nullable=True),
         sa.Column('gmail_thread_id', sa.String(length=255), nullable=True),
         sa.Column('sent_at', sa.DateTime(timezone=True), nullable=True),
@@ -111,7 +83,7 @@ def upgrade() -> None:
         sa.Column('file_size', sa.Integer(), nullable=False, server_default='0'),
         sa.Column('local_path', sa.String(length=1000), nullable=True),
         sa.Column('drive_folder_id', sa.String(length=255), nullable=True),
-        sa.Column('status', postgresql.ENUM('pending', 'uploading', 'completed', 'failed', name='backupstatus', create_type=False), nullable=False, server_default='pending'),
+        sa.Column('status', sa.String(length=20), nullable=False, server_default='pending'),
         sa.Column('uploaded_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('web_view_link', sa.String(length=1000), nullable=True),
         sa.Column('backup_type', sa.String(length=100), nullable=False, server_default='manual'),
@@ -158,9 +130,3 @@ def downgrade() -> None:
     op.drop_table('email_notifications')
     op.drop_table('calendar_automations')
     op.drop_table('google_service_status')
-    
-    # Drop enums
-    op.execute('DROP TYPE IF EXISTS backupstatus')
-    op.execute('DROP TYPE IF EXISTS emailnotificationstatus')
-    op.execute('DROP TYPE IF EXISTS automationstatus')
-    op.execute('DROP TYPE IF EXISTS serviceconnectionstatus')
