@@ -38,6 +38,7 @@ from routes.agent_api import agent_bp
 from services.activity_service import activity_service
 from services.db_service import db_service
 from services.websocket_service import websocket_service
+from models import get_session
 import redis
 
 # Configure structlog for structured JSON logging
