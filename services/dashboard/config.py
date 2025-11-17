@@ -2,7 +2,7 @@ import os
 import secrets
 
 class Config:
-    """Configuration for NebulaCommand Dashboard"""
+    """Configuration for Homelab Dashboard"""
     
     # Flask settings
     SECRET_KEY = os.environ.get('SESSION_SECRET') or secrets.token_urlsafe(32)

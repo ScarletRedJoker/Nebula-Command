@@ -1,5 +1,6 @@
 import tmi from "tmi.js";
 import * as cron from "node-cron";
+import { createClient } from "@retconned/kick-js";
 import { UserStorage } from "./user-storage";
 import { generateSnappleFact } from "./openai";
 import { sendYouTubeChatMessage, getActiveYouTubeLivestream } from "./youtube-client";
@@ -8,7 +9,6 @@ import { moderationService } from "./moderation-service";
 import { giveawayService } from "./giveaway-service";
 import { statsService } from "./stats-service";
 import { streamerInfoService } from "./streamer-info";
-import { shoutoutService } from "./shoutout-service";
 import { GamesService } from "./games-service";
 import { currencyService } from "./currency-service";
 import { songRequestService } from "./song-request-service";
@@ -23,7 +23,7 @@ type BotEvent = {
   data: any;
 };
 
-type KickClient = any;
+type KickClient = ReturnType<typeof createClient>;
 
 export class BotWorker {
   private twitchClient: tmi.Client | null = null;
@@ -191,7 +191,7 @@ export class BotWorker {
       this.streamStartTime = null;
 
       // End sessions for all active platforms
-      for (const platform of Array.from(this.activePlatforms)) {
+      for (const platform of this.activePlatforms) {
         const session = await statsService.getCurrentSession(this.userId, platform);
         if (session) {
           await statsService.endSession(session.id);
@@ -1014,12 +1014,11 @@ export class BotWorker {
         
         try {
           const tier = methods?.plan ? `Tier ${methods.plan.replace("000", "")}` : "Tier 1";
-          const monthsNum = typeof months === 'string' ? parseInt(months) : months;
           const alertResult = await this.alertsService.triggerAlert(
             this.userId,
             "subscriber",
             "twitch",
-            { username, tier, months: monthsNum || 1 }
+            { username, tier, months: parseInt(months) || 1 }
           );
           
           if (alertResult.shouldPost && alertResult.message && this.twitchClient) {
@@ -1164,7 +1163,7 @@ export class BotWorker {
 
           // Check for poll commands (!poll, !vote)
           if (["!poll", "!vote"].includes(commandName)) {
-            const isMod = Boolean(tags.mod || tags.badges?.moderator || tags.badges?.broadcaster);
+            const isMod = tags.mod || tags.badges?.moderator || tags.badges?.broadcaster || false;
             const pollResponse = await this.handlePollCommand(trimmedMessage, username, "twitch", isMod);
             
             if (pollResponse && this.twitchClient) {
@@ -1175,7 +1174,7 @@ export class BotWorker {
 
           // Check for prediction commands (!predict, !bet)
           if (["!predict", "!bet"].includes(commandName)) {
-            const isMod = Boolean(tags.mod || tags.badges?.moderator || tags.badges?.broadcaster);
+            const isMod = tags.mod || tags.badges?.moderator || tags.badges?.broadcaster || false;
             const predictionResponse = await this.handlePredictionCommand(trimmedMessage, username, "twitch", isMod);
             
             if (predictionResponse && this.twitchClient) {
@@ -1186,7 +1185,7 @@ export class BotWorker {
 
           // Check for song request commands (!songrequest, !sr, !currentsong, !queue, !skipsong, !removesong, !nowplaying)
           if (["!songrequest", "!sr", "!currentsong", "!nowplaying", "!queue", "!skipsong", "!removesong"].includes(commandName)) {
-            const isMod = Boolean(tags.mod || tags.badges?.moderator || tags.badges?.broadcaster);
+            const isMod = tags.mod || tags.badges?.moderator || tags.badges?.broadcaster || false;
             const songResponse = await this.handleSongRequestCommand(trimmedMessage, username, isMod);
             
             if (songResponse && this.twitchClient) {
@@ -1203,7 +1202,7 @@ export class BotWorker {
           }
 
           // Check for giveaway entry if no custom command matched
-          const isSubscriber = Boolean(tags.subscriber || tags.badges?.subscriber);
+          const isSubscriber = tags.subscriber || tags.badges?.subscriber || false;
           const giveawayResponse = await this.handleGiveawayEntry(
             trimmedMessage,
             username,
@@ -1267,17 +1266,7 @@ export class BotWorker {
   private async startKickClient(connection: PlatformConnection, keywords: string[]) {
     if (!connection.platformUsername) return;
 
-    // Check if Kick integration is enabled (enabled by default, can be disabled with env var)
-    const enableKick = process.env.ENABLE_KICK_INTEGRATION !== 'false';
-    if (!enableKick) {
-      console.log('[BotWorker] Kick integration is disabled via ENABLE_KICK_INTEGRATION environment variable');
-      return;
-    }
-
     try {
-      // Dynamic import of Kick client to avoid bundling issues
-      const { createClient } = await import("@retconned/kick-js");
-      
       const channelName = connection.platformUsername.toLowerCase();
       this.kickChannelSlug = channelName;
       this.kickClient = createClient(channelName, { logger: false, readOnly: false });
@@ -1317,7 +1306,7 @@ export class BotWorker {
           const response = await this.executeCustomCommand(commandName, message.sender.username);
           
           if (response && this.kickClient && this.kickClientReady && this.kickChannelSlug) {
-            await this.kickClient.sendMessage(response);
+            await this.kickClient.sendMessage(this.kickChannelSlug, response);
             return; // Don't check keywords if command was executed
           } else if (response && this.kickClient && !this.kickClientReady) {
             console.log(`[BotWorker] Skipping Kick message send - client not ready yet (user ${this.userId})`);
@@ -1348,7 +1337,6 @@ export class BotWorker {
       console.log(`[BotWorker] Kick client starting for user ${this.userId} (${channelName})`);
     } catch (error) {
       console.error(`[BotWorker] Failed to start Kick client for user ${this.userId}:`, error);
-      console.error('[BotWorker] Kick integration will be disabled. To enable, ensure @retconned/kick-js is properly installed and ENABLE_KICK_INTEGRATION is not set to "false".');
       this.kickClient = null;
     }
   }
@@ -1487,7 +1475,7 @@ export class BotWorker {
 
       case "kick":
         if (this.kickClient && this.kickClientReady && this.kickChannelSlug) {
-          await this.kickClient.sendMessage(message);
+          await this.kickClient.sendMessage(this.kickChannelSlug, message);
         } else {
           const reason = !this.kickClient ? "not connected" : !this.kickClientReady ? "not ready" : "missing channel slug";
           console.log(`[BotWorker] Kick client ${reason} for user ${this.userId}`);
@@ -1526,7 +1514,7 @@ export class BotWorker {
   }
 
   private async fetchViewerCounts() {
-    for (const platform of Array.from(this.activePlatforms)) {
+    for (const platform of this.activePlatforms) {
       try {
         let viewerCount = 0;
         

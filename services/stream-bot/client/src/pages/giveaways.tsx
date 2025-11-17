@@ -164,8 +164,7 @@ export default function Giveaways() {
 
   const endMutation = useMutation({
     mutationFn: async (giveawayId: string) => {
-      const res = await apiRequest("POST", `/api/giveaways/${giveawayId}/end`);
-      return await res.json();
+      return await apiRequest("POST", `/api/giveaways/${giveawayId}/end`, {});
     },
     onSuccess: (result: { giveaway: Giveaway; winners: GiveawayWinner[] }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/giveaways"] });

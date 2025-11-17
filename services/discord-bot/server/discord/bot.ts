@@ -22,7 +22,6 @@ import {
 } from './thread-sync';
 import { handlePresenceUpdate, initializeStreamTracking } from './stream-notifications';
 import { initializeAutoDetection, scheduleAutoDetectionScans } from './stream-auto-detection';
-import { botHealthMonitor } from '../monitoring/metrics';
 
 // Discord bot instance
 let client: Client | null = null;
@@ -162,7 +161,7 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
     // Handle interaction create events (slash commands, button clicks, modals)
     client.on(Events.InteractionCreate, async (interaction) => {
       // Handle slash commands
-      if (interaction.isChatInputCommand()) {
+      if (interaction.isCommand()) {
         const command = commands.get(interaction.commandName);
         if (!command) return;
         
@@ -1972,10 +1971,6 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
     client.once(Events.ClientReady, async (readyClient) => {
       console.log(`Discord bot ready! Logged in as ${readyClient.user.tag}`);
       
-      // Update health monitor - bot is ready
-      botHealthMonitor.updateConnectionState('ready', 'Bot successfully connected to Discord');
-      botHealthMonitor.resetUptime();
-      
       // Log connected servers
       const guilds = readyClient.guilds.cache;
       console.log(`\n=== Bot Server Status ===`);
@@ -2019,36 +2014,11 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
     // Setup error handlers
     client.on('error', (error) => {
       console.error('Discord client error:', error);
-      botHealthMonitor.logError(
-        error.message || 'Discord client error',
-        'error',
-        error.stack,
-        'discord_client'
-      );
     });
 
     client.on('warn', (warning) => {
       console.warn('Discord client warning:', warning);
-      botHealthMonitor.logError(warning, 'warning', undefined, 'discord_client');
     });
-    
-    // Track connection state changes
-    client.on('shardDisconnect' as any, () => {
-      console.log('[Discord] Bot disconnected from Discord');
-      botHealthMonitor.updateConnectionState('disconnected', 'Lost connection to Discord');
-    });
-    
-    client.on('shardReconnecting' as any, () => {
-      console.log('[Discord] Bot is reconnecting to Discord');
-      botHealthMonitor.updateConnectionState('reconnecting', 'Attempting to reconnect');
-    });
-    
-    // Update latency periodically
-    setInterval(() => {
-      if (client && client.ws.ping > 0) {
-        botHealthMonitor.updateLatency(client.ws.ping);
-      }
-    }, 30000); // Update every 30 seconds
 
     // Login to Discord with a timeout
     const loginPromise = client.login(process.env.DISCORD_BOT_TOKEN);

@@ -127,12 +127,11 @@ export async function getActiveYouTubeLivestream(): Promise<{ videoId?: string; 
         console.warn(`[YouTube] Active broadcast found (${videoId}) but no live chat ID available`);
       }
       
-      const result: { videoId?: string; liveChatId: string | null; title?: string } = {
-        videoId: videoId || undefined,
-        liveChatId: liveChatId || null,
-        title: broadcast.snippet?.title || undefined,
+      return {
+        videoId,
+        liveChatId,
+        title: broadcast.snippet?.title,
       };
-      return result;
     }
     
     console.log('[YouTube] No active livestream found');

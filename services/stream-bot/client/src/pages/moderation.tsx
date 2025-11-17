@@ -130,24 +130,26 @@ export default function Moderation() {
     queryKey: ["/api/moderation/settings"],
   });
 
-  useWebSocket((message) => {
-    if (message?.type === "moderation_action") {
+  const { lastMessage } = useWebSocket();
+
+  useEffect(() => {
+    if (lastMessage?.type === "moderation_action") {
       const newLog: ModerationLog = {
         id: Date.now().toString(),
-        userId: message.data.userId,
-        platform: message.data.platform,
-        username: message.data.username,
-        message: message.data.message,
-        ruleTriggered: message.data.ruleTriggered,
-        action: message.data.action,
-        severity: message.data.severity || "medium",
+        userId: lastMessage.data.userId,
+        platform: lastMessage.data.platform,
+        username: lastMessage.data.username,
+        message: lastMessage.data.message,
+        ruleTriggered: lastMessage.data.ruleTriggered,
+        action: lastMessage.data.action,
+        severity: lastMessage.data.severity || "medium",
         timestamp: new Date(),
       };
       setRealtimeLogs((prev) => [newLog, ...prev].slice(0, 50));
       queryClient.invalidateQueries({ queryKey: ["/api/moderation/logs"] });
       queryClient.invalidateQueries({ queryKey: ["/api/moderation/stats"] });
     }
-  });
+  }, [lastMessage]);
 
   const allLogs = [...realtimeLogs, ...(logs || [])].slice(0, 100);
 

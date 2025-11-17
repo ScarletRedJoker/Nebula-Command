@@ -12,7 +12,6 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
-/tmp/logs/
 
 # OS
 .DS_Store
@@ -70,11 +69,6 @@ build/
 .next/
 out/
 
-# Service-specific build artifacts
-services/**/dist/
-services/**/build/
-services/**/node_modules/
-
 # Replit
 .replit
 .upm
@@ -104,10 +98,3 @@ caddy_config/
 # Sync script logs and state
 var/log/
 var/state/
-
-# Backups
-/backups/
-/deployment/backups/
-/services/dashboard/var/backups/
-*.backup
-*.bak

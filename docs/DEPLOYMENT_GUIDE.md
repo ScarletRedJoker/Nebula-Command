@@ -156,7 +156,7 @@ sudo nano /etc/systemd/system/homelab-dashboard.service
 Add this content:
 ```ini
 [Unit]
-Description=NebulaCommand Dashboard
+Description=Homelab Dashboard
 After=network.target docker.service
 
 [Service]

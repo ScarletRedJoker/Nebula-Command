@@ -8,13 +8,13 @@
   --star-white: #F9FAFB;
   --star-glow: #FCD34D;
   
-  --gradient-nebula: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-  --gradient-aurora: linear-gradient(180deg, rgba(99, 102, 241, 0.1) 0%, transparent 100%);
-  --gradient-cosmic: radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.15) 0%, transparent 70%);
+  --gradient-nebula: linear-gradient(135deg, #8B5CF6 0%, #EC4899 50%, #3B82F6 100%);
+  --gradient-aurora: linear-gradient(180deg, rgba(139, 92, 246, 0.2) 0%, rgba(59, 130, 246, 0.1) 100%);
+  --gradient-cosmic: radial-gradient(circle at 50% 50%, rgba(139, 92, 246, 0.3) 0%, transparent 70%);
   
-  --glass-cosmic-bg: rgba(26, 35, 50, 0.6);
-  --glass-cosmic-border: rgba(99, 102, 241, 0.2);
-  --glass-cosmic-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.3);
+  --glass-cosmic-bg: rgba(15, 20, 25, 0.7);
+  --glass-cosmic-border: rgba(139, 92, 246, 0.3);
+  --glass-cosmic-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
 }
 
 /* ==================== WCAG AA CONTRAST FIXES ==================== */
@@ -314,24 +314,26 @@ code, pre, .code-block {
 /* Glassmorphic Cosmic Card */
 .cosmic-glass-card {
   background: var(--glass-cosmic-bg);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-radius: 12px;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: 16px;
   border: 1px solid var(--glass-cosmic-border);
   box-shadow: var(--glass-cosmic-shadow);
-  transition: all 0.25s ease;
+  transition: all 0.3s ease;
 }
 
 .cosmic-glass-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px 0 rgba(99, 102, 241, 0.25);
-  border-color: rgba(99, 102, 241, 0.3);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px 0 rgba(139, 92, 246, 0.4);
+  border-color: rgba(139, 92, 246, 0.5);
 }
 
 /* Nebula Gradient Header */
 .cosmic-header {
   background: var(--gradient-nebula);
-  box-shadow: 0 2px 10px rgba(99, 102, 241, 0.3);
+  background-size: 200% 200%;
+  animation: nebulaFlow 15s ease infinite;
+  box-shadow: 0 4px 20px rgba(139, 92, 246, 0.5);
   border-radius: 12px;
   padding: 16px 24px;
 }
@@ -345,19 +347,21 @@ code, pre, .code-block {
 /* Cosmic Button */
 .cosmic-button {
   background: var(--gradient-nebula);
+  background-size: 200% 200%;
   border: none;
-  border-radius: 8px;
+  border-radius: 12px;
   color: white;
   font-weight: 600;
   padding: 10px 20px;
   cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4);
+  animation: nebulaFlow 8s ease infinite;
 }
 
 .cosmic-button:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 6px 25px rgba(139, 92, 246, 0.6);
 }
 
 /* Service Status Cards */
@@ -411,19 +415,24 @@ code, pre, .code-block {
 
 /* Glow Effects */
 .cosmic-glow {
-  box-shadow: 0 0 12px rgba(99, 102, 241, 0.3);
+  box-shadow: 0 0 20px rgba(139, 92, 246, 0.6),
+              0 0 40px rgba(236, 72, 153, 0.4),
+              0 0 60px rgba(59, 130, 246, 0.3);
 }
 
 .cosmic-glow-subtle {
-  box-shadow: 0 0 8px rgba(99, 102, 241, 0.2);
+  box-shadow: 0 0 15px rgba(139, 92, 246, 0.3),
+              0 0 30px rgba(236, 72, 153, 0.2);
 }
 
 /* Stats with Gradient */
 .stat-value-gradient {
   background: var(--gradient-nebula);
+  background-size: 200% 200%;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  animation: nebulaFlow 8s ease infinite;
 }
 
 /* Cosmic Loading Spinner */
@@ -571,25 +580,28 @@ code, pre, .code-block {
   left: 0;
   width: 100%;
   height: 100%;
-  background: radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.03) 0%, transparent 60%);
+  background: 
+    radial-gradient(circle at 20% 20%, rgba(139, 92, 246, 0.08) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(236, 72, 153, 0.06) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, rgba(59, 130, 246, 0.05) 0%, transparent 70%);
   pointer-events: none;
   z-index: 0;
 }
 
 /* Enhanced Cards */
 .card.cosmic {
-  background: linear-gradient(145deg, rgba(26, 35, 50, 0.7) 0%, rgba(17, 24, 39, 0.8) 100%);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(99, 102, 241, 0.15);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  background: linear-gradient(145deg, rgba(31, 41, 55, 0.8) 0%, rgba(17, 24, 39, 0.9) 100%);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(139, 92, 246, 0.1) inset;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .card.cosmic:hover {
-  border-color: rgba(99, 102, 241, 0.3);
-  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.2);
-  transform: translateY(-2px);
+  border-color: rgba(139, 92, 246, 0.4);
+  box-shadow: 0 12px 40px rgba(139, 92, 246, 0.3), 0 0 0 1px rgba(139, 92, 246, 0.2) inset;
+  transform: translateY(-4px);
 }
 
 /* Floating Animation for Cards */
@@ -637,121 +649,14 @@ code, pre, .code-block {
   }
 }
 
-/* ========== MOBILE PERFORMANCE OPTIMIZATIONS ========== */
-
-/* Reduce animation complexity on mobile devices */
+/* Responsive Adjustments */
 @media (max-width: 768px) {
-  /* Slower twinkle animation for better performance */
   .cosmic-bg::before {
-    animation: twinkle 120s linear infinite;
+    animation: twinkle 90s linear infinite;
   }
   
-  /* Reduce blur intensity for better performance */
   .cosmic-glass-card {
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-  }
-
-  /* Reduce nebula opacity on mobile */
-  .nebula-overlay {
-    opacity: 0.2;
-  }
-
-  /* Disable or reduce expensive animations on mobile */
-  .cosmic-float {
-    animation: none;
-  }
-
-  .cosmic-shimmer::after {
-    animation: shimmer 6s infinite;
-  }
-
-  /* Simplify gradient backgrounds */
-  .cosmic-gradient {
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-  }
-
-  /* Reduce glow effects */
-  .cosmic-glow {
-    box-shadow: 0 4px 16px rgba(139, 92, 246, 0.2);
-  }
-}
-
-/* Very small screens - further optimizations */
-@media (max-width: 480px) {
-  /* Even slower animations */
-  .cosmic-bg::before {
-    animation: twinkle 150s linear infinite;
-  }
-
-  /* Further reduce blur */
-  .cosmic-glass-card {
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-  }
-
-  /* Minimal nebula effect */
-  .nebula-overlay {
-    opacity: 0.15;
-  }
-
-  /* Remove shimmer on very small screens */
-  .cosmic-shimmer::after {
-    display: none;
-  }
-}
-
-/* Reduce motion for users who prefer it */
-@media (prefers-reduced-motion: reduce) {
-  .cosmic-bg::before {
-    animation: none;
-  }
-
-  .cosmic-float {
-    animation: none;
-  }
-
-  .cosmic-shimmer::after {
-    animation: none;
-  }
-
-  .cosmic-pulse {
-    animation: none;
-  }
-
-  /* Disable all cosmic animations */
-  * {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-}
-
-/* Battery saver / low power mode optimizations */
-@media (prefers-reduced-motion: reduce), (prefers-contrast: high) {
-  /* Disable starfield canvas on low power mode */
-  #starfield-canvas {
-    display: none !important;
-  }
-
-  /* Simplify backgrounds */
-  .cosmic-bg {
-    background: linear-gradient(180deg, #0a0a0a 0%, #1a1a2e 100%);
-  }
-
-  .nebula-overlay {
-    display: none;
-  }
-}
-
-/* High contrast mode - ensure visibility */
-@media (prefers-contrast: high) {
-  .cosmic-glass-card {
-    background: rgba(17, 24, 39, 0.95);
-    border: 2px solid rgba(139, 92, 246, 0.5);
-  }
-
-  .cosmic-glow {
-    box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.8);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
   }
 }

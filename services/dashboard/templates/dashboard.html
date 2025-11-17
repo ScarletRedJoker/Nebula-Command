@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Mission Control - NebulaCommand Dashboard{% endblock %}
+{% block title %}Mission Control - Homelab Dashboard{% endblock %}
 {% block page_title %}<i class="bi bi-stars"></i> Mission Control{% endblock %}
 
 {% block extra_css %}
@@ -473,165 +473,6 @@
         border: 1px solid rgba(239, 68, 68, 0.3);
         color: var(--accent-red);
     }
-
-    /* ========== MOBILE RESPONSIVENESS ========== */
-    
-    /* Phone - Portrait (320px - 480px) */
-    @media (max-width: 480px) {
-        /* Stack all widgets to single column */
-        .dashboard-grid {
-            grid-template-columns: 1fr !important;
-            gap: 16px;
-        }
-
-        /* Remove column spanning on mobile */
-        .widget[data-widget-id="performance"] {
-            grid-column: span 1 !important;
-        }
-
-        /* Make metrics more compact */
-        .widget {
-            padding: 16px;
-        }
-
-        .widget-header {
-            margin-bottom: 16px;
-        }
-
-        .widget-icon {
-            width: 32px;
-            height: 32px;
-            font-size: 1.1rem;
-        }
-
-        .widget-title {
-            font-size: 0.85rem;
-        }
-
-        .metric-value {
-            font-size: 2rem;
-        }
-
-        .metric-label {
-            font-size: 0.8rem;
-        }
-
-        /* Reduce chart heights on mobile */
-        .chart-container {
-            height: 180px !important;
-        }
-
-        /* Smaller progress rings */
-        .progress-ring {
-            width: 100px;
-            height: 100px;
-        }
-
-        .progress-ring svg {
-            width: 100px;
-            height: 100px;
-        }
-
-        /* Status grid to single column */
-        .status-grid {
-            grid-template-columns: 1fr;
-        }
-
-        /* Activity items more compact */
-        .activity-item {
-            padding: 10px;
-            gap: 10px;
-        }
-
-        .activity-icon {
-            width: 28px;
-            height: 28px;
-            font-size: 0.9rem;
-        }
-
-        /* LED panel wraps on small screens */
-        .led-panel {
-            flex-wrap: wrap;
-            gap: 8px;
-            padding: 10px;
-        }
-
-        .led-group {
-            flex: 0 0 auto;
-        }
-    }
-
-    /* Phone - Landscape & Small Tablets (481px - 767px) */
-    @media (min-width: 481px) and (max-width: 767px) {
-        /* Two column grid for landscape phones */
-        .dashboard-grid {
-            grid-template-columns: repeat(2, 1fr) !important;
-            gap: 16px;
-        }
-
-        /* Performance widget spans full width */
-        .widget[data-widget-id="performance"] {
-            grid-column: span 2;
-        }
-
-        /* Charts slightly smaller */
-        .chart-container {
-            height: 200px !important;
-        }
-    }
-
-    /* Tablet (768px - 1024px) */
-    @media (min-width: 768px) and (max-width: 1024px) {
-        .dashboard-grid {
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 18px;
-        }
-
-        .widget {
-            padding: 20px;
-        }
-
-        .chart-container {
-            height: 220px !important;
-        }
-    }
-
-    /* Touch-friendly buttons on mobile */
-    @media (max-width: 768px) {
-        .btn-favicon-settings {
-            min-width: 44px;
-            min-height: 44px;
-            padding: 10px;
-        }
-
-        .file-input-label {
-            min-height: 48px;
-            padding: 14px 20px;
-        }
-
-        .btn-modal {
-            min-height: 48px;
-            padding: 14px 20px;
-        }
-
-        /* Modal adjustments for mobile */
-        .favicon-modal {
-            padding: 24px;
-            width: calc(100% - 20px);
-            margin: 10px;
-        }
-
-        .favicon-preview {
-            width: 100px;
-            height: 100px;
-        }
-
-        /* LED panel responsive */
-        .led-panel {
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-        }
-    }
 </style>
 {% endblock %}
 
@@ -669,7 +510,7 @@
 
 <!-- Top Row - Critical Metrics -->
 <div class="dashboard-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom: 24px;">
-    <div class="widget" data-widget-id="cpu" style="text-align: center;">
+    <div class="widget" style="text-align: center;">
         <span class="status-led online blink" style="margin-bottom: 12px;"></span>
         <div class="metric-display" style="flex-direction: column; align-items: center;">
             <div class="metric-value glow-text" id="cpu-gauge">-</div>
@@ -690,7 +531,7 @@
         </div>
     </div>
     
-    <div class="widget" data-widget-id="memory" style="text-align: center;">
+    <div class="widget" style="text-align: center;">
         <span class="status-led warning" style="margin-bottom: 12px;"></span>
         <div class="metric-display" style="flex-direction: column; align-items: center;">
             <div class="metric-value glow-text" id="mem-gauge">-</div>
@@ -705,7 +546,7 @@
         </div>
     </div>
     
-    <div class="widget" data-widget-id="disk" style="text-align: center;">
+    <div class="widget" style="text-align: center;">
         <span class="status-led online" style="margin-bottom: 12px;"></span>
         <div class="metric-display" style="flex-direction: column; align-items: center;">
             <div class="metric-value glow-text" id="disk-gauge">-</div>
@@ -720,7 +561,7 @@
         </div>
     </div>
     
-    <div class="widget" data-widget-id="containers" style="text-align: center;">
+    <div class="widget" style="text-align: center;">
         <span class="hex-led" style="margin-bottom: 12px;"></span>
         <div class="metric-display" style="flex-direction: column; align-items: center;">
             <div class="metric-value glow-text" id="container-count">-</div>
@@ -736,7 +577,7 @@
 <!-- Main Dashboard Grid -->
 <div class="dashboard-grid">
     <!-- System Performance Chart -->
-    <div class="widget" data-widget-id="performance" style="grid-column: span 2;">
+    <div class="widget" style="grid-column: span 2;">
         <div class="widget-header">
             <span class="status-led active blink"></span>
             <div class="widget-icon" style="background: linear-gradient(135deg, rgba(96, 165, 250, 0.2), rgba(167, 139, 250, 0.2));">
@@ -750,7 +591,7 @@
     </div>
     
     <!-- Container Status -->
-    <div class="widget" data-widget-id="containerStatus">
+    <div class="widget">
         <div class="widget-header">
             <span class="hex-led"></span>
             <div class="widget-icon" style="background: linear-gradient(135deg, rgba(52, 211, 153, 0.2), rgba(34, 197, 94, 0.2));">
@@ -768,7 +609,7 @@
 
 <div class="dashboard-grid">
     <!-- Network Activity -->
-    <div class="widget" data-widget-id="networkStatus">
+    <div class="widget">
         <div class="widget-header">
             <span class="status-led active blink"></span>
             <div class="widget-icon" style="background: linear-gradient(135deg, rgba(167, 139, 250, 0.2), rgba(139, 92, 246, 0.2));">
@@ -782,7 +623,7 @@
     </div>
     
     <!-- Celery/Redis Health -->
-    <div class="widget" data-widget-id="quickActions">
+    <div class="widget">
         <div class="widget-header">
             <span class="status-led" id="celery-status-led"></span>
             <div class="widget-icon" style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(220, 38, 38, 0.2));">
@@ -801,7 +642,7 @@
     </div>
     
     <!-- Service Health -->
-    <div class="widget" data-widget-id="systemHealth">
+    <div class="widget">
         <div class="widget-header">
             <span class="hex-led"></span>
             <div class="widget-icon" style="background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(22, 163, 74, 0.2));">
@@ -1220,10 +1061,4 @@ document.addEventListener('DOMContentLoaded', function() {
     setInterval(updateCeleryHealth, 5000);
 });
 </script>
-
-{% include 'partials/customization-panel.html' %}
-{% endblock %}
-
-{% block extra_js %}
-<script src="{{ url_for('static', filename='js/dashboard-customization.js') }}?v=1"></script>
 {% endblock %}

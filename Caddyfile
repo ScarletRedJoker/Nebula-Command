@@ -1,35 +1,163 @@
+# Homelab Caddyfile - Auto SSL with Let's Encrypt
+# DNS Records Required: See DNS_SETUP_GUIDE.md for details
+# Last Updated: 2025-11-15
+
 {
-    email evindrake11@gmail.com
+    email evin@evindrake.net
 }
 
+# ============================================
+# Discord Ticket Bot
+# ============================================
 bot.rig-city.com {
-    reverse_proxy discord-bot:5000
+    reverse_proxy discord-bot:5000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Forwarded-Host {host}
+    }
 }
 
+# ============================================
+# Stream Bot (SnappleBotAI)
+# ============================================
 stream.rig-city.com {
-    reverse_proxy stream-bot:5000
+    reverse_proxy stream-bot:5000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Forwarded-Host {host}
+    }
 }
 
+# ============================================
+# Rig City Community Website
+# ============================================
+rig-city.com {
+    reverse_proxy rig-city-site:80
+}
+
+www.rig-city.com {
+    redir https://rig-city.com{uri} permanent
+}
+
+# ============================================
+# Plex Media Server
+# ============================================
 plex.evindrake.net {
     reverse_proxy plex-server:32400
 }
 
+# ============================================
+# n8n Automation Platform
+# ============================================
 n8n.evindrake.net {
     reverse_proxy n8n:5678
 }
 
+# ============================================
+# Homelab Dashboard (Main Control Panel)
+# ============================================
 host.evindrake.net {
-    reverse_proxy homelab-dashboard:5000
+    reverse_proxy homelab-dashboard:5000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Forwarded-Host {host}
+        
+        # CRITICAL: Disable all caching for dashboard routes
+        header_down Cache-Control "no-cache, no-store, must-revalidate, private"
+        header_down Pragma "no-cache"
+        header_down Expires "0"
+    }
 }
 
+# ============================================
+# VNC Remote Desktop
+# ============================================
 vnc.evindrake.net {
-    reverse_proxy vnc-desktop:6080
+    reverse_proxy vnc-desktop:80
 }
 
+# ============================================
+# Code Server (VS Code in Browser)
+# ============================================
+code.evindrake.net {
+    reverse_proxy code-server:8080 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Forwarded-Host {host}
+        
+        # WebSocket support for VS Code
+        header_up Upgrade {>Upgrade}
+        header_up Connection {>Connection}
+    }
+    
+    # Security headers
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        
+        # Disable caching for dynamic content
+        Cache-Control "no-cache, no-store, must-revalidate"
+        Pragma "no-cache"
+        Expires "0"
+    }
+}
+
+# ============================================
+# Game Streaming Connection Page
+# ============================================
+game.evindrake.net {
+    handle / {
+        redir /game-connect permanent
+    }
+    reverse_proxy homelab-dashboard:5000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Forwarded-Host {host}
+        
+        # Disable caching for game connection page
+        header_down Cache-Control "no-cache, no-store, must-revalidate"
+        header_down Pragma "no-cache"
+        header_down Expires "0"
+    }
+}
+
+# ============================================
+# Scarlet Red Joker Personal Website
+# ============================================
 scarletredjoker.com {
     reverse_proxy scarletredjoker-web:80
 }
 
 www.scarletredjoker.com {
     redir https://scarletredjoker.com{uri} permanent
+}
+
+# ============================================
+# Home Assistant - Smart Home Hub
+# ============================================
+home.evindrake.net {
+    reverse_proxy homeassistant:8123 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Forwarded-Host {host}
+        
+        # WebSocket support for Home Assistant
+        header_up Upgrade {>Upgrade}
+        header_up Connection {>Connection}
+    }
 }

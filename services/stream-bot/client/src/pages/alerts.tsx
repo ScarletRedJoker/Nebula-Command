@@ -59,7 +59,7 @@ export default function Alerts() {
   const [historyFilter, setHistoryFilter] = useState<string>("all");
   const [newThreshold, setNewThreshold] = useState<string>("");
 
-  const { data: settings, isLoading } = useQuery<AlertSettingsFormValues>({
+  const { data: settings, isLoading } = useQuery({
     queryKey: ["/api/alerts/settings"],
   });
 
@@ -67,8 +67,7 @@ export default function Alerts() {
     queryKey: ["/api/alerts/history", historyFilter],
     queryFn: async () => {
       const filterParam = historyFilter !== "all" ? `?type=${historyFilter}` : "";
-      const res = await apiRequest("GET", `/api/alerts/history${filterParam}`);
-      return await res.json() as AlertHistory[];
+      return await apiRequest("GET", `/api/alerts/history${filterParam}`);
     },
   });
 

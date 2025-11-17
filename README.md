@@ -1,206 +1,275 @@
-# 🚀 NebulaCommand - Enterprise Infrastructure Platform
+# 🏠 Homelab Development Workspace
 
-> **AI-powered, production-ready infrastructure management system with autonomous operations**
+**Centralized development environment for all homelab services**
 
-[![Status](https://img.shields.io/badge/Status-Production-success)]()
-[![Python](https://img.shields.io/badge/Python-3.11-blue)]()
-[![License](https://img.shields.io/badge/License-MIT-green)]()
+This Repo serves as your development environment for managing 7 production services across 3 domains. Edit code here, test changes, then deploy to your Ubuntu 25.10 homelab server.
 
-## 🎯 Overview
+---
 
-A comprehensive web-based platform for managing Ubuntu servers with enterprise-grade reliability and intelligent automation. Built with Flask, PostgreSQL, and GPT-4 powered AI assistance.
+## 🎯 Quick Start
 
-**Live Demo**: [host.evindrake.net](https://host.evindrake.net)
-
-### Core Capabilities
-
-- 🤖 **Jarvis AI Assistant** - GPT-4 powered with voice control & autonomous operations
-- 🌐 **Domain Management** - Zero-touch DNS → SSL → deployment automation
-- 🐳 **Container Orchestration** - Docker management with real-time monitoring
-- 📊 **System Monitoring** - CPU, memory, disk, network analytics
-- 🔒 **Enterprise Security** - Session auth, API keys, rate limiting, audit logs
-- 🏠 **Smart Home** - Home Assistant integration
-- ☁️ **Cloud Services** - Google Calendar, Gmail, Drive integration
-
-## 🚀 Quick Start
+### 🚀 One Command to Rule Them All
 
 ```bash
-# 1. Interactive setup (5 minutes)
-./setup.sh
-
-# 2. Deploy all services
-./deploy.sh start
-
-# 3. Access dashboard
-http://localhost:5000
-# Default: admin / (password from setup)
+./homelab-manager.sh
 ```
 
-That's it! 🎉
+This launches an **interactive menu** with everything you need:
+- Deploy/redeploy services
+- Start/stop/restart
+- Database management
+- Configuration
+- Logs and troubleshooting
+- Health checks
 
-## 📚 Documentation
-
-- **[Architecture](docs/ARCHITECTURE.md)** - Technical deep-dive, patterns, integrations
-- **[Deployment](docs/DEPLOYMENT.md)** - Setup, commands, troubleshooting
-- **[API Reference](docs/API_REFERENCE.md)** - Complete REST API & WebSocket docs
-- **[Changelog](CHANGELOG.md)** - Version history & breaking changes
-- **[120% Roadmap](ROADMAP_TO_120_PERCENT.md)** - Upcoming features (DNS, NAS, Marketplace)
-
-## ✨ Features
-
-### Jarvis AI System
+### Development Workflow (on Replit)
 ```bash
-"Jarvis, what containers are running?"
-"Jarvis, analyze my disk usage"
-"Jarvis, deploy new service on test.example.com"
+# 1. Edit any service code
+cd services/discord-bot
+# Make your changes...
+
+# 2. Commit changes
+git add .
+git commit -m "Updated Discord bot"
 ```
 
-**20+ Autonomous Actions:**
-- **Tier 1** (Diagnose): Health checks, log analysis, SSL validation
-- **Tier 2** (Remediate): DNS fixes, SSL renewal, service recovery
-- **Tier 3** (Proactive): Cleanup, optimization, maintenance
+### Deployment (on Ubuntu Server)
+```bash
+# 1. SSH to your server
+ssh evin@your-homelab
 
-### Domain Management
-```python
-# Automatic workflow
-1. Create DNS record (ZoneEdit/PowerDNS)
-2. Verify propagation (multi-server check)
-3. Generate Caddy config
-4. Acquire SSL certificate
-5. Verify HTTPS accessibility
+# 2. Pull latest changes
+cd /home/evin/contain/HomeLabHub
+git pull
 
-# One command
-POST /api/domains/:id/provision
+# 3. Run the manager
+./homelab-manager.sh
+# Select: 1) Full Deploy
 ```
 
-### Multi-Service Platform
+---
 
-**8 Production Services:**
-- Dashboard (host.evindrake.net)
-- Discord Bot (bot.rig-city.com)
-- Stream Bot (stream.rig-city.com)
-- Plex Media (plex.evindrake.net)
-- n8n Automation (n8n.evindrake.net)
-- Home Assistant (home.evindrake.net)
-- VNC Desktop (vnc.evindrake.net)
-- Static Site (scarletredjoker.com)
+## 📦 Services
 
-## 🏗️ Architecture
+| **Service** | **Domain** | **Stack** | **Database** |
+|------------|------------|-----------|-------------|
+| **Dashboard** | host.evindrake.net | Flask/Python | None |
+| **Discord Bot** | bot.rig-city.com | TypeScript/React | PostgreSQL |
+| **Stream Bot** | stream.rig-city.com | TypeScript/React | PostgreSQL |
+| **Plex** | plex.evindrake.net | Plex Server | SQLite |
+| **n8n** | n8n.evindrake.net | Node.js | SQLite |
+| **VNC Desktop** | vnc.evindrake.net | noVNC | None |
+| **Code-Server** | code.evindrake.net | VS Code | None |
+| **Static Site** | scarletredjoker.com | HTML/CSS/JS | None |
+
+All services automatically receive SSL certificates via **Caddy**.
+
+---
+
+## 📁 Workspace Structure
 
 ```
-┌─────────────────────────────────────────────┐
-│           Caddy Reverse Proxy               │
-│     (Automatic SSL with Let's Encrypt)      │
-└────────────────┬────────────────────────────┘
-                 │
-        ┌────────┴────────┐
-        │                 │
-┌───────▼──────┐  ┌──────▼────────┐
-│  Dashboard   │  │ Other Services│
-│  (Flask)     │  │ (8 services)  │
-└───────┬──────┘  └───────────────┘
-        │
-┌───────▼──────────────────────────┐
-│   PostgreSQL + Redis + MinIO     │
-│   (Unified Database Container)   │
-└──────────────────────────────────┘
+services/
+├── dashboard/      ← Homelab management UI
+├── discord-bot/    ← Discord Ticket Bot
+├── stream-bot/     ← Twitch/Kick Stream Bot
+├── static-site/    ← scarletredjoker.com
+├── n8n/            ← Workflow automation
+└── plex/           ← Media server config
+
+deployment/         ← Deployment scripts
+├── deploy-unified.sh
+├── generate-unified-env.sh
+├── fix-existing-deployment.sh
+└── ...
+
+docs/              ← Documentation
+├── WORKSPACE_STRUCTURE.md
+├── DEPLOYMENT_FIX_COMPLETE.md
+└── ...
+
+config/            ← Configuration files
+├── postgres-init/ ← Database initialization
+└── ...
+
+docker-compose.unified.yml  ← Main deployment file
+Caddyfile                   ← Reverse proxy config
 ```
 
-**Tech Stack:**
-- Backend: Flask, Python 3.11, SQLAlchemy
-- Database: PostgreSQL 16 + Redis
-- Storage: MinIO (S3-compatible)
-- AI: OpenAI GPT-4
-- Proxy: Caddy (automatic HTTPS)
-- Container: Docker + Docker Compose
+See **[WORKSPACE_STRUCTURE.md](docs/WORKSPACE_STRUCTURE.md)** for complete details.
+
+---
+
+## 🔄 Development Workflow
+
+### **Option 1: Git-Based (Recommended)**
+
+**Setup (one-time):**
+```bash
+# On Ubuntu server:
+cd /home/evin/contain
+git clone <this-replit-git-url> HomeLabHub
+cd HomeLabHub
+./deployment/generate-unified-env.sh
+```
+
+**Daily workflow:**
+1. Edit code on Replit
+2. Commit changes
+3. On Ubuntu: `git pull && ./deployment/deploy-unified.sh`
+
+### **Option 2: rsync/scp**
+
+```bash
+# From Replit or local machine:
+rsync -avz --exclude='node_modules' --exclude='.git' \
+  . evin@your-server:/home/evin/contain/HomeLabHub/
+
+# Then on Ubuntu:
+cd /home/evin/contain/HomeLabHub
+./deployment/deploy-unified.sh
+```
+
+---
+
+## 🛠️ Common Tasks
+
+### All-in-One Manager (Recommended)
+```bash
+./homelab-manager.sh
+```
+
+**Menu Options:**
+- **1** - 🚀 Full Deploy (build and start all)
+- **2** - 🔄 Quick Restart (no rebuild)
+- **6** - 🔄 Restart Specific Service
+- **7** - 🗄️ Fix Database Issues
+- **9** - ⚙️ Generate/Edit .env
+- **11** - 🔍 View Service Logs
+- **13** - 🔧 Full Troubleshoot Mode
+
+### Manual Commands (Advanced Users)
+```bash
+# Full deployment
+./deployment/deploy-unified.sh
+
+# Database maintenance
+./deployment/ensure-databases.sh
+
+# Generate .env
+./deployment/generate-unified-env.sh
+
+# View logs
+docker-compose -f docker-compose.unified.yml logs -f
+
+# Restart a service
+docker-compose -f docker-compose.unified.yml restart discord-bot
+```
+
+---
+
+## 🗄️ Database Architecture
+
+**Single PostgreSQL container** hosts multiple databases:
+
+```
+discord-bot-db (PostgreSQL 16)
+├── ticketbot (Discord Bot database)
+└── streambot (Stream Bot database)
+```
+
+- **Automatic initialization** via scripts in `config/postgres-init/`
+- **For existing deployments:** Run `./deployment/fix-existing-deployment.sh`
+- See [DATABASE_AUTOCONFIGURE_SUMMARY.md](docs/DATABASE_AUTOCONFIGURE_SUMMARY.md) for details
+
+---
+
+## 🌐 Domains & SSL
+
+All domains configured with automatic SSL via Caddy:
+
+- **host.evindrake.net** → Homelab Dashboard
+- **bot.rig-city.com** → Discord Ticket Bot  
+- **stream.rig-city.com** → Stream Bot
+- **plex.evindrake.net** → Plex Server
+- **n8n.evindrake.net** → n8n Automation
+- **vnc.evindrake.net** → VNC Desktop
+- **scarletredjoker.com** → Static Website
+
+SSL certificates automatically obtained from Let's Encrypt.
+
+---
 
 ## 🔐 Security
 
-- ✅ Session-based authentication
-- ✅ API key auth for programmatic access
-- ✅ CSRF protection on all mutations
-- ✅ Rate limiting per endpoint
-- ✅ Audit logging for all actions
-- ✅ Secrets management (never committed)
-- ✅ HTTPS everywhere (automatic SSL)
+- **Environment variables** stored in `.env` (git-ignored)
+- **Secrets management** via `generate-unified-env.sh`
+- **PostgreSQL passwords** auto-generated
+- **No hardcoded credentials** in any code
+- **SSH access** for remote management
 
-## 📊 System Requirements
-
-**Minimum:**
-- Ubuntu 20.04+ or compatible Linux
-- 4GB RAM
-- 20GB disk space
-- Docker + Docker Compose
-
-**Recommended (Production):**
-- Ubuntu 22.04+
-- 8GB RAM
-- 50GB SSD
-- Static IP or Dynamic DNS
-- Domain name
-
-## 🛠️ Development
-
-### Project Structure
-```
-homelab-dashboard/
-├── services/
-│   ├── dashboard/        # Main Flask application
-│   ├── stream-bot/       # Multi-platform stream bot
-│   └── discord-bot/      # Ticket system
-├── docs/                 # Documentation
-├── deployment/           # Deployment scripts
-├── setup.sh              # Interactive setup wizard
-├── deploy.sh             # Deployment automation
-└── docker-compose.unified.yml
-```
-
-### Development Workflow
-1. **Edit on Replit** (development environment)
-2. **Auto-sync** to Ubuntu every 5 minutes
-3. **Deploy** via `./deploy.sh` in production
-
-## 🗺️ Roadmap
-
-### Phase 1: Local DNS (In Progress)
-- PowerDNS integration
-- Replace ZoneEdit dependency
-- DynDNS automation for NAS
-
-### Phase 2: Container Marketplace (Planned)
-- One-click container deployment
-- Template library (Plex, Jellyfin, etc.)
-- GitHub import support
-
-### Phase 3: NAS Integration (Planned)
-- Auto-discover NAS devices
-- Plex automation workflow
-- Backup orchestration
-
-See [ROADMAP_TO_120_PERCENT.md](ROADMAP_TO_120_PERCENT.md) for details.
-
-## 🤝 Contributing
-
-This is a personal project, but suggestions welcome! Open an issue or contact the maintainer.
-
-## 📝 License
-
-MIT License - See LICENSE file for details
-
-## 👤 Author
-
-**Evin** - Homelab enthusiast, parent, and automation addict
+See [SECURITY.md](docs/SECURITY.md) for security best practices.
 
 ---
 
-## 🙏 Acknowledgments
+## 📚 Documentation
 
-- OpenAI for GPT-4 API
-- Caddy for amazing reverse proxy
-- Docker & Docker Compose
-- PostgreSQL, Redis, MinIO
-- All the amazing open-source projects
+- **[WORKSPACE_STRUCTURE.md](docs/WORKSPACE_STRUCTURE.md)** - Complete workspace guide
+- **[DEPLOYMENT_FIX_COMPLETE.md](docs/DEPLOYMENT_FIX_COMPLETE.md)** - Deployment troubleshooting
+- **[DATABASE_AUTOCONFIGURE_SUMMARY.md](docs/DATABASE_AUTOCONFIGURE_SUMMARY.md)** - Database setup
+- **[ENV_QUICK_GUIDE.md](docs/ENV_QUICK_GUIDE.md)** - Environment variables reference
 
 ---
 
-**Need help?** Check [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) or ask Jarvis! 😊
+## 🎉 Why This Workspace?
+
+✅ **Unified Development** - All services in one place  
+✅ **Version Control** - Full Git history  
+✅ **Easy Testing** - Test before deploying to production  
+✅ **Replit AI** - AI-powered development assistance  
+✅ **Automatic Deployment** - One command deploys everything  
+✅ **Clean Organization** - Maintainable codebase structure  
+
+---
+
+## 🚀 Getting Started
+
+**New to this workspace?**
+
+1. **Explore the services:**
+   ```bash
+   ls services/
+   ```
+
+2. **Read the structure guide:**
+   ```bash
+   cat docs/WORKSPACE_STRUCTURE.md
+   ```
+
+3. **Set up deployment to Ubuntu:**
+   ```bash
+   # On Ubuntu server:
+   git clone <this-repo> HomeLabHub
+   cd HomeLabHub
+   ./deployment/generate-unified-env.sh
+   ./deployment/deploy-unified.sh
+   ```
+
+4. **Start developing!**
+
+---
+
+## 🆘 Need Help?
+
+- **Quick fix:** Run `./homelab-manager.sh` → **Option 13** (Troubleshoot)
+- **Database problems:** Run `./homelab-manager.sh` → **Option 7** (Ensure Databases)
+- **Deployment issues:** See `docs/DATABASE_TROUBLESHOOTING.md`
+- **Environment setup:** Run `./homelab-manager.sh` → **Option 9** (Generate .env)
+- **Ask Replit AI:** I can help with any service!
+
+---
+
+**Maintained by:** Evin  
+**Last Updated:** November 2025  
+**Ubuntu Version:** 25.10 Desktop  
+**Architecture:** Docker Compose + Caddy + PostgreSQL

@@ -24,14 +24,13 @@
                 <div class="card-body">
                     <!-- Drag and Drop Zone -->
                     <div id="dropZone" class="border border-2 border-dashed rounded p-5 text-center mb-4" 
-                         style="min-height: 200px; cursor: pointer; transition: all 0.3s;" 
-                         role="button" tabindex="0" aria-label="Drag and drop files here or click to browse">
-                        <i class="bi bi-cloud-upload" style="font-size: 3rem; color: #6c757d;" aria-hidden="true"></i>
+                         style="min-height: 200px; cursor: pointer; transition: all 0.3s;">
+                        <i class="bi bi-cloud-upload" style="font-size: 3rem; color: #6c757d;"></i>
                         <h4 class="mt-3 mb-2">Drag & Drop Files Here</h4>
                         <p class="text-muted mb-3">or click to browse</p>
-                        <input type="file" id="fileInput" class="d-none" multiple aria-label="Select files to upload">
-                        <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()" aria-label="Browse for files to upload">
-                            <i class="bi bi-folder2-open" aria-hidden="true"></i> Browse Files
+                        <input type="file" id="fileInput" class="d-none" multiple>
+                        <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
+                            <i class="bi bi-folder2-open"></i> Browse Files
                         </button>
                     </div>
 
@@ -39,7 +38,7 @@
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label for="bucketSelect" class="form-label">Target Bucket</label>
-                            <select id="bucketSelect" class="form-select" aria-label="Select target bucket for uploaded files">
+                            <select id="bucketSelect" class="form-select">
                                 <option value="artifacts" selected>Artifacts</option>
                                 <option value="deployments">Deployments</option>
                                 <option value="backups">Backups</option>
@@ -48,8 +47,8 @@
                         <div class="col-md-6">
                             <label for="extractZip" class="form-label">Zip Options</label>
                             <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="extractZip" aria-describedby="extractZipHelp">
-                                <label class="form-check-label" for="extractZip" id="extractZipHelp">
+                                <input class="form-check-input" type="checkbox" id="extractZip">
+                                <label class="form-check-label" for="extractZip">
                                     Extract zip files after upload
                                 </label>
                             </div>
@@ -74,8 +73,8 @@
 
                     <!-- Upload Button -->
                     <div class="d-grid gap-2">
-                        <button id="uploadBtn" class="btn btn-success btn-lg" disabled aria-label="Upload selected files">
-                            <i class="bi bi-upload" aria-hidden="true"></i> Upload Files
+                        <button id="uploadBtn" class="btn btn-success btn-lg" disabled>
+                            <i class="bi bi-upload"></i> Upload Files
                         </button>
                     </div>
                 </div>
@@ -124,13 +123,13 @@
                     <h5 class="mb-0">
                         <i class="bi bi-archive"></i> Uploaded Artifacts
                     </h5>
-                    <button class="btn btn-sm btn-light" onclick="loadArtifacts()" aria-label="Refresh artifacts list">
-                        <i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Refresh
+                    <button class="btn btn-sm btn-light" onclick="loadArtifacts()">
+                        <i class="bi bi-arrow-clockwise"></i> Refresh
                     </button>
                 </div>
                 <div class="card-body">
-                    <div id="artifactsLoading" class="text-center py-5" role="status" aria-live="polite">
-                        <div class="spinner-border text-primary" aria-hidden="true">
+                    <div id="artifactsLoading" class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
                             <span class="visually-hidden">Loading...</span>
                         </div>
                         <p class="mt-2 text-muted">Loading artifacts...</p>
@@ -141,21 +140,20 @@
                             <table class="table table-hover">
                                 <thead>
                                     <tr>
-                                        <th scope="col">Filename</th>
-                                        <th scope="col">Size</th>
-                                        <th scope="col">Type</th>
-                                        <th scope="col">Uploaded</th>
-                                        <th scope="col">Actions</th>
+                                        <th>Filename</th>
+                                        <th>Size</th>
+                                        <th>Type</th>
+                                        <th>Uploaded</th>
+                                        <th>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody id="artifactsTableBody">
                                 </tbody>
                             </table>
                         </div>
-                        <div id="noArtifacts" class="text-center py-5 text-muted" style="display: none;">
-                            <i class="bi bi-inbox display-1" aria-hidden="true"></i>
-                            <h3 class="mt-3">No Artifacts Yet</h3>
-                            <p class="mt-2">Upload your first file to get started</p>
+                        <div id="noArtifacts" class="text-center py-4 text-muted" style="display: none;">
+                            <i class="bi bi-inbox" style="font-size: 3rem;"></i>
+                            <p class="mt-2">No artifacts uploaded yet</p>
                         </div>
                     </div>
                 </div>

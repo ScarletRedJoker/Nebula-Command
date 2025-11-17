@@ -151,9 +151,6 @@ class DomainService:
                 with context.wrap_socket(sock, server_hostname=hostname) as ssock:
                     cert = ssock.getpeercert()
                     
-                    if not cert:
-                        return {'valid': False, 'error': 'No certificate found'}
-                    
                     # Parse expiration date
                     expires_str = cert.get('notAfter', '')
                     if not expires_str:
@@ -168,17 +165,15 @@ class DomainService:
                     issuer_dict = {}
                     subject_dict = {}
                     
-                    issuer = cert.get('issuer')
-                    if issuer:
-                        for item in issuer:
+                    if cert.get('issuer'):
+                        for item in cert['issuer']:
                             if isinstance(item, tuple) and len(item) > 0:
                                 key_val = item[0]
                                 if isinstance(key_val, tuple) and len(key_val) == 2:
                                     issuer_dict[key_val[0]] = key_val[1]
                     
-                    subject = cert.get('subject')
-                    if subject:
-                        for item in subject:
+                    if cert.get('subject'):
+                        for item in cert['subject']:
                             if isinstance(item, tuple) and len(item) > 0:
                                 key_val = item[0]
                                 if isinstance(key_val, tuple) and len(key_val) == 2:

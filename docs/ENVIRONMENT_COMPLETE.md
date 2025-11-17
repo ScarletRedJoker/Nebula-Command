@@ -73,7 +73,7 @@ TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET, TWITCH_CHANNEL (optional)
 
 ### By Service
 
-**NebulaCommand Dashboard:**
+**Homelab Dashboard:**
 - 15 variables (6 required, 9 optional)
 - Now includes: WEB_USERNAME, WEB_PASSWORD, AI overrides
 
@@ -148,7 +148,7 @@ git pull
 
 **Deploys:**
 - Caddy (reverse proxy with auto-SSL)
-- NebulaCommand Dashboard
+- Homelab Dashboard
 - Discord Ticket Bot
 - Stream Bot
 - Plex Media Server

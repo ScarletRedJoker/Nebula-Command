@@ -201,7 +201,11 @@ export default function Currency() {
 
   const updateSettingsMutation = useMutation({
     mutationFn: async (data: CurrencySettingsFormValues) => {
-      return await apiRequest("PATCH", "/api/currency/settings", data);
+      return await apiRequest("/api/currency/settings", {
+        method: "PATCH",
+        body: JSON.stringify(data),
+        headers: { "Content-Type": "application/json" },
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/currency/settings"] });
@@ -221,7 +225,11 @@ export default function Currency() {
 
   const createRewardMutation = useMutation({
     mutationFn: async (data: RewardFormValues) => {
-      return await apiRequest("POST", "/api/rewards", data);
+      return await apiRequest("/api/rewards", {
+        method: "POST",
+        body: JSON.stringify(data),
+        headers: { "Content-Type": "application/json" },
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/rewards"] });
@@ -243,7 +251,11 @@ export default function Currency() {
 
   const updateRewardMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: RewardFormValues }) => {
-      return await apiRequest("PATCH", `/api/rewards/${id}`, data);
+      return await apiRequest(`/api/rewards/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+        headers: { "Content-Type": "application/json" },
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/rewards"] });
@@ -265,7 +277,9 @@ export default function Currency() {
 
   const deleteRewardMutation = useMutation({
     mutationFn: async (id: number) => {
-      return await apiRequest("DELETE", `/api/rewards/${id}`);
+      return await apiRequest(`/api/rewards/${id}`, {
+        method: "DELETE",
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/rewards"] });
@@ -285,8 +299,9 @@ export default function Currency() {
 
   const fulfillRedemptionMutation = useMutation({
     mutationFn: async (id: number) => {
-      const res = await apiRequest("POST", `/api/currency/redemptions/${id}/fulfill`);
-      return await res.json();
+      return await apiRequest(`/api/currency/redemptions/${id}/fulfill`, {
+        method: "POST",
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/currency/redemptions"] });

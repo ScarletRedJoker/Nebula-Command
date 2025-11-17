@@ -31,14 +31,20 @@ import { setupAuth } from "./auth";
 import { dbStorage as storage } from "./database-storage";
 import * as dotenv from 'dotenv';
 import { db } from "./db";
-import { logger, getHealthStatus } from "./health";
 
 /**
  * Logging utility function
- * Now uses winston structured logging
+ * Formats and logs messages with timestamp and source
  */
 function log(message: string, source = "express") {
-  logger.info(message, { component: source });
+  const formattedTime = new Date().toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
+
+  console.log(`${formattedTime} [${source}] ${message}`);
 }
 
 /**
@@ -54,17 +60,15 @@ const NODE_ENV = process.env.NODE_ENV || 'development';
 const SESSION_SECRET = process.env.SESSION_SECRET;
 
 if (NODE_ENV === 'production' && !SESSION_SECRET) {
-  logger.error("FATAL: SESSION_SECRET environment variable is required for production!", {
-    component: 'startup'
-  });
-  logger.error("Generate one with: openssl rand -base64 32", { component: 'startup' });
+  console.error("=".repeat(60));
+  console.error("FATAL: SESSION_SECRET environment variable is required for production!");
+  console.error("Generate one with: openssl rand -base64 32");
+  console.error("=".repeat(60));
   process.exit(1);
 }
 
 if (!SESSION_SECRET && NODE_ENV !== 'production') {
-  logger.warn("SESSION_SECRET not set! Using insecure default for development.", {
-    component: 'startup'
-  });
+  console.warn("⚠️  WARNING: SESSION_SECRET not set! Using insecure default for development.");
 }
 
 /**
@@ -80,15 +84,9 @@ if (!process.env.APP_URL && process.env.DISCORD_CALLBACK_URL) {
   try {
     const url = new URL(process.env.DISCORD_CALLBACK_URL);
     process.env.APP_URL = `${url.protocol}//${url.host}`;
-    logger.info('Set APP_URL from DISCORD_CALLBACK_URL', {
-      component: 'startup',
-      appUrl: process.env.APP_URL
-    });
-  } catch (error: any) {
-    logger.error('Failed to parse DISCORD_CALLBACK_URL', {
-      component: 'startup',
-      error: error.message
-    });
+    console.log('Set APP_URL from DISCORD_CALLBACK_URL:', process.env.APP_URL);
+  } catch (error) {
+    console.error('Failed to parse DISCORD_CALLBACK_URL:', error);
   }
 }
 

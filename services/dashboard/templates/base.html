@@ -3,22 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}NebulaCommand Dashboard{% endblock %}</title>
-    
-    <!-- Favicon - Cosmic Homelab Theme -->
-    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
-    <link rel="icon" type="image/png" sizes="512x512" href="{{ url_for('static', filename='favicons/dashboard.png') }}">
-    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='favicon.png') }}">
-    <link rel="apple-touch-icon" sizes="512x512" href="{{ url_for('static', filename='favicons/dashboard.png') }}">
-    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
-    
+    <title>{% block title %}Homelab Dashboard{% endblock %}</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicons/dashboard.png') }}">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/design-tokens.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/spaceship.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/cosmic-theme.css') }}?v=3">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}?v=2">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/presentation-mode.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/cosmic-theme.css') }}?v=2">
     <style>
         :root[data-theme="dark"] {
             --bg-primary: #0a0e1a;
@@ -60,63 +50,14 @@
         }
 
         body {
-            background: #0A0E12;
+            background: radial-gradient(circle at 20% 50%, rgba(96, 165, 250, 0.05) 0%, transparent 50%),
+                        radial-gradient(circle at 80% 80%, rgba(167, 139, 250, 0.05) 0%, transparent 50%),
+                        var(--bg-primary);
             color: var(--text-primary);
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
             min-height: 100vh;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             letter-spacing: -0.011em;
-            position: relative;
-            overflow-x: hidden;
-        }
-
-        .hamburger-menu {
-            position: fixed;
-            top: 20px;
-            left: 20px;
-            z-index: 1100;
-            background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(59, 130, 246, 0.2));
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(139, 92, 246, 0.3);
-            border-radius: 12px;
-            width: 48px;
-            height: 48px;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
-        }
-
-        .hamburger-menu:hover {
-            background: linear-gradient(135deg, rgba(139, 92, 246, 0.3), rgba(59, 130, 246, 0.3));
-            border-color: rgba(139, 92, 246, 0.5);
-            transform: scale(1.05);
-        }
-
-        .hamburger-menu i {
-            font-size: 1.5rem;
-            color: var(--text-primary);
-        }
-
-        .mobile-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.7);
-            backdrop-filter: blur(4px);
-            z-index: 999;
-            display: none;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
-
-        .mobile-overlay.show {
-            display: block;
-            opacity: 1;
         }
 
         .sidebar {
@@ -416,38 +357,16 @@
         }
 
         @media (max-width: 768px) {
-            .hamburger-menu {
-                display: flex;
-            }
-
             .sidebar {
                 transform: translateX(-100%);
             }
 
             .sidebar.show {
                 transform: translateX(0);
-                box-shadow: 4px 0 24px rgba(0, 0, 0, 0.6);
             }
 
             .main-content {
                 margin-left: 0;
-                padding: 20px 15px;
-            }
-
-            .header {
-                margin: -20px -15px 24px -15px;
-                padding: 16px 15px;
-                flex-direction: column;
-                gap: 12px;
-                align-items: flex-start;
-            }
-
-            .header h2 {
-                font-size: 1.5rem;
-            }
-
-            .theme-toggle {
-                align-self: flex-end;
             }
         }
 
@@ -488,17 +407,10 @@
     <canvas id="starfield-canvas"></canvas>
     <div class="nebula-overlay"></div>
     
-    <button class="hamburger-menu" id="hamburger-menu" aria-label="Toggle navigation">
-        <i class="bi bi-list"></i>
-    </button>
-    
-    <div class="mobile-overlay" id="mobile-overlay"></div>
-    
-    <nav class="sidebar cosmic" id="sidebar">
+    <nav class="sidebar cosmic">
         <div class="sidebar-brand">
-            <h4><i class="bi bi-stars"></i> NebulaCommand</h4>
+            <h4><i class="bi bi-stars"></i> Cosmic Homelab</h4>
         </div>
-        
         <ul>
             <li class="nav-item">
                 <a href="/" class="nav-link cosmic {% if request.path == '/' %}active{% endif %}">
@@ -507,27 +419,11 @@
                 </a>
             </li>
             <li class="nav-item">
-                <a href="/control-center" class="nav-link cosmic {% if request.path == '/control-center' %}active{% endif %}" style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(59, 130, 246, 0.15)); border-left: 3px solid #8B5CF6;">
-                    <i class="bi bi-cpu"></i>
-                    <span>Control Center ⭐</span>
-                </a>
-            </li>
-            <li class="nav-item">
                 <a href="/dashboard" class="nav-link cosmic {% if request.path == '/dashboard' %}active{% endif %}">
                     <i class="bi bi-speedometer2"></i>
                     <span>Dashboard</span>
                 </a>
             </li>
-        </ul>
-        
-        <div class="category-header" data-category="system">
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <i class="bi bi-gear-fill" style="color: #60a5fa;"></i>
-                <span style="color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600;">System Management</span>
-            </div>
-            <i class="bi bi-chevron-down"></i>
-        </div>
-        <ul class="category-content">
             <li class="nav-item">
                 <a href="/containers" class="nav-link cosmic {% if request.path == '/containers' %}active{% endif %}">
                     <i class="bi bi-box-seam"></i>
@@ -547,43 +443,9 @@
                 </a>
             </li>
             <li class="nav-item">
-                <a href="/domain-management" class="nav-link cosmic {% if request.path == '/domain-management' %}active{% endif %}">
+                <a href="/domains" class="nav-link cosmic {% if request.path == '/domains' %}active{% endif %}">
                     <i class="bi bi-globe"></i>
-                    <span>Domain Management</span>
-                </a>
-            </li>
-            <li class="nav-item">
-                <a href="/dns" class="nav-link cosmic {% if request.path == '/dns' %}active{% endif %}">
-                    <i class="bi bi-hdd-network"></i>
-                    <span>DNS Management</span>
-                </a>
-            </li>
-            <li class="nav-item">
-                <a href="/databases" class="nav-link cosmic {% if request.path == '/databases' %}active{% endif %}">
-                    <i class="bi bi-database"></i>
-                    <span>Databases</span>
-                </a>
-            </li>
-            <li class="nav-item">
-                <a href="/remote-desktop" class="nav-link cosmic {% if request.path == '/remote-desktop' %}active{% endif %}">
-                    <i class="bi bi-display"></i>
-                    <span>Remote Desktop</span>
-                </a>
-            </li>
-        </ul>
-        
-        <div class="category-header" data-category="monitoring">
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <i class="bi bi-activity" style="color: #34d399;"></i>
-                <span style="color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600;">Monitoring</span>
-            </div>
-            <i class="bi bi-chevron-down"></i>
-        </div>
-        <ul class="category-content">
-            <li class="nav-item">
-                <a href="/monitoring" class="nav-link cosmic {% if request.path == '/monitoring' %}active{% endif %}">
-                    <i class="bi bi-heart-pulse"></i>
-                    <span>Health Dashboard</span>
+                    <span>Domains</span>
                 </a>
             </li>
             <li class="nav-item">
@@ -592,67 +454,31 @@
                     <span>Logs</span>
                 </a>
             </li>
-        </ul>
-        
-        <div class="category-header" data-category="automation">
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <i class="bi bi-robot" style="color: #a78bfa;"></i>
-                <span style="color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600;">Automation</span>
-            </div>
-            <i class="bi bi-chevron-down"></i>
-        </div>
-        <ul class="category-content">
-            <li class="nav-item">
-                <a href="/aiassistant" class="nav-link cosmic {% if request.path == '/aiassistant' %}active{% endif %}">
-                    <i class="bi bi-mic"></i>
-                    <span>Voice Chat (Jarvis)</span>
-                </a>
-            </li>
             <li class="nav-item">
                 <a href="/ai-assistant" class="nav-link cosmic {% if request.path == '/ai-assistant' %}active{% endif %}">
                     <i class="bi bi-robot"></i>
-                    <span>AI Assistant (Text)</span>
+                    <span>AI Assistant (Jarvis)</span>
                 </a>
             </li>
             <li class="nav-item">
-                <a href="/jarvis_code_review" class="nav-link cosmic {% if request.path == '/jarvis_code_review' %}active{% endif %}">
-                    <i class="bi bi-code-square"></i>
-                    <span>Code Review</span>
-                </a>
-            </li>
-            <li class="nav-item">
-                <a href="/jarvis_demo" class="nav-link cosmic {% if request.path == '/jarvis_demo' %}active{% endif %}">
-                    <i class="bi bi-rocket-takeoff"></i>
-                    <span>Investor Demo</span>
-                </a>
-            </li>
-            <li class="nav-item">
-                <a href="/scripts" class="nav-link cosmic {% if request.path == '/scripts' %}active{% endif %}">
-                    <i class="bi bi-terminal"></i>
-                    <span>Scripts</span>
-                </a>
-            </li>
-            <li class="nav-item">
-                <a href="https://n8n.evindrake.net" target="_blank" rel="noopener noreferrer" class="nav-link" style="opacity: 0.9;">
-                    <i class="bi bi-lightning"></i>
-                    <span>n8n Workflows</span>
-                    <i class="bi bi-box-arrow-up-right" style="margin-left: auto; font-size: 0.75rem;"></i>
+                <a href="/game-streaming" class="nav-link cosmic {% if request.path == '/game-streaming' %}active{% endif %}">
+                    <i class="bi bi-controller"></i>
+                    <span>Game Streaming</span>
                 </a>
             </li>
         </ul>
         
-        <div class="category-header" data-category="integrations">
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <i class="bi bi-puzzle" style="color: #fbbf24;"></i>
-                <span style="color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600;">Integrations</span>
+        <div style="padding: 20px 20px 12px; margin: 20px 0 0; border-top: 1px solid var(--border-color);">
+            <div style="color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; margin-bottom: 12px;">
+                <i class="bi bi-house-heart"></i> Smart Home
             </div>
-            <i class="bi bi-chevron-down"></i>
         </div>
-        <ul class="category-content">
+        
+        <ul>
             <li class="nav-item">
                 <a href="/smarthome" class="nav-link cosmic {% if request.path.startswith('/smarthome') %}active{% endif %}">
                     <i class="bi bi-house-heart"></i>
-                    <span>Smart Home</span>
+                    <span>Home Control</span>
                 </a>
             </li>
             <li class="nav-item">
@@ -670,20 +496,13 @@
             </li>
         </ul>
         
-        <div class="category-header" data-category="services">
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <i class="bi bi-grid-3x3-gap" style="color: #ec4899;"></i>
-                <span style="color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600;">Services</span>
+        <div style="padding: 20px 20px 12px; margin: 20px 0 0; border-top: 1px solid var(--border-color);">
+            <div style="color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; margin-bottom: 12px;">
+                <i class="bi bi-grid-3x3-gap"></i> Network Services
             </div>
-            <i class="bi bi-chevron-down"></i>
         </div>
-        <ul class="category-content">
-            <li class="nav-item">
-                <a href="/game-streaming" class="nav-link cosmic {% if request.path == '/game-streaming' %}active{% endif %}">
-                    <i class="bi bi-controller"></i>
-                    <span>Game Streaming</span>
-                </a>
-            </li>
+        
+        <ul>
             <li class="nav-item">
                 <a href="https://bot.rig-city.com" target="_blank" rel="noopener noreferrer" class="nav-link" style="opacity: 0.9;">
                     <i class="bi bi-discord"></i>
@@ -706,6 +525,13 @@
                 </a>
             </li>
             <li class="nav-item">
+                <a href="https://n8n.evindrake.net" target="_blank" rel="noopener noreferrer" class="nav-link" style="opacity: 0.9;">
+                    <i class="bi bi-lightning"></i>
+                    <span>n8n Automation</span>
+                    <i class="bi bi-box-arrow-up-right" style="margin-left: auto; font-size: 0.75rem;"></i>
+                </a>
+            </li>
+            <li class="nav-item">
                 <a href="https://scarletredjoker.com" target="_blank" rel="noopener noreferrer" class="nav-link" style="opacity: 0.9;">
                     <i class="bi bi-globe"></i>
                     <span>Portfolio Site</span>
@@ -720,74 +546,15 @@
                 </a>
             </li>
         </ul>
-        
-        <div class="category-header" data-category="intelligence">
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <i class="bi bi-robot" style="color: #a78bfa;"></i>
-                <span style="color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600;">Intelligence Platform</span>
-            </div>
-            <i class="bi bi-chevron-down"></i>
-        </div>
-        <ul class="category-content">
-            <li class="nav-item">
-                <a href="/marketplace" class="nav-link cosmic {% if request.path == '/marketplace' %}active{% endif %}">
-                    <i class="bi bi-grid-3x3-gap"></i>
-                    <span>App Marketplace</span>
-                </a>
-            </li>
-            <li class="nav-item">
-                <a href="/agent-ops" class="nav-link cosmic {% if request.path == '/agent-ops' %}active{% endif %}">
-                    <i class="bi bi-chat-dots"></i>
-                    <span>Agent Ops Feed</span>
-                </a>
-            </li>
-        </ul>
-        
-        <div class="category-header" data-category="settings">
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <i class="bi bi-sliders" style="color: #f87171;"></i>
-                <span style="color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600;">Settings</span>
-            </div>
-            <i class="bi bi-chevron-down"></i>
-        </div>
-        <ul class="category-content">
-            <li class="nav-item">
-                <a href="#" class="nav-link cosmic" onclick="togglePresentationMode(); return false;">
-                    <i class="bi bi-easel"></i>
-                    <span>Presentation Mode</span>
-                    <i class="bi bi-toggle-off" id="presentation-mode-icon" style="margin-left: auto; font-size: 1.1rem;"></i>
-                </a>
-            </li>
-            <li class="nav-item">
-                <a href="/file-manager" class="nav-link cosmic {% if request.path == '/file-manager' %}active{% endif %}">
-                    <i class="bi bi-folder"></i>
-                    <span>File Manager</span>
-                </a>
-            </li>
-        </ul>
     </nav>
 
     <div class="main-content">
-        {% block breadcrumb %}
-        <nav class="breadcrumb-nav">
-            <a href="/"><i class="bi bi-house-door"></i> Home</a>
-            <i class="bi bi-chevron-right"></i>
-            <span class="current">{% block breadcrumb_current %}Dashboard{% endblock %}</span>
-        </nav>
-        {% endblock %}
-        
         <div class="header">
             <h2>{% block page_title %}Dashboard{% endblock %}</h2>
-            <div style="display: flex; gap: 12px;">
-                <button class="theme-toggle" onclick="togglePresentationMode()" title="Toggle Presentation Mode (Ctrl+P)">
-                    <i class="bi bi-easel" id="presentation-icon"></i>
-                    <span id="presentation-text">Presentation</span>
-                </button>
-                <button class="theme-toggle" onclick="toggleTheme()">
-                    <i class="bi bi-moon-stars" id="theme-icon"></i>
-                    <span id="theme-text">Dark Mode</span>
-                </button>
-            </div>
+            <button class="theme-toggle" onclick="toggleTheme()">
+                <i class="bi bi-moon-stars" id="theme-icon"></i>
+                <span id="theme-text">Dark Mode</span>
+            </button>
         </div>
 
         <div class="status-bar">
@@ -832,117 +599,9 @@
         {% block content %}{% endblock %}
     </div>
 
-    <div class="presentation-mode-indicator">
-        <i class="bi bi-easel"></i>
-        <span>Presentation Mode Active</span>
-    </div>
-
-    <button id="customization-toggle" title="Customize Dashboard (Ctrl+/)">
-        <i class="bi bi-sliders"></i>
-    </button>
-
-    <!-- Global Toast Notification Container -->
-    <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 9999;" aria-live="polite" aria-atomic="true">
-        <div id="globalToast" class="toast align-items-center border-0" role="alert" aria-live="assertive" aria-atomic="true">
-            <div class="d-flex">
-                <div class="toast-body d-flex align-items-center">
-                    <i class="me-2" id="toastIcon"></i>
-                    <span id="toastMessage"></span>
-                </div>
-                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-            </div>
-        </div>
-    </div>
-
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{{ url_for('static', filename='js/starfield.js') }}"></script>
     <script>
-        // Global Toast Notification System
-        function showToast(message, type = 'success') {
-            const toastEl = document.getElementById('globalToast');
-            const toastMessage = document.getElementById('toastMessage');
-            const toastIcon = document.getElementById('toastIcon');
-            
-            // Configure toast based on type
-            const config = {
-                success: { bg: 'bg-success', icon: 'bi-check-circle-fill', text: 'text-white' },
-                error: { bg: 'bg-danger', icon: 'bi-exclamation-triangle-fill', text: 'text-white' },
-                warning: { bg: 'bg-warning', icon: 'bi-exclamation-circle-fill', text: 'text-dark' },
-                info: { bg: 'bg-info', icon: 'bi-info-circle-fill', text: 'text-white' }
-            };
-            
-            const style = config[type] || config.success;
-            
-            // Remove all previous background classes
-            toastEl.className = 'toast align-items-center border-0';
-            toastEl.classList.add(style.bg, style.text);
-            
-            // Set icon and message
-            toastIcon.className = `bi ${style.icon} me-2`;
-            toastMessage.textContent = message;
-            
-            // Show the toast
-            const toast = new bootstrap.Toast(toastEl, {
-                autohide: true,
-                delay: 5000
-            });
-            toast.show();
-        }
-
-        // Helper function to show loading state on button
-        function setButtonLoading(button, loading = true, originalText = '') {
-            if (loading) {
-                button.dataset.originalHtml = button.innerHTML;
-                button.disabled = true;
-                button.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Loading...';
-            } else {
-                button.disabled = false;
-                button.innerHTML = button.dataset.originalHtml || originalText;
-                delete button.dataset.originalHtml;
-            }
-        }
-    </script>
-    <script>
-        function togglePresentationMode() {
-            const body = document.body;
-            const isPresentation = body.classList.toggle('presentation-mode');
-            const icon = document.getElementById('presentation-icon');
-            const text = document.getElementById('presentation-text');
-            const sidebarIcon = document.getElementById('presentation-mode-icon');
-            
-            if (isPresentation) {
-                if (icon) icon.className = 'bi bi-easel-fill';
-                if (text) text.textContent = 'Exit Demo';
-                if (sidebarIcon) sidebarIcon.className = 'bi bi-toggle-on';
-            } else {
-                if (icon) icon.className = 'bi bi-easel';
-                if (text) text.textContent = 'Presentation';
-                if (sidebarIcon) sidebarIcon.className = 'bi bi-toggle-off';
-            }
-            
-            localStorage.setItem('presentationMode', isPresentation);
-        }
-
-        document.addEventListener('DOMContentLoaded', function() {
-            const isPresentationMode = localStorage.getItem('presentationMode') === 'true';
-            if (isPresentationMode) {
-                document.body.classList.add('presentation-mode');
-                const icon = document.getElementById('presentation-icon');
-                const text = document.getElementById('presentation-text');
-                const sidebarIcon = document.getElementById('presentation-mode-icon');
-                if (icon) icon.className = 'bi bi-easel-fill';
-                if (text) text.textContent = 'Exit Demo';
-                if (sidebarIcon) sidebarIcon.className = 'bi bi-toggle-on';
-            }
-        });
-
-        document.addEventListener('keydown', function(e) {
-            if (e.ctrlKey && e.key === 'p') {
-                e.preventDefault();
-                togglePresentationMode();
-            }
-        });
-
         function toggleTheme() {
             const html = document.documentElement;
             const currentTheme = html.getAttribute('data-theme');
@@ -978,51 +637,8 @@
                 icon.className = 'bi bi-sun';
                 text.textContent = 'Light Mode';
             }
-
-            // Mobile sidebar toggle
-            const hamburgerMenu = document.getElementById('hamburger-menu');
-            const sidebar = document.getElementById('sidebar');
-            const mobileOverlay = document.getElementById('mobile-overlay');
-
-            function toggleSidebar() {
-                if (!sidebar || !mobileOverlay) {
-                    console.warn('[Sidebar] Required elements not found');
-                    return;
-                }
-                
-                sidebar.classList.toggle('show');
-                mobileOverlay.classList.toggle('show');
-                
-                if (hamburgerMenu) {
-                    const icon = hamburgerMenu.querySelector('i');
-                    if (icon) {
-                        icon.className = sidebar.classList.contains('show') ? 'bi bi-x' : 'bi bi-list';
-                    }
-                }
-            }
-
-            if (hamburgerMenu) {
-                hamburgerMenu.addEventListener('click', toggleSidebar);
-            }
-
-            if (mobileOverlay) {
-                mobileOverlay.addEventListener('click', toggleSidebar);
-            }
-
-            // Close sidebar when clicking a link on mobile
-            if (sidebar) {
-                const navLinks = sidebar.querySelectorAll('.nav-link');
-                navLinks.forEach(link => {
-                    link.addEventListener('click', () => {
-                        if (window.innerWidth <= 768) {
-                            toggleSidebar();
-                        }
-                    });
-                });
-            }
         });
     </script>
-    <script src="{{ url_for('static', filename='js/common-utils.js') }}"></script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>

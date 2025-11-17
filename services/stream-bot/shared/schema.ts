@@ -1271,10 +1271,6 @@ export type UpdatePrediction = z.infer<typeof updatePredictionSchema>;
 export type UpdatePredictionBet = z.infer<typeof updatePredictionBetSchema>;
 export type UpdateAlertSettings = z.infer<typeof updateAlertSettingsSchema>;
 export type UpdateMilestone = z.infer<typeof updateMilestoneSchema>;
-export type UpdateChatbotSettings = z.infer<typeof updateChatbotSettingsSchema>;
-export type UpdateChatbotResponse = z.infer<typeof updateChatbotResponseSchema>;
-export type UpdateChatbotContext = z.infer<typeof updateChatbotContextSchema>;
-export type UpdateChatbotPersonality = z.infer<typeof updateChatbotPersonalitySchema>;
 
 // Auth types
 export type Signup = z.infer<typeof signupSchema>;

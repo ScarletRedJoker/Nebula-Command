@@ -1247,17 +1247,17 @@ const streamSetupCommand: Command = {
       if (existingSettings) {
         // Update existing settings
         await storage.updateStreamNotificationSettings(interaction.guildId, {
-          notificationChannelId: channel.id,
+          channelId: channel.id,
           customMessage: message || existingSettings.customMessage,
-          isEnabled: enabled
+          enabled
         });
       } else {
         // Create new settings
         await storage.createStreamNotificationSettings({
           serverId: interaction.guildId,
-          notificationChannelId: channel.id,
+          channelId: channel.id,
           customMessage: message || null,
-          isEnabled: enabled
+          enabled
         });
       }
 
@@ -1327,7 +1327,8 @@ const streamTrackCommand: Command = {
       // Add user to tracking
       await storage.addStreamTrackedUser({
         serverId: interaction.guildId,
-        userId: user.id
+        userId: user.id,
+        customMessage: customMessage || null
       });
 
       const embed = new EmbedBuilder()
@@ -1335,15 +1336,14 @@ const streamTrackCommand: Command = {
         .setDescription(`${user.username} will now trigger notifications when they go live!`)
         .addFields(
           { name: 'User', value: `<@${user.id}>`, inline: true },
-          { name: 'Channel', value: `<#${settings.notificationChannelId}>`, inline: true }
+          { name: 'Channel', value: `<#${settings.channelId}>`, inline: true }
         )
         .setColor('#43B581')
         .setThumbnail(user.displayAvatarURL())
         .setTimestamp();
 
       if (customMessage) {
-        // Note: customMessage is stored in settings, not per-user
-        embed.addFields({ name: 'Note', value: 'Custom message will use server-wide setting', inline: false });
+        embed.addFields({ name: 'Custom Message', value: customMessage, inline: false });
       }
 
       await interaction.editReply({ embeds: [embed] });
@@ -1426,8 +1426,8 @@ const streamListCommand: Command = {
       }
 
       embed.addFields(
-        { name: 'Status', value: settings.isEnabled ? '🟢 Enabled' : '🔴 Disabled', inline: true },
-        { name: 'Channel', value: `<#${settings.notificationChannelId}>`, inline: true },
+        { name: 'Status', value: settings.enabled ? '🟢 Enabled' : '🔴 Disabled', inline: true },
+        { name: 'Channel', value: `<#${settings.channelId}>`, inline: true },
         { name: 'Tracked Users', value: trackedUsers.length.toString(), inline: true }
       );
 
@@ -1438,6 +1438,9 @@ const streamListCommand: Command = {
       if (trackedUsers.length > 0) {
         const userList = trackedUsers.map((u, i) => {
           let line = `${i + 1}. <@${u.userId}>`;
+          if (u.customMessage) {
+            line += ` - *${u.customMessage.substring(0, 50)}${u.customMessage.length > 50 ? '...' : ''}*`;
+          }
           return line;
         }).join('\n');
 

@@ -26,10 +26,6 @@ passport.use(
           return done(null, false, { message: "Account is disabled" });
         }
 
-        if (!user.passwordHash) {
-          return done(null, false, { message: "Invalid email or password" });
-        }
-
         const isValidPassword = await bcrypt.compare(
           password,
           user.passwordHash

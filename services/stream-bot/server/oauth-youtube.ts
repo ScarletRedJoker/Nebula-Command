@@ -12,7 +12,6 @@ import {
   decryptToken 
 } from "./crypto-utils";
 import { oauthStorage } from "./oauth-storage";
-import { trackApiCall, waitForQuotaIfNeeded } from "./middleware/quota-tracker";
 
 const router = Router();
 
@@ -108,7 +107,6 @@ router.get('/youtube/callback', async (req, res) => {
     }
 
     // Exchange authorization code for tokens
-    await waitForQuotaIfNeeded('youtube', 1, session.userId);
     const tokenResponse = await axios.post(
       GOOGLE_TOKEN_URL,
       querystring.stringify({
@@ -125,16 +123,13 @@ router.get('/youtube/callback', async (req, res) => {
         },
       }
     );
-    await trackApiCall('youtube', 1, session.userId);
 
     const { access_token, refresh_token, expires_in } = tokenResponse.data;
 
     // Fetch user profile (Google user info)
-    await waitForQuotaIfNeeded('youtube', 1, session.userId);
     const profileResponse = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {
       headers: { 'Authorization': `Bearer ${access_token}` },
     });
-    await trackApiCall('youtube', 1, session.userId);
 
     const { id: platformUserId, name, email } = profileResponse.data;
 
@@ -209,7 +204,6 @@ export async function refreshYouTubeToken(userId: string): Promise<string | null
     const refreshToken = decryptToken(connection.refreshToken);
 
     // Request new access token
-    await waitForQuotaIfNeeded('youtube', 1, userId);
     const tokenResponse = await axios.post(
       GOOGLE_TOKEN_URL,
       querystring.stringify({
@@ -224,7 +218,6 @@ export async function refreshYouTubeToken(userId: string): Promise<string | null
         },
       }
     );
-    await trackApiCall('youtube', 1, userId);
 
     const { access_token, refresh_token: new_refresh_token, expires_in } = tokenResponse.data;
 

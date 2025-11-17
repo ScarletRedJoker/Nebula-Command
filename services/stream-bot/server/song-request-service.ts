@@ -1,7 +1,7 @@
 import { db } from "./db";
 import { eq, and, desc, asc, sql } from "drizzle-orm";
 import { songQueue, songSettings, type SongQueue, type SongSettings, type InsertSongQueue, type UpdateSongQueue } from "@shared/schema";
-import { getUncachableSpotifyClient } from "./spotify-service";
+import { SpotifyServiceMultiUser } from "./spotify-service-multiuser";
 import { YouTubeServiceMultiUser } from "./youtube-service-multiuser";
 import { UserStorage } from "./user-storage";
 import OpenAI from "openai";
@@ -31,9 +31,11 @@ export interface QueuePosition {
 }
 
 export class SongRequestService {
+  private spotifyService: SpotifyServiceMultiUser;
   private youtubeService: YouTubeServiceMultiUser;
 
   constructor() {
+    this.spotifyService = new SpotifyServiceMultiUser();
     this.youtubeService = new YouTubeServiceMultiUser();
   }
 
@@ -78,19 +80,27 @@ export class SongRequestService {
   }
 
   /**
-   * Search for songs on Spotify using the Replit Spotify integration
-   * Note: Uses the shared Spotify connection (deployment-level, not per-user)
+   * Search for songs on Spotify
    */
   async searchSpotify(userId: string, query: string): Promise<SearchResult[]> {
     try {
-      const spotify = await getUncachableSpotifyClient();
-      const results = await spotify.search(query, ['track'], undefined, 5);
+      const isConnected = await this.spotifyService.isConnected(userId);
+      if (!isConnected) {
+        throw new Error('Spotify not connected');
+      }
 
-      if (!results?.tracks?.items || results.tracks.items.length === 0) {
+      // Use the private spotifyRequest method via reflection
+      const tracks = await (this.spotifyService as any).spotifyRequest(
+        userId,
+        `/search?q=${encodeURIComponent(query)}&type=track&limit=5`,
+        'GET'
+      );
+
+      if (!tracks?.tracks?.items) {
         return [];
       }
 
-      return results.tracks.items.map((track: any) => ({
+      return tracks.tracks.items.map((track: any) => ({
         title: track.name,
         artist: track.artists.map((a: any) => a.name).join(', '),
         url: track.external_urls.spotify,
@@ -101,11 +111,6 @@ export class SongRequestService {
       }));
     } catch (error: any) {
       console.error('[SongRequest] Spotify search error:', error.message);
-      // If Spotify is not connected via Replit integration, return empty results
-      if (error.message?.includes('not connected')) {
-        console.warn('[SongRequest] Spotify integration not set up. Please connect Spotify via Replit.');
-        return [];
-      }
       return [];
     }
   }
@@ -404,8 +409,11 @@ export class SongRequestService {
       if (match) {
         const trackId = match[1];
         try {
-          const spotify = await getUncachableSpotifyClient();
-          const track = await spotify.tracks.get(trackId);
+          const track = await (this.spotifyService as any).spotifyRequest(
+            userId,
+            `/tracks/${trackId}`,
+            'GET'
+          );
 
           return [{
             title: track.name,
@@ -416,11 +424,8 @@ export class SongRequestService {
             duration: track.duration_ms,
             id: track.id,
           }];
-        } catch (error: any) {
-          console.error('[SongRequest] Spotify URL extraction error:', error.message);
-          if (error.message?.includes('not connected')) {
-            console.warn('[SongRequest] Spotify integration not set up. Please connect Spotify via Replit.');
-          }
+        } catch (error) {
+          console.error('[SongRequest] Spotify URL extraction error:', error);
           return [];
         }
       }

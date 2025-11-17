@@ -65,10 +65,6 @@ import type {
 export class UserStorage {
   constructor(private userId: string) {}
 
-  getUserId(): string {
-    return this.userId;
-  }
-
   // Platform Connections
   async getPlatformConnections(): Promise<PlatformConnection[]> {
     return storage.getPlatformConnections(this.userId);
@@ -323,92 +319,92 @@ export class UserStorage {
     return storage.updateShoutoutSettings(this.userId, data);
   }
 
-  // Polls - Not yet implemented in storage layer
-  async getPolls(limit?: number): Promise<any[]> {
-    throw new Error('Polls not yet implemented in storage layer');
+  // Polls
+  async getPolls(limit?: number): Promise<Poll[]> {
+    return storage.getPolls(this.userId, limit);
   }
 
-  async getPoll(id: string): Promise<any> {
-    throw new Error('Polls not yet implemented in storage layer');
+  async getPoll(id: string): Promise<Poll | undefined> {
+    return storage.getPoll(this.userId, id);
   }
 
-  async getActivePoll(platform?: string): Promise<any> {
-    throw new Error('Polls not yet implemented in storage layer');
+  async getActivePoll(platform?: string): Promise<Poll | null> {
+    return storage.getActivePoll(this.userId, platform);
   }
 
-  async getPollHistory(limit?: number): Promise<any[]> {
-    throw new Error('Polls not yet implemented in storage layer');
+  async getPollHistory(limit?: number): Promise<Poll[]> {
+    return storage.getPollHistory(this.userId, limit);
   }
 
-  async createPoll(data: any): Promise<any> {
-    throw new Error('Polls not yet implemented in storage layer');
+  async createPoll(data: InsertPoll): Promise<Poll> {
+    return storage.createPoll(this.userId, data);
   }
 
-  async updatePoll(id: string, data: any): Promise<any> {
-    throw new Error('Polls not yet implemented in storage layer');
+  async updatePoll(id: string, data: UpdatePoll): Promise<Poll> {
+    return storage.updatePoll(this.userId, id, data);
   }
 
   async incrementPollVotes(pollId: string): Promise<void> {
-    throw new Error('Polls not yet implemented in storage layer');
+    return storage.incrementPollVotes(this.userId, pollId);
   }
 
-  // Poll Votes - Not yet implemented in storage layer
-  async getPollVotes(pollId: string): Promise<any[]> {
-    throw new Error('Poll Votes not yet implemented in storage layer');
+  // Poll Votes
+  async getPollVotes(pollId: string): Promise<PollVote[]> {
+    return storage.getPollVotes(this.userId, pollId);
   }
 
-  async getPollVoteByUser(pollId: string, username: string, platform: string): Promise<any> {
-    throw new Error('Poll Votes not yet implemented in storage layer');
+  async getPollVoteByUser(pollId: string, username: string, platform: string): Promise<PollVote | undefined> {
+    return storage.getPollVoteByUser(this.userId, pollId, username, platform);
   }
 
-  async createPollVote(data: any): Promise<any> {
-    throw new Error('Poll Votes not yet implemented in storage layer');
+  async createPollVote(data: InsertPollVote): Promise<PollVote> {
+    return storage.createPollVote(this.userId, data);
   }
 
-  // Predictions - Not yet implemented in storage layer
-  async getPredictions(limit?: number): Promise<any[]> {
-    throw new Error('Predictions not yet implemented in storage layer');
+  // Predictions
+  async getPredictions(limit?: number): Promise<Prediction[]> {
+    return storage.getPredictions(this.userId, limit);
   }
 
-  async getPrediction(id: string): Promise<any> {
-    throw new Error('Predictions not yet implemented in storage layer');
+  async getPrediction(id: string): Promise<Prediction | undefined> {
+    return storage.getPrediction(this.userId, id);
   }
 
-  async getActivePrediction(platform?: string): Promise<any> {
-    throw new Error('Predictions not yet implemented in storage layer');
+  async getActivePrediction(platform?: string): Promise<Prediction | null> {
+    return storage.getActivePrediction(this.userId, platform);
   }
 
-  async getPredictionHistory(limit?: number): Promise<any[]> {
-    throw new Error('Predictions not yet implemented in storage layer');
+  async getPredictionHistory(limit?: number): Promise<Prediction[]> {
+    return storage.getPredictionHistory(this.userId, limit);
   }
 
-  async createPrediction(data: any): Promise<any> {
-    throw new Error('Predictions not yet implemented in storage layer');
+  async createPrediction(data: InsertPrediction): Promise<Prediction> {
+    return storage.createPrediction(this.userId, data);
   }
 
-  async updatePrediction(id: string, data: any): Promise<any> {
-    throw new Error('Predictions not yet implemented in storage layer');
+  async updatePrediction(id: string, data: UpdatePrediction): Promise<Prediction> {
+    return storage.updatePrediction(this.userId, id, data);
   }
 
   async incrementPredictionStats(predictionId: string, points: number): Promise<void> {
-    throw new Error('Predictions not yet implemented in storage layer');
+    return storage.incrementPredictionStats(this.userId, predictionId, points);
   }
 
-  // Prediction Bets - Not yet implemented in storage layer
-  async getPredictionBets(predictionId: string): Promise<any[]> {
-    throw new Error('Prediction Bets not yet implemented in storage layer');
+  // Prediction Bets
+  async getPredictionBets(predictionId: string): Promise<PredictionBet[]> {
+    return storage.getPredictionBets(this.userId, predictionId);
   }
 
-  async getPredictionBetByUser(predictionId: string, username: string, platform: string): Promise<any> {
-    throw new Error('Prediction Bets not yet implemented in storage layer');
+  async getPredictionBetByUser(predictionId: string, username: string, platform: string): Promise<PredictionBet | undefined> {
+    return storage.getPredictionBetByUser(this.userId, predictionId, username, platform);
   }
 
-  async createPredictionBet(data: any): Promise<any> {
-    throw new Error('Prediction Bets not yet implemented in storage layer');
+  async createPredictionBet(data: InsertPredictionBet): Promise<PredictionBet> {
+    return storage.createPredictionBet(this.userId, data);
   }
 
-  async updatePredictionBet(betId: string, data: { payout: number }): Promise<any> {
-    throw new Error('Prediction Bets not yet implemented in storage layer');
+  async updatePredictionBet(betId: string, data: { payout: number }): Promise<PredictionBet> {
+    return storage.updatePredictionBet(this.userId, betId, data);
   }
 
   // Chatbot Settings

@@ -55,7 +55,7 @@ export default function StreamNotificationsTab() {
   
   // Settings state
   const [settings, setSettings] = useState<StreamSettings>({
-    serverId: selectedServerId || '',
+    serverId: selectedServerId,
     channelId: null,
     customMessage: null,
     enabled: false,

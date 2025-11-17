@@ -28,7 +28,7 @@ docker compose -f docker-compose.unified.yml ps
 - Steam
 - GIMP, Audacity
 - Firefox, Terminal, File Manager
-- NebulaCommand Dashboard link
+- Homelab Dashboard link
 
 **After running**: Refresh VNC browser tab (F5) - icons appear!
 

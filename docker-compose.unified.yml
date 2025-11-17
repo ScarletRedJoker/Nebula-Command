@@ -4,16 +4,14 @@ networks:
 
 volumes:
   postgres_data:
-  powerdns_data:
   n8n_data:
   caddy_data:
   caddy_config:
   vnc_home:
+  code_server_data:
   redis_data:
   minio_data:
   homeassistant_config:
-  code_server_config:
-  code_server_data:
 
 services:
   # ============================================
@@ -33,12 +31,6 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
-    healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:2019/config/ || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
 
   # ============================================
   # Redis - Message Broker & Cache
@@ -77,59 +69,13 @@ services:
       - "9000:9000"
       - "9001:9001"
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/live || exit 1"]
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 30s
       timeout: 20s
       retries: 3
 
   # ============================================
-  # PowerDNS - Local DNS Nameserver (DISABLED - Port 53 conflict)
-  # ============================================
-  # DISABLED: Ubuntu system DNS is already using port 53
-  # To enable: Stop systemd-resolved or configure PowerDNS on different port
-  # powerdns:
-  #   image: pschiffe/pdns-pgsql:latest
-  #   container_name: homelab-powerdns
-  #   restart: unless-stopped
-  #   depends_on:
-  #     discord-bot-db:
-  #       condition: service_healthy
-  #   networks:
-  #     - homelab
-  #   ports:
-  #     - "53:53/udp"      # DNS queries
-  #     - "53:53/tcp"
-  #     - "8081:8081"      # PowerDNS API
-  #   environment:
-  #     - PDNS_api=yes
-  #     - PDNS_api_key=${PDNS_API_KEY}
-  #     - PDNS_webserver=yes
-  #     - PDNS_webserver_address=0.0.0.0
-  #     - PDNS_webserver_port=8081
-  #     - PDNS_webserver_allow_from=0.0.0.0/0
-  #     - PDNS_launch=gpgsql
-  #     - PDNS_gpgsql_host=discord-bot-db
-  #     - PDNS_gpgsql_port=5432
-  #     - PDNS_gpgsql_dbname=powerdns
-  #     - PDNS_gpgsql_user=powerdns
-  #     - PDNS_gpgsql_password=${POWERDNS_DB_PASSWORD}
-  #     - PDNS_local_address=0.0.0.0
-  #     - PDNS_local_port=53
-  #     - PDNS_disable_axfr=no
-  #     - PDNS_allow_axfr_ips=127.0.0.1
-  #     - PDNS_recursive=no
-  #     - PDNS_loglevel=4
-  #   volumes:
-  #     - powerdns_data:/var/lib/powerdns
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "pdns_control ping || exit 1"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 3
-  #     start_period: 20s
-
-  # ============================================
-  # NebulaCommand Dashboard
+  # Homelab Dashboard
   # ============================================
   homelab-dashboard:
     build:
@@ -165,14 +111,6 @@ services:
       - MINIO_ENDPOINT=minio:9000
       - MINIO_ROOT_USER=${MINIO_ROOT_USER:-admin}
       - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minio_admin_password}
-      - AI_INTEGRATIONS_OPENAI_API_KEY=${AI_INTEGRATIONS_OPENAI_API_KEY:-${OPENAI_API_KEY}}
-      - AI_INTEGRATIONS_OPENAI_BASE_URL=${AI_INTEGRATIONS_OPENAI_BASE_URL:-https://api.openai.com/v1}
-    healthcheck:
-      test: ["CMD-SHELL", "python -c 'import requests; r = requests.get(\"http://localhost:5000/health\", timeout=5); exit(0 if r.status_code == 200 else 1)'"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
 
   # ============================================
   # Celery Worker - Background Task Processing
@@ -201,12 +139,6 @@ services:
       - ./services/dashboard:/app
       - /var/run/docker.sock:/var/run/docker.sock
       - ./services/dashboard/logs:/app/logs
-    healthcheck:
-      test: ["CMD-SHELL", "python -c 'from celery_app import celery_app; i=celery_app.control.inspect(); p=i.ping(timeout=5) if i else None; exit(0 if p and any(p.values()) else 1)'"]
-      interval: 60s
-      timeout: 15s
-      retries: 3
-      start_period: 30s
 
   # ============================================
   # Discord Ticket Bot + PostgreSQL
@@ -228,7 +160,6 @@ services:
       DISCORD_DB_PASSWORD: ${DISCORD_DB_PASSWORD}
       STREAMBOT_DB_PASSWORD: ${STREAMBOT_DB_PASSWORD}
       JARVIS_DB_PASSWORD: ${JARVIS_DB_PASSWORD}
-      POWERDNS_DB_PASSWORD: ${POWERDNS_DB_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./config/postgres-init:/docker-entrypoint-initdb.d:ro
@@ -273,12 +204,6 @@ services:
     volumes:
       - ./services/discord-bot/attached_assets:/app/attached_assets
       - ./services/discord-bot/logs:/app/logs
-    healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:5000/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
 
   # ============================================
   # Stream Bot (Snapple Facts AI)
@@ -300,8 +225,8 @@ services:
     environment:
       DATABASE_URL: postgresql://streambot:${STREAMBOT_DB_PASSWORD}@discord-bot-db:5432/streambot
       SESSION_SECRET: ${STREAMBOT_SESSION_SECRET}
-      AI_INTEGRATIONS_OPENAI_API_KEY: ${AI_INTEGRATIONS_OPENAI_API_KEY:-${OPENAI_API_KEY}}
-      AI_INTEGRATIONS_OPENAI_BASE_URL: ${AI_INTEGRATIONS_OPENAI_BASE_URL:-https://api.openai.com/v1}
+      OPENAI_API_KEY: ${STREAMBOT_OPENAI_API_KEY:-${OPENAI_API_KEY}}
+      OPENAI_BASE_URL: ${STREAMBOT_OPENAI_BASE_URL:-https://api.openai.com/v1}
       NODE_ENV: ${STREAMBOT_NODE_ENV:-production}
       PORT: ${STREAMBOT_PORT:-5000}
       APP_URL: https://stream.rig-city.com
@@ -317,7 +242,7 @@ services:
     volumes:
       - ./services/stream-bot/logs:/app/logs
     healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:5000/health || exit 1"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5000/health", "||", "exit", "1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -355,21 +280,6 @@ services:
       - ./services/plex/media:/media
     devices:
       - /dev/dri:/dev/dri
-    deploy:
-      resources:
-        limits:
-          cpus: '4.0'
-          memory: 8G
-        reservations:
-          cpus: '1.0'
-          memory: 2G
-    shm_size: '2gb'
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:32400/identity || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 120s
 
   # ============================================
   # n8n Automation
@@ -392,12 +302,6 @@ services:
       - N8N_RUNNERS_ENABLED=true
     volumes:
       - n8n_data:/home/node/.n8n
-    healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:5678/healthz || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
 
   # ============================================
   # Static Website (Scarlet Red Joker)
@@ -410,12 +314,6 @@ services:
       - homelab
     volumes:
       - ./services/static-site:/usr/share/nginx/html:ro
-    healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:80/ || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
 
   # ============================================
   # Rig City Community Website
@@ -428,12 +326,6 @@ services:
       - homelab
     volumes:
       - ./services/rig-city-site:/usr/share/nginx/html:ro
-    healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:80/ || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
 
   # ============================================
   # VNC Remote Desktop (Enhanced Ubuntu Desktop)
@@ -454,38 +346,11 @@ services:
       - PASSWORD=${VNC_USER_PASSWORD}
       - RESOLUTION=1920x1080
       - TZ=America/New_York
-      - MAX_VNC_CONNECTIONS=3
-      - VNC_IDLE_TIMEOUT=14400
     volumes:
       - vnc_home:/home/evin
       - /home/${SERVICE_USER:-evin}/contain:/home/evin/host-projects:ro
       - /home/${SERVICE_USER:-evin}/Downloads:/home/evin/host-downloads
     shm_size: '2gb'
-    deploy:
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 2G
-          pids: 512
-        reservations:
-          cpus: '0.5'
-          memory: 1536M
-    mem_swappiness: 60
-    oom_score_adj: 500
-    security_opt:
-      - no-new-privileges:true
-      - seccomp:unconfined
-    cap_drop:
-      - ALL
-    cap_add:
-      - SETUID
-      - SETGID
-      - CHOWN
-      - DAC_OVERRIDE
-      - NET_BIND_SERVICE
-    tmpfs:
-      - /tmp:size=512M,mode=1777
-      - /run:size=128M,mode=0755
     healthcheck:
       test: ["CMD-SHELL", "wget --spider -q http://localhost:6079 || curl -f http://localhost:6079 || exit 1"]
       interval: 30s
@@ -502,23 +367,15 @@ services:
     restart: unless-stopped
     networks:
       - homelab
-    command: 
-      - --bind-addr
-      - 0.0.0.0:8080
-      - --proxy-domain
-      - code.evindrake.net
-      - --auth
-      - password
-      - --disable-telemetry
     environment:
       - PASSWORD=${CODE_SERVER_PASSWORD}
+      - PUID=1000
+      - PGID=1000
       - TZ=America/New_York
-      - PROXY_DOMAIN=code.evindrake.net
-      - CS_DISABLE_GETTING_STARTED_OVERRIDE=true
     volumes:
-      - code_server_config:/home/coder/.config
-      - /home/${SERVICE_USER:-evin}/contain:/home/coder/projects:ro
-      - code_server_data:/home/coder/.local/share/code-server
+      - code_server_data:/home/coder/.config
+      - /home/${SERVICE_USER:-evin}/contain:/home/coder/projects
+      - ./config/code-server:/home/coder/.local/share/code-server
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
       interval: 30s
@@ -534,27 +391,18 @@ services:
     container_name: homeassistant
     restart: unless-stopped
     privileged: true
-    user: "1000:1000"
     networks:
       - homelab
-    depends_on:
-      homelab-dashboard:
-        condition: service_healthy
     environment:
       - TZ=America/New_York
-      - HOMEASSISTANT_EXTERNAL_URL=https://home.evindrake.net
-      - HOMEASSISTANT_INTERNAL_URL=http://homeassistant:8123
-      - JARVIS_DASHBOARD_URL=http://homelab-dashboard:5000
-      - JARVIS_API_KEY=${HOME_ASSISTANT_API_KEY:-}
     volumes:
-      - ./volumes/homeassistant:/config
-      - ./scripts/bootstrap-homeassistant.sh:/scripts/bootstrap-homeassistant.sh:ro
+      - homeassistant_config:/config
       - /run/dbus:/run/dbus:ro
     ports:
       - "8123:8123"
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8123/api/ -H 'Accept: application/json' || exit 1"]
+      test: ["CMD", "curl", "-f", "http://localhost:8123/"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 90s
+      start_period: 60s
