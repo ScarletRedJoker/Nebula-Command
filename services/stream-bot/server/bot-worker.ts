@@ -1,6 +1,5 @@
 import tmi from "tmi.js";
 import * as cron from "node-cron";
-import { createClient } from "@retconned/kick-js";
 import { UserStorage } from "./user-storage";
 import { generateSnappleFact } from "./openai";
 import { sendYouTubeChatMessage, getActiveYouTubeLivestream } from "./youtube-client";
@@ -24,7 +23,7 @@ type BotEvent = {
   data: any;
 };
 
-type KickClient = ReturnType<typeof createClient>;
+type KickClient = any;
 
 export class BotWorker {
   private twitchClient: tmi.Client | null = null;
@@ -1268,7 +1267,17 @@ export class BotWorker {
   private async startKickClient(connection: PlatformConnection, keywords: string[]) {
     if (!connection.platformUsername) return;
 
+    // Check if Kick integration is enabled (enabled by default, can be disabled with env var)
+    const enableKick = process.env.ENABLE_KICK_INTEGRATION !== 'false';
+    if (!enableKick) {
+      console.log('[BotWorker] Kick integration is disabled via ENABLE_KICK_INTEGRATION environment variable');
+      return;
+    }
+
     try {
+      // Dynamic import of Kick client to avoid bundling issues
+      const { createClient } = await import("@retconned/kick-js");
+      
       const channelName = connection.platformUsername.toLowerCase();
       this.kickChannelSlug = channelName;
       this.kickClient = createClient(channelName, { logger: false, readOnly: false });
@@ -1339,6 +1348,7 @@ export class BotWorker {
       console.log(`[BotWorker] Kick client starting for user ${this.userId} (${channelName})`);
     } catch (error) {
       console.error(`[BotWorker] Failed to start Kick client for user ${this.userId}:`, error);
+      console.error('[BotWorker] Kick integration will be disabled. To enable, ensure @retconned/kick-js is properly installed and ENABLE_KICK_INTEGRATION is not set to "false".');
       this.kickClient = null;
     }
   }

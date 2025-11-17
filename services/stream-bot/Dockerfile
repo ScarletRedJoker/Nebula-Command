@@ -15,10 +15,11 @@ COPY . .
 
 # Build the application (frontend + backend)
 # Frontend builds to: dist/public/
-# Backend builds to: dist/index.js
+# Backend transpiles to: dist/server/index.js (TypeScript transpilation, no bundling)
 RUN npm run build && \
     echo "Build completed. Checking output..." && \
     ls -la dist/ && \
+    ls -la dist/server/ && \
     echo "Build verification successful!"
 
 # Production stage
@@ -38,7 +39,7 @@ COPY package*.json ./
 RUN npm ci --only=production && npm cache clean --force
 
 # Copy built application from builder stage
-# Both frontend (dist/public/) and backend (dist/index.js) are in dist/
+# Frontend: dist/public/, Backend: dist/server/, Shared: dist/shared/
 COPY --from=builder --chown=streambot:nodejs /app/dist ./dist
 
 # Copy connect-pg-simple table.sql to dist/ for session store
@@ -60,5 +61,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 # Use dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]
 
-# Start the application (uses compiled output from build stage)
-CMD ["node", "dist/index.js"]
+# Start the application (uses transpiled output from build stage)
+CMD ["node", "dist/server/index.js"]
