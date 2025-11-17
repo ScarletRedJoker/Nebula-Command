@@ -21,6 +21,80 @@ NebulaCommand is an enterprise-grade, web-based dashboard for managing Ubuntu se
 - Prefers centralized development environment with clean structure
 - Needs public HTTPS access with automatic SSL (port forwarding configured)
 
+## Deployment Workflow
+
+### Replit → GitHub → Ubuntu Pipeline
+
+The project uses a three-stage deployment pipeline:
+
+1. **Development (Replit)**
+   - Edit code and make changes in the Replit environment
+   - Test changes using local workflows
+   - Commit changes when ready
+
+2. **Version Control (GitHub)**
+   - Run sync script to push changes: `bash scripts/sync-to-github.sh`
+   - The script automatically handles:
+     - Removes stale `.git/index.lock` files
+     - Cleans working tree with `git reset --hard`
+     - Removes untracked files with `git clean -fd`
+     - Commits and pushes changes to GitHub
+     - Provides troubleshooting help if push fails
+
+3. **Production (Ubuntu Server)**
+   - SSH into Ubuntu server: `ssh evin@<server-ip>`
+   - Navigate to project: `cd /home/evin/contain/HomeLabHub`
+   - Pull latest changes: `git pull origin main`
+   - Restart services: `docker-compose -f docker-compose.unified.yml up -d`
+
+### Quick Commands
+
+**On Replit (after making changes):**
+```bash
+# Sync changes to GitHub
+bash scripts/sync-to-github.sh
+
+# Or with custom commit message
+bash scripts/sync-to-github.sh main "Feature: Add new functionality"
+```
+
+**On Ubuntu (to deploy changes):**
+```bash
+# Full deployment
+cd /home/evin/contain/HomeLabHub
+git pull origin main
+docker-compose -f docker-compose.unified.yml up -d
+
+# Check service status
+docker-compose -f docker-compose.unified.yml ps
+```
+
+### Troubleshooting Git Sync
+
+If you encounter issues with git operations:
+
+1. **Stale lock file**: The sync script automatically removes `.git/index.lock`
+2. **Merge conflicts**: Run `git status` to see conflicts, resolve manually
+3. **Authentication errors**: Ensure GitHub credentials are configured in Replit
+4. **Large files**: Check `.gitignore` excludes build artifacts and logs
+
+### What Gets Synced
+
+The following are **included** in version control:
+- Source code (Python, TypeScript, JavaScript, HTML, CSS)
+- Configuration files (docker-compose.yml, Caddyfile, etc.)
+- Database migrations and schemas
+- Documentation and scripts
+
+The following are **excluded** (see `.gitignore`):
+- Build artifacts (`services/**/dist/`, `services/**/build/`)
+- Dependencies (`node_modules/`, Python virtual environments)
+- Logs (`*.log`, `logs/`, `/tmp/logs/`)
+- Runtime data (database files, Plex config, service data)
+- Backups (`/backups/`, `/deployment/backups/`)
+- Environment files (`.env`, `.env.*`)
+- Uploaded assets (`attached_assets/`)
+
 ## System Architecture
 
 ### UI/UX Decisions

@@ -15,11 +15,11 @@ COPY . .
 
 # Build the application (frontend + backend)
 # Frontend builds to: dist/public/
-# Backend transpiles to: dist/server/index.js (TypeScript transpilation, no bundling)
+# Backend bundles to: dist/index.js (esbuild bundling with external packages)
+# Dev file: dist/vite.dev.js (unbundled, for development only)
 RUN npm run build && \
     echo "Build completed. Checking output..." && \
     ls -la dist/ && \
-    ls -la dist/server/ && \
     echo "Build verification successful!"
 
 # Production stage
@@ -39,7 +39,7 @@ COPY package*.json ./
 RUN npm ci --only=production && npm cache clean --force
 
 # Copy built application from builder stage
-# Frontend: dist/public/, Backend: dist/server/, Shared: dist/shared/
+# Frontend: dist/public/, Backend: dist/index.js, Dev: dist/vite.dev.js
 COPY --from=builder --chown=streambot:nodejs /app/dist ./dist
 
 # Copy connect-pg-simple table.sql to dist/ for session store
@@ -61,5 +61,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 # Use dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]
 
-# Start the application (uses transpiled output from build stage)
-CMD ["node", "dist/server/index.js"]
+# Start the application (uses bundled output from build stage)
+CMD ["node", "dist/index.js"]
