@@ -11,7 +11,8 @@ try {
 
   await build({
     entryPoints: allFiles,
-    bundle: false, // CRITICAL: Don't bundle - just transpile to avoid breaking @retconned/kick-js
+    bundle: true, // Bundle to resolve @shared/* path aliases
+    packages: 'external', // Externalize all node_modules packages (best practice for Node.js)
     platform: 'node',
     format: 'esm',
     outdir: 'dist',
@@ -31,7 +32,7 @@ const __dirname = dirname(__filename);
 `
     }
   });
-  console.log('✓ Server transpilation complete (no bundling)');
+  console.log('✓ Server build complete (bundled with externalized dependencies)');
   process.exit(0);
 } catch (error) {
   console.error('✗ Build failed:', error);
