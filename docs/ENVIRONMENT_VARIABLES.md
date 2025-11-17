@@ -1,6 +1,6 @@
 # Environment Variables Reference
 
-Complete documentation of all environment variables used in the Homelab Dashboard ecosystem.
+Complete documentation of all environment variables used in the NebulaCommand Dashboard ecosystem.
 
 ---
 

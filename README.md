@@ -1,6 +1,6 @@
-# 🚀 Homelab Dashboard - Enterprise Infrastructure Platform
+# 🚀 NebulaCommand - Enterprise Infrastructure Platform
 
-> **AI-powered, production-ready homelab management system with autonomous operations**
+> **AI-powered, production-ready infrastructure management system with autonomous operations**
 
 [![Status](https://img.shields.io/badge/Status-Production-success)]()
 [![Python](https://img.shields.io/badge/Python-3.11-blue)]()
@@ -8,7 +8,7 @@
 
 ## 🎯 Overview
 
-A comprehensive web-based platform for managing Ubuntu homelab servers with enterprise-grade reliability and intelligent automation. Built with Flask, PostgreSQL, and GPT-4 powered AI assistance.
+A comprehensive web-based platform for managing Ubuntu servers with enterprise-grade reliability and intelligent automation. Built with Flask, PostgreSQL, and GPT-4 powered AI assistance.
 
 **Live Demo**: [host.evindrake.net](https://host.evindrake.net)
 

@@ -140,7 +140,7 @@ For seamless integration with your Linux desktop:
 - 🔗 https://game.evindrake.net
 - Apps: Adobe Creative Cloud, Windows games, etc.
 
-**Homelab Dashboard**:
+**NebulaCommand Dashboard**:
 - 🔗 https://host.evindrake.net
 - Manage all services
 

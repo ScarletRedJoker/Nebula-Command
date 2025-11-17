@@ -158,7 +158,7 @@ cd /home/evin/contain/HomeLabHub
 
 **What Gets Deployed:**
 - ✅ Caddy (reverse proxy with auto SSL)
-- ✅ Homelab Dashboard (host.evindrake.net)
+- ✅ NebulaCommand Dashboard (host.evindrake.net)
 - ✅ Discord Ticket Bot (bot.rig-city.com)
 - ✅ Stream Bot (stream.rig-city.com)
 - ✅ Plex Server (plex.evindrake.net)

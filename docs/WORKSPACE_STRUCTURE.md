@@ -11,7 +11,7 @@ This Replit workspace is your **development environment** for all homelab servic
 ```
 HomeLabHub/                      ← Replit Workspace Root
 ├── services/                    ← All service code organized here
-│   ├── dashboard/              ← Homelab Dashboard (Flask/Python)
+│   ├── dashboard/              ← NebulaCommand Dashboard (Flask/Python)
 │   │   ├── routes/
 │   │   ├── services/
 │   │   ├── templates/
@@ -184,7 +184,7 @@ discord-bot-db (postgres:16-alpine)
 
 | **Domain** | **Service** | **Port** | **SSL** |
 |-----------|------------|---------|---------|
-| host.evindrake.net | Homelab Dashboard | 5000 | ✅ Auto (Caddy) |
+| host.evindrake.net | NebulaCommand Dashboard | 5000 | ✅ Auto (Caddy) |
 | bot.rig-city.com | Discord Ticket Bot | 5000 | ✅ Auto (Caddy) |
 | stream.rig-city.com | Stream Bot | 3000 | ✅ Auto (Caddy) |
 | plex.evindrake.net | Plex Server | 32400 | ✅ Auto (Caddy) |

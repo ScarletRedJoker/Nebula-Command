@@ -1,4 +1,4 @@
-# Homelab Dashboard - Technical Architecture
+# NebulaCommand Dashboard - Technical Architecture
 
 ## System Overview
 

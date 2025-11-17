@@ -22,11 +22,17 @@ function setupEventListeners() {
                 loadRecords(zone);
                 document.getElementById('add-record-btn').disabled = false;
                 document.getElementById('refresh-btn').disabled = false;
+                document.getElementById('export-json-btn').disabled = false;
+                document.getElementById('export-csv-btn').disabled = false;
+                document.getElementById('import-btn').disabled = false;
             } else {
                 currentZone = '';
                 resetRecordsView();
                 document.getElementById('add-record-btn').disabled = true;
                 document.getElementById('refresh-btn').disabled = true;
+                document.getElementById('export-json-btn').disabled = true;
+                document.getElementById('export-csv-btn').disabled = true;
+                document.getElementById('import-btn').disabled = true;
             }
         });
     }
@@ -47,6 +53,15 @@ function setupEventListeners() {
     const recordType = document.getElementById('record-type');
     if (recordType) {
         recordType.addEventListener('change', updateRecordTypeHints);
+    }
+
+    const importFileInput = document.getElementById('import-file');
+    if (importFileInput) {
+        importFileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            const submitBtn = document.getElementById('submitImportBtn');
+            submitBtn.disabled = !file;
+        });
     }
 }
 
@@ -444,4 +459,96 @@ function showToast(title, message, type = 'info') {
     toastBody.textContent = message;
     
     toast.show();
+}
+
+function exportRecordsJSON() {
+    if (!currentZone) {
+        showToast('Warning', 'Please select a domain first', 'warning');
+        return;
+    }
+    
+    window.location.href = `/api/dns/export/${encodeURIComponent(currentZone)}/json`;
+    showToast('Success', 'Downloading DNS records as JSON...', 'success');
+}
+
+function exportRecordsCSV() {
+    if (!currentZone) {
+        showToast('Warning', 'Please select a domain first', 'warning');
+        return;
+    }
+    
+    window.location.href = `/api/dns/export/${encodeURIComponent(currentZone)}/csv`;
+    showToast('Success', 'Downloading DNS records as CSV...', 'success');
+}
+
+function showImportModal() {
+    if (!currentZone) {
+        showToast('Warning', 'Please select a domain first', 'warning');
+        return;
+    }
+    
+    document.getElementById('import-file').value = '';
+    document.getElementById('submitImportBtn').disabled = true;
+    
+    const importModal = new bootstrap.Modal(document.getElementById('importModal'));
+    importModal.show();
+}
+
+async function submitImport() {
+    const fileInput = document.getElementById('import-file');
+    const file = fileInput.files[0];
+    
+    if (!file) {
+        showToast('Error', 'Please select a file to import', 'danger');
+        return;
+    }
+    
+    const validExtensions = ['.json', '.csv'];
+    const fileName = file.name.toLowerCase();
+    const isValidFile = validExtensions.some(ext => fileName.endsWith(ext));
+    
+    if (!isValidFile) {
+        showToast('Error', 'Please select a valid JSON or CSV file', 'danger');
+        return;
+    }
+    
+    const btn = document.getElementById('submitImportBtn');
+    const btnText = btn.querySelector('.btn-text');
+    const spinner = btn.querySelector('.spinner-border');
+    
+    btn.disabled = true;
+    btnText.classList.add('d-none');
+    spinner.classList.remove('d-none');
+    
+    try {
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const response = await fetch(`/api/dns/import/${encodeURIComponent(currentZone)}`, {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            const summary = result.summary;
+            const message = `Import complete: ${summary.created} created, ${summary.skipped} skipped, ${summary.errors} errors`;
+            showToast('Success', message, 'success');
+            
+            const importModal = bootstrap.Modal.getInstance(document.getElementById('importModal'));
+            importModal.hide();
+            
+            loadRecords(currentZone);
+        } else {
+            showToast('Error', `Import failed: ${result.error || 'Unknown error'}`, 'danger');
+        }
+    } catch (error) {
+        console.error('Error importing records:', error);
+        showToast('Error', `Import failed: ${error.message}`, 'danger');
+    } finally {
+        btn.disabled = false;
+        btnText.classList.remove('d-none');
+        spinner.classList.add('d-none');
+    }
 }

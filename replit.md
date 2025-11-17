@@ -1,7 +1,7 @@
-# Homelab Dashboard Project
+# NebulaCommand Project
 
 ## Overview
-This project delivers a comprehensive, production-ready web-based dashboard for managing Ubuntu homelab servers. Built as an **enterprise-grade platform**, it provides a unified, AI-powered interface that minimizes operational overhead, maximizes reliability, and enables intelligent automated operations. Key capabilities include:
+This project delivers a comprehensive, production-ready web-based dashboard for managing Ubuntu servers. Built as an **enterprise-grade platform**, it provides a unified, AI-powered interface that minimizes operational overhead, maximizes reliability, and enables intelligent automated operations. Key capabilities include:
 
 - **Jarvis AI Agent**: GPT-4 powered AI assistant with voice control, automated diagnostics, and guided remediation
 - **Zero-Touch Domain Management**: Complete automation from DNS setup to SSL certificate provisioning
@@ -57,7 +57,7 @@ This project delivers a comprehensive, production-ready web-based dashboard for 
   - n8n Automation (n8n.evindrake.net)
   - Static Website (scarletredjoker.com)
   - VNC Desktop (vnc.evindrake.net)
-  - Homelab Dashboard (host.evindrake.net)
+  - NebulaCommand Dashboard (host.evindrake.net)
   - Home Assistant (home.evindrake.net)
 - Prefers centralized development environment with clean structure
 - Needs public HTTPS access with automatic SSL (port forwarding configured)
@@ -65,11 +65,11 @@ This project delivers a comprehensive, production-ready web-based dashboard for 
 ## System Architecture
 
 ### UI/UX Decisions
-The Homelab Dashboard features a cosmic theme with deep space backgrounds, animated starfields, nebula gradients, and glassmorphic UI panels, adhering to WCAG AA Accessibility standards. The Jarvis Voice Chat and mobile UI are fully responsive, incorporating cosmic themes and touch-friendly design. The Stream Bot uses a "candy theme" with gradients, glassmorphism, rounded edges, and glow effects.
+The NebulaCommand Dashboard features a cosmic theme with deep space backgrounds, animated starfields, nebula gradients, and glassmorphic UI panels, adhering to WCAG AA Accessibility standards. The Jarvis Voice Chat and mobile UI are fully responsive, incorporating cosmic themes and touch-friendly design. The Stream Bot uses a "candy theme" with gradients, glassmorphism, rounded edges, and glow effects.
 
 ### Technical Implementations
 
-**Homelab Dashboard**
+**NebulaCommand Dashboard**
 - **Stack**: Flask, Python 3.11, Bootstrap 5, Chart.js, SQLAlchemy, Alembic, Redis, Celery, MinIO
 - **Core Features**: 
   - Docker container orchestration and management

@@ -163,10 +163,10 @@ docker exec vnc-desktop which steam
 ### Test Dashboard Routes
 ```bash
 curl -s http://localhost:5000/dashboard | grep -o "<title>.*</title>"
-# Should show: <title>Mission Control - Homelab Dashboard</title>
+# Should show: <title>Mission Control - NebulaCommand Dashboard</title>
 
 curl -s http://localhost:5000/system | grep -o "<title>.*</title>"
-# Should show: <title>System Diagnostics - Homelab Dashboard</title>
+# Should show: <title>System Diagnostics - NebulaCommand Dashboard</title>
 ```
 
 ---

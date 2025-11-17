@@ -1,13 +1,13 @@
 # REST API Documentation
 
-Complete API reference for the Homelab Dashboard ecosystem.
+Complete API reference for the NebulaCommand Dashboard ecosystem.
 
 ---
 
 ## Table of Contents
 
 1. [Authentication](#authentication)
-2. [Homelab Dashboard API](#homelab-dashboard-api)
+2. [NebulaCommand Dashboard API](#homelab-dashboard-api)
 3. [Discord Bot API](#discord-bot-api)
 4. [Stream Bot API](#stream-bot-api)
 5. [Error Handling](#error-handling)
@@ -40,7 +40,7 @@ Authorization: Bearer <api-key>
 
 ---
 
-## Homelab Dashboard API
+## NebulaCommand Dashboard API
 
 Base URL: `https://host.evindrake.net`
 

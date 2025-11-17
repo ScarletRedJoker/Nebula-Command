@@ -41,10 +41,10 @@ docker logs caddy --tail 20
 ```bash
 # Test from server directly (should see different content):
 curl -s http://localhost:5000/dashboard | grep -o "<title>.*</title>"
-# Should show: <title>Mission Control - Homelab Dashboard</title>
+# Should show: <title>Mission Control - NebulaCommand Dashboard</title>
 
 curl -s http://localhost:5000/system | grep -o "<title>.*</title>"
-# Should show: <title>System Diagnostics - Homelab Dashboard</title>
+# Should show: <title>System Diagnostics - NebulaCommand Dashboard</title>
 
 curl -s http://localhost:5000/game-connect | grep -o "<title>.*</title>"
 # Should show: <title>Game Streaming Connection - Homelab</title> (NOT 404!)
@@ -235,12 +235,12 @@ RUN if [ "$INSTALL_STEAM" = "true" ]; then \
 ## Expected Results After Fixes
 
 ### Dashboard (https://host.evindrake.net/dashboard)
-- Title: "Mission Control - Homelab Dashboard"
+- Title: "Mission Control - NebulaCommand Dashboard"
 - Widgets showing: System Stats, Service Status, Activity Feed
 - Spaceship control panel aesthetic
 
 ### System (https://host.evindrake.net/system)
-- Title: "System Diagnostics - Homelab Dashboard"
+- Title: "System Diagnostics - NebulaCommand Dashboard"
 - LED panel showing: CPU, MEMORY, DISK, NETWORK status
 - System metrics and graphs
 

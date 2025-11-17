@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}DNS Records Management - Homelab Dashboard{% endblock %}
+{% block title %}DNS Records Management - NebulaCommand Dashboard{% endblock %}
 
 {% block content %}
 <div class="container-fluid dns-management-page">
@@ -88,6 +88,15 @@
                         </select>
                         <button class="btn btn-sm btn-outline-primary" onclick="refreshRecords()" aria-label="Refresh DNS records" id="refresh-btn" disabled>
                             <i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Refresh
+                        </button>
+                        <button class="btn btn-sm btn-outline-primary" onclick="exportRecordsJSON()" aria-label="Export DNS records as JSON" id="export-json-btn" disabled>
+                            <i class="bi bi-download" aria-hidden="true"></i> Export JSON
+                        </button>
+                        <button class="btn btn-sm btn-outline-success" onclick="exportRecordsCSV()" aria-label="Export DNS records as CSV" id="export-csv-btn" disabled>
+                            <i class="bi bi-download" aria-hidden="true"></i> Export CSV
+                        </button>
+                        <button class="btn btn-sm btn-primary" onclick="showImportModal()" aria-label="Import DNS records" id="import-btn" disabled>
+                            <i class="bi bi-upload" aria-hidden="true"></i> Import
                         </button>
                     </div>
                 </div>
@@ -219,6 +228,64 @@
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" aria-label="Cancel deletion">Cancel</button>
                 <button type="button" class="btn btn-danger" id="confirmDeleteBtn" onclick="deleteRecord()" disabled aria-label="Confirm deletion">
                     Delete Record
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="importModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content glassmorphic-panel">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-upload"></i> Import DNS Records
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle me-2"></i>
+                    <strong>Supported Formats:</strong> JSON and CSV files
+                </div>
+                
+                <div class="mb-3">
+                    <label for="import-file" class="form-label">Select File <span class="text-danger">*</span></label>
+                    <input type="file" class="form-control" id="import-file" accept=".json,.csv" required>
+                    <div class="form-text">
+                        Upload a JSON or CSV file containing DNS records to import
+                    </div>
+                </div>
+
+                <div class="import-format-info">
+                    <h6 class="mb-2">File Format Examples:</h6>
+                    <div class="format-example">
+                        <strong>JSON Format:</strong>
+                        <pre><code>{
+  "records": [
+    {"type": "A", "host": "www", "value": "192.168.1.1", "ttl": 300},
+    {"type": "CNAME", "host": "blog", "value": "example.com", "ttl": 3600}
+  ]
+}</code></pre>
+                    </div>
+                    <div class="format-example mt-2">
+                        <strong>CSV Format:</strong>
+                        <pre><code>type,host,value,ttl
+A,www,192.168.1.1,300
+CNAME,blog,example.com,3600</code></pre>
+                    </div>
+                </div>
+
+                <div class="alert alert-warning mt-3">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <strong>Note:</strong> Duplicate records will be skipped automatically
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" aria-label="Cancel import">Cancel</button>
+                <button type="button" class="btn btn-primary" id="submitImportBtn" onclick="submitImport()" disabled aria-label="Submit import">
+                    <span class="btn-text">Import Records</span>
+                    <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
                 </button>
             </div>
         </div>
@@ -396,6 +463,27 @@
     font-size: 0.9rem;
     border-radius: 6px;
     transition: all 0.2s;
+}
+
+.import-format-info {
+    background: rgba(96, 165, 250, 0.05);
+    border: 1px solid rgba(96, 165, 250, 0.2);
+    border-radius: 8px;
+    padding: 15px;
+}
+
+.format-example pre {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(96, 165, 250, 0.2);
+    border-radius: 6px;
+    padding: 10px;
+    margin: 5px 0 0 0;
+    overflow-x: auto;
+}
+
+.format-example code {
+    color: #60a5fa;
+    font-size: 0.85rem;
 }
 
 @media (max-width: 768px) {

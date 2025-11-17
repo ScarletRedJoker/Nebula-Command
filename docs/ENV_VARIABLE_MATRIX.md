@@ -21,7 +21,7 @@ This document lists ALL environment variables used across the homelab deployment
 
 ---
 
-## 🖥️ Homelab Dashboard (host.evindrake.net)
+## 🖥️ NebulaCommand Dashboard (host.evindrake.net)
 
 | Variable | Required? | Default | Description |
 |----------|-----------|---------|-------------|
@@ -268,5 +268,5 @@ cat docs/ENV_QUICK_GUIDE.md
 ---
 
 **Last Updated:** November 12, 2025  
-**Maintained By:** Homelab Dashboard Team  
+**Maintained By:** NebulaCommand Dashboard Team  
 **Related Docs:** ENV_QUICK_GUIDE.md, DEPLOYMENT_GUIDE.md

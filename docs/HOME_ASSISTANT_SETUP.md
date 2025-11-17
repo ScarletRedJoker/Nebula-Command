@@ -2,7 +2,7 @@
 
 > **Last Updated:** November 15, 2025  
 > **Status:** Production Ready  
-> **Integration:** Jarvis Homelab Dashboard
+> **Integration:** Jarvis NebulaCommand Dashboard
 
 ## Table of Contents
 

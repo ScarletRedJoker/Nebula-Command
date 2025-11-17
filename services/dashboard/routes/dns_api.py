@@ -551,17 +551,21 @@ def export_csv(zone):
         records = result.get('records', [])
         
         output = io.StringIO()
-        writer = csv.writer(output)
+        writer = csv.DictWriter(
+            output, 
+            fieldnames=['type', 'host', 'value', 'ttl'], 
+            quoting=csv.QUOTE_MINIMAL
+        )
         
-        writer.writerow(['type', 'host', 'value', 'ttl'])
+        writer.writeheader()
         
         for record in records:
-            writer.writerow([
-                record.get('type', ''),
-                record.get('host', '@'),
-                record.get('value', record.get('content', '')),
-                record.get('ttl', 300)
-            ])
+            writer.writerow({
+                'type': record.get('type', ''),
+                'host': record.get('host', '@'),
+                'value': record.get('value', record.get('content', '')),
+                'ttl': record.get('ttl', 300)
+            })
         
         csv_data = output.getvalue()
         output.close()
@@ -628,46 +632,64 @@ def import_records(zone):
                 'message': 'Please set ZONEEDIT_USERNAME and ZONEEDIT_PASSWORD environment variables'
             }), 503
         
-        dry_run = request.args.get('dry_run', '').lower() == 'true'
-        content_type = request.content_type or ''
-        
-        records_to_import = []
-        
-        if 'application/json' in content_type:
-            data = request.get_json()
-            if not data or 'records' not in data:
-                return jsonify({
-                    'success': False,
-                    'error': 'Invalid JSON',
-                    'message': 'Request must contain "records" array'
-                }), 400
-            
-            records_to_import = data['records']
-            
-        elif 'text/csv' in content_type or 'multipart/form-data' in content_type:
-            if 'file' in request.files:
-                csv_file = request.files['file']
-                csv_content = csv_file.read().decode('utf-8')
-            else:
-                csv_content = request.get_data(as_text=True)
-            
-            csv_reader = csv.DictReader(io.StringIO(csv_content))
-            records_to_import = []
-            
-            for row in csv_reader:
-                if row.get('type') and row.get('host') and row.get('value'):
-                    records_to_import.append({
-                        'type': row['type'].upper(),
-                        'host': row['host'],
-                        'value': row['value'],
-                        'ttl': int(row.get('ttl', 300))
-                    })
-        else:
+        if 'file' not in request.files:
             return jsonify({
                 'success': False,
-                'error': 'Unsupported content type',
-                'message': 'Use application/json or text/csv'
-            }), 415
+                'error': 'No file provided',
+                'message': 'Please upload a JSON or CSV file'
+            }), 400
+        
+        file = request.files['file']
+        if not file.filename or file.filename == '':
+            return jsonify({
+                'success': False,
+                'error': 'No file selected',
+                'message': 'Please select a file to upload'
+            }), 400
+        
+        # Read file content ONCE
+        content = file.read().decode('utf-8')
+        filename = file.filename.lower()
+        
+        # Parse based on extension
+        try:
+            if filename.endswith('.json'):
+                import json
+                data = json.loads(content)
+                records_to_import = data.get('records', [])
+                
+                if not records_to_import:
+                    return jsonify({
+                        'success': False,
+                        'error': 'Invalid JSON',
+                        'message': 'JSON file must contain "records" array'
+                    }), 400
+                    
+            elif filename.endswith('.csv'):
+                csv_reader = csv.DictReader(io.StringIO(content))
+                
+                # VALIDATE HEADERS
+                expected_headers = {'type', 'host', 'value'}
+                if not expected_headers.issubset(set(csv_reader.fieldnames or [])):
+                    return jsonify({
+                        'success': False,
+                        'error': 'Invalid CSV format',
+                        'message': 'CSV must have columns: type, host, value, ttl (optional)'
+                    }), 400
+                
+                records_to_import = list(csv_reader)
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': 'Unsupported file type',
+                    'message': 'Please upload a .json or .csv file'
+                }), 400
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'error': 'File parsing failed',
+                'message': str(e)
+            }), 400
         
         if not records_to_import:
             return jsonify({
@@ -676,99 +698,30 @@ def import_records(zone):
                 'message': 'The import file contains no valid records'
             }), 400
         
-        valid_types = ['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS', 'DYN']
+        # Check dry_run query parameter
+        dry_run = request.args.get('dry_run', 'false').lower() == 'true'
         
-        for record in records_to_import:
-            if record.get('type', '').upper() not in valid_types:
-                return jsonify({
-                    'success': False,
-                    'error': 'Invalid record type',
-                    'message': f"Unsupported record type: {record.get('type')}",
-                    'supported_types': valid_types
-                }), 400
-            
-            if 'ttl' in record:
-                ttl = record['ttl']
-                if not isinstance(ttl, int) or ttl < 60 or ttl > 86400:
-                    return jsonify({
-                        'success': False,
-                        'error': 'Invalid TTL',
-                        'message': f'TTL must be between 60 and 86400 seconds (record: {record.get("host")})'
-                    }), 400
+        success, result = zoneedit.import_records(zone, records_to_import, dry_run=dry_run)
         
-        if dry_run:
+        if success:
             return jsonify({
                 'success': True,
-                'dry_run': True,
-                'message': 'Validation successful',
-                'preview': {
-                    'total': len(records_to_import),
-                    'records': records_to_import
-                }
+                'dry_run': dry_run,
+                'created': result.get('created', 0),
+                'skipped': result.get('skipped', 0),
+                'errors': result.get('errors', 0),
+                'details': result.get('details', [])
             }), 200
-        
-        success_list, result = zoneedit.list_records(zone)
-        existing_records = result.get('records', []) if success_list else []
-        existing_hosts = {f"{r.get('type')}:{r.get('host', '@')}" for r in existing_records}
-        
-        summary = {
-            'total': len(records_to_import),
-            'created': 0,
-            'skipped': 0,
-            'errors': 0
-        }
-        details = []
-        
-        for record in records_to_import:
-            record_type = record['type'].upper()
-            host = record.get('host', '@')
-            value = record['value']
-            ttl = record.get('ttl', 300)
-            
-            record_key = f"{record_type}:{host}"
-            
-            if record_key in existing_hosts:
-                summary['skipped'] += 1
-                details.append({
-                    'type': record_type,
-                    'host': host,
-                    'value': value,
-                    'status': 'skipped',
-                    'reason': 'Duplicate record already exists'
-                })
-                logger.warning(f"Skipped duplicate record: {record_type} {host} in {zone}")
-                continue
-            
-            success, create_result = zoneedit.create_record(zone, record_type, host, value, ttl)
-            
-            if success:
-                summary['created'] += 1
-                details.append({
-                    'type': record_type,
-                    'host': host,
-                    'value': value,
-                    'status': 'created'
-                })
-                logger.info(f"Created record: {record_type} {host} -> {value} in {zone}")
-            else:
-                summary['errors'] += 1
-                details.append({
-                    'type': record_type,
-                    'host': host,
-                    'value': value,
-                    'status': 'error',
-                    'reason': create_result.get('message', 'Unknown error')
-                })
-                logger.error(f"Failed to create record: {record_type} {host} in {zone}: {create_result}")
-        
-        logger.info(f"Import complete for {zone}: {summary['created']} created, {summary['skipped']} skipped, {summary['errors']} errors")
-        
-        return jsonify({
-            'success': True,
-            'message': f"Import complete: {summary['created']} records created",
-            'summary': summary,
-            'details': details
-        }), 200
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.get('error', 'Import failed'),
+                'message': result.get('message', ''),
+                'created': result.get('created', 0),
+                'skipped': result.get('skipped', 0),
+                'errors': result.get('errors', 0),
+                'details': result.get('details', [])
+            }), 400
         
     except Exception as e:
         logger.error(f"Error importing records for {zone}: {e}", exc_info=True)

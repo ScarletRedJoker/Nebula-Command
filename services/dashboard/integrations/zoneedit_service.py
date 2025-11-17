@@ -517,7 +517,7 @@ class ZoneEditService:
             
             data = {'value': value}
             if ttl is not None:
-                data['ttl'] = ttl
+                data['ttl'] = str(ttl)
             
             response = requests.put(
                 f"{self.api_base}/zones/{zone}/rrset/{record_id}",
@@ -684,6 +684,103 @@ class ZoneEditService:
             'dns_results': results,
             'verified_at': datetime.utcnow().isoformat()
         }
+    
+    def import_records(self, zone: str, records: List[Dict], dry_run: bool = False) -> Tuple[bool, Dict]:
+        """Import multiple DNS records with optional dry-run validation
+        
+        Args:
+            zone: Domain zone name
+            records: List of record dictionaries with type, host, value, ttl
+            dry_run: If True, validate without creating records
+            
+        Returns:
+            Tuple of (success, results_dict)
+        """
+        logger.info(f"Importing {len(records)} records to zone {zone} (dry_run={dry_run})")
+        
+        results = {
+            'created': 0,
+            'skipped': 0,
+            'errors': 0,
+            'details': []
+        }
+        
+        for record in records:
+            try:
+                # Validate required fields
+                if not all(k in record for k in ['type', 'host', 'value']):
+                    results['errors'] += 1
+                    results['details'].append('Missing required fields')
+                    logger.error(f"Record missing required fields: {record}")
+                    continue
+                
+                # DRY RUN: Just validate, don't create
+                if dry_run:
+                    # Check if valid record type
+                    if record['type'].upper() not in ['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS', 'DYN']:
+                        results['errors'] += 1
+                        results['details'].append(f"Invalid type: {record['type']}")
+                    else:
+                        results['created'] += 1  # Would be created
+                    continue
+                
+                # LIVE: Create the record
+                success, result = self.create_record(
+                    zone=zone,
+                    record_type=record['type'],
+                    host=record['host'],
+                    value=record['value'],
+                    ttl=int(record.get('ttl', 300))
+                )
+                
+                if success:
+                    results['created'] += 1
+                    results['details'].append({
+                        'record': record,
+                        'status': 'created',
+                        'message': 'Successfully created'
+                    })
+                    logger.info(f"Created record: {record['type']} {record['host']} in {zone}")
+                else:
+                    error_msg = str(result.get('error', '')).lower()
+                    
+                    # Better duplicate detection
+                    if 'exists' in error_msg or 'duplicate' in error_msg:
+                        results['skipped'] += 1
+                        results['details'].append({
+                            'record': record,
+                            'status': 'skipped',
+                            'message': 'Record already exists'
+                        })
+                        logger.warning(f"Skipped duplicate record: {record['type']} {record['host']} in {zone}")
+                    else:
+                        results['errors'] += 1
+                        results['details'].append({
+                            'record': record,
+                            'status': 'error',
+                            'message': result.get('error', 'Unknown error')
+                        })
+                        logger.error(f"Failed to create record: {record['type']} {record['host']} in {zone}: {error_msg}")
+                        
+            except Exception as e:
+                results['errors'] += 1
+                results['details'].append(str(e))
+                logger.error(f"Exception importing record: {e}", exc_info=True)
+        
+        logger.info(
+            f"Import complete for {zone}: "
+            f"{results['created']} created, {results['skipped']} skipped, {results['errors']} errors"
+        )
+        
+        # Return FALSE if ALL records failed
+        if results['created'] == 0 and results['errors'] > 0 and results['skipped'] == 0:
+            return (False, {
+                'error': 'All records failed to import',
+                'message': f"{results['errors']} errors occurred",
+                **results
+            })
+        
+        return (True, results)
     
     def get_public_ip(self) -> Optional[str]:
         """Detect current public IP address
