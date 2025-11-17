@@ -162,7 +162,7 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
     // Handle interaction create events (slash commands, button clicks, modals)
     client.on(Events.InteractionCreate, async (interaction) => {
       // Handle slash commands
-      if (interaction.isCommand()) {
+      if (interaction.isChatInputCommand()) {
         const command = commands.get(interaction.commandName);
         if (!command) return;
         
@@ -2033,12 +2033,12 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
     });
     
     // Track connection state changes
-    client.on(Events.Disconnect, () => {
+    client.on('shardDisconnect' as any, () => {
       console.log('[Discord] Bot disconnected from Discord');
       botHealthMonitor.updateConnectionState('disconnected', 'Lost connection to Discord');
     });
     
-    client.on(Events.Reconnecting, () => {
+    client.on('shardReconnecting' as any, () => {
       console.log('[Discord] Bot is reconnecting to Discord');
       botHealthMonitor.updateConnectionState('reconnecting', 'Attempting to reconnect');
     });
