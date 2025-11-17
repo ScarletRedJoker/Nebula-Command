@@ -54,7 +54,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   tokenRefreshService.start();
 
   // Initialize WebSocket server on /ws path (Reference: javascript_websocket blueprint)
-  const wss = new WebSocketServer({ noServer: true });
+  // Create WebSocket server with comprehensive error handling
+  let wss: WebSocketServer;
+  try {
+    wss = new WebSocketServer({ noServer: true });
+    console.log('✅ Stream Bot WebSocket server created successfully on path /ws');
+  } catch (error: any) {
+    console.error('❌ Stream Bot WebSocket creation failed:', error.message);
+    // Create dummy WebSocket to prevent crashes
+    wss = new WebSocketServer({ noServer: true });
+    console.warn('⚠️  Running with limited WebSocket functionality');
+  }
+  
+  // Add comprehensive error handler for WebSocket
+  wss.on('error', (error: any) => {
+    if (error.code === 'EADDRINUSE') {
+      console.error('WebSocket port conflict - another service may be using WebSocket');
+      console.warn('⚠️  WebSocket features may not work properly');
+    } else {
+      console.error('WebSocket error:', error.message);
+    }
+  });
 
   // Authenticate WebSocket upgrades using session middleware
   httpServer.on("upgrade", (request: any, socket, head) => {

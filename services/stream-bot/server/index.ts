@@ -182,17 +182,50 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = ENV_CONFIG.port;
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
-    logger.info(`🚀 Stream Bot server running on port ${port}`, { 
-      component: 'http',
-      environment: ENV_CONFIG.environment,
-      demoMode: ENV_CONFIG.demoMode
+  
+  // Retry mechanism for port binding
+  let retryCount = 0;
+  const maxRetries = 3;
+  const retryDelay = 2000; // 2 seconds
+  
+  function tryListen() {
+    server.listen({
+      port,
+      host: "0.0.0.0",
+      reusePort: true,
+    }, () => {
+      logger.info(`🚀 Stream Bot server running on port ${port}`, { 
+        component: 'http',
+        environment: ENV_CONFIG.environment,
+        demoMode: ENV_CONFIG.demoMode
+      });
+    }).on('error', (error: any) => {
+      if (error.code === 'EADDRINUSE') {
+        retryCount++;
+        if (retryCount <= maxRetries) {
+          logger.warn(`Port ${port} is in use. Retrying in ${retryDelay/1000}s... (${retryCount}/${maxRetries})`, {
+            component: 'http',
+            port
+          });
+          setTimeout(tryListen, retryDelay);
+        } else {
+          logger.error(`Port ${port} is still in use after ${maxRetries} attempts. Exiting.`, {
+            component: 'http',
+            port
+          });
+          process.exit(1);
+        }
+      } else {
+        logger.error(`Server error: ${error.message}`, {
+          component: 'http',
+          error: error.code
+        });
+        process.exit(1);
+      }
     });
-  });
+  }
+  
+  tryListen();
 
   // Graceful shutdown handlers
   async function gracefulShutdown(signal: string) {

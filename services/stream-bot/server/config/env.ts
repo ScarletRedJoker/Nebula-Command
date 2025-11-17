@@ -22,7 +22,7 @@ export const ENV_CONFIG: EnvironmentConfig = {
   demoMode: process.env.DEMO_MODE?.toLowerCase() === 'true' || IS_REPLIT,
   databaseUrl: process.env.DATABASE_URL || '',
   redisEnabled: !IS_REPLIT, // Disable Redis on Replit
-  port: parseInt(process.env.PORT || (IS_REPLIT ? '3000' : '5000'), 10)
+  port: parseInt(process.env.PORT || (IS_REPLIT ? '3003' : '5000'), 10)
 };
 
 export const logEnvironmentConfig = () => {

@@ -21,7 +21,7 @@ export const ENV_CONFIG: EnvironmentConfig = {
   environment: IS_REPLIT ? 'replit' : 'ubuntu',
   demoMode: process.env.DEMO_MODE?.toLowerCase() === 'true' || IS_REPLIT,
   databaseUrl: process.env.DATABASE_URL || '',
-  port: parseInt(process.env.PORT || (IS_REPLIT ? '3001' : '5000'), 10),
+  port: parseInt(process.env.PORT || (IS_REPLIT ? '9000' : '5000'), 10),
   discordToken: process.env.DISCORD_BOT_TOKEN
 };
 
