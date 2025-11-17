@@ -84,6 +84,12 @@ app.config['SESSION_COOKIE_HTTPONLY'] = True
 
 csrf = CSRFProtect(app)
 limiter.init_app(app)
+
+@app.context_processor
+def inject_csrf_token():
+    from flask_wtf.csrf import generate_csrf
+    return dict(csrf_token=generate_csrf)
+
 logger.info("✓ CSRF Protection and Rate Limiting initialized")
 
 # Production logging configuration
