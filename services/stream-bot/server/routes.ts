@@ -35,6 +35,7 @@ import { analyticsService } from "./analytics-service";
 import { tokenRefreshService } from "./token-refresh-service";
 import { quotaService } from "./quota-service";
 import { getHealthStatus } from "./health";
+import { UserStorage } from "./user-storage";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/auth", oauthSignInRoutes);
@@ -837,12 +838,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       
       if (result.success) {
-        // Post the shoutout to the platform via the bot
-        const userBot = botManager.getUserBot(req.user!.id);
-        if (userBot) {
-          await userBot.postToPlatform(platform, result.message);
-        }
-        
         res.json({ success: true, message: result.message });
       } else {
         res.status(400).json({ success: false, error: result.message });
@@ -1414,7 +1409,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   app.get("/api/games/settings", requireAuth, async (req, res) => {
     try {
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const settings = await userStorage.getGameSettings();
       
       // Return default settings if none exist
@@ -1443,7 +1438,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/games/settings", requireAuth, async (req, res) => {
     try {
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const updatedSettings = await userStorage.updateGameSettings(req.body);
       res.json(updatedSettings);
     } catch (error) {
@@ -1454,11 +1449,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/games/history", requireAuth, async (req, res) => {
     try {
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const limit = parseInt(req.query.limit as string) || 50;
       const gameType = req.query.gameType as string | undefined;
       
-      const history = await userStorage.getGameHistory(limit, gameType as any);
+      const history = gameType 
+        ? await userStorage.getGameHistoryByType(gameType, limit)
+        : await userStorage.getGameHistory(limit);
       res.json(history);
     } catch (error) {
       console.error("Failed to fetch game history:", error);
@@ -1468,7 +1465,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/games/stats", requireAuth, async (req, res) => {
     try {
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const gamesService = new GamesService(userStorage);
       const stats = await gamesService.getGameStats();
       
@@ -1498,7 +1495,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "gameName query parameter is required" });
       }
       
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const leaderboard = await userStorage.getGameLeaderboard(gameName, limit);
       res.json(leaderboard);
     } catch (error) {
@@ -1516,7 +1513,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "player and platform are required" });
       }
       
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const gamesService = new GamesService(userStorage);
       
       let result;
@@ -1585,7 +1582,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Missing required fields: username, platform, answer" });
       }
       
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const gamesService = new GamesService(userStorage);
       
       const result = await gamesService.checkTriviaAnswer(username, req.user!.id, platform, answer);
@@ -1603,7 +1600,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/currency/settings", requireAuth, async (req, res) => {
     try {
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const settings = await userStorage.getCurrencySettings();
       res.json(settings || {});
     } catch (error) {
@@ -1614,7 +1611,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/currency/settings", requireAuth, async (req, res) => {
     try {
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       await userStorage.updateCurrencySettings(req.body);
       const updated = await userStorage.getCurrencySettings();
       res.json(updated);
@@ -1665,10 +1662,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/currency/transactions", requireAuth, async (req, res) => {
     try {
-      const { limit = "50", username } = req.query;
+      const { limit = "50", username, platform = "twitch" } = req.query;
+      
+      if (!username) {
+        return res.json([]);
+      }
+      
       const transactions = await currencyService.getTransactions(
         req.user!.id,
-        username as string | undefined,
+        String(username),
+        String(platform),
         parseInt(limit as string)
       );
       res.json(transactions);
@@ -1690,15 +1693,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/rewards", requireAuth, async (req, res) => {
     try {
-      const { rewardName, cost, command, stock, maxRedeems, isActive = true } = req.body;
+      const { rewardName, cost, command, stock, maxRedeems, isActive = true, rewardType = 'custom_command' } = req.body;
       
       if (!rewardName || cost === undefined) {
         return res.status(400).json({ error: "Missing required fields: rewardName, cost" });
       }
       
       const reward = await currencyService.createReward(req.user!.id, {
+        botUserId: req.user!.id,
         rewardName,
         cost,
+        rewardType: rewardType as 'timeout_immunity' | 'song_request' | 'highlight_message' | 'custom_command',
         command,
         stock,
         maxRedeems,
@@ -1715,9 +1720,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/rewards/:id", requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
-      await currencyService.updateReward(req.user!.id, parseInt(id), req.body);
+      await currencyService.updateReward(req.user!.id, id, req.body);
       const rewards = await currencyService.getRewards(req.user!.id);
-      const updated = rewards.find(r => r.id === parseInt(id));
+      const updated = rewards.find(r => r.id === id);
       res.json(updated);
     } catch (error) {
       console.error("Failed to update reward:", error);
@@ -1728,7 +1733,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/rewards/:id", requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
-      await currencyService.deleteReward(req.user!.id, parseInt(id));
+      await currencyService.deleteReward(req.user!.id, id);
       res.json({ success: true });
     } catch (error) {
       console.error("Failed to delete reward:", error);
@@ -1745,7 +1750,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Missing required fields: username, platform" });
       }
       
-      const result = await currencyService.redeemReward(req.user!.id, username, platform, parseInt(id));
+      const result = await currencyService.redeemReward(req.user!.id, username, platform, id);
       res.json(result);
     } catch (error) {
       console.error("Failed to redeem reward:", error);
@@ -1757,7 +1762,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { pending = "false", limit = "50" } = req.query;
       const redemptions = pending === "true"
-        ? await currencyService.getPendingRedemptions(req.user!.id, parseInt(limit as string))
+        ? await currencyService.getPendingRedemptions(req.user!.id)
         : await currencyService.getRedemptions(req.user!.id, parseInt(limit as string));
       res.json(redemptions);
     } catch (error) {
@@ -1769,7 +1774,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/currency/redemptions/:id/fulfill", requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
-      await currencyService.fulfillRedemption(req.user!.id, parseInt(id));
+      await currencyService.fulfillRedemption(req.user!.id, id);
       res.json({ success: true });
     } catch (error) {
       console.error("Failed to fulfill redemption:", error);
@@ -1785,7 +1790,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Missing or invalid fields: question and at least 2 options required" });
       }
       
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const pollsService = new PollsService(userStorage);
       
       const poll = await pollsService.createPoll(
@@ -1797,7 +1802,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       
       const result = await pollsService.startPoll(poll.id);
-      res.json({ poll, ...result });
+      res.json({ ...result, poll: result.poll });
     } catch (error) {
       console.error("Failed to create poll:", error);
       res.status(500).json({ error: "Failed to create poll" });
@@ -1813,10 +1818,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Missing required fields: username, option" });
       }
       
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const pollsService = new PollsService(userStorage);
       
-      const result = await pollsService.vote(parseInt(id), username, option, platform || "twitch");
+      const result = await pollsService.vote(id, username, option, platform || "twitch");
       res.json(result);
     } catch (error) {
       console.error("Failed to vote:", error);
@@ -1828,10 +1833,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const pollsService = new PollsService(userStorage);
       
-      const result = await pollsService.endPoll(parseInt(id));
+      const result = await pollsService.endPoll(id);
       res.json(result);
     } catch (error) {
       console.error("Failed to end poll:", error);
@@ -1843,7 +1848,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { platform = "twitch" } = req.query;
       
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const pollsService = new PollsService(userStorage);
       
       const poll = await pollsService.getActivePoll(req.user!.id, platform as string);
@@ -1858,10 +1863,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const pollsService = new PollsService(userStorage);
       
-      const results = await pollsService.getPollResults(parseInt(id));
+      const results = await pollsService.getPollResults(id);
       res.json(results);
     } catch (error) {
       console.error("Failed to get poll results:", error);
@@ -1873,10 +1878,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { limit = "20", platform } = req.query;
       
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const pollsService = new PollsService(userStorage);
       
-      const polls = await pollsService.getPollHistory(req.user!.id, parseInt(limit as string), platform as string | undefined);
+      const polls = await pollsService.getPollHistory(req.user!.id, parseInt(limit as string));
       res.json(polls);
     } catch (error) {
       console.error("Failed to get polls:", error);
@@ -1892,7 +1897,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Missing or invalid fields: title and at least 2 outcomes required" });
       }
       
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const pollsService = new PollsService(userStorage);
       
       const prediction = await pollsService.createPrediction(
@@ -1904,7 +1909,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       
       const result = await pollsService.startPrediction(prediction.id);
-      res.json({ prediction, ...result });
+      res.json({ ...result, prediction: result.prediction });
     } catch (error) {
       console.error("Failed to create prediction:", error);
       res.status(500).json({ error: "Failed to create prediction" });
@@ -1920,10 +1925,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Missing required fields: username, outcome, amount" });
       }
       
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const pollsService = new PollsService(userStorage);
       
-      const result = await pollsService.placeBet(parseInt(id), username, outcome, amount, platform || "twitch");
+      const result = await pollsService.placeBet(id, username, outcome, amount, platform || "twitch");
       res.json(result);
     } catch (error) {
       console.error("Failed to place bet:", error);
@@ -1940,10 +1945,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Missing required field: winningOutcome" });
       }
       
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const pollsService = new PollsService(userStorage);
       
-      const result = await pollsService.resolvePrediction(parseInt(id), winningOutcome);
+      const result = await pollsService.resolvePrediction(id, winningOutcome);
       res.json(result);
     } catch (error) {
       console.error("Failed to resolve prediction:", error);
@@ -1955,7 +1960,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { platform = "twitch" } = req.query;
       
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const pollsService = new PollsService(userStorage);
       
       const prediction = await pollsService.getActivePrediction(req.user!.id, platform as string);
@@ -1970,10 +1975,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const pollsService = new PollsService(userStorage);
       
-      const results = await pollsService.getPredictionResults(parseInt(id));
+      const results = await pollsService.getPredictionResults(id);
       res.json(results);
     } catch (error) {
       console.error("Failed to get prediction results:", error);
@@ -1985,10 +1990,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { limit = "20", platform } = req.query;
       
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const pollsService = new PollsService(userStorage);
       
-      const predictions = await pollsService.getPredictionHistory(req.user!.id, parseInt(limit as string), platform as string | undefined);
+      const predictions = await pollsService.getPredictionHistory(req.user!.id, parseInt(limit as string));
       res.json(predictions);
     } catch (error) {
       console.error("Failed to get predictions:", error);
@@ -1998,7 +2003,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/alerts/settings", requireAuth, async (req, res) => {
     try {
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       let settings = await userStorage.getAlertSettings();
       
       if (!settings) {
@@ -2024,7 +2029,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/alerts/settings", requireAuth, async (req, res) => {
     try {
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const settings = await userStorage.updateAlertSettings(req.body);
       res.json(settings);
     } catch (error) {
@@ -2037,7 +2042,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { type, limit = "50" } = req.query;
       
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const history = await userStorage.getAlertHistory(
         type as string | undefined,
         parseInt(limit as string)
@@ -2058,7 +2063,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid alert type" });
       }
       
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const alertsService = new AlertsService(userStorage);
       
       const result = await alertsService.testAlert(req.user!.id, alertType, platform);
@@ -2082,7 +2087,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid milestone type" });
       }
       
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const alertsService = new AlertsService(userStorage);
       
       const progress = await alertsService.getMilestoneProgress(
@@ -2100,7 +2105,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Chatbot
   app.get("/api/chatbot/settings", requireAuth, async (req, res) => {
     try {
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const settings = await userStorage.getChatbotSettings();
       res.json(settings || {
         userId: req.user!.id,
@@ -2119,7 +2124,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/chatbot/settings", requireAuth, async (req, res) => {
     try {
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const settings = await userStorage.updateChatbotSettings(req.body);
       res.json(settings);
     } catch (error) {
@@ -2130,7 +2135,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/chatbot/personalities/presets", requireAuth, async (req, res) => {
     try {
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const presets = await userStorage.getPresetPersonalities();
       res.json(presets);
     } catch (error) {
@@ -2141,7 +2146,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/chatbot/personalities", requireAuth, async (req, res) => {
     try {
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const personalities = await userStorage.getChatbotPersonalities();
       res.json(personalities);
     } catch (error) {
@@ -2152,7 +2157,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/chatbot/personalities/:id", requireAuth, async (req, res) => {
     try {
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const personality = await userStorage.getChatbotPersonality(req.params.id);
       if (!personality) {
         return res.status(404).json({ error: "Personality not found" });
@@ -2172,7 +2177,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Missing required fields: name, systemPrompt" });
       }
       
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const personality = await userStorage.createChatbotPersonality({
         name,
         systemPrompt,
@@ -2189,7 +2194,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/chatbot/personalities/:id", requireAuth, async (req, res) => {
     try {
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const personality = await userStorage.updateChatbotPersonality(req.params.id, req.body);
       res.json(personality);
     } catch (error) {
@@ -2200,7 +2205,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/chatbot/personalities/:id", requireAuth, async (req, res) => {
     try {
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       await userStorage.deleteChatbotPersonality(req.params.id);
       res.json({ success: true });
     } catch (error) {
@@ -2211,14 +2216,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/chatbot/context", requireAuth, async (req, res) => {
     try {
-      const { limit = "20", username } = req.query;
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const { limit = "20", username, platform = "twitch" } = req.query;
+      const userStorage = new UserStorage(req.user!.id);
       
       let context;
       if (username) {
-        context = await userStorage.getChatbotContextByUsername(username as string, parseInt(limit as string));
+        context = await userStorage.getChatbotContext(String(username), String(platform));
       } else {
-        context = await userStorage.getChatbotContext(parseInt(limit as string));
+        context = await userStorage.getAllChatbotContexts(parseInt(limit as string));
       }
       
       res.json(context);
@@ -2236,7 +2241,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Missing required fields: message, username" });
       }
       
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const chatbotService = new ChatbotService(userStorage);
       
       const response = await chatbotService.processMessage(username, message, platform);
@@ -2252,7 +2257,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/polls", requireAuth, async (req, res) => {
     try {
       const { limit = "20" } = req.query;
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const polls = await userStorage.getPolls(parseInt(limit as string));
       res.json(polls);
     } catch (error) {
@@ -2264,7 +2269,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/polls/active", requireAuth, async (req, res) => {
     try {
       const { platform } = req.query;
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const pollsService = new PollsService(userStorage);
       const activePoll = await pollsService.getActivePoll(req.user!.id, platform as string | undefined);
       res.json(activePoll);
@@ -2277,7 +2282,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/polls/history", requireAuth, async (req, res) => {
     try {
       const { limit = "20" } = req.query;
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const pollsService = new PollsService(userStorage);
       const history = await pollsService.getPollHistory(req.user!.id, parseInt(limit as string));
       res.json(history);
@@ -2289,7 +2294,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/polls/:id", requireAuth, async (req, res) => {
     try {
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const poll = await userStorage.getPoll(req.params.id);
       if (!poll) {
         return res.status(404).json({ error: "Poll not found" });
@@ -2303,7 +2308,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/polls/:id/results", requireAuth, async (req, res) => {
     try {
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const pollsService = new PollsService(userStorage);
       const results = await pollsService.getPollResults(req.params.id);
       res.json(results);
@@ -2325,7 +2330,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Polls must have 2-5 options" });
       }
 
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const pollsService = new PollsService(userStorage);
       
       const poll = await pollsService.createPoll(req.user!.id, question, options, duration, platform);
@@ -2346,7 +2351,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid vote data" });
       }
 
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const pollsService = new PollsService(userStorage);
       const result = await pollsService.vote(req.params.id, username, option, platform);
       
@@ -2359,7 +2364,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/polls/:id/end", requireAuth, async (req, res) => {
     try {
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const pollsService = new PollsService(userStorage);
       const result = await pollsService.endPoll(req.params.id);
       
@@ -2374,7 +2379,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/predictions", requireAuth, async (req, res) => {
     try {
       const { limit = "20" } = req.query;
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const predictions = await userStorage.getPredictions(parseInt(limit as string));
       res.json(predictions);
     } catch (error) {
@@ -2386,7 +2391,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/predictions/active", requireAuth, async (req, res) => {
     try {
       const { platform } = req.query;
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const pollsService = new PollsService(userStorage);
       const activePrediction = await pollsService.getActivePrediction(req.user!.id, platform as string | undefined);
       res.json(activePrediction);
@@ -2399,7 +2404,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/predictions/history", requireAuth, async (req, res) => {
     try {
       const { limit = "20" } = req.query;
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const pollsService = new PollsService(userStorage);
       const history = await pollsService.getPredictionHistory(req.user!.id, parseInt(limit as string));
       res.json(history);
@@ -2411,7 +2416,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/predictions/:id", requireAuth, async (req, res) => {
     try {
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const prediction = await userStorage.getPrediction(req.params.id);
       if (!prediction) {
         return res.status(404).json({ error: "Prediction not found" });
@@ -2425,7 +2430,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/predictions/:id/results", requireAuth, async (req, res) => {
     try {
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const pollsService = new PollsService(userStorage);
       const results = await pollsService.getPredictionResults(req.params.id);
       res.json(results);
@@ -2447,7 +2452,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Predictions must have 2-10 outcomes" });
       }
 
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const pollsService = new PollsService(userStorage);
       
       const prediction = await pollsService.createPrediction(req.user!.id, title, outcomes, duration, platform);
@@ -2468,7 +2473,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid bet data" });
       }
 
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const pollsService = new PollsService(userStorage);
       const result = await pollsService.placeBet(req.params.id, username, outcome, points, platform);
       
@@ -2487,7 +2492,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Winning outcome is required" });
       }
 
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const pollsService = new PollsService(userStorage);
       const result = await pollsService.resolvePrediction(req.params.id, winningOutcome);
       
@@ -2500,7 +2505,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/predictions/:id/cancel", requireAuth, async (req, res) => {
     try {
-      const userStorage = storage.getUserStorage(req.user!.id);
+      const userStorage = new UserStorage(req.user!.id);
       const pollsService = new PollsService(userStorage);
       const prediction = await pollsService.cancelPrediction(req.params.id);
       

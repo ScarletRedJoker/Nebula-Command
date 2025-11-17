@@ -148,11 +148,12 @@ router.get('/twitch/callback', async (req, res) => {
     // Calculate token expiry
     const tokenExpiresAt = new Date(Date.now() + expires_in * 1000);
 
-    // Store Twitch connection
-    await storage.upsertPlatformConnection(
-      session.userId,
-      'twitch',
-      {
+    // Store or update platform connection
+    const existingConnection = await storage.getPlatformConnectionByPlatform(session.userId, 'twitch');
+
+    if (existingConnection) {
+      // Update existing connection
+      await storage.updatePlatformConnection(session.userId, existingConnection.id, {
         platformUserId: user_id,
         platformUsername: login,
         accessToken: encryptedAccessToken,
@@ -163,8 +164,24 @@ router.get('/twitch/callback', async (req, res) => {
         connectionData: {
           scopes: TWITCH_SCOPES.split(' '),
         },
-      }
-    );
+      });
+    } else {
+      // Create new connection
+      await storage.createPlatformConnection(session.userId, {
+        userId: session.userId,
+        platform: 'twitch',
+        platformUserId: user_id,
+        platformUsername: login,
+        accessToken: encryptedAccessToken,
+        refreshToken: encryptedRefreshToken,
+        tokenExpiresAt,
+        isConnected: true,
+        lastConnectedAt: new Date(),
+        connectionData: {
+          scopes: TWITCH_SCOPES.split(' '),
+        },
+      });
+    }
 
     // Clear OAuth session
     oauthStorage.delete(state);
@@ -182,7 +199,7 @@ router.get('/twitch/callback', async (req, res) => {
  */
 export async function refreshTwitchToken(userId: string): Promise<string | null> {
   try {
-    const connection = await storage.getPlatformConnection(userId, 'twitch');
+    const connection = await storage.getPlatformConnectionByPlatform(userId, 'twitch');
     if (!connection || !connection.refreshToken) {
       console.error('[Twitch OAuth] No refresh token available for user', userId);
       return null;
@@ -227,7 +244,7 @@ export async function refreshTwitchToken(userId: string): Promise<string | null>
 
     // Update stored tokens atomically
     const tokenExpiresAt = new Date(Date.now() + expires_in * 1000);
-    await storage.upsertPlatformConnection(userId, 'twitch', {
+    await storage.updatePlatformConnection(userId, connection.id, {
       accessToken: encryptedAccessToken,
       refreshToken: encryptedRefreshToken,
       tokenExpiresAt,
@@ -252,9 +269,12 @@ export async function refreshTwitchToken(userId: string): Promise<string | null>
     }
     
     // Mark connection as disconnected if refresh fails
-    await storage.upsertPlatformConnection(userId, 'twitch', {
-      isConnected: false,
-    });
+    const conn = await storage.getPlatformConnectionByPlatform(userId, 'twitch');
+    if (conn) {
+      await storage.updatePlatformConnection(userId, conn.id, {
+        isConnected: false,
+      });
+    }
     
     return null;
   }
@@ -265,7 +285,7 @@ export async function refreshTwitchToken(userId: string): Promise<string | null>
  */
 export async function getTwitchAccessToken(userId: string): Promise<string | null> {
   try {
-    const connection = await storage.getPlatformConnection(userId, 'twitch');
+    const connection = await storage.getPlatformConnectionByPlatform(userId, 'twitch');
     if (!connection || !connection.accessToken) {
       return null;
     }

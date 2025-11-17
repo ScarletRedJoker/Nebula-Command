@@ -254,17 +254,23 @@ export class SpotifyService {
         return { isPlaying: false };
       }
 
+      // After type guard, we know item is a Track (has artists and album)
+      if (!('artists' in currentlyPlaying.item) || !('album' in currentlyPlaying.item)) {
+        console.log('[Spotify] Item structure is invalid');
+        return { isPlaying: false };
+      }
+
       const track = currentlyPlaying.item;
       const progressPercent = currentlyPlaying.progress_ms && track.duration_ms 
         ? (currentlyPlaying.progress_ms / track.duration_ms) * 100 
         : 0;
 
-      console.log(`[Spotify] Now playing: "${track.name}" by ${track.artists.map((a) => a.name).join(', ')}`);
+      console.log(`[Spotify] Now playing: "${track.name}" by ${track.artists.map((a: any) => a.name).join(', ')}`);
 
       return {
         isPlaying: currentlyPlaying.is_playing,
         title: track.name,
-        artist: track.artists.map((a) => a.name).join(', '),
+        artist: track.artists.map((a: any) => a.name).join(', '),
         album: track.album.name,
         albumImageUrl: track.album.images[0]?.url,
         songUrl: track.external_urls.spotify,

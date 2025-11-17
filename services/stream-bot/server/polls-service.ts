@@ -43,7 +43,7 @@ export class PollsService {
       question,
       options,
       duration,
-      platform,
+      platform: platform as 'twitch' | 'youtube' | 'kick',
       status: "pending",
     };
 
@@ -97,7 +97,7 @@ export class PollsService {
       });
     }, poll.duration * 1000);
 
-    const message = `📊 Poll started: ${poll.question}\nOptions: ${poll.options.map((opt, i) => `${i + 1}. ${opt}`).join(" | ")}\nVote with !vote <number> | Duration: ${poll.duration}s`;
+    const message = `📊 Poll started: ${poll.question}\nOptions: ${poll.options.map((opt: string, i: number) => `${i + 1}. ${opt}`).join(" | ")}\nVote with !vote <number> | Duration: ${poll.duration}s`;
 
     return { poll: updatedPoll, message };
   }
@@ -126,7 +126,7 @@ export class PollsService {
       pollId,
       username,
       option,
-      platform,
+      platform: platform as 'twitch' | 'youtube' | 'kick',
     };
 
     await this.storage.createPollVote(voteData);
@@ -148,14 +148,14 @@ export class PollsService {
 
     // Get vote counts for each option
     const votes = await this.storage.getPollVotes(pollId);
-    const voteCounts = poll.options.map((option) => ({
+    const voteCounts = poll.options.map((option: string) => ({
       option,
-      count: votes.filter((v) => v.option === option).length,
+      count: votes.filter((v: any) => v.option === option).length,
     }));
 
-    const totalVotes = voteCounts.reduce((sum, v) => sum + v.count, 0);
-    const maxVotes = Math.max(...voteCounts.map((v) => v.count));
-    const winners = voteCounts.filter((v) => v.count === maxVotes && maxVotes > 0);
+    const totalVotes = voteCounts.reduce((sum: number, v: any) => sum + v.count, 0);
+    const maxVotes = Math.max(...voteCounts.map((v: any) => v.count));
+    const winners = voteCounts.filter((v: any) => v.count === maxVotes && maxVotes > 0);
     const winner = winners.length === 1 ? winners[0].option : undefined;
 
     // End Twitch native poll if it exists
@@ -183,7 +183,7 @@ export class PollsService {
 
     const results: PollResults = {
       poll: updatedPoll,
-      votes: voteCounts.map((v) => ({
+      votes: voteCounts.map((v: any) => ({
         ...v,
         percentage: totalVotes > 0 ? Math.round((v.count / totalVotes) * 100) : 0,
       })),
@@ -191,7 +191,7 @@ export class PollsService {
       winner,
     };
 
-    const resultMessage = `📊 Poll ended: ${poll.question}\nResults:\n${voteCounts.map((v) => `${v.option}: ${v.count} votes (${Math.round((v.count / totalVotes) * 100) || 0}%)`).join("\n")}${winner ? `\n🏆 Winner: ${winner}` : "\n🤝 It's a tie!"}`;
+    const resultMessage = `📊 Poll ended: ${poll.question}\nResults:\n${voteCounts.map((v: any) => `${v.option}: ${v.count} votes (${Math.round((v.count / totalVotes) * 100) || 0}%)`).join("\n")}${winner ? `\n🏆 Winner: ${winner}` : "\n🤝 It's a tie!"}`;
 
     return { poll: updatedPoll, results, message: resultMessage };
   }
@@ -203,30 +203,30 @@ export class PollsService {
     }
 
     const votes = await this.storage.getPollVotes(pollId);
-    const voteCounts = poll.options.map((option) => ({
+    const voteCounts = poll.options.map((option: string) => ({
       option,
-      count: votes.filter((v) => v.option === option).length,
+      count: votes.filter((v: any) => v.option === option).length,
     }));
 
-    const totalVotes = poll.totalVotes || voteCounts.reduce((sum, v) => sum + v.count, 0);
+    const totalVotes = poll.totalVotes || voteCounts.reduce((sum: number, v: any) => sum + v.count, 0);
 
     return {
       poll,
-      votes: voteCounts.map((v) => ({
+      votes: voteCounts.map((v: any) => ({
         ...v,
         percentage: totalVotes > 0 ? Math.round((v.count / totalVotes) * 100) : 0,
       })),
       totalVotes,
-      winner: poll.winner,
+      winner: poll.winner ?? undefined,
     };
   }
 
   async getActivePoll(userId: string, platform?: string): Promise<Poll | null> {
-    return await this.storage.getActivePoll(userId, platform);
+    return await this.storage.getActivePoll(platform);
   }
 
   async getPollHistory(userId: string, limit: number = 20): Promise<Poll[]> {
-    return await this.storage.getPollHistory(userId, limit);
+    return await this.storage.getPollHistory(limit);
   }
 
   async createPrediction(
@@ -241,7 +241,7 @@ export class PollsService {
       title,
       outcomes,
       duration,
-      platform,
+      platform: platform as 'twitch' | 'youtube' | 'kick',
       status: "pending",
     };
 
@@ -295,7 +295,7 @@ export class PollsService {
       });
     }, lockTime * 1000);
 
-    const message = `🔮 Prediction started: ${prediction.title}\nOutcomes: ${prediction.outcomes.map((opt, i) => `${i + 1}. ${opt}`).join(" | ")}\nPlace bets with !bet <outcome> <points> | Betting closes in ${lockTime}s`;
+    const message = `🔮 Prediction started: ${prediction.title}\nOutcomes: ${prediction.outcomes.map((opt: string, i: number) => `${i + 1}. ${opt}`).join(" | ")}\nPlace bets with !bet <outcome> <points> | Betting closes in ${lockTime}s`;
 
     return { prediction: updatedPrediction, message };
   }
@@ -363,9 +363,9 @@ export class PollsService {
     }
 
     // Check if user has enough points
-    const balance = await currencyService.getBalance(prediction.userId, username, platform);
-    if (balance < points) {
-      return { success: false, message: `Insufficient points. You have ${balance} points.` };
+    const balanceRecord = await currencyService.getBalance(prediction.userId, username, platform);
+    if (!balanceRecord || balanceRecord.balance < points) {
+      return { success: false, message: `Insufficient points. You have ${balanceRecord?.balance ?? 0} points.` };
     }
 
     // Deduct points from user
@@ -382,7 +382,7 @@ export class PollsService {
       username,
       outcome,
       points,
-      platform,
+      platform: platform as 'twitch' | 'youtube' | 'kick',
     };
 
     await this.storage.createPredictionBet(betData);
@@ -462,18 +462,18 @@ export class PollsService {
       winningOutcome,
     });
 
-    const betCounts = prediction.outcomes.map((outcome) => {
-      const outcomeBets = allBets.filter((b) => b.outcome === outcome);
+    const betCounts = prediction.outcomes.map((outcome: string) => {
+      const outcomeBets = allBets.filter((b: any) => b.outcome === outcome);
       return {
         outcome,
-        totalPoints: outcomeBets.reduce((sum, b) => sum + b.points, 0),
+        totalPoints: outcomeBets.reduce((sum: number, b: any) => sum + b.points, 0),
         totalBets: outcomeBets.length,
       };
     });
 
     const results: PredictionResults = {
       prediction: updatedPrediction,
-      bets: betCounts.map((b) => ({
+      bets: betCounts.map((b: any) => ({
         ...b,
         percentage: totalPoints > 0 ? Math.round((b.totalPoints / totalPoints) * 100) : 0,
       })),
@@ -538,20 +538,20 @@ export class PollsService {
     }
 
     const allBets = await this.storage.getPredictionBets(predictionId);
-    const totalPoints = allBets.reduce((sum, bet) => sum + bet.points, 0);
+    const totalPoints = allBets.reduce((sum: number, bet: any) => sum + bet.points, 0);
 
-    const betCounts = prediction.outcomes.map((outcome) => {
-      const outcomeBets = allBets.filter((b) => b.outcome === outcome);
+    const betCounts = prediction.outcomes.map((outcome: string) => {
+      const outcomeBets = allBets.filter((b: any) => b.outcome === outcome);
       return {
         outcome,
-        totalPoints: outcomeBets.reduce((sum, b) => sum + b.points, 0),
+        totalPoints: outcomeBets.reduce((sum: number, b: any) => sum + b.points, 0),
         totalBets: outcomeBets.length,
       };
     });
 
     return {
       prediction,
-      bets: betCounts.map((b) => ({
+      bets: betCounts.map((b: any) => ({
         ...b,
         percentage: totalPoints > 0 ? Math.round((b.totalPoints / totalPoints) * 100) : 0,
       })),
@@ -562,11 +562,11 @@ export class PollsService {
   }
 
   async getActivePrediction(userId: string, platform?: string): Promise<Prediction | null> {
-    return await this.storage.getActivePrediction(userId, platform);
+    return await this.storage.getActivePrediction(platform);
   }
 
   async getPredictionHistory(userId: string, limit: number = 20): Promise<Prediction[]> {
-    return await this.storage.getPredictionHistory(userId, limit);
+    return await this.storage.getPredictionHistory(limit);
   }
 
   // Twitch API methods

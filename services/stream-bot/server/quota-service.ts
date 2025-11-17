@@ -102,7 +102,8 @@ class QuotaService {
   private startCleanupInterval(): void {
     setInterval(() => {
       const now = Date.now();
-      for (const [key, value] of this.inMemoryStore.entries()) {
+      const entries = Array.from(this.inMemoryStore.entries());
+      for (const [key, value] of entries) {
         if (now >= value.resetTime) {
           this.inMemoryStore.delete(key);
         }

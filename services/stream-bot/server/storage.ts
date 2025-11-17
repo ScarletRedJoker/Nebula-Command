@@ -1251,7 +1251,7 @@ export class DatabaseStorage implements IStorage {
     const now = new Date();
     await db
       .delete(activeTriviaQuestions)
-      .where(gte(now, activeTriviaQuestions.expiresAt));
+      .where(gte(activeTriviaQuestions.expiresAt, now));
   }
 
   // Game Stats

@@ -18,7 +18,8 @@ setInterval(() => {
   const now = Date.now();
   const maxAge = 10 * 60 * 1000; // 10 minutes
   
-  for (const [state, session] of sessions.entries()) {
+  const entries = Array.from(sessions.entries());
+  for (const [state, session] of entries) {
     if (now - session.createdAt > maxAge) {
       sessions.delete(state);
     }
@@ -47,6 +48,13 @@ export const oauthStorage = {
       return session;
     }
     return null;
+  },
+
+  /**
+   * Delete OAuth session
+   */
+  delete(state: string): void {
+    sessions.delete(state);
   },
 
   /**
