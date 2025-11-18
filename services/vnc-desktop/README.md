@@ -107,20 +107,34 @@ Not exposed externally for security. Use noVNC web interface.
 
 ## Authentication
 
-**Simple Single-Password Login:**
-- When you visit https://vnc.evindrake.net, you'll see a VNC password prompt
-- Enter the password from your `.env` file: `VNC_PASSWORD=your_password_here`
-- That's it! No username required, just the VNC password.
+**⚠️ IMPORTANT: VPN Required**
+- **You MUST be connected to Twingate VPN to access VNC**
+- Without VPN, you'll see: "⛔ VPN Access Required"
 
-**Note**: Previous versions had a two-layer authentication (HTTP auth + VNC password). This has been simplified to only require the VNC password.
+**Simple Single-Password Login:**
+1. Connect to Twingate VPN first
+2. Visit https://vnc.evindrake.net
+3. Enter the password from your `.env` file: `VNC_PASSWORD=your_password_here`
+4. That's it! No username required, just the VNC password.
+
+**Note**: Previous versions had a two-layer authentication (HTTP auth + VNC password). This has been simplified to VPN + VNC password for better security.
 
 ## Security
 
+**Network-Level Protection (VPN Required):**
+- **CRITICAL**: VNC is only accessible via Twingate VPN (enforced by Caddy)
+- Public access blocked with 403 error
+- VPN provides strong authentication layer before reaching VNC
+
+**Application-Level Protection:**
 - **VNC Password**: Set via `VNC_PASSWORD` environment variable in `.env` file
+- **Password Limitation**: VNC passwords are limited to 8 characters by TigerVNC
+- **Recommendation**: Use a strong random 8-character password (letters, numbers, symbols)
+
+**Infrastructure:**
 - **Network**: Internal Docker network only
 - **Reverse Proxy**: Caddy handles HTTPS and SSL termination  
 - **No Direct Exposure**: VNC ports not exposed to internet
-- **Recommendation**: Use a strong VNC password and ensure Twingate VPN is active for additional security
 
 ## Installing Additional Apps
 

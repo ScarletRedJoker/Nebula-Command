@@ -141,3 +141,42 @@ The gpt-5-mini model has been unreliable, frequently returning empty responses e
 - Reduced wasted API calls to unreliable gpt-5-mini model
 - Faster response times for /generate-fact endpoint
 - Logs no longer show "Empty fact from gpt-5-mini - trying next model" messages
+
+### VNC Desktop Authentication Simplification with VPN Enforcement (November 18, 2025)
+
+**Issue:**
+VNC desktop login still failing after removing broken Caddy basic_auth. Users confused about which password to enter.
+
+**Root Cause:**
+The dorowu/ubuntu-desktop-lxde-vnc base image has TWO authentication layers:
+1. **noVNC HTTP Basic Auth** - Requires username + password before accessing VNC (controlled by `PASSWORD` and `USER` env vars)
+2. **VNC Password** - Actual VNC connection password (controlled by `VNC_PASSWORD`)
+
+The docker-compose was setting `PASSWORD=${VNC_USER_PASSWORD}` but not setting `USER`, causing the noVNC web interface to expect username "user" (default) which users didn't know about.
+
+**Security Consideration:**
+VNC passwords are limited to 8 characters by TigerVNC. Removing HTTP Basic Auth without additional protection would leave VNC vulnerable to brute-force attacks.
+
+**Solution:**
+✅ Removed confusing HTTP Basic Auth AND enforced VPN-only access:
+- Removed `PASSWORD=${VNC_USER_PASSWORD}` from vnc-desktop environment variables in docker-compose.unified.yml
+- **Enabled VPN IP restriction in Caddyfile** - VNC now only accessible via Twingate VPN (IPs: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10)
+- Public access blocked with 403 error: "⛔ VPN Access Required"
+- Updated README.md to clarify VPN + VNC password authentication model
+
+**Files Modified:**
+- `docker-compose.unified.yml` - Removed PASSWORD env var from vnc-desktop service
+- `Caddyfile` - Enabled VPN-only access for vnc.evindrake.net (lines 125-151)
+- `services/vnc-desktop/README.md` - Updated authentication and security documentation
+
+**Result:**
+- **Two-layer security: VPN (network) + VNC password (application)**
+- No confusing username prompts
+- VNC not publicly accessible (403 without VPN)
+- Clear documentation on VPN requirement
+
+**How to Use:**
+1. **Connect to Twingate VPN first** (REQUIRED)
+2. Visit https://vnc.evindrake.net
+3. Enter the password from `.env` file: `VNC_PASSWORD=your_password_here`
+4. That's it! VPN + VNC password authentication.

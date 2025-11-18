@@ -120,29 +120,30 @@ host.evindrake.net {
 # VNC Remote Desktop - VPN ONLY ACCESS
 # ============================================
 vnc.evindrake.net {
-    # SECURITY: This service should ONLY be accessible via Twingate VPN
-    # To enable IP whitelist, uncomment and add your VPN IP range:
-    # @vpn_only {
-    #     remote_ip 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16
-    # }
-    # handle @vpn_only {
-    #     reverse_proxy vnc-desktop:80
-    # }
-    # handle {
-    #     respond "VPN Access Required" 403
-    # }
+    # CRITICAL SECURITY: VNC is only protected by an 8-char password
+    # MUST be accessed via Twingate VPN for security
+    # Add your VPN IP range below (check with: curl ifconfig.me from VPN)
+    @vpn_only {
+        remote_ip 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 100.64.0.0/10
+    }
     
-    # VNC has built-in password authentication via VNC_PASSWORD
-    # No additional basic auth needed
+    handle @vpn_only {
+        reverse_proxy vnc-desktop:80 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+        }
+        
+        # Security headers
+        header {
+            X-Content-Type-Options "nosniff"
+            X-Frame-Options "DENY"
+            Referrer-Policy "no-referrer"
+            Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        }
+    }
     
-    reverse_proxy vnc-desktop:80
-    
-    # Security headers
-    header {
-        X-Content-Type-Options "nosniff"
-        X-Frame-Options "DENY"
-        Referrer-Policy "no-referrer"
-        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    handle {
+        respond "⛔ VPN Access Required - Connect to Twingate VPN first" 403
     }
 }
 
