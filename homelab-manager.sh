@@ -77,8 +77,8 @@ show_menu() {
 
 # Brief status check
 check_status_brief() {
-    local running=$(docker ps --filter "name=discord-bot|stream-bot|homelab-dashboard|caddy|n8n|plex|vnc|scarletredjoker" --format "{{.Names}}" | wc -l)
-    local total=8
+    local running=$(docker ps --filter "name=homelab-dashboard|homelab-celery-worker|homelab-redis|homelab-minio|discord-bot|stream-bot|caddy|n8n|plex-server|vnc-desktop|code-server|scarletredjoker-web|rig-city-site|homeassistant|discord-bot-db" --format "{{.Names}}" | wc -l)
+    local total=15
     
     if [ $running -eq $total ]; then
         echo -e "  ${GREEN}✓ All services running${NC} ($running/$total)"
@@ -178,11 +178,17 @@ restart_service() {
     echo "  2) discord-bot"
     echo "  3) stream-bot"
     echo "  4) caddy"
-    echo "  5) n8n"
-    echo "  6) plex"
-    echo "  7) vnc-desktop"
-    echo "  8) scarletredjoker-web"
-    echo "  9) discord-bot-db"
+    echo "  5) discord-bot-db"
+    echo "  6) redis"
+    echo "  7) minio"
+    echo "  8) homelab-celery-worker"
+    echo "  9) n8n"
+    echo "  10) plex"
+    echo "  11) vnc-desktop"
+    echo "  12) code-server"
+    echo "  13) scarletredjoker-web"
+    echo "  14) rig-city-site"
+    echo "  15) homeassistant"
     echo ""
     read -p "Enter service number (or name): " service_choice
     
@@ -191,11 +197,17 @@ restart_service() {
         2|discord-bot) service="discord-bot" ;;
         3|stream-bot) service="stream-bot" ;;
         4|caddy) service="caddy" ;;
-        5|n8n) service="n8n" ;;
-        6|plex) service="plex" ;;
-        7|vnc-desktop) service="vnc-desktop" ;;
-        8|scarletredjoker-web) service="scarletredjoker-web" ;;
-        9|discord-bot-db) service="discord-bot-db" ;;
+        5|discord-bot-db) service="discord-bot-db" ;;
+        6|redis) service="redis" ;;
+        7|minio) service="minio" ;;
+        8|homelab-celery-worker) service="homelab-celery-worker" ;;
+        9|n8n) service="n8n" ;;
+        10|plex) service="plex" ;;
+        11|vnc-desktop) service="vnc-desktop" ;;
+        12|code-server) service="code-server" ;;
+        13|scarletredjoker-web) service="scarletredjoker-web" ;;
+        14|rig-city-site) service="rig-city-site" ;;
+        15|homeassistant) service="homeassistant" ;;
         *) service="$service_choice" ;;
     esac
     
@@ -219,11 +231,17 @@ update_service() {
     echo "  2) discord-bot"
     echo "  3) stream-bot"
     echo "  4) caddy"
-    echo "  5) n8n"
-    echo "  6) plex"
-    echo "  7) vnc-desktop"
-    echo "  8) scarletredjoker-web"
-    echo "  9) discord-bot-db"
+    echo "  5) discord-bot-db"
+    echo "  6) redis"
+    echo "  7) minio"
+    echo "  8) homelab-celery-worker"
+    echo "  9) n8n"
+    echo "  10) plex"
+    echo "  11) vnc-desktop"
+    echo "  12) code-server"
+    echo "  13) scarletredjoker-web"
+    echo "  14) rig-city-site"
+    echo "  15) homeassistant"
     echo ""
     read -p "Enter service number (or name): " service_choice
     
@@ -232,11 +250,17 @@ update_service() {
         2|discord-bot) service="discord-bot" ;;
         3|stream-bot) service="stream-bot" ;;
         4|caddy) service="caddy" ;;
-        5|n8n) service="n8n" ;;
-        6|plex) service="plex" ;;
-        7|vnc-desktop) service="vnc-desktop" ;;
-        8|scarletredjoker-web) service="scarletredjoker-web" ;;
-        9|discord-bot-db) service="discord-bot-db" ;;
+        5|discord-bot-db) service="discord-bot-db" ;;
+        6|redis) service="redis" ;;
+        7|minio) service="minio" ;;
+        8|homelab-celery-worker) service="homelab-celery-worker" ;;
+        9|n8n) service="n8n" ;;
+        10|plex) service="plex" ;;
+        11|vnc-desktop) service="vnc-desktop" ;;
+        12|code-server) service="code-server" ;;
+        13|scarletredjoker-web) service="scarletredjoker-web" ;;
+        14|rig-city-site) service="rig-city-site" ;;
+        15|homeassistant) service="homeassistant" ;;
         *) service="$service_choice" ;;
     esac
     
@@ -383,28 +407,48 @@ view_logs() {
     echo "  3) stream-bot"
     echo "  4) caddy"
     echo "  5) discord-bot-db"
-    echo "  6) All services"
-    echo "  7) Save stream-bot logs to file"
-    echo "  8) Save all logs to file"
+    echo "  6) redis"
+    echo "  7) minio"
+    echo "  8) homelab-celery-worker"
+    echo "  9) n8n"
+    echo "  10) plex"
+    echo "  11) vnc-desktop"
+    echo "  12) code-server"
+    echo "  13) homeassistant"
+    echo "  14) rig-city-site"
+    echo "  15) scarletredjoker-web"
+    echo "  16) All services"
+    echo "  17) Save stream-bot logs to file"
+    echo "  18) Save all logs to file"
     echo ""
     read -p "Enter service number: " log_choice
     
     case $log_choice in
-        1) docker logs -f homelab-dashboard || true ;;
-        2) docker logs -f discord-bot || true ;;
-        3) docker logs -f stream-bot || true ;;
-        4) docker logs -f caddy || true ;;
-        5) docker logs -f discord-bot-db || true ;;
-        6) docker-compose -f docker-compose.unified.yml logs -f || true ;;
-        7) 
+        1) docker-compose -f docker-compose.unified.yml logs -f homelab-dashboard || true ;;
+        2) docker-compose -f docker-compose.unified.yml logs -f discord-bot || true ;;
+        3) docker-compose -f docker-compose.unified.yml logs -f stream-bot || true ;;
+        4) docker-compose -f docker-compose.unified.yml logs -f caddy || true ;;
+        5) docker-compose -f docker-compose.unified.yml logs -f discord-bot-db || true ;;
+        6) docker-compose -f docker-compose.unified.yml logs -f redis || true ;;
+        7) docker-compose -f docker-compose.unified.yml logs -f minio || true ;;
+        8) docker-compose -f docker-compose.unified.yml logs -f homelab-celery-worker || true ;;
+        9) docker-compose -f docker-compose.unified.yml logs -f n8n || true ;;
+        10) docker-compose -f docker-compose.unified.yml logs -f plex || true ;;
+        11) docker-compose -f docker-compose.unified.yml logs -f vnc-desktop || true ;;
+        12) docker-compose -f docker-compose.unified.yml logs -f code-server || true ;;
+        13) docker-compose -f docker-compose.unified.yml logs -f homeassistant || true ;;
+        14) docker-compose -f docker-compose.unified.yml logs -f rig-city-site || true ;;
+        15) docker-compose -f docker-compose.unified.yml logs -f scarletredjoker-web || true ;;
+        16) docker-compose -f docker-compose.unified.yml logs -f || true ;;
+        17) 
             echo "Saving stream-bot logs to stream-bot-logs.txt..."
-            if docker logs stream-bot > stream-bot-logs.txt 2>&1; then
+            if docker-compose -f docker-compose.unified.yml logs stream-bot > stream-bot-logs.txt 2>&1; then
                 echo -e "${GREEN}✓ Logs saved to stream-bot-logs.txt${NC}"
             else
-                echo -e "${RED}✗ Failed to save logs (container may not be running)${NC}"
+                echo -e "${RED}✗ Failed to save logs (service may not be running)${NC}"
             fi
             ;;
-        8)
+        18)
             echo "Saving all logs to homelab-logs.txt..."
             if docker-compose -f docker-compose.unified.yml logs > homelab-logs.txt 2>&1; then
                 echo -e "${GREEN}✓ Logs saved to homelab-logs.txt${NC}"
@@ -429,11 +473,11 @@ health_check() {
     echo ""
     
     echo "Container Status:"
-    docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" --filter "name=discord-bot|stream-bot|homelab-dashboard|caddy|n8n|plex|vnc|scarletredjoker"
+    docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" --filter "name=homelab-dashboard|homelab-celery-worker|homelab-redis|homelab-minio|discord-bot|stream-bot|caddy|n8n|plex-server|vnc-desktop|code-server|scarletredjoker-web|rig-city-site|homeassistant|discord-bot-db"
     
     echo ""
     echo "Resource Usage:"
-    docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}" --filter "name=discord-bot|stream-bot|homelab-dashboard|caddy|n8n|plex|vnc|scarletredjoker"
+    docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}" --filter "name=homelab-dashboard|homelab-celery-worker|homelab-redis|homelab-minio|discord-bot|stream-bot|caddy|n8n|plex-server|vnc-desktop|code-server|scarletredjoker-web|rig-city-site|homeassistant|discord-bot-db"
     
     pause
 }
@@ -475,7 +519,7 @@ troubleshoot() {
     
     # Check containers
     echo "4. Container Status:"
-    local failed=$(docker ps -a --filter "status=exited" --filter "name=discord-bot|stream-bot|homelab-dashboard" --format "{{.Names}}")
+    local failed=$(docker ps -a --filter "status=exited" --filter "name=homelab-dashboard|homelab-celery-worker|homelab-redis|homelab-minio|discord-bot|stream-bot|caddy|n8n|plex-server|vnc-desktop|code-server|scarletredjoker-web|rig-city-site|homeassistant|discord-bot-db" --format "{{.Names}}")
     if [ -z "$failed" ]; then
         echo -e "   ${GREEN}✓ No failed containers${NC}"
     else
