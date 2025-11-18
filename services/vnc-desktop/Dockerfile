@@ -103,9 +103,11 @@ RUN mkdir -p /root/.config/vlc && \
 RUN groupadd -g ${USER_GID} ${VNC_USER} || true && \
     useradd -m -u ${USER_UID} -g ${USER_GID} -s /bin/bash ${VNC_USER} || usermod -l ${VNC_USER} ubuntu
 
-# Copy bootstrap script and desktop shortcuts
+# Copy bootstrap script, VNC password fix, and desktop shortcuts
 COPY bootstrap.sh /usr/local/bin/bootstrap.sh
-RUN chmod +x /usr/local/bin/bootstrap.sh
+COPY fix-vnc-password.sh /usr/local/bin/fix-vnc-password.sh
+RUN chmod +x /usr/local/bin/bootstrap.sh && \
+    chmod +x /usr/local/bin/fix-vnc-password.sh
 
 COPY desktop-shortcuts /tmp/desktop-shortcuts
 
@@ -118,4 +120,5 @@ RUN mkdir -p /home/${VNC_USER}/.config/lxpanel/LXDE/panels && \
 
 USER root
 
-ENTRYPOINT ["/bin/bash", "-c", "/usr/local/bin/bootstrap.sh && /startup.sh"]
+# Set up VNC password correctly before starting
+ENTRYPOINT ["/bin/bash", "-c", "/usr/local/bin/fix-vnc-password.sh && /usr/local/bin/bootstrap.sh && /startup.sh"]

@@ -2,6 +2,45 @@
 
 ## Recent Changes
 
+### November 18, 2025 - VNC Desktop & Code-Server Fixes
+**Fixed critical issues preventing VNC login and code-server access**
+
+**Problems Identified:**
+1. **Code-Server Down:** Permission errors (EACCES) - volume owned by root, code-server runs as UID 1000
+2. **VNC Login Failing:** x11vnc crash on startup - password file stored in wrong location (`/.password2` vs user home)
+
+**Root Causes:**
+- Code-server volume `code_server_data` created with root ownership, incompatible with container user (1000:1000)
+- VNC base image (`dorowu/ubuntu-desktop-lxde-vnc`) stores password in root directory instead of `/home/evin/.vnc/passwd`
+
+**Solutions Implemented:**
+1. ✅ Created `deployment/fix-vnc-and-code-server.sh` - One-command fix for both issues
+2. ✅ Created `services/vnc-desktop/fix-vnc-password.sh` - Startup script that properly sets VNC password location
+3. ✅ Updated VNC Dockerfile to run password fix before container startup
+4. ✅ Created comprehensive troubleshooting guide (`TROUBLESHOOTING_VNC_CODE_SERVER.md`)
+
+**Fix Script Features:**
+```bash
+./deployment/fix-vnc-and-code-server.sh
+```
+- Fixes code-server volume ownership (1000:1000)
+- Rebuilds VNC Desktop with password fix
+- Restarts services and verifies health
+- Provides troubleshooting output
+
+**Technical Details:**
+- Code-server fix: `sudo chown -R 1000:1000 /var/lib/docker/volumes/code_server_data/_data`
+- VNC fix: Added `x11vnc -storepasswd` to create password file at `/home/evin/.vnc/passwd`
+- VNC Dockerfile ENTRYPOINT: `fix-vnc-password.sh → bootstrap.sh → startup.sh`
+
+**User Action Required (on Ubuntu):**
+```bash
+cd /home/evin/contain/HomeLabHub
+./deployment/fix-vnc-and-code-server.sh
+```
+
+## Recent Changes
+
 ### November 18, 2025 - Modular Database Provisioning System
 **BREAKING CHANGE: Automatic database setup - manual scripts removed**
 
