@@ -34,14 +34,15 @@ Examples:
 
 Generate one unique fact now:`;
 
-export async function generateSnappleFact(customPrompt?: string, model: string = "gpt-5-mini"): Promise<string> {
+export async function generateSnappleFact(customPrompt?: string, model: string = "gpt-4.1-mini"): Promise<string> {
   const prompt = customPrompt || DEFAULT_PROMPT;
 
   console.log("[OpenAI] Generating fact with model:", model);
   console.log("[OpenAI] Using prompt:", prompt.substring(0, 100) + "...");
 
-  // Try with gpt-4.1-mini as fallback if gpt-5-mini doesn't work
-  const modelsToTry = [model, "gpt-4.1-mini"];
+  // Use gpt-4.1-mini as primary model (gpt-5-mini has been unreliable with empty responses)
+  // Keep gpt-5-mini as fallback for future compatibility
+  const modelsToTry = model === "gpt-4.1-mini" ? ["gpt-4.1-mini", "gpt-5-mini"] : [model, "gpt-4.1-mini"];
 
   for (const currentModel of modelsToTry) {
     try {
