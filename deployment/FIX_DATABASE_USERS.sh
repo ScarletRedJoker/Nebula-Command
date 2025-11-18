@@ -1,6 +1,6 @@
 #!/bin/bash
 # Fix PostgreSQL database users (streambot, jarvis) - SECURE VERSION
-# Uses psql variable binding to prevent SQL injection
+# Uses proper SQL escaping to prevent SQL injection
 
 set -e
 
@@ -41,81 +41,78 @@ fi
 echo -e "${YELLOW}Creating database users and databases...${NC}"
 echo ""
 
-# Create a temporary SQL file for streambot (safer than inline SQL)
+# Function to escape SQL strings (doubles single quotes)
+escape_sql() {
+    printf '%s' "$1" | sed "s/'/''/g"
+}
+
+# Create streambot user
 echo -e "${BLUE}[1/2] Creating streambot user and database...${NC}"
-cat > /tmp/create_streambot.sql <<'EOF'
--- Create user if not exists (idempotent)
-DO $$
+ESCAPED_STREAMBOT_PW=$(escape_sql "$STREAMBOT_DB_PASSWORD")
+
+if docker exec -i discord-bot-db psql -v ON_ERROR_STOP=1 -U ticketbot -d ticketbot << EOF
+DO \$\$
 BEGIN
+    -- Create user if not exists
     IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'streambot') THEN
-        CREATE ROLE streambot WITH LOGIN PASSWORD :'streambot_password';
+        CREATE ROLE streambot WITH LOGIN PASSWORD '${ESCAPED_STREAMBOT_PW}';
         RAISE NOTICE 'Created user: streambot';
     ELSE
-        ALTER ROLE streambot WITH PASSWORD :'streambot_password';
+        ALTER ROLE streambot WITH PASSWORD '${ESCAPED_STREAMBOT_PW}';
         RAISE NOTICE 'User streambot already exists, password updated';
     END IF;
-END
-$$;
+END \$\$;
 
 -- Create database if not exists
 SELECT 'CREATE DATABASE streambot OWNER streambot'
 WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'streambot')\gexec
 
--- Grant all privileges
+-- Grant privileges
 GRANT ALL PRIVILEGES ON DATABASE streambot TO streambot;
 EOF
-
-# Execute with proper error handling and variable substitution
-if docker exec -i discord-bot-db psql -v ON_ERROR_STOP=1 -v streambot_password="$STREAMBOT_DB_PASSWORD" -U ticketbot -d ticketbot -f /dev/stdin < /tmp/create_streambot.sql 2>&1; then
+then
     echo -e "${GREEN}✓ Streambot user and database created${NC}"
 else
     echo -e "${RED}✗ Failed to create streambot user${NC}"
-    rm -f /tmp/create_streambot.sql
     exit 1
 fi
 
-rm -f /tmp/create_streambot.sql
-
 echo ""
 echo -e "${BLUE}[2/2] Creating jarvis user and database...${NC}"
+ESCAPED_JARVIS_PW=$(escape_sql "$JARVIS_DB_PASSWORD")
 
-# Create a temporary SQL file for jarvis (safer than inline SQL)
-cat > /tmp/create_jarvis.sql <<'EOF'
--- Create user if not exists (idempotent)
-DO $$
+if docker exec -i discord-bot-db psql -v ON_ERROR_STOP=1 -U ticketbot -d ticketbot << EOF
+DO \$\$
 BEGIN
+    -- Create user if not exists
     IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'jarvis') THEN
-        CREATE ROLE jarvis WITH LOGIN PASSWORD :'jarvis_password';
+        CREATE ROLE jarvis WITH LOGIN PASSWORD '${ESCAPED_JARVIS_PW}';
         RAISE NOTICE 'Created user: jarvis';
     ELSE
-        ALTER ROLE jarvis WITH PASSWORD :'jarvis_password';
+        ALTER ROLE jarvis WITH PASSWORD '${ESCAPED_JARVIS_PW}';
         RAISE NOTICE 'User jarvis already exists, password updated';
     END IF;
-END
-$$;
+END \$\$;
 
 -- Create database if not exists
 SELECT 'CREATE DATABASE homelab_jarvis OWNER jarvis'
 WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'homelab_jarvis')\gexec
 
--- Grant all privileges
+-- Grant privileges
 GRANT ALL PRIVILEGES ON DATABASE homelab_jarvis TO jarvis;
 EOF
-
-# Execute with proper error handling and variable substitution
-if docker exec -i discord-bot-db psql -v ON_ERROR_STOP=1 -v jarvis_password="$JARVIS_DB_PASSWORD" -U ticketbot -d ticketbot -f /dev/stdin < /tmp/create_jarvis.sql 2>&1; then
+then
     echo -e "${GREEN}✓ Jarvis user and database created${NC}"
 else
     echo -e "${RED}✗ Failed to create jarvis user${NC}"
-    rm -f /tmp/create_jarvis.sql
     exit 1
 fi
 
-rm -f /tmp/create_jarvis.sql
-
 echo ""
 echo -e "${BLUE}Verifying databases...${NC}"
-if ! docker exec discord-bot-db psql -U ticketbot -d ticketbot -c "\l" | grep -E "streambot|homelab_jarvis|ticketbot"; then
+if docker exec discord-bot-db psql -U ticketbot -d ticketbot -c "\l" | grep -E "streambot|homelab_jarvis|ticketbot"; then
+    echo -e "${GREEN}✓ All databases verified${NC}"
+else
     echo -e "${RED}✗ Database verification failed${NC}"
     exit 1
 fi
@@ -123,6 +120,7 @@ fi
 echo ""
 echo -e "${GREEN}✅ Database users fixed securely!${NC}"
 echo ""
-echo "Next steps:"
-echo "  1. Restart stream-bot: docker restart stream-bot"
-echo "  2. Restart dashboard: docker restart homelab-dashboard homelab-celery-worker"
+echo "Databases created:"
+echo "  • streambot (owner: streambot)"
+echo "  • homelab_jarvis (owner: jarvis)"
+echo "  • ticketbot (owner: ticketbot)"
