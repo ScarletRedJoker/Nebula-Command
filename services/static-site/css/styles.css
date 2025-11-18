@@ -12304,3 +12304,42 @@ a:not(.btn):not(.nav-link):hover {
 
 /* Preserve existing slide effect if user added it */
 /* DO NOT modify existing .exp-slide, .contact-slide, or similar classes */
+
+/* ========================================
+   FIX: Prevent Blurry Text on Hover Transforms
+   November 18, 2025
+   ======================================== */
+
+/* Apply to all buttons and elements with transform effects */
+.btn,
+.btn-primary,
+.navbar-brand,
+.nav-link,
+.gallery-item,
+.img-fluid,
+.lightbox-prev,
+.lightbox-next,
+a {
+    /* Force GPU acceleration for smoother transforms */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    
+    /* Prevent blurry text during transforms */
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    
+    /* Improve transform rendering quality */
+    transform-style: preserve-3d;
+    -webkit-transform-style: preserve-3d;
+    
+    /* Enable hardware acceleration */
+    will-change: transform;
+}
+
+/* Reset will-change after hover to save resources */
+.btn:not(:hover),
+.btn-primary:not(:hover),
+.navbar-brand:not(:hover),
+.gallery-item:not(:hover) {
+    will-change: auto;
+}
