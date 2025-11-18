@@ -2,17 +2,27 @@
 
 ## Recent Changes
 
-### November 18, 2025 - Database Password Sync Fix
-**Problem:** Running containers using cached old passwords, causing authentication failures after database repair  
-**Root Cause:** Container restart doesn't reload `.env` file - requires stop/start to pick up new environment variables
+### November 18, 2025 - Systematic Infrastructure Fixes
+**Problems Identified:**
+1. Stream-bot/Dashboard: Password authentication failures (old passwords baked into Docker images)
+2. Code-server: Persistent EACCES permission errors (volume owned by root, not UID 1000)
+3. VNC Desktop: Long build times (LibreOffice/Evince bloat, no layer caching, chromium snap stub)
 
-**Solution:** Services just need a proper stop/start cycle instead of restart to reload passwords from `.env`
+**Root Causes & Solutions:**
+1. **Container Env Vars:** Docker build bakes env vars into images - restart doesn't reload from .env
+   - ✅ Solution: Clean rebuild with `--no-cache` forces fresh env var read
+2. **Code-server Permissions:** Volume created with root ownership, container runs as UID 1000
+   - ✅ Solution: Created `deployment/fix-code-server-permissions.sh` to chown volumes
+3. **VNC Build Optimization:** Monolithic package install, no caching, 500MB+ bloat, chromium-browser snap stub
+   - ✅ Solution: 3-layer caching strategy, removed LibreOffice/Evince/Chromium (5-7min faster builds)
 
 **Database Architecture (UNCHANGED):**
 - ✅ `ticketbot` - PostgreSQL superuser, manages Discord bot database
 - ✅ `streambot` - Dedicated user for Stream Bot database (least privilege)
 - ✅ `jarvis` - Dedicated user for Dashboard database (least privilege)
 - ✅ Each service has its own isolated database and user (proper security model)
+
+**Key Learning:** Always use `homelab-manager.sh` option 3 (Rebuild & Deploy) after .env changes. Container restart ≠ env var reload.
 
 ## Overview
 This project provides a comprehensive web-based dashboard for managing a Ubuntu 25.10 server. Its core purpose is to offer a unified, user-friendly interface to minimize operational complexity, enhance server reliability, and facilitate intelligent automation and monitoring for complex infrastructure environments. Key capabilities include one-click database deployments, game streaming integration, robust domain health monitoring, and integrations with Google Services and Smart Home platforms. The project aims to deliver production-ready source code for streamlined development, testing, and deployment. The long-term vision is to evolve into an AI-first infrastructure copilot, "Jarvis," capable of autonomous diagnosis, remediation, and execution of infrastructure issues, serving as a mission control UI for actionable intelligence and safe automation.

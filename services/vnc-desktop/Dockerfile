@@ -51,7 +51,6 @@ RUN apt-get update && apt-get install -y \
 RUN apt-get update && apt-get install -y \
     # Web Browsers
     firefox \
-    chromium-browser \
     # Graphics & Media
     gimp \
     vlc \
