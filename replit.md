@@ -169,6 +169,26 @@ docker logs n8n --tail 10
 - Code-Server: Should be accessible at https://code.evindrake.net
 - n8n: Rate limiting warning resolved
 
+### OpenAI API Parameter Fix (November 18, 2025)
+
+**Issue:**
+Stream-bot's AI Snapple facts generation was falling back from gpt-5-mini to gpt-4.1-mini due to incorrect parameter usage.
+
+**Root Cause:**
+OpenAI's newer models (gpt-5, gpt-5-mini) require `max_completion_tokens` instead of the deprecated `max_tokens` parameter.
+
+**Solution Implemented:**
+✅ Updated all OpenAI API calls across stream-bot services to use `max_completion_tokens`:
+- `services/stream-bot/server/openai.ts` - Snapple facts generation
+- `services/stream-bot/server/games-service.ts` - Magic 8-Ball and Trivia games
+- `services/stream-bot/server/analytics-service.ts` - Sentiment analysis
+- `services/stream-bot/server/chatbot-service.ts` - AI chatbot responses
+
+**Result:**
+- AI Snapple facts generation now works correctly with gpt-5-mini
+- All AI-powered features (games, chatbot, analytics) work without fallback errors
+- No more "400 Unsupported parameter" errors in logs
+
 ## External Dependencies
 
 **Dashboard:**
