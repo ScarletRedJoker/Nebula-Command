@@ -155,3 +155,31 @@ def game_connect():
 @require_web_auth
 def marketplace():
     return render_template('marketplace.html')
+
+@web_bp.route('/ollama_models')
+@require_web_auth
+def ollama_models():
+    return render_template('ollama_models.html')
+
+@web_bp.route('/agent-swarm')
+@require_web_auth
+def agent_swarm():
+    return render_template('agent_swarm.html')
+
+@web_bp.route('/pricing')
+def pricing():
+    """Public pricing page"""
+    response = make_response(render_template('pricing.html'))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
+@web_bp.route('/license-activation')
+def license_activation():
+    """Public license activation page"""
+    response = make_response(render_template('license_activation.html'))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response

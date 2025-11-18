@@ -24,6 +24,8 @@ from .domain_record import DomainRecord
 from .jarvis import Project, ArtifactBuild, ComposeSpec, SSLCertificate, AISession
 from .google_integration import GoogleServiceStatus, CalendarAutomation, EmailNotification, DriveBackup
 from .marketplace import MarketplaceApp, DeployedApp
+from .agent import Agent, AgentTask, AgentConversation, AgentType, AgentStatus
+from .subscription import Subscription, LicenseActivation, UsageMetric, SubscriptionTier, SubscriptionStatus
 
 __all__ = [
     'Base',
@@ -44,5 +46,15 @@ __all__ = [
     'EmailNotification',
     'DriveBackup',
     'MarketplaceApp',
-    'DeployedApp'
+    'DeployedApp',
+    'Agent',
+    'AgentTask',
+    'AgentConversation',
+    'AgentType',
+    'AgentStatus',
+    'Subscription',
+    'LicenseActivation',
+    'UsageMetric',
+    'SubscriptionTier',
+    'SubscriptionStatus'
 ]

@@ -22,6 +22,18 @@ class AIService:
             self.client = None
             self.enabled = False
             logger.warning("AI Service not initialized - missing API credentials")
+        
+        # Initialize Ollama support
+        try:
+            from services.ollama_service import OllamaService
+            self.ollama = OllamaService()
+            if self.ollama.enabled:
+                logger.info("Ollama service available")
+            else:
+                logger.warning("Ollama service not available")
+        except Exception as e:
+            logger.error(f"Failed to initialize Ollama service: {e}")
+            self.ollama = None
     
     def analyze_logs(self, logs: str, context: str = "") -> str:
         if not self.enabled:
@@ -128,9 +140,57 @@ Format your responses using Markdown for better readability:
     def chat_stream(self, message: str, conversation_history: List[Dict] = None, model: str = "gpt-5") -> Generator[str, None, None]:
         """
         Stream chat responses using Server-Sent Events (SSE)
+        Supports both OpenAI and Ollama models
         
         Yields SSE-formatted messages with JSON data
         """
+        # Detect if using Ollama model (starts with "ollama/")
+        if model.startswith("ollama/"):
+            model_name = model.replace("ollama/", "")
+            
+            if not self.ollama or not self.ollama.enabled:
+                yield f"data: {json.dumps({'error': 'Ollama not available'})}\n\n"
+                yield "data: [DONE]\n\n"
+                return
+            
+            try:
+                # Convert conversation history format for Ollama
+                messages = [
+                    {"role": "system", "content": """You are Jarvis, an AI-first homelab copilot assistant. You help with:
+- Docker container management and troubleshooting
+- Server health monitoring and diagnostics
+- Network configuration and debugging
+- Log analysis and error resolution
+- Service deployment and orchestration
+
+Be concise, practical, and action-oriented. When diagnosing issues, suggest specific commands or checks the user can perform. Focus on real solutions, not just general advice.
+
+Format your responses using Markdown for better readability:
+- Use **bold** for important terms
+- Use `code` for commands, file paths, and configuration values
+- Use code blocks with language tags for multi-line code (```bash, ```python, etc.)
+- Use lists for step-by-step instructions
+- Use headers (##, ###) for organizing longer responses"""}
+                ]
+                
+                if conversation_history:
+                    messages.extend(conversation_history)
+                
+                messages.append({"role": "user", "content": message})
+                
+                # Stream from Ollama
+                for chunk in self.ollama.chat(model_name, messages, stream=True):
+                    yield f"data: {json.dumps({'content': chunk})}\n\n"
+                
+                yield "data: [DONE]\n\n"
+                
+            except Exception as e:
+                logger.error(f"Error in Ollama chat stream: {e}")
+                yield f"data: {json.dumps({'error': str(e)})}\n\n"
+                yield "data: [DONE]\n\n"
+            return
+        
+        # OpenAI streaming
         if not self.enabled:
             yield f"data: {json.dumps({'error': 'AI chat is not available. Please check API configuration.'})}\n\n"
             yield "data: [DONE]\n\n"
@@ -183,19 +243,43 @@ Format your responses using Markdown for better readability:
     
     def get_available_models(self) -> List[Dict[str, str]]:
         """
-        Get list of available AI models
+        Get list of available AI models (OpenAI + Ollama)
         
         Returns list of models with id, name, and description
         """
-        return [
+        models = [
             {
                 "id": "gpt-5",
-                "name": "GPT-5",
-                "description": "Latest OpenAI model (August 2025) - Best for complex reasoning"
+                "name": "GPT-5 (OpenAI)",
+                "description": "Latest OpenAI model (August 2025) - Best for complex reasoning",
+                "provider": "openai"
             },
             {
                 "id": "gpt-4",
-                "name": "GPT-4",
-                "description": "Previous generation - Fast and reliable"
+                "name": "GPT-4 (OpenAI)",
+                "description": "Previous generation - Fast and reliable",
+                "provider": "openai"
             }
         ]
+        
+        # Add Ollama models if available
+        if self.ollama and self.ollama.enabled:
+            try:
+                ollama_models = self.ollama.list_models()
+                for model in ollama_models:
+                    models.append({
+                        "id": f"ollama/{model['name']}",
+                        "name": f"{model['name']} (Local)",
+                        "description": f"Local Ollama model - {formatBytes(model.get('size', 0))}",
+                        "provider": "ollama",
+                        "size": model.get('size', 0)
+                    })
+            except Exception as e:
+                logger.error(f"Error loading Ollama models: {e}")
+        
+        return models
+
+def formatBytes(bytes):
+    """Helper to format bytes to human readable"""
+    gb = bytes / 1024 / 1024 / 1024
+    return f"{gb:.2f} GB"

@@ -19,6 +19,9 @@ from routes.jarvis_voice_api import jarvis_voice_bp
 from routes.smart_home_api import smart_home_bp, limiter
 from routes.google_services_api import google_services_bp
 from routes.marketplace_api import marketplace_bp
+from routes.ollama_api import ollama_bp
+from routes.agent_api import agent_bp
+from routes.subscription_api import subscription_bp
 from services.activity_service import activity_service
 from services.db_service import db_service
 from services.websocket_service import websocket_service
@@ -119,6 +122,9 @@ app.register_blueprint(jarvis_voice_bp)
 app.register_blueprint(smart_home_bp)
 app.register_blueprint(google_services_bp)
 app.register_blueprint(marketplace_bp)
+app.register_blueprint(ollama_bp)
+app.register_blueprint(agent_bp)
+app.register_blueprint(subscription_bp)
 
 # Initialize WebSocket service
 websocket_service.init_app(app)

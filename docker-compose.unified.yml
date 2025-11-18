@@ -12,6 +12,7 @@ volumes:
   redis_data:
   minio_data:
   homeassistant_config:
+  ollama_models:
 
 services:
   # ============================================
@@ -406,3 +407,33 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
+
+  # ============================================
+  # Ollama - Local AI Models
+  # ============================================
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    restart: unless-stopped
+    networks:
+      - homelab
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11434
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 8G
+        reservations:
+          cpus: '2.0'
+          memory: 4G

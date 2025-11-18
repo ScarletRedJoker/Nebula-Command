@@ -49,26 +49,33 @@ show_menu() {
     echo -e "    ${GREEN}7)${NC} 🗄️  Ensure Databases Exist (fix DB issues)"
     echo -e "    ${GREEN}8)${NC} 📊 Check Database Status"
     echo ""
+    echo -e "  ${BOLD}Smart Home:${NC}"
+    echo -e "    ${GREEN}9)${NC} 🏠 Setup Home Assistant Integration"
+    echo ""
     echo -e "  ${BOLD}Configuration:${NC}"
-    echo -e "    ${GREEN}9)${NC} ⚙️  Generate/Edit .env File"
-    echo -e "    ${GREEN}10)${NC} 📋 View Current Configuration"
+    echo -e "    ${GREEN}10)${NC} ⚙️  Generate/Edit .env File"
+    echo -e "    ${GREEN}11)${NC} 📋 View Current Configuration"
+    echo ""
+    echo -e "  ${BOLD}Licensing & Subscription:${NC}"
+    echo -e "    ${GREEN}21)${NC} 🔑 Activate License Key"
+    echo -e "    ${GREEN}22)${NC} 📊 View Subscription Status"
     echo ""
     echo -e "  ${BOLD}Troubleshooting:${NC}"
-    echo -e "    ${GREEN}11)${NC} 🔍 View Service Logs"
-    echo -e "    ${GREEN}12)${NC} 🏥 Health Check (all services)"
-    echo -e "    ${GREEN}13)${NC} 🔧 Full Troubleshoot Mode"
+    echo -e "    ${GREEN}12)${NC} 🔍 View Service Logs"
+    echo -e "    ${GREEN}13)${NC} 🏥 Health Check (all services)"
+    echo -e "    ${GREEN}14)${NC} 🔧 Full Troubleshoot Mode"
     echo ""
     echo -e "  ${BOLD}Code Sync (Replit → Ubuntu):${NC}"
-    echo -e "    ${GREEN}17)${NC} 🔄 Sync from Replit (pull latest code & auto-deploy)"
-    echo -e "    ${GREEN}18)${NC} ⚡ Install Auto-Sync (every 5 minutes)"
-    echo -e "    ${GREEN}19)${NC} 🔍 Check Auto-Sync Status"
+    echo -e "    ${GREEN}18)${NC} 🔄 Sync from Replit (pull latest code & auto-deploy)"
+    echo -e "    ${GREEN}19)${NC} ⚡ Install Auto-Sync (every 5 minutes)"
+    echo -e "    ${GREEN}20)${NC} 🔍 Check Auto-Sync Status"
     echo ""
     echo -e "  ${BOLD}Updates:${NC}"
-    echo -e "    ${GREEN}16)${NC} 📦 Update Service (pull latest image)"
+    echo -e "    ${GREEN}17)${NC} 📦 Update Service (pull latest image)"
     echo ""
     echo -e "  ${BOLD}Information:${NC}"
-    echo -e "    ${GREEN}14)${NC} 📊 Show Container Details"
-    echo -e "    ${GREEN}15)${NC} 🌐 Show Service URLs"
+    echo -e "    ${GREEN}15)${NC} 📊 Show Container Details"
+    echo -e "    ${GREEN}16)${NC} 🌐 Show Service URLs"
     echo ""
     echo -e "    ${RED}0)${NC} 🚪 Exit"
     echo ""
@@ -547,6 +554,264 @@ check_database_status() {
     pause
 }
 
+# Setup Home Assistant Integration
+setup_home_assistant() {
+    echo ""
+    echo -e "${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BOLD}${BLUE}  🏠 HOME ASSISTANT SETUP WIZARD${NC}"
+    echo -e "${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    
+    # Check for required tools
+    echo "Checking prerequisites..."
+    if ! command -v jq &> /dev/null; then
+        echo -e "${YELLOW}⚠ jq is not installed (needed for API validation)${NC}"
+        echo ""
+        read -p "Would you like to install jq? (y/n): " install_jq
+        if [[ "$install_jq" =~ ^[Yy]$ ]]; then
+            echo "Installing jq..."
+            sudo apt-get update && sudo apt-get install -y jq
+        else
+            echo -e "${RED}Cannot proceed without jq. Exiting setup.${NC}"
+            pause
+            return 1
+        fi
+    fi
+    echo -e "${GREEN}✓ Prerequisites met${NC}"
+    echo ""
+    
+    # Step 1: Check if Home Assistant is running
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo -e "${BOLD}Step 1: Checking Home Assistant Status${NC}"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    
+    local ha_running=false
+    if docker ps --format '{{.Names}}' | grep -q '^homeassistant$'; then
+        echo -e "${GREEN}✓ Home Assistant container is running${NC}"
+        ha_running=true
+    else
+        echo -e "${YELLOW}⚠ Home Assistant container is not running${NC}"
+        echo ""
+        read -p "Would you like to start Home Assistant now? (y/n): " start_ha
+        if [[ "$start_ha" =~ ^[Yy]$ ]]; then
+            echo "Starting Home Assistant..."
+            docker-compose -f docker-compose.unified.yml up -d homeassistant
+            
+            echo "Waiting for Home Assistant to start (this may take up to 2 minutes)..."
+            local timeout=120
+            local elapsed=0
+            while [ $elapsed -lt $timeout ]; do
+                if docker ps --format '{{.Names}}' | grep -q '^homeassistant$'; then
+                    ha_running=true
+                    echo -e "${GREEN}✓ Home Assistant started successfully${NC}"
+                    sleep 10  # Give it a bit more time to fully initialize
+                    break
+                fi
+                sleep 5
+                elapsed=$((elapsed + 5))
+                echo -n "."
+            done
+            
+            if [ "$ha_running" = false ]; then
+                echo ""
+                echo -e "${RED}✗ Home Assistant failed to start within timeout${NC}"
+                echo "Please check logs: docker-compose -f docker-compose.unified.yml logs homeassistant"
+                pause
+                return 1
+            fi
+        else
+            echo -e "${YELLOW}Cannot continue without Home Assistant running. Exiting setup.${NC}"
+            pause
+            return 1
+        fi
+    fi
+    
+    echo ""
+    
+    # Step 2: Display First-Time Setup Instructions
+    echo "╔══════════════════════════════════════════════════════════════╗"
+    echo "║ HOME ASSISTANT FIRST-TIME SETUP                              ║"
+    echo "╠══════════════════════════════════════════════════════════════╣"
+    echo "║ Home Assistant is now running at:                           ║"
+    echo "║   → https://home.evindrake.net                               ║"
+    echo "║   → http://localhost:8123                                    ║"
+    echo "║                                                              ║"
+    echo "║ STEP 1: Complete Initial Setup                              ║"
+    echo "║   1. Open https://home.evindrake.net in your browser        ║"
+    echo "║   2. Create your admin account                               ║"
+    echo "║   3. Complete the onboarding wizard                          ║"
+    echo "║   4. Press Enter when done...                                ║"
+    echo "╚══════════════════════════════════════════════════════════════╝"
+    echo ""
+    read -p "Press Enter when you've completed the initial setup..."
+    
+    echo ""
+    
+    # Step 3: Access Token Creation Guide
+    echo "╔══════════════════════════════════════════════════════════════╗"
+    echo "║ STEP 2: Create Long-Lived Access Token                      ║"
+    echo "╠══════════════════════════════════════════════════════════════╣"
+    echo "║ 1. Log in to Home Assistant (https://home.evindrake.net)    ║"
+    echo "║ 2. Click your profile icon (bottom left)                    ║"
+    echo "║ 3. Scroll to \"Long-Lived Access Tokens\"                     ║"
+    echo "║ 4. Click \"CREATE TOKEN\"                                     ║"
+    echo "║ 5. Name it: \"Nebula Command Dashboard\"                      ║"
+    echo "║ 6. Copy the token (you'll only see it once!)                ║"
+    echo "║                                                              ║"
+    echo "║ Paste your access token below:                              ║"
+    echo "╚══════════════════════════════════════════════════════════════╝"
+    echo ""
+    
+    # Get token with masked input
+    local token=""
+    local token_valid=false
+    local max_attempts=3
+    local attempt=1
+    
+    while [ $attempt -le $max_attempts ] && [ "$token_valid" = false ]; do
+        if [ $attempt -gt 1 ]; then
+            echo ""
+            echo -e "${YELLOW}Attempt $attempt of $max_attempts${NC}"
+        fi
+        
+        read -sp "Enter Home Assistant access token: " token
+        echo ""
+        
+        # Basic validation - token should not be empty
+        if [ -z "$token" ]; then
+            echo -e "${RED}✗ Token cannot be empty${NC}"
+            attempt=$((attempt + 1))
+            continue
+        fi
+        
+        # Step 4: Validate Token
+        echo ""
+        echo "Validating token..."
+        
+        # Test connection to Home Assistant API
+        local api_response
+        api_response=$(curl -s -w "\n%{http_code}" -H "Authorization: Bearer $token" \
+            -H "Content-Type: application/json" \
+            http://localhost:8123/api/ 2>/dev/null || echo -e "\n000")
+        
+        local http_code=$(echo "$api_response" | tail -n1)
+        local response_body=$(echo "$api_response" | head -n-1)
+        
+        if [ "$http_code" = "200" ]; then
+            local api_message=$(echo "$response_body" | jq -r '.message' 2>/dev/null || echo "")
+            if [ "$api_message" = "API running." ]; then
+                echo -e "${GREEN}✓ Token validated successfully!${NC}"
+                token_valid=true
+                
+                # Get Home Assistant version
+                local version_info=$(curl -s -H "Authorization: Bearer $token" \
+                    http://localhost:8123/api/config 2>/dev/null | jq -r '.version' 2>/dev/null || echo "unknown")
+                if [ "$version_info" != "unknown" ] && [ -n "$version_info" ]; then
+                    echo -e "${GREEN}✓ Home Assistant version: $version_info${NC}"
+                fi
+            else
+                echo -e "${RED}✗ Unexpected API response${NC}"
+                attempt=$((attempt + 1))
+            fi
+        elif [ "$http_code" = "401" ]; then
+            echo -e "${RED}✗ Authentication failed: Invalid token${NC}"
+            echo "Please verify you copied the complete token from Home Assistant."
+            attempt=$((attempt + 1))
+        elif [ "$http_code" = "000" ]; then
+            echo -e "${RED}✗ Connection failed: Cannot reach Home Assistant${NC}"
+            echo "Please verify Home Assistant is running and accessible."
+            attempt=$((attempt + 1))
+        else
+            echo -e "${RED}✗ Validation failed with HTTP code: $http_code${NC}"
+            attempt=$((attempt + 1))
+        fi
+    done
+    
+    if [ "$token_valid" = false ]; then
+        echo ""
+        echo -e "${RED}✗ Failed to validate token after $max_attempts attempts${NC}"
+        echo "Please ensure:"
+        echo "  • Home Assistant is accessible at http://localhost:8123"
+        echo "  • The token is valid and copied correctly"
+        echo "  • You have network connectivity"
+        pause
+        return 1
+    fi
+    
+    # Step 5: Update .env File
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo -e "${BOLD}Step 3: Updating Configuration${NC}"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    
+    # Create .env if it doesn't exist
+    if [ ! -f ".env" ]; then
+        echo "Creating new .env file..."
+        touch .env
+    fi
+    
+    # Backup existing .env
+    cp .env .env.backup.$(date +%Y%m%d_%H%M%S)
+    echo -e "${GREEN}✓ Backed up existing .env${NC}"
+    
+    # Remove old Home Assistant configuration if exists
+    sed -i '/^HOME_ASSISTANT_URL=/d' .env
+    sed -i '/^HOME_ASSISTANT_TOKEN=/d' .env
+    sed -i '/^HOME_ASSISTANT_VERIFY_SSL=/d' .env
+    
+    # Add new configuration
+    echo "" >> .env
+    echo "# Home Assistant Integration" >> .env
+    echo "HOME_ASSISTANT_URL=https://home.evindrake.net" >> .env
+    echo "HOME_ASSISTANT_TOKEN=$token" >> .env
+    echo "HOME_ASSISTANT_VERIFY_SSL=True" >> .env
+    
+    echo -e "${GREEN}✓ Updated .env with Home Assistant configuration${NC}"
+    
+    # Step 6: Restart Dashboard Services
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo -e "${BOLD}Step 4: Restarting Services${NC}"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    
+    echo "Restarting dashboard services to load new configuration..."
+    if docker-compose -f docker-compose.unified.yml restart homelab-dashboard homelab-celery-worker 2>/dev/null; then
+        echo -e "${GREEN}✓ Services restarted successfully${NC}"
+        echo "Waiting for services to initialize..."
+        sleep 5
+    else
+        echo -e "${YELLOW}⚠ Warning: Could not restart services automatically${NC}"
+        echo "Please restart manually: docker-compose -f docker-compose.unified.yml restart homelab-dashboard homelab-celery-worker"
+    fi
+    
+    # Step 7: Success Message
+    echo ""
+    echo "╔══════════════════════════════════════════════════════════════╗"
+    echo "║ ✅ HOME ASSISTANT INTEGRATION COMPLETE!                      ║"
+    echo "╠══════════════════════════════════════════════════════════════╣"
+    echo "║ Your Nebula Command dashboard can now control:              ║"
+    echo "║   • Smart lights                                             ║"
+    echo "║   • Switches and outlets                                     ║"
+    echo "║   • Thermostats and climate control                          ║"
+    echo "║   • Sensors and monitoring                                   ║"
+    echo "║   • Scenes and automations                                   ║"
+    echo "║                                                              ║"
+    echo "║ Access the Smart Home control panel:                        ║"
+    echo "║   → https://host.evindrake.net/smart_home                    ║"
+    echo "║                                                              ║"
+    echo "║ Home Assistant URL: https://home.evindrake.net               ║"
+    echo "╚══════════════════════════════════════════════════════════════╝"
+    echo ""
+    echo -e "${GREEN}Configuration saved to .env${NC}"
+    echo -e "${YELLOW}Backup created: .env.backup.$(date +%Y%m%d)_*${NC}"
+    echo ""
+    
+    pause
+}
+
 # Generate/Edit .env
 generate_env() {
     echo ""
@@ -863,6 +1128,143 @@ check_sync_status() {
     pause
 }
 
+# Activate License
+activate_license() {
+    echo ""
+    echo -e "${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BOLD}${BLUE}  🔑 NEBULA COMMAND LICENSE ACTIVATION${NC}"
+    echo -e "${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    
+    echo "This will activate your Nebula Command license on this server."
+    echo ""
+    echo "Don't have a license key? Visit:"
+    echo "  → https://host.evindrake.net/pricing"
+    echo ""
+    
+    # Get license key
+    read -p "Enter your license key: " LICENSE_KEY
+    
+    if [ -z "$LICENSE_KEY" ]; then
+        echo -e "${RED}✗ No license key provided${NC}"
+        pause
+        return
+    fi
+    
+    # Generate server ID from machine ID
+    if [ -f "/etc/machine-id" ]; then
+        SERVER_ID=$(cat /etc/machine-id)
+    else
+        SERVER_ID=$(hostname | md5sum | cut -d' ' -f1)
+    fi
+    
+    HOSTNAME=$(hostname)
+    IP=$(hostname -I | awk '{print $1}')
+    
+    echo ""
+    echo "Server Information:"
+    echo "  Hostname: $HOSTNAME"
+    echo "  IP: $IP"
+    echo "  Server ID: $SERVER_ID"
+    echo ""
+    echo "Activating license..."
+    
+    # Activate via API
+    RESPONSE=$(curl -s -X POST "https://host.evindrake.net/api/subscription/activate" \
+        -H "Content-Type: application/json" \
+        -d "{\"license_key\": \"$LICENSE_KEY\", \"server_id\": \"$SERVER_ID\", \"hostname\": \"$HOSTNAME\", \"ip\": \"$IP\"}")
+    
+    # Check response
+    SUCCESS=$(echo "$RESPONSE" | grep -o '"success"[[:space:]]*:[[:space:]]*true')
+    
+    if [ ! -z "$SUCCESS" ]; then
+        echo -e "${GREEN}✓ License activated successfully!${NC}"
+        echo ""
+        
+        # Extract tier information
+        TIER=$(echo "$RESPONSE" | grep -o '"tier"[[:space:]]*:[[:space:]]*"[^"]*"' | cut -d'"' -f4)
+        STATUS=$(echo "$RESPONSE" | grep -o '"status"[[:space:]]*:[[:space:]]*"[^"]*"' | cut -d'"' -f4)
+        
+        if [ ! -z "$TIER" ]; then
+            echo "Subscription Tier: ${BOLD}$TIER${NC}"
+            echo "Status: $STATUS"
+        fi
+        
+        # Save license key to local config
+        echo "$LICENSE_KEY" > .nebula_license
+        chmod 600 .nebula_license
+        
+        echo ""
+        echo -e "${GREEN}License key saved locally${NC}"
+    else
+        echo -e "${RED}✗ License activation failed${NC}"
+        echo ""
+        MESSAGE=$(echo "$RESPONSE" | grep -o '"message"[[:space:]]*:[[:space:]]*"[^"]*"' | cut -d'"' -f4)
+        if [ ! -z "$MESSAGE" ]; then
+            echo "Error: $MESSAGE"
+        else
+            echo "Full response:"
+            echo "$RESPONSE"
+        fi
+    fi
+    
+    pause
+}
+
+# View Subscription Status
+view_subscription_status() {
+    echo ""
+    echo -e "${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BOLD}${BLUE}  📊 SUBSCRIPTION STATUS${NC}"
+    echo -e "${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    
+    # Check if license key exists
+    if [ ! -f ".nebula_license" ]; then
+        echo -e "${YELLOW}No license key found on this server${NC}"
+        echo ""
+        echo "To activate a license, choose option 21 from the main menu."
+        pause
+        return
+    fi
+    
+    LICENSE_KEY=$(cat .nebula_license)
+    
+    # Generate server ID
+    if [ -f "/etc/machine-id" ]; then
+        SERVER_ID=$(cat /etc/machine-id)
+    else
+        SERVER_ID=$(hostname | md5sum | cut -d' ' -f1)
+    fi
+    
+    echo "Checking subscription status..."
+    echo ""
+    
+    # Verify license via API
+    RESPONSE=$(curl -s -X POST "https://host.evindrake.net/api/subscription/verify" \
+        -H "Content-Type: application/json" \
+        -d "{\"license_key\": \"$LICENSE_KEY\", \"server_id\": \"$SERVER_ID\"}")
+    
+    VALID=$(echo "$RESPONSE" | grep -o '"valid"[[:space:]]*:[[:space:]]*true')
+    
+    if [ ! -z "$VALID" ]; then
+        echo -e "${GREEN}✓ License is active and valid${NC}"
+        echo ""
+        echo "License Key: ${LICENSE_KEY:0:16}..."
+        echo "Server ID: $SERVER_ID"
+        echo ""
+        echo "For detailed subscription information, visit:"
+        echo "  → https://host.evindrake.net/pricing"
+    else
+        echo -e "${RED}✗ License is not valid${NC}"
+        echo ""
+        echo "Please activate or renew your license."
+        echo "Visit: https://host.evindrake.net/pricing"
+    fi
+    
+    pause
+}
+
 # Pause helper
 pause() {
     echo ""
@@ -884,17 +1286,20 @@ main() {
             6) restart_service ;;
             7) ensure_databases ;;
             8) check_database_status ;;
-            9) generate_env ;;
-            10) view_config ;;
-            11) view_logs ;;
-            12) health_check ;;
-            13) troubleshoot ;;
-            14) show_details ;;
-            15) show_urls ;;
-            16) update_service ;;
-            17) sync_from_replit ;;
-            18) install_auto_sync ;;
-            19) check_sync_status ;;
+            9) setup_home_assistant ;;
+            10) generate_env ;;
+            11) view_config ;;
+            12) view_logs ;;
+            13) health_check ;;
+            14) troubleshoot ;;
+            15) show_details ;;
+            16) show_urls ;;
+            17) update_service ;;
+            18) sync_from_replit ;;
+            19) install_auto_sync ;;
+            20) check_sync_status ;;
+            21) activate_license ;;
+            22) view_subscription_status ;;
             0) 
                 echo ""
                 echo -e "${GREEN}Goodbye! 👋${NC}"

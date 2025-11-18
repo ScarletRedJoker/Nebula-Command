@@ -463,6 +463,18 @@
                 </a>
             </li>
             <li class="nav-item">
+                <a href="/ollama_models" class="nav-link cosmic {% if request.path == '/ollama_models' %}active{% endif %}">
+                    <i class="bi bi-cpu"></i>
+                    <span>AI Models</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="/agent-swarm" class="nav-link cosmic {% if request.path == '/agent-swarm' %}active{% endif %}">
+                    <i class="bi bi-diagram-3-fill"></i>
+                    <span>Agent Swarm</span>
+                </a>
+            </li>
+            <li class="nav-item">
                 <a href="/game-streaming" class="nav-link cosmic {% if request.path == '/game-streaming' %}active{% endif %}">
                     <i class="bi bi-controller"></i>
                     <span>Game Streaming</span>

@@ -1,7 +1,7 @@
 """add marketplace models
 
-Revision ID: 006_add_marketplace_models
-Revises: 005_add_google_integration_models
+Revision ID: 006
+Revises: 005
 Create Date: 2025-11-18 00:00:00.000000
 
 """
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision = '006_add_marketplace_models'
-down_revision = '005_add_google_integration_models'
+revision = '006'
+down_revision = '005'
 branch_labels = None
 depends_on = None
 

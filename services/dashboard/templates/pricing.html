@@ -1,0 +1,429 @@
+{% extends "base.html" %}
+
+{% block title %}Pricing - Nebula Command{% endblock %}
+
+{% block content %}
+<style>
+    .pricing-header {
+        text-align: center;
+        padding: 60px 20px;
+        background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%);
+        border-radius: 20px;
+        margin-bottom: 50px;
+    }
+    
+    .pricing-header h1 {
+        font-size: 3rem;
+        font-weight: 700;
+        margin-bottom: 20px;
+        background: linear-gradient(135deg, #8B5CF6 0%, #EC4899 50%, #3B82F6 100%);
+        background-size: 200% 200%;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    .pricing-header p {
+        font-size: 1.2rem;
+        color: var(--text-secondary);
+        max-width: 600px;
+        margin: 0 auto;
+    }
+    
+    .billing-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 15px;
+        margin: 40px 0;
+    }
+    
+    .toggle-switch {
+        position: relative;
+        width: 60px;
+        height: 30px;
+        background: var(--bg-tertiary);
+        border-radius: 15px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        border: 2px solid var(--border-color);
+    }
+    
+    .toggle-switch.active {
+        background: linear-gradient(135deg, #8B5CF6, #3B82F6);
+        border-color: #8B5CF6;
+    }
+    
+    .toggle-slider {
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 22px;
+        height: 22px;
+        background: white;
+        border-radius: 50%;
+        transition: transform 0.3s ease;
+    }
+    
+    .toggle-switch.active .toggle-slider {
+        transform: translateX(30px);
+    }
+    
+    .pricing-tiers {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 30px;
+        margin-bottom: 60px;
+    }
+    
+    .pricing-card {
+        background: linear-gradient(145deg, rgba(31, 41, 55, 0.9) 0%, rgba(17, 24, 39, 0.95) 100%);
+        border: 2px solid rgba(139, 92, 246, 0.2);
+        border-radius: 20px;
+        padding: 40px;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .pricing-card:hover {
+        transform: translateY(-10px);
+        border-color: rgba(139, 92, 246, 0.5);
+        box-shadow: 0 20px 60px rgba(139, 92, 246, 0.4);
+    }
+    
+    .pricing-card.popular {
+        border-color: #8B5CF6;
+        box-shadow: 0 0 40px rgba(139, 92, 246, 0.3);
+    }
+    
+    .pricing-card.popular::before {
+        content: 'MOST POPULAR';
+        position: absolute;
+        top: 20px;
+        right: -35px;
+        background: linear-gradient(135deg, #8B5CF6, #EC4899);
+        color: white;
+        padding: 5px 40px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        transform: rotate(45deg);
+        letter-spacing: 1px;
+    }
+    
+    .tier-name {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin-bottom: 10px;
+        color: var(--text-primary);
+    }
+    
+    .tier-price {
+        font-size: 3rem;
+        font-weight: 700;
+        margin-bottom: 10px;
+        background: linear-gradient(135deg, #8B5CF6, #3B82F6);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    .tier-price .currency {
+        font-size: 1.5rem;
+    }
+    
+    .tier-price .period {
+        font-size: 1rem;
+        color: var(--text-secondary);
+        font-weight: 400;
+    }
+    
+    .tier-description {
+        color: var(--text-secondary);
+        margin-bottom: 30px;
+        font-size: 0.95rem;
+    }
+    
+    .tier-features {
+        list-style: none;
+        padding: 0;
+        margin: 30px 0;
+    }
+    
+    .tier-features li {
+        padding: 12px 0;
+        color: var(--text-secondary);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        border-bottom: 1px solid rgba(139, 92, 246, 0.1);
+    }
+    
+    .tier-features li:last-child {
+        border-bottom: none;
+    }
+    
+    .tier-features li i {
+        color: #10B981;
+        font-size: 1.1rem;
+    }
+    
+    .cta-button {
+        width: 100%;
+        padding: 15px 30px;
+        background: linear-gradient(135deg, #8B5CF6 0%, #EC4899 50%, #3B82F6 100%);
+        background-size: 200% 200%;
+        border: none;
+        border-radius: 12px;
+        color: white;
+        font-weight: 600;
+        font-size: 1.1rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        margin-top: 20px;
+    }
+    
+    .cta-button:hover {
+        transform: scale(1.05);
+        box-shadow: 0 10px 30px rgba(139, 92, 246, 0.5);
+    }
+    
+    .cta-button.secondary {
+        background: var(--bg-tertiary);
+        color: var(--text-primary);
+        border: 2px solid var(--border-color);
+    }
+    
+    .cta-button.secondary:hover {
+        border-color: #8B5CF6;
+        box-shadow: 0 10px 30px rgba(139, 92, 246, 0.3);
+    }
+    
+    .faq-section {
+        margin-top: 80px;
+        max-width: 800px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+    
+    .faq-section h2 {
+        text-align: center;
+        margin-bottom: 40px;
+        font-size: 2rem;
+    }
+    
+    .faq-item {
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 25px;
+        margin-bottom: 20px;
+        transition: all 0.3s ease;
+    }
+    
+    .faq-item:hover {
+        border-color: rgba(139, 92, 246, 0.5);
+    }
+    
+    .faq-question {
+        font-weight: 600;
+        font-size: 1.1rem;
+        margin-bottom: 10px;
+        color: var(--text-primary);
+    }
+    
+    .faq-answer {
+        color: var(--text-secondary);
+        line-height: 1.6;
+    }
+    
+    .savings-badge {
+        display: inline-block;
+        background: linear-gradient(135deg, #10B981, #059669);
+        color: white;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        margin-left: 10px;
+    }
+</style>
+
+<div class="pricing-header">
+    <h1>🚀 Choose Your Plan</h1>
+    <p>Start free, upgrade when you need more power. No credit card required.</p>
+    
+    <div class="billing-toggle">
+        <span id="monthly-label" style="font-weight: 600;">Monthly</span>
+        <div class="toggle-switch" id="billing-toggle">
+            <div class="toggle-slider"></div>
+        </div>
+        <span id="yearly-label" style="color: var(--text-secondary);">
+            Yearly <span class="savings-badge">Save 17%</span>
+        </span>
+    </div>
+</div>
+
+<div class="pricing-tiers" id="pricing-tiers">
+    <!-- Pricing cards will be dynamically loaded here -->
+</div>
+
+<div class="faq-section">
+    <h2>Frequently Asked Questions</h2>
+    
+    <div class="faq-item">
+        <div class="faq-question">💳 What payment methods do you accept?</div>
+        <div class="faq-answer">
+            We accept all major credit cards (Visa, Mastercard, American Express, Discover) through Stripe. Enterprise customers can also pay via invoice.
+        </div>
+    </div>
+    
+    <div class="faq-item">
+        <div class="faq-question">🔄 Can I change plans later?</div>
+        <div class="faq-answer">
+            Yes! You can upgrade or downgrade your plan at any time. Upgrades take effect immediately, and downgrades apply at the end of your current billing cycle.
+        </div>
+    </div>
+    
+    <div class="faq-item">
+        <div class="faq-question">🛡️ Is there a free trial?</div>
+        <div class="faq-answer">
+            All paid plans include a 30-day trial period. No credit card required to start. Cancel anytime during the trial with no charges.
+        </div>
+    </div>
+    
+    <div class="faq-item">
+        <div class="faq-question">🔐 How does licensing work?</div>
+        <div class="faq-answer">
+            Each subscription includes a license key that can be activated on your servers. Free tier allows 1 server, Pro allows unlimited servers, and Team tier includes enterprise-level license management.
+        </div>
+    </div>
+    
+    <div class="faq-item">
+        <div class="faq-question">💼 Do you offer enterprise plans?</div>
+        <div class="faq-answer">
+            Yes! For organizations with custom requirements, contact us for enterprise pricing with dedicated support, SLAs, and custom integrations.
+        </div>
+    </div>
+    
+    <div class="faq-item">
+        <div class="faq-question">🔧 What happens if I hit my limits?</div>
+        <div class="faq-answer">
+            If you reach your plan's limits (e.g., AI requests), you'll be notified and can upgrade instantly. Your services will continue to run, but premium features will be paused until you upgrade or the next billing cycle.
+        </div>
+    </div>
+</div>
+
+<script>
+    let isYearly = false;
+    
+    // Toggle billing period
+    document.getElementById('billing-toggle').addEventListener('click', function() {
+        isYearly = !isYearly;
+        this.classList.toggle('active');
+        
+        document.getElementById('monthly-label').style.fontWeight = isYearly ? '400' : '600';
+        document.getElementById('monthly-label').style.color = isYearly ? 'var(--text-secondary)' : 'var(--text-primary)';
+        document.getElementById('yearly-label').style.fontWeight = isYearly ? '600' : '400';
+        document.getElementById('yearly-label').style.color = isYearly ? 'var(--text-primary)' : 'var(--text-secondary)';
+        
+        loadPricing();
+    });
+    
+    // Load pricing tiers
+    function loadPricing() {
+        fetch('/api/subscription/tiers')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    renderPricingCards(data.tiers);
+                }
+            })
+            .catch(error => console.error('Error loading pricing:', error));
+    }
+    
+    function renderPricingCards(tiers) {
+        const container = document.getElementById('pricing-tiers');
+        container.innerHTML = '';
+        
+        const tierOrder = ['FREE', 'PRO', 'TEAM'];
+        const sortedTiers = tiers.sort((a, b) => 
+            tierOrder.indexOf(a.name) - tierOrder.indexOf(b.name)
+        );
+        
+        sortedTiers.forEach(tier => {
+            const price = isYearly ? tier.price_yearly : tier.price_monthly;
+            const period = isYearly ? 'year' : 'month';
+            const isPopular = tier.name === 'PRO';
+            
+            const card = document.createElement('div');
+            card.className = `pricing-card ${isPopular ? 'popular' : ''}`;
+            
+            card.innerHTML = `
+                <div class="tier-name">${tier.name}</div>
+                <div class="tier-price">
+                    <span class="currency">$</span>${price}<span class="period">/${period}</span>
+                </div>
+                <div class="tier-description">
+                    ${getTierDescription(tier.name)}
+                </div>
+                
+                <ul class="tier-features">
+                    ${tier.features.map(feature => `
+                        <li><i class="bi bi-check-circle-fill"></i> ${feature}</li>
+                    `).join('')}
+                </ul>
+                
+                <button class="cta-button ${tier.name === 'FREE' ? 'secondary' : ''}" 
+                        onclick="selectPlan('${tier.id}')">
+                    ${tier.name === 'FREE' ? 'Get Started Free' : 'Start Free Trial'}
+                </button>
+            `;
+            
+            container.appendChild(card);
+        });
+    }
+    
+    function getTierDescription(tierName) {
+        const descriptions = {
+            'FREE': 'Perfect for getting started with basic homelab management',
+            'PRO': 'For power users who need unlimited AI and automation',
+            'TEAM': 'Enterprise-grade features for teams and organizations'
+        };
+        return descriptions[tierName] || '';
+    }
+    
+    function selectPlan(tier) {
+        // For now, show modal to collect email
+        const email = prompt('Enter your email to create your subscription:');
+        if (!email) return;
+        
+        fetch('/api/subscription/create', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                email: email,
+                tier: tier
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(`Success! Your license key: ${data.subscription.license_key}\n\nPlease save this key - you'll need it to activate your subscription.`);
+                window.location.href = '/license-activation';
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Failed to create subscription');
+        });
+    }
+    
+    // Load pricing on page load
+    loadPricing();
+</script>
+{% endblock %}

@@ -463,8 +463,29 @@ marked.setOptions({
     gfm: true
 });
 
+// ==================== MODEL MANAGEMENT ====================
+
+async function loadAvailableModels() {
+    try {
+        const response = await fetch('/api/ai/models');
+        const data = await response.json();
+        
+        if (data.success && data.data) {
+            const select = document.getElementById('modelSelector');
+            select.innerHTML = data.data.map(model => 
+                `<option value="${model.id}">${model.name}</option>`
+            ).join('');
+        }
+    } catch (error) {
+        console.error('Error loading models:', error);
+    }
+}
+
 // Load saved conversation and settings
 loadSettings();
+
+// Load available models dynamically
+loadAvailableModels();
 
 // Show welcome message if no history
 if (conversationHistory.length === 0) {

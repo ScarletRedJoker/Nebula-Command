@@ -1,0 +1,492 @@
+{% extends "base.html" %}
+
+{% block title %}Agent Swarm - Multi-Agent Collaboration{% endblock %}
+{% block page_title %}AI Agent Swarm Command Center{% endblock %}
+
+{% block content %}
+<div class="control-panel-card cosmic-glass-card cosmic-slide-in mb-4">
+    <div style="text-align: center; padding: 20px 0;">
+        <h1 style="font-size: 2.2rem; margin-bottom: 12px; font-weight: 700; background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
+            <i class="bi bi-robot"></i> MULTI-AGENT COLLABORATION SYSTEM
+        </h1>
+        <p style="font-size: 1rem; color: var(--text-secondary); margin: 0;">
+            <span class="data-readout">JARVIS 2.0 AGENT SWARM</span>
+        </p>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <!-- Create New Task Card -->
+    <div class="col-md-12 mb-4">
+        <div class="control-panel-card cosmic-glass-card">
+            <div class="diagnostic-header">
+                <span class="status-led active blink"></span>
+                <h5 style="margin: 0; font-weight: 600;">CREATE NEW TASK</h5>
+            </div>
+            <div class="p-3">
+                <form id="createTaskForm">
+                    <div class="mb-3">
+                        <label class="form-label" style="color: var(--text-secondary);">Problem Description</label>
+                        <textarea 
+                            class="form-control cosmic-input" 
+                            id="taskDescription" 
+                            rows="3" 
+                            placeholder="Describe the issue you want the agent swarm to diagnose..."
+                            required
+                        ></textarea>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" style="color: var(--text-secondary);">Task Type</label>
+                            <select class="form-select cosmic-input" id="taskType">
+                                <option value="diagnose">Diagnose Issue</option>
+                                <option value="fix">Fix Problem</option>
+                                <option value="analyze">Analyze System</option>
+                                <option value="report">Generate Report</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" style="color: var(--text-secondary);">Priority (1-10)</label>
+                            <input type="number" class="form-control cosmic-input" id="taskPriority" min="1" max="10" value="5">
+                        </div>
+                    </div>
+                    <button type="submit" class="control-btn w-100">
+                        <i class="bi bi-play-circle"></i> DISPATCH TO AGENT SWARM
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <!-- Agent Status Dashboard -->
+    <div class="col-md-6 mb-4">
+        <div class="control-panel-card cosmic-glass-card">
+            <div class="diagnostic-header">
+                <span class="hex-led"></span>
+                <h5 style="margin: 0; font-weight: 600;">AGENT STATUS ARRAY</h5>
+            </div>
+            <div id="agentList" class="p-3">
+                <div class="text-center" style="color: var(--text-secondary); padding: 20px;">
+                    <i class="bi bi-hourglass-split"></i> Loading agent status...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Task Queue -->
+    <div class="col-md-6 mb-4">
+        <div class="control-panel-card cosmic-glass-card">
+            <div class="diagnostic-header">
+                <span class="status-led active blink"></span>
+                <h5 style="margin: 0; font-weight: 600;">ACTIVE TASK QUEUE</h5>
+            </div>
+            <div class="p-3">
+                <div class="mb-3">
+                    <select class="form-select cosmic-input" id="filterStatus">
+                        <option value="">All Tasks</option>
+                        <option value="pending">Pending</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="completed">Completed</option>
+                        <option value="failed">Failed</option>
+                    </select>
+                </div>
+                <div id="taskList" style="max-height: 400px; overflow-y: auto;">
+                    <div class="text-center" style="color: var(--text-secondary); padding: 20px;">
+                        <i class="bi bi-hourglass-split"></i> Loading tasks...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Task Details Modal -->
+<div class="modal fade" id="taskDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content" style="background: var(--bg-primary); border: 1px solid var(--border-color);">
+            <div class="modal-header" style="border-bottom: 1px solid var(--border-color);">
+                <h5 class="modal-title" style="color: var(--text-primary);">
+                    <i class="bi bi-card-checklist"></i> Task Details & Agent Conversations
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" style="filter: invert(1);"></button>
+            </div>
+            <div class="modal-body" id="taskDetailsContent">
+                <!-- Content loaded dynamically -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.cosmic-input {
+    background: rgba(17, 24, 39, 0.8);
+    border: 1px solid rgba(96, 165, 250, 0.3);
+    color: var(--text-primary);
+    padding: 12px;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.cosmic-input:focus {
+    background: rgba(17, 24, 39, 0.9);
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 20px rgba(96, 165, 250, 0.3);
+    color: var(--text-primary);
+    outline: none;
+}
+
+.agent-card {
+    background: rgba(17, 24, 39, 0.6);
+    border: 1px solid rgba(96, 165, 250, 0.3);
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 12px;
+    transition: all 0.3s ease;
+}
+
+.agent-card:hover {
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 20px rgba(96, 165, 250, 0.2);
+}
+
+.task-card {
+    background: rgba(17, 24, 39, 0.6);
+    border: 1px solid rgba(167, 139, 250, 0.3);
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.task-card:hover {
+    border-color: var(--accent-purple);
+    box-shadow: 0 0 20px rgba(167, 139, 250, 0.2);
+}
+
+.conversation-bubble {
+    background: rgba(17, 24, 39, 0.8);
+    border-left: 3px solid var(--accent-blue);
+    padding: 12px;
+    margin-bottom: 10px;
+    border-radius: 6px;
+}
+</style>
+
+<script>
+let agents = [];
+let tasks = [];
+
+// Load agents on page load
+async function loadAgents() {
+    try {
+        const response = await fetch('/api/agents/list');
+        const data = await response.json();
+        
+        if (data.success) {
+            agents = data.agents;
+            renderAgents();
+        }
+    } catch (error) {
+        console.error('Error loading agents:', error);
+    }
+}
+
+// Load tasks
+async function loadTasks(status = '') {
+    try {
+        const url = status ? `/api/agents/tasks?status=${status}` : '/api/agents/tasks';
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (data.success) {
+            tasks = data.tasks;
+            renderTasks();
+        }
+    } catch (error) {
+        console.error('Error loading tasks:', error);
+    }
+}
+
+// Render agents
+function renderAgents() {
+    const container = document.getElementById('agentList');
+    
+    if (agents.length === 0) {
+        container.innerHTML = '<div class="text-center" style="color: var(--text-secondary); padding: 20px;">No agents available</div>';
+        return;
+    }
+    
+    container.innerHTML = agents.map(agent => `
+        <div class="agent-card">
+            <div class="d-flex align-items-center justify-content-between">
+                <div style="flex: 1;">
+                    <div class="d-flex align-items-center mb-2">
+                        <span class="status-led ${getStatusLED(agent.status)} me-2"></span>
+                        <strong style="color: var(--accent-blue); font-size: 1.1rem;">${agent.name}</strong>
+                    </div>
+                    <div style="color: var(--text-secondary); font-size: 0.9rem; margin-left: 24px;">
+                        ${agent.description}
+                    </div>
+                    <div style="margin-top: 8px; margin-left: 24px;">
+                        <span class="badge badge-info">${agent.agent_type}</span>
+                        <span class="badge badge-secondary">${agent.model}</span>
+                    </div>
+                </div>
+                <div class="text-end">
+                    <div style="color: var(--text-secondary); font-size: 0.8rem;">Status</div>
+                    <div style="color: var(--accent-green); font-weight: 600; text-transform: uppercase;">${agent.status}</div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// Render tasks
+function renderTasks() {
+    const container = document.getElementById('taskList');
+    
+    if (tasks.length === 0) {
+        container.innerHTML = '<div class="text-center" style="color: var(--text-secondary); padding: 20px;">No tasks found</div>';
+        return;
+    }
+    
+    container.innerHTML = tasks.map(task => `
+        <div class="task-card" onclick="showTaskDetails(${task.id})">
+            <div class="d-flex align-items-start justify-content-between">
+                <div style="flex: 1;">
+                    <div class="d-flex align-items-center mb-2">
+                        <span class="status-led ${getTaskStatusLED(task.status)} me-2"></span>
+                        <strong style="color: var(--text-primary);">Task #${task.id}</strong>
+                        <span class="badge badge-secondary ms-2">${task.task_type}</span>
+                    </div>
+                    <div style="color: var(--text-secondary); font-size: 0.9rem; margin-left: 24px;">
+                        ${task.description.substring(0, 100)}${task.description.length > 100 ? '...' : ''}
+                    </div>
+                    ${task.assigned_to ? `
+                        <div style="margin-top: 8px; margin-left: 24px; color: var(--accent-blue); font-size: 0.85rem;">
+                            <i class="bi bi-person-fill"></i> Assigned to: ${task.assigned_to}
+                        </div>
+                    ` : ''}
+                </div>
+                <div class="text-end">
+                    <div class="badge ${getStatusBadge(task.status)}">${task.status}</div>
+                    <div style="color: var(--text-secondary); font-size: 0.8rem; margin-top: 4px;">
+                        Priority: ${task.priority}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// Show task details
+async function showTaskDetails(taskId) {
+    try {
+        const response = await fetch(`/api/agents/tasks/${taskId}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            const task = data.task;
+            const content = document.getElementById('taskDetailsContent');
+            
+            content.innerHTML = `
+                <div class="mb-4">
+                    <h6 style="color: var(--accent-blue);">Task Information</h6>
+                    <p style="color: var(--text-primary);">${task.description}</p>
+                    <div class="d-flex gap-3">
+                        <div><strong>Status:</strong> <span class="badge ${getStatusBadge(task.status)}">${task.status}</span></div>
+                        <div><strong>Assigned to:</strong> ${task.assigned_to || 'Unassigned'}</div>
+                        <div><strong>Created:</strong> ${new Date(task.created_at).toLocaleString()}</div>
+                    </div>
+                </div>
+                
+                ${task.result ? `
+                    <div class="mb-4">
+                        <h6 style="color: var(--accent-purple);">Analysis Results</h6>
+                        ${renderTaskResult(task.result)}
+                    </div>
+                ` : ''}
+                
+                ${task.conversations && task.conversations.length > 0 ? `
+                    <div class="mb-4">
+                        <h6 style="color: var(--accent-green);">Agent Conversations</h6>
+                        ${task.conversations.map(conv => `
+                            <div class="conversation-bubble">
+                                <div class="d-flex justify-content-between mb-2">
+                                    <strong style="color: var(--accent-blue);">${conv.from} → ${conv.to}</strong>
+                                    <span style="color: var(--text-secondary); font-size: 0.85rem;">${new Date(conv.timestamp).toLocaleTimeString()}</span>
+                                </div>
+                                <div style="color: var(--text-primary); white-space: pre-wrap;">${conv.message}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : ''}
+                
+                ${task.status === 'pending' ? `
+                    <button onclick="executeTask(${task.id})" class="control-btn w-100">
+                        <i class="bi bi-play-circle"></i> EXECUTE TASK NOW
+                    </button>
+                ` : ''}
+            `;
+            
+            const modal = new bootstrap.Modal(document.getElementById('taskDetailsModal'));
+            modal.show();
+        }
+    } catch (error) {
+        console.error('Error loading task details:', error);
+    }
+}
+
+// Render task result
+function renderTaskResult(result) {
+    let html = '';
+    
+    if (result.synthesis) {
+        html += `
+            <div class="mb-3">
+                <strong style="color: var(--accent-blue);">Diagnosis:</strong>
+                <div style="color: var(--text-primary); margin-top: 8px; white-space: pre-wrap;">${result.synthesis}</div>
+            </div>
+        `;
+    }
+    
+    if (result.action_plan && result.action_plan.steps) {
+        html += `
+            <div class="mb-3">
+                <strong style="color: var(--accent-purple);">Recommended Actions:</strong>
+                <div style="margin-top: 8px;">
+                    ${result.action_plan.steps.map((step, idx) => `
+                        <div class="conversation-bubble">
+                            <strong>Step ${idx + 1}:</strong> ${step.action}
+                            ${step.commands && step.commands.length > 0 ? `
+                                <div style="margin-top: 8px;">
+                                    <code style="display: block; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 4px;">
+                                        ${step.commands.join('\n')}
+                                    </code>
+                                </div>
+                            ` : ''}
+                            <div style="margin-top: 4px;">
+                                <span class="badge ${step.risk_level === 'high' ? 'badge-danger' : step.risk_level === 'medium' ? 'badge-warning' : 'badge-success'}">
+                                    Risk: ${step.risk_level}
+                                </span>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+    
+    return html || '<div style="color: var(--text-secondary);">No results available yet</div>';
+}
+
+// Execute task
+async function executeTask(taskId) {
+    try {
+        const response = await fetch(`/api/agents/tasks/${taskId}/execute`, {
+            method: 'POST'
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('Task executed successfully!');
+            loadTasks();
+            showTaskDetails(taskId);
+        } else {
+            alert('Error executing task: ' + (data.error || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error executing task:', error);
+        alert('Error executing task: ' + error.message);
+    }
+}
+
+// Helper functions
+function getStatusLED(status) {
+    const statusMap = {
+        'idle': 'online',
+        'thinking': 'active blink',
+        'executing': 'active blink',
+        'waiting': 'warning',
+        'completed': 'online',
+        'failed': 'offline'
+    };
+    return statusMap[status] || 'offline';
+}
+
+function getTaskStatusLED(status) {
+    const statusMap = {
+        'pending': 'warning',
+        'in_progress': 'active blink',
+        'completed': 'online',
+        'failed': 'offline'
+    };
+    return statusMap[status] || 'offline';
+}
+
+function getStatusBadge(status) {
+    const badgeMap = {
+        'pending': 'badge-warning',
+        'in_progress': 'badge-info',
+        'completed': 'badge-success',
+        'failed': 'badge-danger'
+    };
+    return badgeMap[status] || 'badge-secondary';
+}
+
+// Form submission
+document.getElementById('createTaskForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const description = document.getElementById('taskDescription').value;
+    const taskType = document.getElementById('taskType').value;
+    const priority = parseInt(document.getElementById('taskPriority').value);
+    
+    try {
+        const response = await fetch('/api/agents/tasks/create', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                description,
+                task_type: taskType,
+                priority,
+                context: {}
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('Task created successfully! Task ID: ' + data.task_id);
+            document.getElementById('createTaskForm').reset();
+            loadTasks();
+        } else {
+            alert('Error creating task: ' + (data.message || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error creating task:', error);
+        alert('Error creating task: ' + error.message);
+    }
+});
+
+// Filter tasks by status
+document.getElementById('filterStatus').addEventListener('change', (e) => {
+    loadTasks(e.target.value);
+});
+
+// Initial load
+loadAgents();
+loadTasks();
+
+// Auto-refresh every 10 seconds
+setInterval(() => {
+    loadAgents();
+    loadTasks(document.getElementById('filterStatus').value);
+}, 10000);
+</script>
+{% endblock %}
