@@ -88,8 +88,13 @@ log "✓ All preflight checks passed"
 log "Checking for changes..."
 
 # Check for dirty tracked files (ignored files are fine)
+# Allow dirty state for auto-sync (auto-stash and continue)
 if ! git diff-index --quiet HEAD -- 2>/dev/null; then
-    abort "Working directory has uncommitted changes to tracked files. Commit or reset them first."
+    warn "Working directory has uncommitted changes to tracked files. Auto-stashing..."
+    git stash push -m "auto-sync-$(date +%Y%m%d-%H%M%S)" --quiet || {
+        error "Failed to stash changes"
+        # Continue anyway for auto-sync tolerance
+    }
 fi
 
 # Fetch latest

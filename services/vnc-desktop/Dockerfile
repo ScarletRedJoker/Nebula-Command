@@ -14,45 +14,8 @@ RUN rm -f /etc/apt/sources.list.d/google-chrome.list || true
 # Enable 32-bit architecture for Steam
 RUN dpkg --add-architecture i386
 
-# Install all applications in organized groups
+# Layer 1: Essential system packages
 RUN apt-get update && apt-get install -y \
-    # Web Browsers
-    firefox \
-    chromium-browser \
-    # Terminal & File Management
-    gnome-terminal \
-    thunar \
-    mousepad \
-    gedit \
-    # Graphics & Media
-    gimp \
-    vlc \
-    obs-studio \
-    audacity \
-    # Office Suite
-    libreoffice \
-    evince \
-    # Development Tools
-    git \
-    curl \
-    wget \
-    vim \
-    nano \
-    build-essential \
-    tmux \
-    openssh-client \
-    # System Monitoring
-    htop \
-    neofetch \
-    glances \
-    gnome-system-monitor \
-    nmap \
-    net-tools \
-    # Programming Languages
-    python3 \
-    python3-pip \
-    nodejs \
-    npm \
     # Desktop Integration
     dbus-x11 \
     gvfs \
@@ -62,12 +25,6 @@ RUN apt-get update && apt-get install -y \
     xdg-utils \
     xdg-user-dirs \
     desktop-file-utils \
-    # Security & Passwords
-    keepassxc \
-    # Remote Desktop
-    remmina \
-    remmina-plugin-rdp \
-    remmina-plugin-vnc \
     # System Libraries
     procps \
     software-properties-common \
@@ -75,6 +32,56 @@ RUN apt-get update && apt-get install -y \
     lib32gcc-s1 \
     lib32stdc++6 \
     libc6-i386 \
+    # Terminal & File Management
+    gnome-terminal \
+    thunar \
+    mousepad \
+    gedit \
+    # System Monitoring
+    htop \
+    neofetch \
+    glances \
+    gnome-system-monitor \
+    nmap \
+    net-tools \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Layer 2: Web browsers & media
+RUN apt-get update && apt-get install -y \
+    # Web Browsers
+    firefox \
+    chromium-browser \
+    # Graphics & Media
+    gimp \
+    vlc \
+    obs-studio \
+    audacity \
+    # Security & Passwords
+    keepassxc \
+    # Remote Desktop
+    remmina \
+    remmina-plugin-rdp \
+    remmina-plugin-vnc \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Layer 3: Development tools
+RUN apt-get update && apt-get install -y \
+    # Development Tools
+    git \
+    curl \
+    wget \
+    vim \
+    nano \
+    build-essential \
+    tmux \
+    openssh-client \
+    # Programming Languages
+    python3 \
+    python3-pip \
+    nodejs \
+    npm \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
