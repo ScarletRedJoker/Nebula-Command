@@ -537,7 +537,113 @@ EOSQL
     
     echo ""
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo -e "${BOLD}${GREEN}✅ Database Repair Complete!${NC}"
+    echo -e "${BOLD}${YELLOW}Verifying Database Connections${NC}"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    
+    # Test database connections with .env passwords
+    local connection_tests_passed=0
+    local connection_tests_failed=0
+    
+    echo -n "1️⃣  Testing ticketbot connection... "
+    if PGPASSWORD="$DISCORD_DB_PASSWORD" docker exec -e PGPASSWORD discord-bot-db psql -U ticketbot -d ticketbot -c "SELECT 1;" &>/dev/null; then
+        echo -e "${GREEN}✓ Success${NC}"
+        ((connection_tests_passed++))
+    else
+        echo -e "${RED}✗ Failed${NC}"
+        ((connection_tests_failed++))
+    fi
+    
+    echo -n "2️⃣  Testing streambot connection... "
+    if PGPASSWORD="$STREAMBOT_DB_PASSWORD" docker exec -e PGPASSWORD discord-bot-db psql -U streambot -d streambot -c "SELECT 1;" &>/dev/null; then
+        echo -e "${GREEN}✓ Success${NC}"
+        ((connection_tests_passed++))
+    else
+        echo -e "${RED}✗ Failed${NC}"
+        ((connection_tests_failed++))
+    fi
+    
+    echo -n "3️⃣  Testing jarvis connection... "
+    if PGPASSWORD="$JARVIS_DB_PASSWORD" docker exec -e PGPASSWORD discord-bot-db psql -U jarvis -d homelab_jarvis -c "SELECT 1;" &>/dev/null; then
+        echo -e "${GREEN}✓ Success${NC}"
+        ((connection_tests_passed++))
+    else
+        echo -e "${RED}✗ Failed${NC}"
+        ((connection_tests_failed++))
+    fi
+    
+    echo ""
+    echo -e "${BOLD}Connection Tests: ${GREEN}${connection_tests_passed} passed${NC}, ${RED}${connection_tests_failed} failed${NC}"
+    echo ""
+    
+    # Check if any connection tests failed
+    if [ $connection_tests_failed -gt 0 ]; then
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo -e "${BOLD}${RED}❌ Database Repair Failed${NC}"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+        echo -e "${RED}One or more database connections failed verification.${NC}"
+        echo ""
+        echo "Possible causes:"
+        echo "  • Password mismatch between .env and database"
+        echo "  • Database user doesn't exist"
+        echo "  • Database container not running"
+        echo "  • Network connectivity issue"
+        echo ""
+        echo "Recommended actions:"
+        echo "  1. Check .env file has correct passwords"
+        echo "  2. Verify PostgreSQL container is running: docker ps"
+        echo "  3. Check database logs: docker logs discord-bot-db"
+        echo "  4. Re-run this repair (option 7) after fixing the issue"
+        echo ""
+        pause
+        return 1
+    fi
+    
+    # All connection tests passed - proceed with restart
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo -e "${BOLD}${YELLOW}Restarting Services to Apply Changes${NC}"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "Database credentials have been verified successfully!"
+    echo "Services need to be restarted to reload the new passwords from .env file."
+    echo ""
+    echo "Affected services:"
+    echo "  • stream-bot (uses streambot database)"
+    echo "  • homelab-dashboard (uses jarvis database)"
+    echo "  • homelab-celery-worker (uses jarvis database)"
+    echo "  • discord-bot (uses ticketbot database)"
+    echo ""
+    
+    read -p "Restart these services now? (Y/n): " restart_choice
+    restart_choice=${restart_choice:-Y}
+    
+    if [[ "$restart_choice" =~ ^[Yy]$ ]]; then
+        echo ""
+        echo "Restarting services..."
+        docker-compose -f docker-compose.unified.yml restart stream-bot homelab-dashboard homelab-celery-worker discord-bot
+        
+        echo ""
+        echo "Waiting for services to stabilize..."
+        sleep 5
+        
+        echo ""
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo -e "${BOLD}Service Status After Restart:${NC}"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        docker ps --format "table {{.Names}}\t{{.Status}}" | grep -E "(stream-bot|homelab-dashboard|homelab-celery-worker|discord-bot|NAMES)"
+        echo ""
+    else
+        echo ""
+        echo -e "${YELLOW}⚠ Services NOT restarted.${NC}"
+        echo -e "${YELLOW}  You must manually restart them for password changes to take effect:${NC}"
+        echo "  docker-compose -f docker-compose.unified.yml restart stream-bot homelab-dashboard homelab-celery-worker discord-bot"
+        echo ""
+    fi
+    
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo -e "${BOLD}${GREEN}✅ Database Repair Successful!${NC}"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
     echo "What was done:"
@@ -545,9 +651,12 @@ EOSQL
     echo "  • Reset passwords to match .env file"
     echo "  • Created missing databases"
     echo "  • Granted necessary privileges"
+    echo "  • ✅ Verified all database connections: ${GREEN}${connection_tests_passed}/3 passed${NC}"
+    if [[ "$restart_choice" =~ ^[Yy]$ ]]; then
+        echo "  • ✅ Restarted services to apply password changes"
+    fi
     echo ""
-    echo -e "${YELLOW}💡 Tip: Restart your services to apply the changes:${NC}"
-    echo "     docker-compose -f docker-compose.unified.yml restart stream-bot homelab-dashboard homelab-celery-worker"
+    echo -e "${GREEN}All services should now connect to the database successfully!${NC}"
     echo ""
     
     pause

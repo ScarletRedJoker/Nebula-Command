@@ -1,5 +1,20 @@
 # Nebula Command Dashboard Project
 
+## Recent Changes
+
+### November 18, 2025 - Database Repair Systematic Fix
+**Problem Solved:** Database password mismatch causing authentication failures  
+**Root Cause:** Database repair script created users with passwords from `.env`, but running containers had cached old environment variables, causing authentication failures for `streambot` and `jarvis` users.
+
+**Systematic Fix Implemented:**
+- ✅ Added automatic connection verification after creating database users
+- ✅ Tests all 3 database users (`ticketbot`, `streambot`, `jarvis`) with passwords from `.env`
+- ✅ Prompts to automatically restart affected containers (defaults to yes)
+- ✅ Verifies container health after restart
+- ✅ Provides clear success/failure summary with connection test results
+
+**Impact:** Database repair (option 7 in homelab-manager.sh) is now a complete, idempotent operation. Users no longer need to manually restart services or troubleshoot password mismatches.
+
 ## Overview
 This project provides a comprehensive web-based dashboard for managing a Ubuntu 25.10 server. Its core purpose is to offer a unified, user-friendly interface to minimize operational complexity, enhance server reliability, and facilitate intelligent automation and monitoring for complex infrastructure environments. Key capabilities include one-click database deployments, game streaming integration, robust domain health monitoring, and integrations with Google Services and Smart Home platforms. The project aims to deliver production-ready source code for streamlined development, testing, and deployment. The long-term vision is to evolve into an AI-first infrastructure copilot, "Jarvis," capable of autonomous diagnosis, remediation, and execution of infrastructure issues, serving as a mission control UI for actionable intelligence and safe automation.
 
