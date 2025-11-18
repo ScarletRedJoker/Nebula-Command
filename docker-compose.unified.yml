@@ -403,6 +403,12 @@ services:
       - homeassistant_config:/config
       - ./config/homeassistant:/config-templates:ro
       - /run/dbus:/run/dbus:ro
+    devices:
+      - /dev/bus/usb:/dev/bus/usb
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_ADMIN
     ports:
       - "8123:8123"
     healthcheck:

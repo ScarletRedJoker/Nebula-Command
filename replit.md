@@ -111,11 +111,17 @@ code.evindrake.net {
 ```
 
 ```yaml
-# Home Assistant: Safe volume configuration with migration templates
+# Home Assistant: Safe volume configuration with migration templates + Bluetooth support
 homeassistant:
   volumes:
     - homeassistant_config:/config  # Named volume (no data loss)
     - ./config/homeassistant:/config-templates:ro  # Migration templates
+  devices:
+    - /dev/bus/usb:/dev/bus/usb  # USB Bluetooth adapters
+  cap_add:
+    - NET_ADMIN  # Required for Bluetooth networking
+    - NET_RAW    # Required for Bluetooth Low Energy (BLE)
+    - SYS_ADMIN  # Required for advanced Bluetooth features
 ```
 
 **Files Modified:**
