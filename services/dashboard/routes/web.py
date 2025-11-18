@@ -1,5 +1,6 @@
 from flask import Blueprint, render_template, request, jsonify, send_from_directory, redirect, url_for, session, make_response
 from utils.auth import require_web_auth
+from config import Config
 import os
 import logging
 
@@ -166,20 +167,22 @@ def ollama_models():
 def agent_swarm():
     return render_template('agent_swarm.html')
 
-@web_bp.route('/pricing')
-def pricing():
-    """Public pricing page"""
-    response = make_response(render_template('pricing.html'))
-    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-    response.headers['Pragma'] = 'no-cache'
-    response.headers['Expires'] = '0'
-    return response
+# DISABLED: Subscription/licensing routes removed per user request
+# User quote: "Remove subscriptions and don't block access. I never wanted that."
+# @web_bp.route('/pricing')
+# def pricing():
+#     """Public pricing page"""
+#     response = make_response(render_template('pricing.html'))
+#     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+#     response.headers['Pragma'] = 'no-cache'
+#     response.headers['Expires'] = '0'
+#     return response
 
-@web_bp.route('/license-activation')
-def license_activation():
-    """Public license activation page"""
-    response = make_response(render_template('license_activation.html'))
-    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-    response.headers['Pragma'] = 'no-cache'
-    response.headers['Expires'] = '0'
-    return response
+# @web_bp.route('/license-activation')
+# def license_activation():
+#     """Public license activation page"""
+#     response = make_response(render_template('license_activation.html'))
+#     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+#     response.headers['Pragma'] = 'no-cache'
+#     response.headers['Expires'] = '0'
+#     return response
