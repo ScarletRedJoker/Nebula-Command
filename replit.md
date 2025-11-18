@@ -2,18 +2,25 @@
 
 ## Recent Changes
 
-### November 18, 2025 - Database Repair Systematic Fix
-**Problem Solved:** Database password mismatch causing authentication failures  
-**Root Cause:** Database repair script created users with passwords from `.env`, but running containers had cached old environment variables, causing authentication failures for `streambot` and `jarvis` users.
+### November 18, 2025 - Simplified & Secure Database Architecture
+**Problem Solved:** Complex multi-user database setup causing password sync issues and authentication failures  
+**Root Cause:** Managing 3 separate database users (`ticketbot`, `streambot`, `jarvis`) with different passwords created complexity and sync issues between `.env` file and running containers.
 
-**Systematic Fix Implemented:**
-- ✅ Added automatic connection verification after creating database users
-- ✅ Tests all 3 database users (`ticketbot`, `streambot`, `jarvis`) with passwords from `.env`
-- ✅ Prompts to automatically restart affected containers (defaults to yes)
-- ✅ Verifies container health after restart
-- ✅ Provides clear success/failure summary with connection test results
+**Simple & Secure Solution Implemented:**
+- ✅ **Single Least-Privilege User:** All services use `homelab_app` user (non-superuser)
+- ✅ **Separate Databases:** Maintain isolation with 3 databases: `ticketbot`, `streambot`, `homelab_jarvis`
+- ✅ **One Password:** Only `DISCORD_DB_PASSWORD` needed for all application connections
+- ✅ **Security:** Superuser (`ticketbot`) credentials remain private to database container
+- ✅ **Automatic Setup:** Init script creates databases and user automatically on first run
+- ✅ **No Manual Repair:** Eliminates need for complex database repair scripts
 
-**Impact:** Database repair (option 7 in homelab-manager.sh) is now a complete, idempotent operation. Users no longer need to manually restart services or troubleshoot password mismatches.
+**Security Benefits:**
+- Services have database access without superuser privileges
+- Compromised service cannot affect other databases
+- Follows principle of least privilege
+- Superuser password never exposed to application containers
+
+**Impact:** Database setup is now drastically simpler AND more secure. One app user, one password, three databases, proper privilege separation. No password sync issues, no complex repair workflows. Services restart cleanly without authentication failures.
 
 ## Overview
 This project provides a comprehensive web-based dashboard for managing a Ubuntu 25.10 server. Its core purpose is to offer a unified, user-friendly interface to minimize operational complexity, enhance server reliability, and facilitate intelligent automation and monitoring for complex infrastructure environments. Key capabilities include one-click database deployments, game streaming integration, robust domain health monitoring, and integrations with Google Services and Smart Home platforms. The project aims to deliver production-ready source code for streamlined development, testing, and deployment. The long-term vision is to evolve into an AI-first infrastructure copilot, "Jarvis," capable of autonomous diagnosis, remediation, and execution of infrastructure issues, serving as a mission control UI for actionable intelligence and safe automation.
