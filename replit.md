@@ -137,16 +137,37 @@ homeassistant:
 
 **Deployment Instructions:**
 ```bash
-# Redeploy affected services
-docker-compose -f docker-compose.unified.yml up -d caddy code-server stream-bot homeassistant
+# Rebuild stream-bot (dependencies changed)
+docker-compose -f docker-compose.unified.yml stop stream-bot
+docker-compose -f docker-compose.unified.yml build --no-cache stream-bot
+docker-compose -f docker-compose.unified.yml up -d stream-bot
+
+# Redeploy code-server (volume mount changed)
+docker-compose -f docker-compose.unified.yml stop code-server
+docker-compose -f docker-compose.unified.yml rm -f code-server
+docker-compose -f docker-compose.unified.yml up -d code-server
+
+# Update Home Assistant configuration
+./config/homeassistant/copy-config.sh
+
+# Restart n8n (trust proxy fix)
+docker-compose -f docker-compose.unified.yml restart n8n
 
 # Verify health checks
-docker ps --filter "name=code-server|stream-bot|homeassistant" --format "table {{.Names}}\t{{.Status}}"
+docker ps --format "table {{.Names}}\t{{.Status}}" | grep -E "stream-bot|code-server|homeassistant|n8n"
 
 # Check logs
-docker logs stream-bot --tail 50  # Verify migrations run successfully
-docker logs code-server --tail 20  # Verify startup
+docker logs stream-bot --tail 30
+docker logs code-server --tail 20
+docker logs homeassistant --tail 20
+docker logs n8n --tail 10
 ```
+
+**Post-Deployment:**
+- Home Assistant: Create first user account at https://home.evindrake.net
+- Stream-Bot: ✅ ONLINE at https://stream.rig-city.com
+- Code-Server: Should be accessible at https://code.evindrake.net
+- n8n: Rate limiting warning resolved
 
 ## External Dependencies
 
