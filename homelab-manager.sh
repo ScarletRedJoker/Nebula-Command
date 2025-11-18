@@ -481,7 +481,7 @@ ensure_databases() {
     
     # Create ticketbot database and user
     echo "1️⃣  Discord Bot (ticketbot)..."
-    ERROR_OUTPUT=$(docker exec discord-bot-db psql -U postgres -d postgres <<-EOSQL 2>&1
+    if docker exec discord-bot-db psql -U postgres -d postgres <<-EOSQL
         DO \$\$
         BEGIN
             IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'ticketbot') THEN
@@ -497,18 +497,15 @@ ensure_databases() {
         
         GRANT ALL PRIVILEGES ON DATABASE ticketbot TO ticketbot;
 EOSQL
-)
-    if [ $? -eq 0 ]; then
+    then
         echo -e "${GREEN}   ✓ ticketbot database ready${NC}"
     else
-        echo -e "${RED}   ✗ Failed to create ticketbot database${NC}"
-        echo -e "${YELLOW}   Error details:${NC}"
-        echo "$ERROR_OUTPUT" | sed 's/^/   /'
+        echo -e "${RED}   ✗ Failed to create ticketbot database (see errors above)${NC}"
     fi
     
     # Create streambot database and user
     echo "2️⃣  Stream Bot (streambot)..."
-    ERROR_OUTPUT=$(docker exec discord-bot-db psql -U postgres -d postgres <<-EOSQL 2>&1
+    if docker exec discord-bot-db psql -U postgres -d postgres <<-EOSQL
         DO \$\$
         BEGIN
             IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'streambot') THEN
@@ -524,18 +521,15 @@ EOSQL
         
         GRANT ALL PRIVILEGES ON DATABASE streambot TO streambot;
 EOSQL
-)
-    if [ $? -eq 0 ]; then
+    then
         echo -e "${GREEN}   ✓ streambot database ready${NC}"
     else
-        echo -e "${RED}   ✗ Failed to create streambot database${NC}"
-        echo -e "${YELLOW}   Error details:${NC}"
-        echo "$ERROR_OUTPUT" | sed 's/^/   /'
+        echo -e "${RED}   ✗ Failed to create streambot database (see errors above)${NC}"
     fi
     
     # Create jarvis database and user
     echo "3️⃣  Dashboard/Jarvis (homelab_jarvis)..."
-    ERROR_OUTPUT=$(docker exec discord-bot-db psql -U postgres -d postgres <<-EOSQL 2>&1
+    if docker exec discord-bot-db psql -U postgres -d postgres <<-EOSQL
         DO \$\$
         BEGIN
             IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'jarvis') THEN
@@ -551,13 +545,10 @@ EOSQL
         
         GRANT ALL PRIVILEGES ON DATABASE homelab_jarvis TO jarvis;
 EOSQL
-)
-    if [ $? -eq 0 ]; then
+    then
         echo -e "${GREEN}   ✓ homelab_jarvis database ready${NC}"
     else
-        echo -e "${RED}   ✗ Failed to create jarvis database${NC}"
-        echo -e "${YELLOW}   Error details:${NC}"
-        echo "$ERROR_OUTPUT" | sed 's/^/   /'
+        echo -e "${RED}   ✗ Failed to create jarvis database (see errors above)${NC}"
     fi
     
     echo ""
