@@ -20,7 +20,9 @@ echo ""
 # Load .env file if it exists
 if [ -f ".env" ]; then
     echo -e "${GREEN}✓ Found .env file${NC}"
-    export $(grep -v '^#' .env | xargs)
+    set -a
+    source .env
+    set +a
 else
     echo -e "${RED}✗ .env file not found!${NC}"
     echo ""
