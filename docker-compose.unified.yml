@@ -354,7 +354,8 @@ services:
       - VNC_USER=evin
       - USER_UID=1000
       - USER_GID=1000
-      - PASSWORD=${VNC_USER_PASSWORD}
+      # Removed PASSWORD env var to disable noVNC HTTP Basic Auth
+      # Only VNC_PASSWORD is needed for authentication
       - RESOLUTION=1920x1080
       - TZ=America/New_York
     volumes:
