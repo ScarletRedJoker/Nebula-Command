@@ -11,7 +11,7 @@ celery_app = Celery(
     'jarvis_workflow_engine',
     broker=Config.CELERY_BROKER_URL,
     backend=Config.CELERY_RESULT_BACKEND,
-    include=['workers.workflow_worker', 'workers.analysis_worker', 'workers.google_tasks', 'workers.plex_worker', 'workers.service_ops_worker', 'workers.storage_worker', 'workers.gaming_worker', 'workers.db_admin_worker']
+    include=['workers.workflow_worker', 'workers.analysis_worker', 'workers.google_tasks', 'workers.plex_worker', 'workers.service_ops_worker', 'workers.storage_worker', 'workers.gaming_worker', 'workers.db_admin_worker', 'workers.nas_worker']
 )
 
 def check_redis_health():
@@ -105,6 +105,9 @@ celery_app.conf.update(
         'workers.db_admin_worker.cleanup_old_backups': {'queue': 'db_admin'},
         'workers.db_admin_worker.test_all_connections': {'queue': 'db_admin'},
         'workers.db_admin_worker.discover_and_add_databases': {'queue': 'db_admin'},
+        'workers.nas_worker.run_nas_backup': {'queue': 'nas'},
+        'workers.nas_worker.discover_nas_periodic': {'queue': 'nas'},
+        'workers.nas_worker.check_mount_health': {'queue': 'nas'},
     },
     task_default_queue='default',
     task_default_exchange='tasks',

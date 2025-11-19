@@ -22,16 +22,16 @@ RUN pip install --no-cache-dir -r requirements.txt gunicorn
 # Copy application code
 COPY . .
 
+# Set execute permissions on entrypoint script (must be AFTER COPY to persist in container)
+RUN chmod +x /app/docker-entrypoint.sh
+
 # Create logs directory
 RUN mkdir -p /app/logs
-
-# Copy entrypoint script
-COPY docker-entrypoint.sh /app/docker-entrypoint.sh
-RUN chmod +x /app/docker-entrypoint.sh
 
 # Set environment
 ENV PYTHONUNBUFFERED=1
 ENV FLASK_ENV=production
+ENV C_FORCE_ROOT=1
 
 # Expose port
 EXPOSE 5000

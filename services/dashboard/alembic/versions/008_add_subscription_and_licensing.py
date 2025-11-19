@@ -17,9 +17,21 @@ depends_on = None
 
 
 def upgrade():
-    # Create enum types
-    op.execute("CREATE TYPE subscriptiontier AS ENUM ('free', 'pro', 'team')")
-    op.execute("CREATE TYPE subscriptionstatus AS ENUM ('active', 'trialing', 'past_due', 'canceled', 'expired')")
+    # Create enum types (idempotent - safe to run multiple times)
+    op.execute("""
+        DO $$ BEGIN
+            CREATE TYPE subscriptiontier AS ENUM ('free', 'pro', 'team');
+        EXCEPTION
+            WHEN duplicate_object THEN null;
+        END $$;
+    """)
+    op.execute("""
+        DO $$ BEGIN
+            CREATE TYPE subscriptionstatus AS ENUM ('active', 'trialing', 'past_due', 'canceled', 'expired');
+        EXCEPTION
+            WHEN duplicate_object THEN null;
+        END $$;
+    """)
     
     # Create subscriptions table
     op.create_table('subscriptions',
