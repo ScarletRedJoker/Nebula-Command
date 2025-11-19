@@ -1,7 +1,7 @@
 """add nas models
 
-Revision ID: 010_add_nas_models
-Revises: 009_feature_expansion
+Revision ID: 010
+Revises: 009
 Create Date: 2025-11-19 03:50:00.000000
 
 """
@@ -9,8 +9,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision = '010_add_nas_models'
-down_revision = '009_feature_expansion'
+revision = '010'
+down_revision = '009'
 branch_labels = None
 depends_on = None
 

@@ -121,6 +121,27 @@ All 5 advanced feature modules implemented in full parallel - **PRODUCTION READY
 - ✅ **SSL certificates** - Auto-provisioning via Let's Encrypt through Caddy
 - ✅ **Auto-sync enabled** - Replit to Ubuntu sync every 5 minutes via cron
 
+### 🆕 **NAS INTEGRATION MODULE ADDED** (November 19, 2025)
+
+**NEW FEATURE:** Complete NAS integration for Zyxel NAS326 (1TB) storage management:
+- ✅ **NAS Discovery** - Automatic network discovery via hostname/IP resolution
+- ✅ **SMB/CIFS Mounting** - Mount and unmount network shares with authentication
+- ✅ **Storage Monitoring** - Real-time capacity, usage, and health tracking
+- ✅ **Backup Automation** - Schedule backups from services to NAS with Celery workers
+- ✅ **Web Interface** - Full management UI at `/nas` with mount controls and job tracking
+- ✅ **Database Models** - 2 new tables (`nas_mounts`, `nas_backup_jobs`) in migration 010
+- ✅ **Configuration** - 8 new environment variables (NAS_IP, NAS_PASSWORD, NAS_MOUNT_BASE, etc.)
+
+**Implementation:**
+- Service: `services/dashboard/services/nas_service.py`
+- Routes: `services/dashboard/routes/nas_routes.py` (10 REST endpoints)
+- Worker: `services/dashboard/workers/nas_worker.py` (3 Celery tasks)
+- Frontend: `services/dashboard/templates/nas_management.html`
+- Models: `services/dashboard/models/nas.py`
+- Migration: `services/dashboard/alembic/versions/010_add_nas_models.py`
+
+**Hardware Support:** Zyxel NAS326 (1TB) via SMB/CIFS protocol, with fallback to NFS if needed.
+
 ### Latest Fixes (November 19, 2025 - Production Ready)
 - ✅ **Dashboard automatic migrations** - Added docker-entrypoint.sh that runs `alembic upgrade head` on every startup with hard failure if JARVIS_DATABASE_URL missing, migrations logged to /app/logs/migrations.log
 - ✅ **VPN restrictions removed** - Removed Twingate VPN-only access from vnc.evindrake.net per user request ("I want them working, not blocked"); services now publicly accessible, protected by VNC password + Ubuntu host Fail2Ban (acceptable for homelab use; VPN access can be re-enabled in Caddyfile if needed)
