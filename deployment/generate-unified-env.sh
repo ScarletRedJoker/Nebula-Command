@@ -200,6 +200,28 @@ OPENAI_API_KEY=${OPENAI_API_KEY}
 
 EOF
 
+# Collect ZoneEdit DNS values
+echo ""
+echo "=== ZoneEdit Dynamic DNS Configuration ==="
+echo "For automatic DNS updates when your IP changes:"
+echo "1. Log into ZoneEdit: https://zoneedit.com"
+echo "2. Go to Domains → DNS Settings → DYN records → wrench icon"
+echo "3. Click 'Enable dynamic authentication' to generate token"
+ZONEEDIT_USERNAME=$(get_or_generate "ZONEEDIT_USERNAME" "ZoneEdit account email (your login email)" "PROMPT" "")
+ZONEEDIT_API_TOKEN=$(get_or_generate "ZONEEDIT_API_TOKEN" "ZoneEdit Dynamic Authentication Token" "PROMPT" "")
+
+# Write to temp file
+cat >> "$TEMP_ENV" << EOF
+# ============================================
+# ZoneEdit Dynamic DNS (host.evindrake.net)
+# ============================================
+# Get Dynamic Authentication Token from: 
+# https://zoneedit.com → Domains → DNS Settings → DYN records → Enable dynamic auth
+ZONEEDIT_USERNAME=${ZONEEDIT_USERNAME}
+ZONEEDIT_API_TOKEN=${ZONEEDIT_API_TOKEN}
+
+EOF
+
 # Collect StreamBot values (moved before Plex)
 STREAMBOT_DB_PASSWORD=$(get_or_generate "STREAMBOT_DB_PASSWORD" "StreamBot database password" "GENERATE" "generate_password")
 STREAMBOT_SESSION_SECRET=$(get_or_generate "STREAMBOT_SESSION_SECRET" "StreamBot session secret" "GENERATE" "generate_hex_secret")

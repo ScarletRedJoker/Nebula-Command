@@ -52,6 +52,10 @@ show_menu() {
     echo -e "  ${BOLD}Smart Home:${NC}"
     echo -e "    ${GREEN}8)${NC} 🏠 Setup Home Assistant Integration"
     echo ""
+    echo -e "  ${BOLD}Integrations:${NC}"
+    echo -e "    ${GREEN}20)${NC} 🔌 Check All Integration Status"
+    echo -e "    ${GREEN}21)${NC} 📝 View Integration Setup Guide"
+    echo ""
     echo -e "  ${BOLD}Configuration:${NC}"
     echo -e "    ${GREEN}9)${NC} ⚙️  Generate/Edit .env File"
     echo -e "    ${GREEN}10)${NC} 📋 View Current Configuration"
@@ -1398,6 +1402,160 @@ check_sync_status() {
     pause
 }
 
+# Check All Integration Status
+check_all_integrations() {
+    echo ""
+    echo -e "${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BOLD}${BLUE}  🔌 INTEGRATION STATUS CHECK${NC}"
+    echo -e "${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    
+    # Load .env file for checking
+    if [ -f ".env" ]; then
+        set -a
+        source .env 2>/dev/null || true
+        set +a
+    else
+        echo -e "${RED}✗ .env file not found${NC}"
+        echo "Please run option 9 to generate .env file first."
+        pause
+        return 1
+    fi
+    
+    echo -e "${BOLD}CRITICAL INTEGRATIONS (Required for full functionality)${NC}"
+    echo ""
+    
+    # ZoneEdit DNS
+    echo -n "🌐 ZoneEdit Dynamic DNS: "
+    if [ -n "$ZONEEDIT_USERNAME" ] && [ -n "$ZONEEDIT_API_TOKEN" ]; then
+        echo -e "${GREEN}✓ Configured${NC}"
+        echo "   Username: $ZONEEDIT_USERNAME"
+    else
+        echo -e "${RED}✗ NOT CONFIGURED${NC}"
+        echo "   ${YELLOW}Action: Run option 9 to add ZONEEDIT_USERNAME and ZONEEDIT_API_TOKEN${NC}"
+        echo "   ${YELLOW}See: docs/ZONEEDIT_SETUP.md for instructions${NC}"
+    fi
+    echo ""
+    
+    # Home Assistant
+    echo -n "🏠 Home Assistant: "
+    if [ -n "$HOME_ASSISTANT_TOKEN" ] && [ -n "$HOME_ASSISTANT_URL" ]; then
+        echo -e "${GREEN}✓ Configured${NC}"
+        echo "   URL: $HOME_ASSISTANT_URL"
+    else
+        echo -e "${RED}✗ NOT CONFIGURED${NC}"
+        echo "   ${YELLOW}Action: Add HOME_ASSISTANT_TOKEN and HOME_ASSISTANT_URL to .env${NC}"
+        echo "   ${YELLOW}See: INTEGRATION_SETUP_STATUS.md for instructions${NC}"
+    fi
+    echo ""
+    
+    # Discord Bot
+    echo -n "💬 Discord Bot: "
+    if [ -n "$DISCORD_BOT_TOKEN" ] && [ -n "$DISCORD_CLIENT_ID" ]; then
+        echo -e "${GREEN}✓ Configured${NC}"
+    else
+        echo -e "${RED}✗ NOT CONFIGURED${NC}"
+        echo "   ${YELLOW}Action: Setup via option 21 (Integration Guide) - See INTEGRATION_SETUP_STATUS.md${NC}"
+    fi
+    echo ""
+    
+    # OpenAI
+    echo -n "🤖 OpenAI API: "
+    if [ -n "$OPENAI_API_KEY" ] || [ -n "$AI_INTEGRATIONS_OPENAI_API_KEY" ]; then
+        echo -e "${GREEN}✓ Configured${NC}"
+    else
+        echo -e "${YELLOW}⚠ NOT CONFIGURED (Optional - Jarvis AI will not work)${NC}"
+        echo "   ${YELLOW}Action: Add OPENAI_API_KEY to .env via option 9${NC}"
+    fi
+    echo ""
+    
+    echo -e "${BOLD}REPLIT CONNECTOR INTEGRATIONS${NC}"
+    echo ""
+    
+    # Google Calendar (via Replit connector)
+    echo -e "📅 Google Calendar Connector:"
+    echo -e "   ${YELLOW}⚠ Check via Replit UI - No env variable to detect${NC}"
+    echo "   ${YELLOW}Action: Setup via option 21 (Integration Guide) - See INTEGRATION_SETUP_STATUS.md${NC}"
+    echo ""
+    
+    # Gmail (via Replit connector)
+    echo -e "📧 Gmail Connector:"
+    echo -e "   ${YELLOW}⚠ Check via Replit UI - No env variable to detect${NC}"
+    echo "   ${YELLOW}Action: Setup via option 21 (Integration Guide) - See INTEGRATION_SETUP_STATUS.md${NC}"
+    echo ""
+    
+    # Google Drive (via Replit connector)
+    echo -e "💾 Google Drive Connector:"
+    echo -e "   ${YELLOW}⚠ Check via Replit UI - No env variable to detect${NC}"
+    echo "   ${YELLOW}Action: Setup via option 21 (Integration Guide) - See INTEGRATION_SETUP_STATUS.md${NC}"
+    echo ""
+    
+    echo -e "${BOLD}OPTIONAL INTEGRATIONS${NC}"
+    echo ""
+    
+    # Spotify
+    echo -n "🎵 Spotify OAuth: "
+    if [ -n "$SPOTIFY_CLIENT_ID" ] && [ -n "$SPOTIFY_CLIENT_SECRET" ]; then
+        echo -e "${GREEN}✓ Configured${NC}"
+    else
+        echo -e "${YELLOW}⚠ NOT CONFIGURED (Optional - Stream Bot song requests disabled)${NC}"
+    fi
+    echo ""
+    
+    # Twitch
+    echo -n "📺 Twitch Integration: "
+    if [ -n "$TWITCH_CLIENT_ID" ] && [ -n "$TWITCH_CLIENT_SECRET" ]; then
+        echo -e "${GREEN}✓ Configured${NC}"
+    else
+        echo -e "${YELLOW}⚠ NOT CONFIGURED (Optional - Stream Bot Twitch features disabled)${NC}"
+    fi
+    echo ""
+    
+    # Plex
+    echo -n "🎬 Plex Media Server: "
+    if [ -n "$PLEX_CLAIM" ]; then
+        echo -e "${GREEN}✓ Claim token set${NC}"
+        echo "   ${YELLOW}Note: Claim tokens expire in 4 minutes - reclaim if needed${NC}"
+    else
+        echo -e "${YELLOW}⚠ NO CLAIM TOKEN (Optional - required for initial Plex setup)${NC}"
+    fi
+    echo ""
+    
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo -e "${BOLD}📋 Quick Actions:${NC}"
+    echo "  • To add/edit credentials: Select option 9 (Generate/Edit .env)"
+    echo "  • For detailed setup instructions: Select option 21 (View Integration Guide)"
+    echo "  • For Home Assistant setup: Select option 8 (Setup Home Assistant)"
+    echo ""
+    
+    pause
+}
+
+# View Integration Setup Guide
+view_integration_guide() {
+    echo ""
+    echo -e "${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BOLD}${BLUE}  📝 INTEGRATION SETUP GUIDE${NC}"
+    echo -e "${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    
+    if [ -f "INTEGRATION_SETUP_STATUS.md" ]; then
+        less INTEGRATION_SETUP_STATUS.md
+    else
+        echo -e "${YELLOW}⚠ INTEGRATION_SETUP_STATUS.md not found${NC}"
+        echo ""
+        echo "Key Integration Documentation:"
+        echo "  • ZoneEdit DNS: docs/ZONEEDIT_SETUP.md"
+        echo "  • Home Assistant: See INTEGRATION_SETUP_STATUS.md"
+        echo "  • Discord Bot: See INTEGRATION_SETUP_STATUS.md"
+        echo "  • Google Services: See INTEGRATION_SETUP_STATUS.md"
+        echo ""
+    fi
+    
+    pause
+}
+
 # Pause helper
 pause() {
     echo ""
@@ -1434,6 +1592,8 @@ main() {
             17) sync_from_replit ;;
             18) install_auto_sync ;;
             19) check_sync_status ;;
+            20) check_all_integrations ;;
+            21) view_integration_guide ;;
             0) 
                 echo ""
                 echo -e "${GREEN}Goodbye! 👋${NC}"

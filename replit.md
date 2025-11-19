@@ -10,6 +10,7 @@ The Nebula Command Dashboard is a web-based interface for managing a Ubuntu 25.1
 - All projects stored in: `/home/evin/contain/` (production) and Replit (development)
 - Development workflow: **Edit on Replit → Agent makes changes → Auto-sync to Ubuntu every 5 minutes**
 - **Authentication:** Code-Server and VNC Desktop require password authentication (see FIX_CODE_SERVER_AND_VNC.md)
+- **ZoneEdit DNS:** Dynamic DNS updates are now fully integrated into the .env generator (`deployment/generate-unified-env.sh`) - prompts for ZONEEDIT_USERNAME (email) and ZONEEDIT_API_TOKEN during setup (see `docs/ZONEEDIT_SETUP.md`)
 - Services to manage:
   - Discord Ticket Bot (bot.rig-city.com) - Custom support bot with PostgreSQL
   - Stream Bot / SnappleBotAI (stream.rig-city.com) - AI Snapple facts for Twitch/Kick
@@ -38,7 +39,7 @@ The Nebula Command Dashboard is a web-based interface for managing a Ubuntu 25.1
 
 ### System Design Choices
 - **Database Architecture**: A single PostgreSQL container manages multiple databases (`ticketbot`, `streambot`, `jarvis`), with automatic provisioning and concurrency protection.
-- **Unified Deployment System**: Managed by `homelab-manager.sh` and orchestrated by `docker-compose.unified.yml`, utilizing Caddy for automatic SSL. An automated Replit to Ubuntu sync every 5 minutes maintains alignment between development and production. Deployment is handled by `linear-deploy.sh`, which performs validation, provisioning, deployment, and verification.
+- **Unified Deployment System**: Managed by `homelab-manager.sh` and orchestrated by `docker-compose.unified.yml`, utilizing Caddy for automatic SSL. An automated Replit to Ubuntu sync every 5 minutes maintains alignment between development and production. Deployment is handled by `linear-deploy.sh`, which performs validation, provisioning, deployment, and verification. **Integration Management**: `homelab-manager.sh` now includes comprehensive integration status checking (option 20) and setup guidance (option 21) for all services including ZoneEdit DNS, Home Assistant, Discord Bot, OpenAI, Spotify, and Twitch.
 - **Production Readiness**: Emphasizes comprehensive security audits, environment variable-based secrets, robust OAuth, automatic HTTPS, SQL injection prevention, secure Docker configurations, secure session management, and input validation. Performance is ensured via health check endpoints, database connection pooling, and optimized Docker images. Error handling includes React Error Boundaries, comprehensive logging, user-friendly messages, automatic retry logic with exponential backoff, and circuit breaker patterns.
 - **Security Monitoring**: The dashboard includes comprehensive security monitoring features such as optional rate limiting, SSL certificate monitoring, failed login monitoring (Redis-based), and service health monitoring.
 - **Lifecycle Management**: `homelab-manager.sh` includes automatic cleanup of orphaned containers/images and comprehensive diagnostics (database migrations, orphaned resources, disk space, log rotation).
