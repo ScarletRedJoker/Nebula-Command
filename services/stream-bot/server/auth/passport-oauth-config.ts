@@ -35,10 +35,10 @@ async function findOrCreateUserFromOAuth(profile: OAuthProfile, existingUserId?:
         throw new Error('Authenticated user not found in database');
       }
 
-      // Atomic transaction to prevent race conditions
+      // Atomic UPSERT to prevent race conditions
       try {
         await db.transaction(async (tx) => {
-          // SECURITY: Check if this platformUserId is already linked to ANY user
+          // SECURITY: Check if this platformUserId is already linked to a DIFFERENT user
           const globalPlatformCheck = await tx.query.platformConnections.findFirst({
             where: and(
               eq(platformConnections.platform, profile.platform),
@@ -46,40 +46,21 @@ async function findOrCreateUserFromOAuth(profile: OAuthProfile, existingUserId?:
             ),
           });
 
-          if (globalPlatformCheck) {
-            if (globalPlatformCheck.userId !== user.id) {
-              // Platform is linked to a DIFFERENT user - REJECT to prevent account hijacking
-              console.error(`[OAuth Security] Attempted hijack: ${profile.platform} user ${profile.id} already linked to user ${globalPlatformCheck.userId}`);
-              throw new Error(`This ${profile.platform} account is already linked to another StreamBot account. Please use a different ${profile.platform} account or contact support.`);
-            } else {
-              // Already linked to this user - update tokens
-              console.log(`[OAuth] ${profile.platform} already linked to user ${user.id} - updating tokens`);
-              
-              const encryptedAccessToken = encryptToken(profile.accessToken);
-              const encryptedRefreshToken = profile.refreshToken ? encryptToken(profile.refreshToken) : null;
-              const tokenExpiresAt = profile.expiresIn 
-                ? new Date(Date.now() + profile.expiresIn * 1000) 
-                : null;
+          if (globalPlatformCheck && globalPlatformCheck.userId !== user.id) {
+            // Platform is linked to a DIFFERENT user - REJECT to prevent account hijacking
+            console.error(`[OAuth Security] Attempted hijack: ${profile.platform} user ${profile.id} already linked to user ${globalPlatformCheck.userId}`);
+            throw new Error(`This ${profile.platform} account is already linked to another StreamBot account. Please use a different ${profile.platform} account or contact support.`);
+          }
 
-              await tx.update(platformConnections)
-                .set({
-                  accessToken: encryptedAccessToken,
-                  refreshToken: encryptedRefreshToken,
-                  tokenExpiresAt,
-                  isConnected: true,
-                  lastConnectedAt: new Date(),
-                })
-                .where(eq(platformConnections.id, globalPlatformCheck.id));
-            }
-          } else {
-            // Platform not linked anywhere - safe to link
-            const encryptedAccessToken = encryptToken(profile.accessToken);
-            const encryptedRefreshToken = profile.refreshToken ? encryptToken(profile.refreshToken) : null;
-            const tokenExpiresAt = profile.expiresIn 
-              ? new Date(Date.now() + profile.expiresIn * 1000) 
-              : null;
+          // UPSERT: Insert new connection or update existing (atomic, no race condition)
+          const encryptedAccessToken = encryptToken(profile.accessToken);
+          const encryptedRefreshToken = profile.refreshToken ? encryptToken(profile.refreshToken) : null;
+          const tokenExpiresAt = profile.expiresIn 
+            ? new Date(Date.now() + profile.expiresIn * 1000) 
+            : null;
 
-            await tx.insert(platformConnections).values({
+          await tx.insert(platformConnections)
+            .values({
               userId: user.id,
               platform: profile.platform,
               platformUserId: profile.id,
@@ -90,13 +71,26 @@ async function findOrCreateUserFromOAuth(profile: OAuthProfile, existingUserId?:
               isConnected: true,
               lastConnectedAt: new Date(),
               connectionData: { email: profile.email },
+            })
+            .onConflictDoUpdate({
+              target: [platformConnections.userId, platformConnections.platform],
+              set: {
+                platformUserId: profile.id,
+                platformUsername: profile.username || profile.displayName || email,
+                accessToken: encryptedAccessToken,
+                refreshToken: encryptedRefreshToken,
+                tokenExpiresAt,
+                isConnected: true,
+                lastConnectedAt: new Date(),
+                connectionData: { email: profile.email },
+                updatedAt: new Date(),
+              },
             });
 
-            console.log(`[OAuth] Successfully linked ${profile.platform} to user ${user.id} (email: ${profile.email})`);
-          }
+          console.log(`[OAuth] Successfully linked/updated ${profile.platform} for user ${user.id} (email: ${profile.email})`);
         });
       } catch (txError: any) {
-        // Handle unique constraint violation gracefully
+        // Handle unique constraint violation for platformUserId (hijacking attempt)
         if (txError.code === '23505' || txError.message?.includes('duplicate key') || txError.message?.includes('unique constraint')) {
           throw new Error(`This ${profile.platform} account is already linked to another StreamBot account. Please use a different ${profile.platform} account or contact support.`);
         }
@@ -114,10 +108,10 @@ async function findOrCreateUserFromOAuth(profile: OAuthProfile, existingUserId?:
     if (user) {
       console.log(`[OAuth] Existing user found for email ${email}`);
       
-      // Atomic transaction to prevent race conditions
+      // Atomic UPSERT to prevent race conditions
       try {
         await db.transaction(async (tx) => {
-          // SECURITY: Check if this platformUserId is already linked to ANY user
+          // SECURITY: Check if this platformUserId is already linked to a DIFFERENT user
           const globalPlatformCheck = await tx.query.platformConnections.findFirst({
             where: and(
               eq(platformConnections.platform, profile.platform),
@@ -125,40 +119,21 @@ async function findOrCreateUserFromOAuth(profile: OAuthProfile, existingUserId?:
             ),
           });
 
-          if (globalPlatformCheck) {
-            if (globalPlatformCheck.userId !== user!.id) {
-              // Platform is linked to a DIFFERENT user - REJECT to prevent account hijacking
-              console.error(`[OAuth Security] Attempted hijack: ${profile.platform} user ${profile.id} already linked to user ${globalPlatformCheck.userId}`);
-              throw new Error(`This ${profile.platform} account is already linked to another StreamBot account. Please use a different ${profile.platform} account or contact support.`);
-            } else {
-              // Already linked to this user - update tokens
-              console.log(`[OAuth] ${profile.platform} already linked to user ${user!.id} - updating tokens`);
-              
-              const encryptedAccessToken = encryptToken(profile.accessToken);
-              const encryptedRefreshToken = profile.refreshToken ? encryptToken(profile.refreshToken) : null;
-              const tokenExpiresAt = profile.expiresIn 
-                ? new Date(Date.now() + profile.expiresIn * 1000) 
-                : null;
+          if (globalPlatformCheck && globalPlatformCheck.userId !== user!.id) {
+            // Platform is linked to a DIFFERENT user - REJECT to prevent account hijacking
+            console.error(`[OAuth Security] Attempted hijack: ${profile.platform} user ${profile.id} already linked to user ${globalPlatformCheck.userId}`);
+            throw new Error(`This ${profile.platform} account is already linked to another StreamBot account. Please use a different ${profile.platform} account or contact support.`);
+          }
 
-              await tx.update(platformConnections)
-                .set({
-                  accessToken: encryptedAccessToken,
-                  refreshToken: encryptedRefreshToken,
-                  tokenExpiresAt,
-                  isConnected: true,
-                  lastConnectedAt: new Date(),
-                })
-                .where(eq(platformConnections.id, globalPlatformCheck.id));
-            }
-          } else {
-            // Platform not linked anywhere - safe to link
-            const encryptedAccessToken = encryptToken(profile.accessToken);
-            const encryptedRefreshToken = profile.refreshToken ? encryptToken(profile.refreshToken) : null;
-            const tokenExpiresAt = profile.expiresIn 
-              ? new Date(Date.now() + profile.expiresIn * 1000) 
-              : null;
+          // UPSERT: Insert new connection or update existing (atomic, no race condition)
+          const encryptedAccessToken = encryptToken(profile.accessToken);
+          const encryptedRefreshToken = profile.refreshToken ? encryptToken(profile.refreshToken) : null;
+          const tokenExpiresAt = profile.expiresIn 
+            ? new Date(Date.now() + profile.expiresIn * 1000) 
+            : null;
 
-            await tx.insert(platformConnections).values({
+          await tx.insert(platformConnections)
+            .values({
               userId: user!.id,
               platform: profile.platform,
               platformUserId: profile.id,
@@ -169,13 +144,26 @@ async function findOrCreateUserFromOAuth(profile: OAuthProfile, existingUserId?:
               isConnected: true,
               lastConnectedAt: new Date(),
               connectionData: { email: profile.email },
+            })
+            .onConflictDoUpdate({
+              target: [platformConnections.userId, platformConnections.platform],
+              set: {
+                platformUserId: profile.id,
+                platformUsername: profile.username || profile.displayName || email,
+                accessToken: encryptedAccessToken,
+                refreshToken: encryptedRefreshToken,
+                tokenExpiresAt,
+                isConnected: true,
+                lastConnectedAt: new Date(),
+                connectionData: { email: profile.email },
+                updatedAt: new Date(),
+              },
             });
 
-            console.log(`[OAuth] Auto-linked ${profile.platform} to existing user ${user!.id}`);
-          }
+          console.log(`[OAuth] Auto-linked/updated ${profile.platform} for existing user ${user!.id}`);
         });
       } catch (txError: any) {
-        // Handle unique constraint violation gracefully
+        // Handle unique constraint violation for platformUserId (hijacking attempt)
         if (txError.code === '23505' || txError.message?.includes('duplicate key') || txError.message?.includes('unique constraint')) {
           throw new Error(`This ${profile.platform} account is already linked to another StreamBot account. Please use a different ${profile.platform} account or contact support.`);
         }
@@ -200,6 +188,7 @@ async function findOrCreateUserFromOAuth(profile: OAuthProfile, existingUserId?:
             throw new Error(`This ${profile.platform} account is already linked to another StreamBot account. Please sign in with that account or contact support.`);
           }
 
+          // UPSERT user by email (handles concurrent user creation attempts)
           const [newUser] = await tx
             .insert(users)
             .values({
@@ -207,6 +196,14 @@ async function findOrCreateUserFromOAuth(profile: OAuthProfile, existingUserId?:
               primaryPlatform: profile.platform,
               role: "user",
               isActive: true,
+            })
+            .onConflictDoUpdate({
+              target: [users.email],
+              set: {
+                primaryPlatform: profile.platform,
+                isActive: true,
+                updatedAt: new Date(),
+              },
             })
             .returning();
 
@@ -216,45 +213,67 @@ async function findOrCreateUserFromOAuth(profile: OAuthProfile, existingUserId?:
             ? new Date(Date.now() + profile.expiresIn * 1000) 
             : null;
 
-          await tx.insert(platformConnections).values({
-            userId: newUser.id,
-            platform: profile.platform,
-            platformUserId: profile.id,
-            platformUsername: profile.username || profile.displayName || email,
-            accessToken: encryptedAccessToken,
-            refreshToken: encryptedRefreshToken,
-            tokenExpiresAt,
-            isConnected: true,
-            lastConnectedAt: new Date(),
-            connectionData: { email: profile.email },
-          });
+          // UPSERT platform connection (atomic, handles race conditions)
+          await tx.insert(platformConnections)
+            .values({
+              userId: newUser.id,
+              platform: profile.platform,
+              platformUserId: profile.id,
+              platformUsername: profile.username || profile.displayName || email,
+              accessToken: encryptedAccessToken,
+              refreshToken: encryptedRefreshToken,
+              tokenExpiresAt,
+              isConnected: true,
+              lastConnectedAt: new Date(),
+              connectionData: { email: profile.email },
+            })
+            .onConflictDoUpdate({
+              target: [platformConnections.userId, platformConnections.platform],
+              set: {
+                platformUserId: profile.id,
+                platformUsername: profile.username || profile.displayName || email,
+                accessToken: encryptedAccessToken,
+                refreshToken: encryptedRefreshToken,
+                tokenExpiresAt,
+                isConnected: true,
+                lastConnectedAt: new Date(),
+                connectionData: { email: profile.email },
+                updatedAt: new Date(),
+              },
+            });
 
-          await tx.insert(botConfigs).values({
-            userId: newUser.id,
-            intervalMode: "manual",
-            fixedIntervalMinutes: 30,
-            randomMinMinutes: 15,
-            randomMaxMinutes: 60,
-            aiModel: "gpt-5-mini",
-            aiPromptTemplate:
-              "Generate a fun, mind-blowing fact about life, the universe, science, history, nature, or weird phenomena. Topics: space, animals, physics, human body, ancient civilizations, food science, geography, inventions, unusual traditions, or bizarre natural phenomena. Keep it under 200 characters.",
-            aiTemperature: 1,
-            enableChatTriggers: true,
-            chatKeywords: ["!snapple", "!fact"],
-            activePlatforms: [],
-            isActive: false,
-          });
+          // Insert bot config (only if not exists)
+          await tx.insert(botConfigs)
+            .values({
+              userId: newUser.id,
+              intervalMode: "manual",
+              fixedIntervalMinutes: 30,
+              randomMinMinutes: 15,
+              randomMaxMinutes: 60,
+              aiModel: "gpt-5-mini",
+              aiPromptTemplate:
+                "Generate a fun, mind-blowing fact about life, the universe, science, history, nature, or weird phenomena. Topics: space, animals, physics, human body, ancient civilizations, food science, geography, inventions, unusual traditions, or bizarre natural phenomena. Keep it under 200 characters.",
+              aiTemperature: 1,
+              enableChatTriggers: true,
+              chatKeywords: ["!snapple", "!fact"],
+              activePlatforms: [],
+              isActive: false,
+            })
+            .onConflictDoNothing({ target: [botConfigs.userId] });
 
-          await tx.insert(botInstances).values({
-            userId: newUser.id,
-            status: "stopped",
-          });
+          // Insert bot instance (only if not exists)
+          await tx.insert(botInstances)
+            .values({
+              userId: newUser.id,
+              status: "stopped",
+            })
+            .onConflictDoNothing({ target: [botInstances.userId] });
 
-          console.log(`[OAuth] Created new user ${newUser.id} with ${profile.platform} as primary platform`);
+          console.log(`[OAuth] Created/updated user ${newUser.id} with ${profile.platform} as primary platform`);
           return newUser;
         });
       } catch (txError: any) {
-        // Handle unique constraint violation gracefully
+        // Handle unique constraint violation for platformUserId (hijacking attempt)
         if (txError.code === '23505' || txError.message?.includes('duplicate key') || txError.message?.includes('unique constraint')) {
           throw new Error(`This ${profile.platform} account is already linked to another StreamBot account. Please sign in with that account or contact support.`);
         }
