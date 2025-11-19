@@ -1,7 +1,7 @@
-from celery_app import celery
+from celery_app import celery_app as celery
 from celery.utils.log import get_task_logger
-from database import get_db
-from models import NASBackupJob
+from services.db_service import db_service
+from models.nas import NASBackupJob
 from services.nas_service import NASService
 from datetime import datetime
 
@@ -9,45 +9,51 @@ logger = get_task_logger(__name__)
 
 
 @celery.task(name='workers.nas_worker.run_nas_backup')
-def run_nas_backup(job_id: int):
+def run_nas_backup(job_id: int) -> None:
     """Execute NAS backup job"""
-    db = next(get_db())
-    
     try:
-        job = db.query(NASBackupJob).filter_by(id=job_id).first()
-        if not job:
-            logger.error(f"Backup job {job_id} not found")
-            return
+        with db_service.get_session() as db:
+            job = db.query(NASBackupJob).filter_by(id=job_id).first()
+            if not job:
+                logger.error(f"Backup job {job_id} not found")
+                return
 
-        job.status = 'running'
-        db.commit()
+            job.status = 'running'
+            db.flush()
 
         nas_service = NASService()
-        result = nas_service.backup_to_nas(
-            source_path=job.source_path,
-            dest_share=job.dest_share,
-            backup_name=job.backup_name
-        )
-
-        if result.get('success'):
-            job.status = 'completed'
-            job.completed_at = datetime.utcnow()
-        else:
-            job.status = 'failed'
-            job.error_message = result.get('error', 'Unknown error')
         
-        db.commit()
-        logger.info(f"Backup job {job_id} completed with status: {job.status}")
+        with db_service.get_session() as db:
+            job = db.query(NASBackupJob).filter_by(id=job_id).first()
+            if not job:
+                return
+                
+            result = nas_service.backup_to_nas(
+                source_path=job.source_path,
+                dest_share=job.dest_share,
+                backup_name=job.backup_name
+            )
+
+            if result.get('success'):
+                job.status = 'completed'
+                job.completed_at = datetime.utcnow()
+            else:
+                job.status = 'failed'
+                job.error_message = result.get('error', 'Unknown error')
+            
+            logger.info(f"Backup job {job_id} completed with status: {job.status}")
 
     except Exception as e:
         logger.error(f"Error in backup job {job_id}: {e}")
-        job.status = 'failed'
-        job.error_message = str(e)
-        db.commit()
+        with db_service.get_session() as db:
+            job = db.query(NASBackupJob).filter_by(id=job_id).first()
+            if job:
+                job.status = 'failed'
+                job.error_message = str(e)
 
 
 @celery.task(name='workers.nas_worker.discover_nas_periodic')
-def discover_nas_periodic():
+def discover_nas_periodic() -> None:
     """Periodic task to discover and monitor NAS availability"""
     try:
         nas_service = NASService()
@@ -63,7 +69,7 @@ def discover_nas_periodic():
 
 
 @celery.task(name='workers.nas_worker.check_mount_health')
-def check_mount_health():
+def check_mount_health() -> None:
     """Check health of all mounted NAS shares"""
     try:
         nas_service = NASService()

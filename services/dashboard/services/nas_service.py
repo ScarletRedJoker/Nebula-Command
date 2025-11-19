@@ -68,11 +68,11 @@ class NASService:
             logger.error(f"Error listing NAS mounts: {e}")
             return []
 
-    def mount_smb_share(self, share_name: str, mount_point: str, username: str = None, password: str = None) -> Dict[str, Any]:
+    def mount_smb_share(self, share_name: str, mount_point: str, username: Optional[str] = None, password: Optional[str] = None) -> Dict[str, Any]:
         """Mount SMB/CIFS share from NAS"""
         try:
-            username = username or self.nas_user
-            password = password or self.nas_password
+            username = username if username is not None else self.nas_user
+            password = password if password is not None else self.nas_password
             nas_host = self.nas_ip or self.nas_hostname
 
             if not all([nas_host, share_name, username, password]):

@@ -1,6 +1,8 @@
 import os
 import secrets
 
+__all__ = ['Config']
+
 class Config:
     """Configuration for Homelab Dashboard"""
     

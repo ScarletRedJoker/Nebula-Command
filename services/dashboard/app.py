@@ -6,7 +6,7 @@ from logging.handlers import RotatingFileHandler
 import sys
 import os
 from datetime import timedelta
-from config import Config
+from config import Config  # type: ignore[import]
 from routes.api import api_bp
 from routes.web import web_bp
 from routes.deployment_api import deployment_bp
@@ -196,7 +196,8 @@ try:
     redis_client = redis.from_url(Config.REDIS_URL)
     redis_client.ping()
     logger.info("✓ Redis connection successful")
-    redis_info = redis_client.info('server')
+    redis_info_result = redis_client.info('server')
+    redis_info: dict = redis_info_result if isinstance(redis_info_result, dict) else {}
     logger.info(f"  Redis version: {redis_info.get('redis_version', 'unknown')}")
     logger.info(f"  Redis URL: {Config.REDIS_URL}")
 except Exception as e:

@@ -1,8 +1,7 @@
 from flask import Blueprint, render_template, jsonify, request
 from services.nas_service import NASService
-from sqlalchemy.orm import Session
-from database import get_db
-from models import NASMount, NASBackupJob
+from services.db_service import db_service
+from models.nas import NASMount, NASBackupJob
 from datetime import datetime
 import logging
 
@@ -67,29 +66,29 @@ def list_mounts():
         nas_service = NASService()
         mounts = nas_service.list_mounts()
         
-        db: Session = next(get_db())
-        db_mounts = db.query(NASMount).all()
+        with db_service.get_session() as db:
+            db_mounts = db.query(NASMount).all()
         
-        mounts_with_info = []
-        for mount in mounts:
-            storage_info = nas_service.get_mount_storage_info(mount['mount_point'])
-            mount['storage'] = storage_info
-            mounts_with_info.append(mount)
-        
-        return jsonify({
-            'success': True,
-            'mounts': mounts_with_info,
-            'configured_mounts': [
-                {
-                    'id': m.id,
-                    'share_name': m.share_name,
-                    'mount_point': m.mount_point,
-                    'is_active': m.is_active,
-                    'created_at': m.created_at.isoformat()
-                }
-                for m in db_mounts
-            ]
-        })
+            mounts_with_info = []
+            for mount in mounts:
+                storage_info = nas_service.get_mount_storage_info(mount['mount_point'])
+                mount['storage'] = storage_info
+                mounts_with_info.append(mount)
+            
+            return jsonify({
+                'success': True,
+                'mounts': mounts_with_info,
+                'configured_mounts': [
+                    {
+                        'id': m.id,
+                        'share_name': m.share_name,
+                        'mount_point': m.mount_point,
+                        'is_active': m.is_active,
+                        'created_at': m.created_at.isoformat()
+                    }
+                    for m in db_mounts
+                ]
+            })
 
     except Exception as e:
         logger.error(f"Error listing mounts: {e}")
@@ -119,15 +118,13 @@ def mount_share():
         result = nas_service.mount_smb_share(share_name, mount_point, username, password)
 
         if result.get('success'):
-            db: Session = next(get_db())
-            
-            nas_mount = NASMount(
-                share_name=share_name,
-                mount_point=mount_point,
-                is_active=True
-            )
-            db.add(nas_mount)
-            db.commit()
+            with db_service.get_session() as db:
+                nas_mount = NASMount(
+                    share_name=share_name,
+                    mount_point=mount_point,
+                    is_active=True
+                )
+                db.add(nas_mount)
 
         return jsonify(result), 200 if result.get('success') else 500
 
@@ -156,11 +153,10 @@ def unmount_share():
         result = nas_service.unmount_share(mount_point)
 
         if result.get('success'):
-            db: Session = next(get_db())
-            mount = db.query(NASMount).filter_by(mount_point=mount_point).first()
-            if mount:
-                mount.is_active = False
-                db.commit()
+            with db_service.get_session() as db:
+                mount = db.query(NASMount).filter_by(mount_point=mount_point).first()
+                if mount:
+                    mount.is_active = False
 
         return jsonify(result), 200 if result.get('success') else 500
 
@@ -213,23 +209,23 @@ def create_backup():
                 'error': 'Missing required fields'
             }), 400
 
-        db: Session = next(get_db())
-        
-        backup_job = NASBackupJob(
-            source_path=source_path,
-            dest_share=dest_share,
-            backup_name=backup_name,
-            status='pending'
-        )
-        db.add(backup_job)
-        db.commit()
+        with db_service.get_session() as db:
+            backup_job = NASBackupJob(
+                source_path=source_path,
+                dest_share=dest_share,
+                backup_name=backup_name,
+                status='pending'
+            )
+            db.add(backup_job)
+            db.flush()  # Ensure ID is generated
+            job_id = backup_job.id
 
         from workers.nas_worker import run_nas_backup
-        run_nas_backup.delay(backup_job.id)
+        run_nas_backup.delay(job_id)
 
         return jsonify({
             'success': True,
-            'job_id': backup_job.id,
+            'job_id': job_id,
             'message': 'Backup job started'
         })
 
@@ -245,12 +241,10 @@ def create_backup():
 def list_backups():
     """List all backup jobs"""
     try:
-        db: Session = next(get_db())
-        backups = db.query(NASBackupJob).order_by(NASBackupJob.created_at.desc()).limit(50).all()
-        
-        return jsonify({
-            'success': True,
-            'backups': [
+        with db_service.get_session() as db:
+            backups = db.query(NASBackupJob).order_by(NASBackupJob.created_at.desc()).limit(50).all()
+            
+            backup_list = [
                 {
                     'id': b.id,
                     'source_path': b.source_path,
@@ -259,10 +253,14 @@ def list_backups():
                     'status': b.status,
                     'error_message': b.error_message,
                     'created_at': b.created_at.isoformat(),
-                    'completed_at': b.completed_at.isoformat() if b.completed_at else None
+                    'completed_at': b.completed_at.isoformat() if b.completed_at is not None else None
                 }
                 for b in backups
             ]
+        
+        return jsonify({
+            'success': True,
+            'backups': backup_list
         })
 
     except Exception as e:
