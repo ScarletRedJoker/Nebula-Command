@@ -183,6 +183,10 @@ export interface IStorage {
   
   createStreamNotificationLog(log: InsertStreamNotificationLog): Promise<StreamNotificationLog>;
   getStreamNotificationLogs(serverId: string, limit?: number): Promise<StreamNotificationLog[]>;
+  
+  // Interaction lock operations (deduplication)
+  createInteractionLock(interactionId: string, userId: string, actionType: string): Promise<boolean>;
+  cleanupOldInteractionLocks(): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -1166,6 +1170,18 @@ export class MemStorage implements IStorage {
     
     this.developerAuditLogs.set(id, auditLog);
     return auditLog;
+  }
+  
+  // Interaction lock operations (deduplication) - In-memory stubs for testing
+  async createInteractionLock(interactionId: string, userId: string, actionType: string): Promise<boolean> {
+    // In-memory implementation doesn't persist, so always return true (allow all)
+    console.warn('[MemStorage] createInteractionLock called - in-memory implementation does not persist locks');
+    return true;
+  }
+  
+  async cleanupOldInteractionLocks(): Promise<void> {
+    // No-op for in-memory implementation
+    console.log('[MemStorage] cleanupOldInteractionLocks called - no-op for in-memory storage');
   }
 }
 

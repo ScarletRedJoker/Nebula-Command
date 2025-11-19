@@ -48,6 +48,8 @@ import {
   type InsertStreamTrackedUser,
   type StreamNotificationLog,
   type InsertStreamNotificationLog,
+  type InteractionLock,
+  type InsertInteractionLock,
   users,
   discordUsers,
   servers,
@@ -68,7 +70,8 @@ import {
   developerAuditLog,
   streamNotificationSettings,
   streamTrackedUsers,
-  streamNotificationLog
+  streamNotificationLog,
+  interactionLocks
 } from "@shared/schema";
 import { IStorage } from "./storage";
 import { db } from "./db";
@@ -974,6 +977,32 @@ export class DatabaseStorage implements IStorage {
       .where(eq(streamNotificationLog.serverId, serverId))
       .orderBy(streamNotificationLog.notifiedAt)
       .limit(limit);
+  }
+  
+  // Interaction lock operations (deduplication)
+  async createInteractionLock(interactionId: string, userId: string, actionType: string): Promise<boolean> {
+    try {
+      await db.insert(interactionLocks).values({
+        interactionId,
+        userId,
+        actionType,
+        createdAt: new Date(),
+      });
+      return true;
+    } catch (error: any) {
+      if (error.code === '23505' || error.message?.includes('duplicate') || error.message?.includes('unique constraint')) {
+        return false;
+      }
+      throw error;
+    }
+  }
+  
+  async cleanupOldInteractionLocks(): Promise<void> {
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    const { lt } = await import('drizzle-orm');
+    await db.delete(interactionLocks).where(
+      lt(interactionLocks.createdAt, fiveMinutesAgo)
+    );
   }
 }
 

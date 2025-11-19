@@ -339,6 +339,19 @@ export const developerAuditLog = pgTable("developer_audit_log", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Interaction Locks - prevents duplicate ticket creation from Discord interaction retries
+export const interactionLocks = pgTable("interaction_locks", {
+  interactionId: text("interaction_id").primaryKey(), // Discord interaction ID
+  userId: text("user_id").notNull(), // Discord user ID
+  actionType: text("action_type").notNull(), // Type of action (e.g., create_ticket)
+  createdAt: timestamp("created_at").defaultNow(), // When interaction was first processed
+});
+
+// Interaction Locks validation schemas
+export const insertInteractionLockSchema = createInsertSchema(interactionLocks).omit({ createdAt: true });
+export type InsertInteractionLock = z.infer<typeof insertInteractionLockSchema>;
+export type InteractionLock = typeof interactionLocks.$inferSelect;
+
 // Schema validation for inserting Discord users
 export const insertDiscordUserSchema = createInsertSchema(discordUsers);
 export type InsertDiscordUser = z.infer<typeof insertDiscordUserSchema>;

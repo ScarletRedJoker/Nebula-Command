@@ -2,7 +2,7 @@ import { Client, GatewayIntentBits, Events, REST, Routes, EmbedBuilder } from 'd
 import { commands, registerCommands, sendTicketNotificationToAdminChannel } from './commands';
 import { developerCommands } from './dev-commands';
 import { IStorage } from '../storage';
-import { startBackgroundJobs, safeSendMessage } from './ticket-safeguards';
+import { startBackgroundJobs, safeSendMessage, isDuplicateInteraction } from './ticket-safeguards';
 import {
   createTicketClaimedEmbed,
   createTicketAssignedEmbed,
@@ -365,6 +365,21 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
           const description = interaction.fields.getTextInputValue('ticketDescription');
           const urgencyResponse = interaction.fields.getTextInputValue('ticketUrgency') || 'no';
           const isUrgent = urgencyResponse.toLowerCase().includes('yes');
+
+          // Check for duplicate interaction (prevents spam from Discord retries)
+          const isDuplicate = await isDuplicateInteraction(
+            interaction.id,
+            interaction.user.id,
+            storage
+          );
+
+          if (isDuplicate) {
+            console.log(`[TicketSystem] 🚫 Blocked duplicate ticket creation from interaction ${interaction.id}`);
+            await interaction.editReply({
+              content: '⚠️ This ticket has already been created. Please check your existing tickets in the dashboard.',
+            });
+            return;
+          }
 
           // Validate user exists in system, create if not
           const discordUser = await storage.getDiscordUser(interaction.user.id);
@@ -2055,6 +2070,16 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
       // Start background jobs for ticket system hardening
       console.log('[Bot] Starting ticket system safeguard background jobs...');
       startBackgroundJobs(client!, storage, broadcast);
+      
+      // Cleanup old interaction locks every hour to prevent table bloat
+      setInterval(async () => {
+        try {
+          await storage.cleanupOldInteractionLocks();
+          console.log('[Deduplication] ✅ Cleaned up old interaction locks (>5 minutes old)');
+        } catch (error) {
+          console.error('[Deduplication] ❌ Error cleaning interaction locks:', error);
+        }
+      }, 60 * 60 * 1000); // Run every 1 hour
       
       // Initialize stream tracking
       await initializeStreamTracking(client!, storage);

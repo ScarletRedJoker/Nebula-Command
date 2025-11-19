@@ -59,6 +59,47 @@ export function recordTicketCreation(userId: string): void {
 }
 
 /**
+ * Check if interaction has already been processed (prevents duplicates from Discord retries)
+ * Discord retries interactions if acknowledgment takes >3s, which can cause duplicate ticket creation.
+ * This function uses database-backed interaction ID tracking to prevent duplicates.
+ * 
+ * @param interactionId Discord interaction ID (unique per button click/modal submit)
+ * @param userId User ID performing the action
+ * @param storage Storage instance
+ * @returns true if interaction is a duplicate (already processed), false if new
+ */
+export async function isDuplicateInteraction(
+  interactionId: string,
+  userId: string,
+  storage: any
+): Promise<boolean> {
+  try {
+    // Try to insert the interaction lock atomically (returns false if already exists)
+    const result = await storage.createInteractionLock(interactionId, userId, 'create_ticket');
+    
+    if (!result) {
+      // Insert failed = duplicate interaction
+      console.log(`[Deduplication] ⚠️  Blocked duplicate interaction: ${interactionId} from user ${userId}`);
+      return true;
+    }
+    
+    // Insert succeeded = new interaction
+    console.log(`[Deduplication] ✅ New interaction processed: ${interactionId}`);
+    return false;
+  } catch (error: any) {
+    // Check for PostgreSQL unique constraint violation
+    if (error.code === '23505' || error.message?.includes('duplicate') || error.message?.includes('unique constraint')) {
+      console.log(`[Deduplication] ⚠️  Blocked duplicate interaction (caught exception): ${interactionId}`);
+      return true;
+    }
+    
+    // Other errors - fail open (allow the interaction to proceed to avoid blocking legitimate tickets)
+    console.error('[Deduplication] ❌ Error checking interaction lock (failing open):', error);
+    return false;
+  }
+}
+
+/**
  * Validate that a category exists in the database
  * @param storage Storage interface
  * @param categoryId Category ID to validate
