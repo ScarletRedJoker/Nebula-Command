@@ -214,10 +214,15 @@ See [SECURITY.md](docs/SECURITY.md) for security best practices.
 
 ## 📚 Documentation
 
+### Core Guides
 - **[WORKSPACE_STRUCTURE.md](docs/WORKSPACE_STRUCTURE.md)** - Complete workspace guide
 - **[DEPLOYMENT_FIX_COMPLETE.md](docs/DEPLOYMENT_FIX_COMPLETE.md)** - Deployment troubleshooting
 - **[DATABASE_AUTOCONFIGURE_SUMMARY.md](docs/DATABASE_AUTOCONFIGURE_SUMMARY.md)** - Database setup
 - **[ENV_QUICK_GUIDE.md](docs/ENV_QUICK_GUIDE.md)** - Environment variables reference
+
+### Service-Specific Setup
+- **[ZONEEDIT_SETUP.md](docs/ZONEEDIT_SETUP.md)** - ZoneEdit Dynamic DNS integration
+- **[FIX_CODE_SERVER_AND_VNC.md](FIX_CODE_SERVER_AND_VNC.md)** - Code-Server & VNC authentication
 
 ---
 

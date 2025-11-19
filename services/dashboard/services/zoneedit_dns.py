@@ -21,7 +21,7 @@ class ZoneEditDNS:
         self.enabled = bool(self.username and self.api_token)
         
         if not self.enabled:
-            logger.warning("ZoneEdit DNS not configured - set ZONEEDIT_USERNAME and ZONEEDIT_API_TOKEN")
+            logger.warning("ZoneEdit DNS not configured - set ZONEEDIT_USERNAME and ZONEEDIT_API_TOKEN (Dynamic Authentication Token from ZoneEdit DNS settings)")
     
     def update_ip(self, host: str, ip_address: Optional[str] = None) -> Dict:
         """
