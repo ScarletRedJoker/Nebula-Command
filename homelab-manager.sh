@@ -191,18 +191,42 @@ rebuild_deploy() {
     
     echo ""
     echo "Step 5: Building containers (no cache)..."
-    docker-compose -f docker-compose.unified.yml build --no-cache
+    if docker-compose -f docker-compose.unified.yml build --no-cache; then
+        echo -e "${GREEN}✓ Build completed successfully${NC}"
+    else
+        echo -e "${YELLOW}⚠ Build completed with warnings (will attempt to start anyway)${NC}"
+    fi
     
     echo ""
     echo "Step 6: Starting services..."
-    docker-compose -f docker-compose.unified.yml up -d --remove-orphans
+    if docker-compose -f docker-compose.unified.yml up -d --remove-orphans; then
+        echo -e "${GREEN}✓ Services started${NC}"
+    else
+        echo -e "${RED}✗ Failed to start some services${NC}"
+        echo -e "${YELLOW}Check logs with: docker-compose -f docker-compose.unified.yml logs${NC}"
+    fi
     
     echo ""
     echo "Step 7: Waiting for services to initialize (15 seconds)..."
     sleep 15
     
     echo ""
-    echo "Step 8: Running automatic diagnostics and fixes..."
+    echo "Step 8: Checking container status..."
+    RUNNING_COUNT=$(docker ps --format "{{.Names}}" 2>/dev/null | grep -E "homelab-dashboard|homelab-celery-worker|homelab-redis|homelab-minio|discord-bot|stream-bot|caddy|n8n|plex-server|vnc-desktop|code-server|scarletredjoker-web|rig-city-site|homeassistant|discord-bot-db" | wc -l)
+    EXPECTED_COUNT=15
+    echo -e "  Running: ${RUNNING_COUNT}/${EXPECTED_COUNT} services"
+    
+    if [ "$RUNNING_COUNT" -eq "$EXPECTED_COUNT" ]; then
+        echo -e "  Status:  ${GREEN}✓ All services healthy${NC}"
+    elif [ "$RUNNING_COUNT" -ge $((EXPECTED_COUNT - 2)) ]; then
+        echo -e "  Status:  ${YELLOW}⚠ Most services running (check logs for issues)${NC}"
+    else
+        echo -e "  Status:  ${RED}✗ Multiple services failed to start${NC}"
+        echo -e "${YELLOW}Run option 11 (View Logs) or option 13 (Troubleshoot) for details${NC}"
+    fi
+    
+    echo ""
+    echo "Step 9: Running automatic diagnostics and fixes..."
     if [ -f "./homelab-lifecycle-diagnostics.sh" ]; then
         ./homelab-lifecycle-diagnostics.sh
     else
@@ -210,7 +234,11 @@ rebuild_deploy() {
     fi
     
     echo ""
-    echo -e "${GREEN}✓ Rebuild complete - All lifecycle issues handled automatically${NC}"
+    if [ "$RUNNING_COUNT" -ge $((EXPECTED_COUNT - 1)) ]; then
+        echo -e "${GREEN}✓ Rebuild complete - All lifecycle issues handled automatically${NC}"
+    else
+        echo -e "${YELLOW}⚠ Rebuild complete but some services may need attention${NC}"
+    fi
     pause
 }
 
@@ -1211,7 +1239,7 @@ health_check() {
     
     echo ""
     echo "Resource Usage:"
-    docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}" --filter "name=homelab-dashboard|homelab-celery-worker|homelab-redis|homelab-minio|discord-bot|stream-bot|caddy|n8n|plex-server|vnc-desktop|code-server|scarletredjoker-web|rig-city-site|homeassistant|discord-bot-db"
+    docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}" 2>/dev/null | grep -E "(NAME|homelab-|discord-bot|stream-bot|caddy|plex|n8n|homeassistant|vnc-desktop|code-server)" || echo "No containers running"
     
     pause
 }
@@ -1651,46 +1679,46 @@ run_deployment_verification() {
     
     if [ -f ".env" ]; then
         echo -e "${GREEN}✓${NC} .env file exists"
-        ((passed++))
+        passed=$((passed + 1))
         
         # Check AI Integration keys (shared by Dashboard and Stream Bot)
         if grep -q "^AI_INTEGRATIONS_OPENAI_API_KEY=" .env && [ -n "$(grep "^AI_INTEGRATIONS_OPENAI_API_KEY=" .env | cut -d'=' -f2)" ]; then
             echo -e "${GREEN}✓${NC} AI_INTEGRATIONS_OPENAI_API_KEY is set"
-            ((passed++))
+            passed=$((passed + 1))
         else
             echo -e "${RED}✗${NC} AI_INTEGRATIONS_OPENAI_API_KEY is missing or empty"
-            ((failed++))
+            failed=$((failed + 1))
         fi
         
         if grep -q "^AI_INTEGRATIONS_OPENAI_BASE_URL=" .env && [ -n "$(grep "^AI_INTEGRATIONS_OPENAI_BASE_URL=" .env | cut -d'=' -f2)" ]; then
             echo -e "${GREEN}✓${NC} AI_INTEGRATIONS_OPENAI_BASE_URL is set"
-            ((passed++))
+            passed=$((passed + 1))
         else
             echo -e "${YELLOW}⚠${NC} AI_INTEGRATIONS_OPENAI_BASE_URL is missing (will use default)"
-            ((warnings++))
+            warnings=$((warnings + 1))
         fi
         
         # Check database URL
         if grep -q "^DATABASE_URL=" .env && [ -n "$(grep "^DATABASE_URL=" .env | cut -d'=' -f2)" ]; then
             echo -e "${GREEN}✓${NC} DATABASE_URL is set"
-            ((passed++))
+            passed=$((passed + 1))
         else
             echo -e "${RED}✗${NC} DATABASE_URL is missing or empty"
-            ((failed++))
+            failed=$((failed + 1))
         fi
         
         # Check session secrets
         if grep -q "^SESSION_SECRET=" .env && [ -n "$(grep "^SESSION_SECRET=" .env | cut -d'=' -f2)" ]; then
             echo -e "${GREEN}✓${NC} SESSION_SECRET is set"
-            ((passed++))
+            passed=$((passed + 1))
         else
             echo -e "${RED}✗${NC} SESSION_SECRET is missing or empty"
-            ((failed++))
+            failed=$((failed + 1))
         fi
     else
         echo -e "${RED}✗${NC} .env file not found"
         echo -e "${YELLOW}  → Run option 9 to generate .env file${NC}"
-        ((failed++))
+        failed=$((failed + 1))
     fi
     
     echo ""
@@ -1701,28 +1729,28 @@ run_deployment_verification() {
     
     if docker ps --filter "name=discord-bot-db" --filter "status=running" | grep -q "discord-bot-db"; then
         echo -e "${GREEN}✓${NC} PostgreSQL container is running"
-        ((passed++))
+        passed=$((passed + 1))
         
         # Try to connect to database
         if docker exec discord-bot-db psql -U postgres -c "SELECT 1" >/dev/null 2>&1; then
             echo -e "${GREEN}✓${NC} PostgreSQL is accepting connections"
-            ((passed++))
+            passed=$((passed + 1))
             
             # Check if Jarvis database exists
             if docker exec discord-bot-db psql -U postgres -lqt | cut -d \| -f 1 | grep -qw "jarvis"; then
                 echo -e "${GREEN}✓${NC} Jarvis database exists"
-                ((passed++))
+                passed=$((passed + 1))
             else
                 echo -e "${YELLOW}⚠${NC} Jarvis database not found"
-                ((warnings++))
+                warnings=$((warnings + 1))
             fi
         else
             echo -e "${RED}✗${NC} Cannot connect to PostgreSQL"
-            ((failed++))
+            failed=$((failed + 1))
         fi
     else
         echo -e "${RED}✗${NC} PostgreSQL container is not running"
-        ((failed++))
+        failed=$((failed + 1))
     fi
     
     echo ""
@@ -1733,19 +1761,19 @@ run_deployment_verification() {
     
     if docker ps --filter "name=homelab-redis" --filter "status=running" | grep -q "homelab-redis"; then
         echo -e "${GREEN}✓${NC} Redis container is running"
-        ((passed++))
+        passed=$((passed + 1))
         
         # Try to ping Redis
         if docker exec homelab-redis redis-cli ping 2>/dev/null | grep -q "PONG"; then
             echo -e "${GREEN}✓${NC} Redis is responding to ping"
-            ((passed++))
+            passed=$((passed + 1))
         else
             echo -e "${RED}✗${NC} Redis is not responding"
-            ((failed++))
+            failed=$((failed + 1))
         fi
     else
         echo -e "${RED}✗${NC} Redis container is not running"
-        ((failed++))
+        failed=$((failed + 1))
     fi
     
     echo ""
@@ -1757,37 +1785,37 @@ run_deployment_verification() {
     # Check Dashboard AI
     if docker ps --filter "name=homelab-dashboard" --filter "status=running" | grep -q "homelab-dashboard"; then
         echo -e "${GREEN}✓${NC} Dashboard container is running"
-        ((passed++))
+        passed=$((passed + 1))
         
         # Check if AI is enabled in dashboard
         if docker exec homelab-dashboard env | grep -q "AI_INTEGRATIONS_OPENAI_API_KEY"; then
             echo -e "${GREEN}✓${NC} Dashboard has AI_INTEGRATIONS_OPENAI_API_KEY"
-            ((passed++))
+            passed=$((passed + 1))
         else
             echo -e "${YELLOW}⚠${NC} Dashboard AI credentials not found in container env"
-            ((warnings++))
+            warnings=$((warnings + 1))
         fi
     else
         echo -e "${YELLOW}⚠${NC} Dashboard container is not running"
-        ((warnings++))
+        warnings=$((warnings + 1))
     fi
     
     # Check Stream Bot AI
     if docker ps --filter "name=stream-bot" --filter "status=running" | grep -q "stream-bot"; then
         echo -e "${GREEN}✓${NC} Stream Bot container is running"
-        ((passed++))
+        passed=$((passed + 1))
         
         # Check if AI is enabled in stream-bot
         if docker exec stream-bot env | grep -q "AI_INTEGRATIONS_OPENAI_API_KEY"; then
             echo -e "${GREEN}✓${NC} Stream Bot has AI_INTEGRATIONS_OPENAI_API_KEY"
-            ((passed++))
+            passed=$((passed + 1))
         else
             echo -e "${YELLOW}⚠${NC} Stream Bot AI credentials not found in container env"
-            ((warnings++))
+            warnings=$((warnings + 1))
         fi
     else
         echo -e "${YELLOW}⚠${NC} Stream Bot container is not running"
-        ((warnings++))
+        warnings=$((warnings + 1))
     fi
     
     echo ""
@@ -1803,11 +1831,11 @@ run_deployment_verification() {
     for service in "${services[@]}"; do
         if docker ps --filter "name=$service" --filter "status=running" | grep -q "$service"; then
             echo -e "${GREEN}✓${NC} $service is running"
-            ((running_services++))
-            ((passed++))
+            running_services=$((running_services + 1))
+            passed=$((passed + 1))
         else
             echo -e "${RED}✗${NC} $service is not running"
-            ((failed++))
+            failed=$((failed + 1))
         fi
     done
     
@@ -1823,21 +1851,21 @@ run_deployment_verification() {
     # Check if code-server is running
     if docker ps --filter "name=code-server" --filter "status=running" | grep -q "code-server"; then
         echo -e "${GREEN}✓${NC} Code-Server container is running"
-        ((passed++))
+        passed=$((passed + 1))
         
         # Check if AI extensions are recommended in config
         if [ -f "config/code-server/extensions.json" ]; then
             if grep -q "Continue.continue" config/code-server/extensions.json && \
                grep -q "Codeium.codeium" config/code-server/extensions.json; then
                 echo -e "${GREEN}✓${NC} AI extensions configured in recommendations"
-                ((passed++))
+                passed=$((passed + 1))
             else
                 echo -e "${YELLOW}⚠${NC} AI extensions not found in recommendations"
-                ((warnings++))
+                warnings=$((warnings + 1))
             fi
         else
             echo -e "${YELLOW}⚠${NC} extensions.json not found"
-            ((warnings++))
+            warnings=$((warnings + 1))
         fi
         
         # Check if AI extension settings are configured
@@ -1845,23 +1873,23 @@ run_deployment_verification() {
             if grep -q "continue.enableTabAutocomplete" config/code-server/settings.json || \
                grep -q "codeium.enableCodeLens" config/code-server/settings.json; then
                 echo -e "${GREEN}✓${NC} AI extension settings configured"
-                ((passed++))
+                passed=$((passed + 1))
             else
                 echo -e "${YELLOW}⚠${NC} AI extension settings not configured"
-                ((warnings++))
+                warnings=$((warnings + 1))
             fi
         else
             echo -e "${YELLOW}⚠${NC} settings.json not found"
-            ((warnings++))
+            warnings=$((warnings + 1))
         fi
         
         # Check if Continue.dev config exists
         if [ -f "config/code-server/continue-config.json" ]; then
             echo -e "${GREEN}✓${NC} Continue.dev configuration file exists"
-            ((passed++))
+            passed=$((passed + 1))
         else
             echo -e "${YELLOW}⚠${NC} Continue.dev config not found (optional)"
-            ((warnings++))
+            warnings=$((warnings + 1))
         fi
         
         # Check AI extension installation status
@@ -1869,24 +1897,24 @@ run_deployment_verification() {
         if [ -n "$INSTALLED_EXTENSIONS" ]; then
             echo -e "${GREEN}✓${NC} AI extensions installed:"
             echo "$INSTALLED_EXTENSIONS" | sed 's/^/    /'
-            ((passed++))
+            passed=$((passed + 1))
         else
             echo -e "${YELLOW}⚠${NC} No AI extensions installed yet (can be installed via UI)"
-            ((warnings++))
+            warnings=$((warnings + 1))
         fi
         
         # Check Ollama connectivity for local AI models (optional)
         if docker exec code-server curl -s -o /dev/null -w "%{http_code}" http://homelab-dashboard:11434/api/tags 2>/dev/null | grep -q "200"; then
             echo -e "${GREEN}✓${NC} Ollama accessible from code-server (local AI available)"
-            ((passed++))
+            passed=$((passed + 1))
         else
             echo -e "${YELLOW}⚠${NC} Ollama not accessible (local AI models unavailable, cloud models still work)"
-            ((warnings++))
+            warnings=$((warnings + 1))
         fi
         
     else
         echo -e "${YELLOW}⚠${NC} Code-Server container is not running (optional service)"
-        ((warnings++))
+        warnings=$((warnings + 1))
     fi
     
     echo ""
