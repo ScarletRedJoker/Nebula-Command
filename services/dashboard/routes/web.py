@@ -85,6 +85,15 @@ def dashboard():
 def logs():
     return render_template('logs.html', services=Config.SERVICES)
 
+@web_bp.route('/service-actions')
+@require_web_auth
+def service_actions():
+    response = make_response(render_template('service_actions.html'))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
 @web_bp.route('/ai-assistant')
 @require_web_auth
 def ai_assistant():

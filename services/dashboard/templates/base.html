@@ -457,6 +457,12 @@
                 </a>
             </li>
             <li class="nav-item">
+                <a href="/service-actions" class="nav-link cosmic {% if request.path == '/service-actions' %}active{% endif %}">
+                    <i class="bi bi-lightning-charge"></i>
+                    <span>Service Quick Actions</span>
+                </a>
+            </li>
+            <li class="nav-item">
                 <a href="/ai-assistant" class="nav-link cosmic {% if request.path == '/ai-assistant' %}active{% endif %}">
                     <i class="bi bi-robot"></i>
                     <span>AI Assistant (Jarvis)</span>
@@ -478,6 +484,12 @@
                 <a href="/game-streaming" class="nav-link cosmic {% if request.path == '/game-streaming' %}active{% endif %}">
                     <i class="bi bi-controller"></i>
                     <span>Game Streaming</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="/plex" class="nav-link cosmic {% if request.path == '/plex' %}active{% endif %}">
+                    <i class="bi bi-film"></i>
+                    <span>Plex Media Import</span>
                 </a>
             </li>
         </ul>

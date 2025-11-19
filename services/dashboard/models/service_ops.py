@@ -3,9 +3,7 @@ import uuid
 from datetime import datetime
 from sqlalchemy import Column, String, Integer, BigInteger, DateTime, Float, Boolean
 from sqlalchemy.dialects.postgresql import UUID, JSONB
-from sqlalchemy.ext.declarative import declarative_base
-
-Base = declarative_base()
+from . import Base
 
 
 class ServiceTelemetry(Base):
@@ -24,7 +22,7 @@ class ServiceTelemetry(Base):
     health_status = Column(String(50), nullable=True)  # 'healthy', 'unhealthy', 'starting'
     restart_count = Column(Integer, nullable=True)
     uptime_seconds = Column(Integer, nullable=True)
-    metadata = Column(JSONB, nullable=True)
+    service_metadata = Column(JSONB, nullable=True)
     timestamp = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
     
     def to_dict(self):
@@ -42,6 +40,6 @@ class ServiceTelemetry(Base):
             'health_status': self.health_status,
             'restart_count': self.restart_count,
             'uptime_seconds': self.uptime_seconds,
-            'metadata': self.metadata,
+            'service_metadata': self.service_metadata,
             'timestamp': self.timestamp.isoformat() if self.timestamp else None,
         }

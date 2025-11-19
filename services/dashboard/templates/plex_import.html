@@ -1,0 +1,661 @@
+{% extends "base.html" %}
+
+{% block title %}Plex Media Import - Nebula Command{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="header">
+                <h2>
+                    <i class="bi bi-film"></i> Plex Media Import
+                </h2>
+                <button class="btn btn-sm btn-primary" onclick="refreshJobs()">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh Jobs
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upload Card -->
+    <div class="row mb-4">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-cloud-upload"></i> Upload Media Files
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <!-- Drag and Drop Zone -->
+                    <div id="dropZone" class="border border-2 border-dashed rounded p-5 text-center mb-4" 
+                         style="min-height: 200px; cursor: pointer; transition: all 0.3s; background: rgba(139, 92, 246, 0.05);">
+                        <i class="bi bi-film" style="font-size: 3rem; color: var(--accent-purple);"></i>
+                        <h4 class="mt-3 mb-2">Drag & Drop Media Files Here</h4>
+                        <p class="text-muted mb-3">or click to browse</p>
+                        <input type="file" id="fileInput" class="d-none" multiple accept="video/*,audio/*">
+                        <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
+                            <i class="bi bi-folder2-open"></i> Browse Files
+                        </button>
+                    </div>
+
+                    <!-- Media Type Selector -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="mediaTypeSelect" class="form-label">Media Type</label>
+                            <select id="mediaTypeSelect" class="form-select">
+                                <option value="" selected>Auto-detect</option>
+                                <option value="movie">Movie</option>
+                                <option value="tv_show">TV Show</option>
+                                <option value="music">Music</option>
+                            </select>
+                            <small class="text-muted">Leave as auto-detect for automatic type detection from filename</small>
+                        </div>
+                    </div>
+
+                    <!-- Progress Bar -->
+                    <div id="uploadProgress" class="mb-3" style="display: none;">
+                        <label class="form-label">Upload Progress</label>
+                        <div class="progress" style="height: 25px;">
+                            <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-success" 
+                                 role="progressbar" style="width: 0%">
+                                <span id="progressText">0%</span>
+                            </div>
+                        </div>
+                        <small id="uploadStatus" class="text-muted mt-2 d-block"></small>
+                    </div>
+
+                    <!-- Selected Files -->
+                    <div id="selectedFiles" class="mb-3" style="display: none;">
+                        <label class="form-label">Selected Files</label>
+                        <div id="fileList" class="list-group"></div>
+                    </div>
+
+                    <!-- Upload Button -->
+                    <div class="d-grid gap-2">
+                        <button id="uploadBtn" class="btn btn-success btn-lg" disabled>
+                            <i class="bi bi-upload"></i> Upload and Import
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Info Card -->
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="bi bi-info-circle"></i> Import Guidelines
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <h6>Supported Formats:</h6>
+                    <ul class="small">
+                        <li>Videos: .mp4, .mkv, .avi, .mov</li>
+                        <li>Music: .mp3, .flac, .m4a, .wav</li>
+                    </ul>
+                    
+                    <h6 class="mt-3">Naming Conventions:</h6>
+                    <ul class="small">
+                        <li><strong>Movies:</strong> "Movie Name (2020).mp4"</li>
+                        <li><strong>TV Shows:</strong> "Show Name S01E01.mp4"</li>
+                        <li>System auto-detects based on filename</li>
+                    </ul>
+                    
+                    <h6 class="mt-3">Process:</h6>
+                    <ol class="small">
+                        <li>Files upload to staging area</li>
+                        <li>Metadata extracted from filename</li>
+                        <li>Files organized into Plex directories</li>
+                        <li>Plex library automatically scanned</li>
+                    </ol>
+                    
+                    <div class="mt-3">
+                        <button class="btn btn-sm btn-outline-primary w-100" onclick="triggerManualScan()">
+                            <i class="bi bi-arrow-repeat"></i> Manual Library Scan
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Libraries Card -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="bi bi-collection"></i> Plex Libraries
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div id="librariesList">
+                        <div class="text-center">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                            <small class="d-block mt-2 text-muted">Loading...</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import Jobs -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-list-task"></i> Import Jobs
+                    </h5>
+                    <div>
+                        <button class="btn btn-sm btn-outline-danger" onclick="cleanupOldJobs()">
+                            <i class="bi bi-trash"></i> Cleanup Old Jobs
+                        </button>
+                        <button class="btn btn-sm btn-primary" onclick="refreshJobs()">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="jobsLoading" class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="mt-2 text-muted">Loading jobs...</p>
+                    </div>
+                    
+                    <div id="jobsList" style="display: none;">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Job ID</th>
+                                        <th>Type</th>
+                                        <th>Status</th>
+                                        <th>Progress</th>
+                                        <th>Created</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="jobsTableBody"></tbody>
+                            </table>
+                        </div>
+                        <div id="noJobs" class="text-center py-4 text-muted" style="display: none;">
+                            <i class="bi bi-inbox" style="font-size: 3rem;"></i>
+                            <p class="mt-2">No import jobs yet</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Job Details Modal -->
+<div class="modal fade" id="jobDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-info-circle"></i> Job Details
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="jobDetailsContent">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Notifications -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+    <div id="successToast" class="toast align-items-center text-white bg-success border-0" role="alert">
+        <div class="d-flex">
+            <div class="toast-body"></div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    </div>
+    <div id="errorToast" class="toast align-items-center text-white bg-danger border-0" role="alert">
+        <div class="d-flex">
+            <div class="toast-body"></div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    </div>
+</div>
+
+<script>
+let selectedFiles = [];
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    setupDropZone();
+    setupFileInput();
+    loadJobs();
+    loadLibraries();
+    
+    // Auto-refresh jobs every 10 seconds
+    setInterval(refreshJobs, 10000);
+});
+
+// Drag and drop
+function setupDropZone() {
+    const dropZone = document.getElementById('dropZone');
+    
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, preventDefaults, false);
+    });
+    
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, () => {
+            dropZone.style.borderColor = 'var(--accent-purple)';
+            dropZone.style.background = 'rgba(139, 92, 246, 0.15)';
+        });
+    });
+    
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, () => {
+            dropZone.style.borderColor = '';
+            dropZone.style.background = 'rgba(139, 92, 246, 0.05)';
+        });
+    });
+    
+    dropZone.addEventListener('drop', handleDrop);
+    dropZone.addEventListener('click', () => document.getElementById('fileInput').click());
+}
+
+function handleDrop(e) {
+    const dt = e.dataTransfer;
+    const files = dt.files;
+    handleFiles(files);
+}
+
+function setupFileInput() {
+    document.getElementById('fileInput').addEventListener('change', function(e) {
+        handleFiles(e.target.files);
+    });
+}
+
+function handleFiles(files) {
+    selectedFiles = Array.from(files);
+    displaySelectedFiles();
+    document.getElementById('uploadBtn').disabled = selectedFiles.length === 0;
+}
+
+function displaySelectedFiles() {
+    const container = document.getElementById('selectedFiles');
+    const list = document.getElementById('fileList');
+    
+    if (selectedFiles.length === 0) {
+        container.style.display = 'none';
+        return;
+    }
+    
+    container.style.display = 'block';
+    list.innerHTML = '';
+    
+    selectedFiles.forEach((file, index) => {
+        const item = document.createElement('div');
+        item.className = 'list-group-item d-flex justify-content-between align-items-center';
+        item.innerHTML = `
+            <div>
+                <i class="bi bi-file-earmark-film me-2"></i>
+                <strong>${file.name}</strong>
+                <small class="text-muted ms-2">(${formatFileSize(file.size)})</small>
+            </div>
+            <button class="btn btn-sm btn-outline-danger" onclick="removeFile(${index})">
+                <i class="bi bi-x"></i>
+            </button>
+        `;
+        list.appendChild(item);
+    });
+}
+
+function removeFile(index) {
+    selectedFiles.splice(index, 1);
+    displaySelectedFiles();
+    document.getElementById('uploadBtn').disabled = selectedFiles.length === 0;
+}
+
+// Upload
+document.getElementById('uploadBtn').addEventListener('click', function() {
+    if (selectedFiles.length === 0) return;
+    
+    const formData = new FormData();
+    selectedFiles.forEach(file => formData.append('files', file));
+    
+    const mediaType = document.getElementById('mediaTypeSelect').value;
+    if (mediaType) {
+        formData.append('media_type', mediaType);
+    }
+    
+    showProgress();
+    
+    fetch('/api/plex/import', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        hideProgress();
+        
+        if (data.success) {
+            showToast('success', `Import job created! Processing ${data.uploaded_files.length} files.`);
+            selectedFiles = [];
+            displaySelectedFiles();
+            document.getElementById('uploadBtn').disabled = true;
+            loadJobs();
+        } else {
+            showToast('error', data.error || 'Upload failed');
+        }
+    })
+    .catch(error => {
+        hideProgress();
+        showToast('error', 'Upload failed: ' + error.message);
+    });
+});
+
+function showProgress() {
+    document.getElementById('uploadProgress').style.display = 'block';
+    document.getElementById('uploadBtn').disabled = true;
+}
+
+function hideProgress() {
+    document.getElementById('uploadProgress').style.display = 'none';
+    document.getElementById('uploadBtn').disabled = selectedFiles.length === 0;
+}
+
+// Load jobs
+function loadJobs() {
+    fetch('/api/plex/jobs')
+        .then(response => response.json())
+        .then(data => {
+            displayJobs(data.jobs);
+        })
+        .catch(error => {
+            console.error('Error loading jobs:', error);
+            document.getElementById('jobsLoading').style.display = 'none';
+            document.getElementById('jobsList').style.display = 'block';
+            document.getElementById('noJobs').style.display = 'block';
+        });
+}
+
+function displayJobs(jobs) {
+    const loading = document.getElementById('jobsLoading');
+    const list = document.getElementById('jobsList');
+    const tbody = document.getElementById('jobsTableBody');
+    const noJobs = document.getElementById('noJobs');
+    
+    loading.style.display = 'none';
+    list.style.display = 'block';
+    
+    if (jobs.length === 0) {
+        tbody.innerHTML = '';
+        noJobs.style.display = 'block';
+        return;
+    }
+    
+    noJobs.style.display = 'none';
+    tbody.innerHTML = '';
+    
+    jobs.forEach(job => {
+        const row = document.createElement('tr');
+        const progressPercent = job.total_files > 0 
+            ? Math.round((job.processed_files / job.total_files) * 100) 
+            : 0;
+        
+        row.innerHTML = `
+            <td><code>${job.id.substr(0, 8)}</code></td>
+            <td><span class="badge bg-secondary">${job.job_type}</span></td>
+            <td>${getStatusBadge(job.status)}</td>
+            <td>
+                <div class="progress" style="height: 20px;">
+                    <div class="progress-bar ${getProgressColor(job.status)}" 
+                         role="progressbar" 
+                         style="width: ${progressPercent}%">
+                        ${job.processed_files}/${job.total_files}
+                    </div>
+                </div>
+            </td>
+            <td><small>${formatDate(job.created_at)}</small></td>
+            <td>
+                <button class="btn btn-sm btn-outline-primary" onclick="viewJobDetails('${job.id}')">
+                    <i class="bi bi-eye"></i>
+                </button>
+                ${job.status === 'failed' || job.status === 'cancelled' ? 
+                    `<button class="btn btn-sm btn-outline-warning" onclick="retryJob('${job.id}')">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </button>` : ''}
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteJob('${job.id}')">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+function getStatusBadge(status) {
+    const badges = {
+        'pending': '<span class="badge bg-secondary">Pending</span>',
+        'running': '<span class="badge bg-primary">Running</span>',
+        'completed': '<span class="badge bg-success">Completed</span>',
+        'completed_with_errors': '<span class="badge bg-warning">Completed with Errors</span>',
+        'failed': '<span class="badge bg-danger">Failed</span>',
+        'cancelled': '<span class="badge bg-secondary">Cancelled</span>'
+    };
+    return badges[status] || `<span class="badge bg-secondary">${status}</span>`;
+}
+
+function getProgressColor(status) {
+    const colors = {
+        'completed': 'bg-success',
+        'running': 'bg-primary',
+        'failed': 'bg-danger',
+        'completed_with_errors': 'bg-warning'
+    };
+    return colors[status] || 'bg-secondary';
+}
+
+// Job actions
+function viewJobDetails(jobId) {
+    fetch(`/api/plex/jobs/${jobId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showJobDetailsModal(data.job);
+            }
+        })
+        .catch(error => {
+            showToast('error', 'Failed to load job details');
+        });
+}
+
+function showJobDetailsModal(job) {
+    const content = document.getElementById('jobDetailsContent');
+    
+    let itemsHtml = '';
+    if (job.items && job.items.length > 0) {
+        itemsHtml = `
+            <h6 class="mt-3">Files (${job.items.length}):</h6>
+            <div class="list-group">
+                ${job.items.map(item => `
+                    <div class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>${item.original_filename}</strong>
+                                <br>
+                                <small class="text-muted">
+                                    ${getStatusBadge(item.status)}
+                                    ${item.final_path ? `<br>Path: ${item.final_path}` : ''}
+                                    ${item.error_message ? `<br><span class="text-danger">Error: ${item.error_message}</span>` : ''}
+                                </small>
+                            </div>
+                            <small class="text-muted">${formatFileSize(item.file_size)}</small>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+    
+    content.innerHTML = `
+        <div>
+            <p><strong>Job ID:</strong> ${job.id}</p>
+            <p><strong>Type:</strong> ${job.job_type}</p>
+            <p><strong>Status:</strong> ${getStatusBadge(job.status)}</p>
+            <p><strong>Progress:</strong> ${job.processed_files}/${job.total_files} files</p>
+            <p><strong>Created:</strong> ${formatDate(job.created_at)}</p>
+            ${job.completed_at ? `<p><strong>Completed:</strong> ${formatDate(job.completed_at)}</p>` : ''}
+            ${job.error_message ? `<p><strong>Error:</strong> <span class="text-danger">${job.error_message}</span></p>` : ''}
+            ${itemsHtml}
+        </div>
+    `;
+    
+    const modal = new bootstrap.Modal(document.getElementById('jobDetailsModal'));
+    modal.show();
+}
+
+function retryJob(jobId) {
+    if (!confirm('Retry this import job?')) return;
+    
+    fetch(`/api/plex/jobs/${jobId}/retry`, { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('success', 'Job retry triggered');
+                loadJobs();
+            } else {
+                showToast('error', data.error || 'Retry failed');
+            }
+        })
+        .catch(error => {
+            showToast('error', 'Retry failed: ' + error.message);
+        });
+}
+
+function deleteJob(jobId) {
+    if (!confirm('Delete this import job?')) return;
+    
+    fetch(`/api/plex/jobs/${jobId}`, { method: 'DELETE' })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('success', 'Job deleted');
+                loadJobs();
+            } else {
+                showToast('error', data.error || 'Delete failed');
+            }
+        })
+        .catch(error => {
+            showToast('error', 'Delete failed: ' + error.message);
+        });
+}
+
+function refreshJobs() {
+    loadJobs();
+}
+
+function cleanupOldJobs() {
+    if (!confirm('Cleanup completed jobs older than 30 days?')) return;
+    
+    const formData = new FormData();
+    formData.append('days', 30);
+    
+    fetch('/api/plex/cleanup', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('success', 'Cleanup task triggered');
+            setTimeout(loadJobs, 2000);
+        } else {
+            showToast('error', data.error || 'Cleanup failed');
+        }
+    })
+    .catch(error => {
+        showToast('error', 'Cleanup failed: ' + error.message);
+    });
+}
+
+// Load libraries
+function loadLibraries() {
+    fetch('/api/plex/libraries')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayLibraries(data.libraries);
+            }
+        })
+        .catch(error => {
+            document.getElementById('librariesList').innerHTML = 
+                '<small class="text-danger">Failed to load libraries</small>';
+        });
+}
+
+function displayLibraries(libraries) {
+    const container = document.getElementById('librariesList');
+    
+    if (libraries.length === 0) {
+        container.innerHTML = '<small class="text-muted">No libraries found</small>';
+        return;
+    }
+    
+    container.innerHTML = libraries.map(lib => `
+        <div class="d-flex justify-content-between align-items-center mb-2 p-2 bg-dark rounded">
+            <div>
+                <strong>${lib.title}</strong>
+                <br>
+                <small class="text-muted">${lib.type}</small>
+            </div>
+        </div>
+    `).join('');
+}
+
+// Manual scan
+function triggerManualScan() {
+    fetch('/api/plex/scan', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('success', `Scanned ${data.libraries.length} libraries`);
+            } else {
+                showToast('error', data.error || 'Scan failed');
+            }
+        })
+        .catch(error => {
+            showToast('error', 'Scan failed: ' + error.message);
+        });
+}
+
+// Utilities
+function showToast(type, message) {
+    const toast = document.getElementById(type + 'Toast');
+    toast.querySelector('.toast-body').textContent = message;
+    const bsToast = new bootstrap.Toast(toast);
+    bsToast.show();
+}
+
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+}
+
+function formatDate(dateString) {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleString();
+}
+</script>
+{% endblock %}

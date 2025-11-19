@@ -20,7 +20,7 @@ class PlexImportJob(Base):
     total_files = Column(Integer, nullable=False, default=0)
     processed_files = Column(Integer, nullable=False, default=0)
     target_directory = Column(String(500), nullable=True)
-    metadata = Column(JSONB, nullable=True)
+    job_metadata = Column(JSONB, nullable=True)
     error_message = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
@@ -38,7 +38,7 @@ class PlexImportJob(Base):
             'total_files': self.total_files,
             'processed_files': self.processed_files,
             'target_directory': self.target_directory,
-            'metadata': self.metadata,
+            'job_metadata': self.job_metadata,
             'error_message': self.error_message,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
@@ -59,7 +59,7 @@ class PlexImportItem(Base):
     storage_path = Column(String(1000), nullable=False)  # MinIO path
     final_path = Column(String(1000), nullable=True)  # Final Plex path
     status = Column(String(50), nullable=False, default='pending')
-    metadata = Column(JSONB, nullable=True)
+    item_metadata = Column(JSONB, nullable=True)
     error_message = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
     processed_at = Column(DateTime(timezone=True), nullable=True)
@@ -78,7 +78,7 @@ class PlexImportItem(Base):
             'storage_path': self.storage_path,
             'final_path': self.final_path,
             'status': self.status,
-            'metadata': self.metadata,
+            'item_metadata': self.item_metadata,
             'error_message': self.error_message,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'processed_at': self.processed_at.isoformat() if self.processed_at else None,

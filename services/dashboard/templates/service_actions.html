@@ -1,0 +1,775 @@
+{% extends "base.html" %}
+
+{% block title %}Service Quick Actions - Nebula Command{% endblock %}
+
+{% block head %}
+{{ super() }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+<style>
+    .service-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+        gap: 24px;
+        margin-top: 24px;
+    }
+
+    .service-card {
+        background: linear-gradient(145deg, rgba(31, 41, 55, 0.8) 0%, rgba(17, 24, 39, 0.9) 100%);
+        border: 1px solid rgba(139, 92, 246, 0.2);
+        border-radius: 16px;
+        padding: 24px;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        backdrop-filter: blur(16px);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .service-card:hover {
+        border-color: rgba(139, 92, 246, 0.5);
+        box-shadow: 0 12px 40px rgba(139, 92, 246, 0.3);
+        transform: translateY(-4px);
+    }
+
+    .service-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: linear-gradient(90deg, #8B5CF6, #EC4899, #3B82F6);
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+
+    .service-card:hover::before {
+        opacity: 1;
+    }
+
+    .service-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        margin-bottom: 16px;
+    }
+
+    .service-title {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .status-badge.online {
+        background: rgba(34, 197, 94, 0.2);
+        color: #22c55e;
+        border: 1px solid rgba(34, 197, 94, 0.3);
+    }
+
+    .status-badge.offline {
+        background: rgba(239, 68, 68, 0.2);
+        color: #ef4444;
+        border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .status-badge.restarting {
+        background: rgba(251, 191, 36, 0.2);
+        color: #fbbf24;
+        border: 1px solid rgba(251, 191, 36, 0.3);
+    }
+
+    .status-indicator {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        animation: pulse 2s ease-in-out infinite;
+    }
+
+    .status-indicator.online {
+        background: #22c55e;
+        box-shadow: 0 0 8px rgba(34, 197, 94, 0.6);
+    }
+
+    .status-indicator.offline {
+        background: #ef4444;
+        box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
+    }
+
+    .status-indicator.restarting {
+        background: #fbbf24;
+        box-shadow: 0 0 8px rgba(251, 191, 36, 0.6);
+    }
+
+    @keyframes pulse {
+        0%, 100% {
+            opacity: 1;
+        }
+        50% {
+            opacity: 0.5;
+        }
+    }
+
+    .service-description {
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+        margin-bottom: 20px;
+    }
+
+    .metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+
+    .metric-item {
+        background: rgba(17, 24, 39, 0.5);
+        border: 1px solid rgba(75, 85, 99, 0.3);
+        border-radius: 8px;
+        padding: 12px;
+    }
+
+    .metric-label {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 4px;
+    }
+
+    .metric-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .metric-value.cpu {
+        color: #60a5fa;
+    }
+
+    .metric-value.memory {
+        color: #a78bfa;
+    }
+
+    .metric-value.uptime {
+        color: #34d399;
+    }
+
+    .metric-value.restarts {
+        color: #fbbf24;
+    }
+
+    .chart-container {
+        position: relative;
+        height: 120px;
+        margin-bottom: 20px;
+    }
+
+    .action-buttons {
+        display: flex;
+        gap: 8px;
+        margin-top: 16px;
+    }
+
+    .btn-service {
+        flex: 1;
+        padding: 10px 16px;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.875rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+    }
+
+    .btn-restart {
+        background: linear-gradient(135deg, #f59e0b, #ef4444);
+        color: white;
+    }
+
+    .btn-restart:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+    }
+
+    .btn-restart:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .btn-logs {
+        background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+        color: white;
+    }
+
+    .btn-logs:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+    }
+
+    .btn-visit {
+        background: linear-gradient(135deg, #10b981, #06b6d4);
+        color: white;
+    }
+
+    .btn-visit:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+    }
+
+    .logs-container {
+        display: none;
+        margin-top: 16px;
+        background: rgba(0, 0, 0, 0.4);
+        border: 1px solid rgba(75, 85, 99, 0.3);
+        border-radius: 8px;
+        padding: 16px;
+        max-height: 300px;
+        overflow-y: auto;
+    }
+
+    .logs-container.show {
+        display: block;
+    }
+
+    .logs-text {
+        font-family: 'Courier New', monospace;
+        font-size: 0.8rem;
+        color: #d1d5db;
+        white-space: pre-wrap;
+        line-height: 1.5;
+    }
+
+    .search-filter {
+        margin-bottom: 24px;
+        display: flex;
+        gap: 12px;
+        align-items: center;
+    }
+
+    .search-input {
+        flex: 1;
+        padding: 12px 16px;
+        background: rgba(17, 24, 39, 0.8);
+        border: 1px solid rgba(139, 92, 246, 0.3);
+        border-radius: 8px;
+        color: var(--text-primary);
+        font-size: 0.95rem;
+    }
+
+    .search-input:focus {
+        outline: none;
+        border-color: rgba(139, 92, 246, 0.6);
+        box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+    }
+
+    .refresh-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        background: rgba(17, 24, 39, 0.8);
+        border: 1px solid rgba(139, 92, 246, 0.3);
+        border-radius: 8px;
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+    }
+
+    .spinner {
+        width: 16px;
+        height: 16px;
+        border: 2px solid rgba(139, 92, 246, 0.3);
+        border-top-color: #8b5cf6;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    .summary-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+        margin-bottom: 32px;
+    }
+
+    .summary-card {
+        background: linear-gradient(145deg, rgba(31, 41, 55, 0.6) 0%, rgba(17, 24, 39, 0.8) 100%);
+        border: 1px solid rgba(139, 92, 246, 0.2);
+        border-radius: 12px;
+        padding: 20px;
+        text-align: center;
+        transition: all 0.3s ease;
+    }
+
+    .summary-card:hover {
+        border-color: rgba(139, 92, 246, 0.4);
+        transform: translateY(-2px);
+    }
+
+    .summary-value {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin: 8px 0;
+    }
+
+    .summary-label {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="header">
+    <div>
+        <h2><i class="bi bi-lightning-charge"></i> Service Quick Actions</h2>
+        <p style="color: var(--text-secondary); margin-top: 8px;">Monitor and manage your services in real-time</p>
+    </div>
+    <div class="refresh-indicator">
+        <div class="spinner"></div>
+        <span id="refresh-timer">Updating...</span>
+    </div>
+</div>
+
+<!-- Summary Statistics -->
+<div class="summary-stats">
+    <div class="summary-card">
+        <div class="summary-label">Total Services</div>
+        <div class="summary-value" style="color: #60a5fa;" id="total-services">-</div>
+    </div>
+    <div class="summary-card">
+        <div class="summary-label">Online</div>
+        <div class="summary-value" style="color: #22c55e;" id="online-services">-</div>
+    </div>
+    <div class="summary-card">
+        <div class="summary-label">Offline</div>
+        <div class="summary-value" style="color: #ef4444;" id="offline-services">-</div>
+    </div>
+    <div class="summary-card">
+        <div class="summary-label">Health Score</div>
+        <div class="summary-value" style="color: #a78bfa;" id="health-score">-</div>
+    </div>
+</div>
+
+<!-- Search/Filter -->
+<div class="search-filter">
+    <input type="text" class="search-input" id="service-search" placeholder="Search services...">
+    <button class="btn-primary" onclick="runHealthChecks()">
+        <i class="bi bi-heart-pulse"></i> Run Health Checks
+    </button>
+    <button class="btn-primary" onclick="refreshServices()">
+        <i class="bi bi-arrow-clockwise"></i> Refresh All
+    </button>
+</div>
+
+<!-- Service Cards Grid -->
+<div class="service-grid" id="service-grid">
+    <!-- Services will be dynamically loaded here -->
+</div>
+
+<script>
+let refreshInterval;
+let charts = {};
+let serviceData = {};
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadServices();
+    startAutoRefresh();
+    
+    // Search filter
+    document.getElementById('service-search').addEventListener('input', filterServices);
+});
+
+function loadServices() {
+    fetch('/api/services/status')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                renderServices(data.services);
+                updateSummary(data.services);
+            }
+        })
+        .catch(error => {
+            console.error('Error loading services:', error);
+            showNotification('Error loading services', 'error');
+        });
+}
+
+function renderServices(services) {
+    const grid = document.getElementById('service-grid');
+    grid.innerHTML = '';
+    
+    serviceData = services;
+    
+    services.forEach(service => {
+        const card = createServiceCard(service);
+        grid.appendChild(card);
+    });
+    
+    // Load telemetry for charts
+    loadTelemetryData();
+}
+
+function createServiceCard(service) {
+    const card = document.createElement('div');
+    card.className = 'service-card';
+    card.dataset.serviceName = service.service_name;
+    
+    const statusClass = service.healthy ? 'online' : 'offline';
+    const uptime = formatUptime(service.uptime_seconds || 0);
+    
+    card.innerHTML = `
+        <div class="service-header">
+            <div class="service-title">
+                <i class="bi bi-${getServiceIcon(service.service_name)}"></i>
+                ${service.display_name || service.service_name}
+            </div>
+            <div class="status-badge ${statusClass}">
+                <div class="status-indicator ${statusClass}"></div>
+                ${service.healthy ? 'Online' : 'Offline'}
+            </div>
+        </div>
+        
+        <div class="service-description">
+            ${service.description || 'No description available'}
+        </div>
+        
+        <div class="metrics-grid">
+            <div class="metric-item">
+                <div class="metric-label">CPU Usage</div>
+                <div class="metric-value cpu" id="cpu-${service.service_name}">
+                    ${service.cpu_percent ? service.cpu_percent.toFixed(1) : '0'}%
+                </div>
+            </div>
+            <div class="metric-item">
+                <div class="metric-label">Memory</div>
+                <div class="metric-value memory" id="memory-${service.service_name}">
+                    ${service.memory_percent ? service.memory_percent.toFixed(1) : '0'}%
+                </div>
+            </div>
+            <div class="metric-item">
+                <div class="metric-label">Uptime</div>
+                <div class="metric-value uptime" id="uptime-${service.service_name}">
+                    ${uptime}
+                </div>
+            </div>
+            <div class="metric-item">
+                <div class="metric-label">Restarts</div>
+                <div class="metric-value restarts" id="restarts-${service.service_name}">
+                    ${service.restart_count || 0}
+                </div>
+            </div>
+        </div>
+        
+        <div class="chart-container">
+            <canvas id="chart-${service.service_name}"></canvas>
+        </div>
+        
+        <div class="action-buttons">
+            <button class="btn-service btn-restart" onclick="restartService('${service.service_name}')" id="restart-${service.service_name}">
+                <i class="bi bi-arrow-clockwise"></i> Restart
+            </button>
+            <button class="btn-service btn-logs" onclick="toggleLogs('${service.service_name}')">
+                <i class="bi bi-file-text"></i> Logs
+            </button>
+            ${service.url ? `<a href="${service.url}" target="_blank" class="btn-service btn-visit" style="text-decoration: none;">
+                <i class="bi bi-box-arrow-up-right"></i> Visit
+            </a>` : ''}
+        </div>
+        
+        <div class="logs-container" id="logs-${service.service_name}">
+            <div class="logs-text" id="logs-text-${service.service_name}">Loading logs...</div>
+        </div>
+    `;
+    
+    return card;
+}
+
+function loadTelemetryData() {
+    fetch('/api/services/telemetry')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                Object.keys(data.telemetry).forEach(serviceName => {
+                    createMiniChart(serviceName);
+                });
+            }
+        })
+        .catch(error => console.error('Error loading telemetry:', error));
+}
+
+function createMiniChart(serviceName) {
+    const ctx = document.getElementById(`chart-${serviceName}`);
+    if (!ctx) return;
+    
+    // Fetch history data
+    fetch(`/api/services/${serviceName}/history?hours=1`)
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success || !data.history.length) {
+                return;
+            }
+            
+            const history = data.history.reverse();
+            const labels = history.map(h => new Date(h.timestamp).toLocaleTimeString());
+            const cpuData = history.map(h => h.cpu_percent || 0);
+            const memData = history.map(h => h.memory_percent || 0);
+            
+            if (charts[serviceName]) {
+                charts[serviceName].destroy();
+            }
+            
+            charts[serviceName] = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'CPU %',
+                        data: cpuData,
+                        borderColor: '#60a5fa',
+                        backgroundColor: 'rgba(96, 165, 250, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }, {
+                        label: 'Memory %',
+                        data: memData,
+                        borderColor: '#a78bfa',
+                        backgroundColor: 'rgba(167, 139, 250, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        x: {
+                            display: false
+                        },
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: {
+                                color: '#9ca3af',
+                                font: {
+                                    size: 10
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(75, 85, 99, 0.2)'
+                            }
+                        }
+                    }
+                }
+            });
+        });
+}
+
+function restartService(serviceName) {
+    if (!confirm(`Are you sure you want to restart ${serviceName}? This will cause a brief service interruption.`)) {
+        return;
+    }
+    
+    const button = document.getElementById(`restart-${serviceName}`);
+    button.disabled = true;
+    button.innerHTML = '<i class="bi bi-hourglass-split"></i> Restarting...';
+    
+    fetch(`/api/services/${serviceName}/restart`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification(`${serviceName} restarted successfully`, 'success');
+            setTimeout(() => {
+                loadServices();
+            }, 2000);
+        } else {
+            showNotification(`Failed to restart ${serviceName}: ${data.error}`, 'error');
+            button.disabled = false;
+            button.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Restart';
+        }
+    })
+    .catch(error => {
+        showNotification(`Error restarting ${serviceName}`, 'error');
+        button.disabled = false;
+        button.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Restart';
+    });
+}
+
+function toggleLogs(serviceName) {
+    const logsContainer = document.getElementById(`logs-${serviceName}`);
+    const logsText = document.getElementById(`logs-text-${serviceName}`);
+    
+    if (logsContainer.classList.contains('show')) {
+        logsContainer.classList.remove('show');
+    } else {
+        logsContainer.classList.add('show');
+        
+        // Load logs
+        fetch(`/api/services/${serviceName}/logs?lines=50`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    logsText.textContent = data.logs || 'No logs available';
+                } else {
+                    logsText.textContent = `Error loading logs: ${data.error}`;
+                }
+            })
+            .catch(error => {
+                logsText.textContent = `Error loading logs: ${error}`;
+            });
+    }
+}
+
+function runHealthChecks() {
+    showNotification('Running health checks...', 'info');
+    
+    fetch('/api/services/health-check', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification(`Health check complete: ${data.summary.healthy}/${data.summary.total} services healthy`, 'success');
+            loadServices();
+        } else {
+            showNotification('Health check failed', 'error');
+        }
+    })
+    .catch(error => {
+        showNotification('Error running health checks', 'error');
+    });
+}
+
+function refreshServices() {
+    loadServices();
+    showNotification('Services refreshed', 'success');
+}
+
+function filterServices() {
+    const searchTerm = document.getElementById('service-search').value.toLowerCase();
+    const cards = document.querySelectorAll('.service-card');
+    
+    cards.forEach(card => {
+        const serviceName = card.dataset.serviceName.toLowerCase();
+        const text = card.textContent.toLowerCase();
+        
+        if (serviceName.includes(searchTerm) || text.includes(searchTerm)) {
+            card.style.display = '';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+}
+
+function updateSummary(services) {
+    const total = services.length;
+    const online = services.filter(s => s.healthy).length;
+    const offline = total - online;
+    const healthScore = total > 0 ? Math.round((online / total) * 100) : 0;
+    
+    document.getElementById('total-services').textContent = total;
+    document.getElementById('online-services').textContent = online;
+    document.getElementById('offline-services').textContent = offline;
+    document.getElementById('health-score').textContent = healthScore + '%';
+}
+
+function startAutoRefresh() {
+    let countdown = 15;
+    
+    const updateTimer = () => {
+        document.getElementById('refresh-timer').textContent = `Next refresh in ${countdown}s`;
+        countdown--;
+        
+        if (countdown < 0) {
+            loadServices();
+            countdown = 15;
+        }
+    };
+    
+    refreshInterval = setInterval(updateTimer, 1000);
+    updateTimer();
+}
+
+function formatUptime(seconds) {
+    if (seconds < 60) return `${seconds}s`;
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
+    return `${Math.floor(seconds / 86400)}d`;
+}
+
+function getServiceIcon(serviceName) {
+    const icons = {
+        'discord-bot': 'discord',
+        'stream-bot': 'twitch',
+        'n8n': 'gear',
+        'plex': 'play-circle',
+        'static-site': 'globe',
+        'vnc': 'display'
+    };
+    return icons[serviceName] || 'box';
+}
+
+function showNotification(message, type) {
+    // Create toast notification
+    const toast = document.createElement('div');
+    toast.className = `alert alert-${type}`;
+    toast.style.position = 'fixed';
+    toast.style.top = '20px';
+    toast.style.right = '20px';
+    toast.style.zIndex = '9999';
+    toast.style.minWidth = '300px';
+    toast.textContent = message;
+    
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.remove();
+    }, 3000);
+}
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', function() {
+    if (refreshInterval) {
+        clearInterval(refreshInterval);
+    }
+    Object.values(charts).forEach(chart => chart.destroy());
+});
+</script>
+{% endblock %}

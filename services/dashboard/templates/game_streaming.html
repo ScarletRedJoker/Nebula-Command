@@ -48,9 +48,119 @@
 <div class="container-fluid mt-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1><i class="bi bi-controller"></i> Game Streaming</h1>
-        <a href="/static/MOONLIGHT_SETUP.md" target="_blank" class="btn btn-outline-primary">
-            <i class="bi bi-book"></i> Setup Guide
-        </a>
+        <div>
+            <button class="btn btn-primary" onclick="loadHosts()">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+            <a href="/static/MOONLIGHT_SETUP.md" target="_blank" class="btn btn-outline-primary">
+                <i class="bi bi-book"></i> Setup Guide
+            </a>
+        </div>
+    </div>
+
+    <!-- Auto-Discovery Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-search"></i> Auto-Discovery</h5>
+                    <button class="btn btn-sm btn-success" onclick="discoverHosts()">
+                        <i class="bi bi-radar"></i> Scan Network
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div id="discovery-status" class="alert alert-info" style="display:none;">
+                        <i class="bi bi-hourglass-split"></i> Scanning network for Sunshine hosts...
+                    </div>
+                    <p class="text-muted">Automatically discover Sunshine hosts on your local network. This will scan for devices running Sunshine on standard ports.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Host Management Table -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-pc-display"></i> Configured Hosts</h5>
+                    <button class="btn btn-sm btn-primary" onclick="showAddHostModal()">
+                        <i class="bi bi-plus-circle"></i> Add Host
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div id="hosts-table-container">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Host Name</th>
+                                    <th>IP Address</th>
+                                    <th>GPU</th>
+                                    <th>Status</th>
+                                    <th>Paired</th>
+                                    <th>Last Online</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="hosts-table-body">
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted">
+                                        <i class="bi bi-inbox"></i> No hosts configured. Click "Add Host" or "Scan Network" to get started.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Diagnostics Panel -->
+    <div class="row mb-4" id="diagnostics-panel" style="display:none;">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-shield-check"></i> Diagnostics Results</h5>
+                </div>
+                <div class="card-body">
+                    <div id="diagnostics-content"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Session History -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-clock-history"></i> Recent Sessions</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Host</th>
+                                <th>Game/App</th>
+                                <th>Resolution</th>
+                                <th>FPS</th>
+                                <th>Latency</th>
+                                <th>Duration</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="sessions-table-body">
+                            <tr>
+                                <td colspan="7" class="text-center text-muted">
+                                    <i class="bi bi-inbox"></i> No recent sessions
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Windows 11 KVM Card -->
@@ -277,7 +387,472 @@
 {% endblock %}
 
 {% block extra_js %}
+<!-- Add Host Modal -->
+<div class="modal fade" id="addHostModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add Sunshine Host</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addHostForm">
+                    <div class="mb-3">
+                        <label class="form-label">Host IP Address *</label>
+                        <input type="text" class="form-control" id="hostIp" required 
+                               placeholder="192.168.1.100">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Host Name (optional)</label>
+                        <input type="text" class="form-control" id="hostName" 
+                               placeholder="Windows Gaming PC">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="addHost()">Add Host</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Pairing Modal -->
+<div class="modal fade" id="pairHostModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Pair with Sunshine Host</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>1. Open Moonlight client</p>
+                <p>2. Click "Add PC" and enter the host IP address</p>
+                <p>3. Moonlight will show a 4-digit PIN</p>
+                <p>4. Enter that PIN below:</p>
+                <form id="pairHostForm">
+                    <input type="hidden" id="pairHostId">
+                    <div class="mb-3">
+                        <label class="form-label">PIN from Moonlight *</label>
+                        <input type="text" class="form-control form-control-lg text-center" 
+                               id="pairingPin" required maxlength="4" placeholder="0000"
+                               style="font-size: 2rem; letter-spacing: 1rem;">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" onclick="pairHost()">Pair</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
+    let hosts = [];
+    let sessions = [];
+
+    // Load hosts on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        loadHosts();
+        loadSessions();
+    });
+
+    // Load configured hosts
+    function loadHosts() {
+        fetch('/api/gaming/hosts')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    hosts = data.hosts;
+                    renderHostsTable();
+                }
+            })
+            .catch(error => {
+                console.error('Failed to load hosts:', error);
+            });
+    }
+
+    // Render hosts table
+    function renderHostsTable() {
+        const tbody = document.getElementById('hosts-table-body');
+        
+        if (hosts.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="text-center text-muted">
+                        <i class="bi bi-inbox"></i> No hosts configured. Click "Add Host" or "Scan Network" to get started.
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        tbody.innerHTML = hosts.map(host => {
+            const statusBadge = host.is_online !== false ? 
+                '<span class="badge bg-success">Online</span>' : 
+                '<span class="badge bg-secondary">Unknown</span>';
+            
+            const pairedBadge = host.is_paired ? 
+                '<span class="badge bg-success"><i class="bi bi-check-circle"></i> Paired</span>' : 
+                '<span class="badge bg-warning"><i class="bi bi-exclamation-circle"></i> Not Paired</span>';
+            
+            const lastOnline = host.last_online ? 
+                new Date(host.last_online).toLocaleString() : 'Never';
+            
+            return `
+                <tr>
+                    <td><strong>${host.host_name || 'Unknown'}</strong></td>
+                    <td><code>${host.host_ip}</code></td>
+                    <td>${host.gpu_model || 'N/A'}</td>
+                    <td>${statusBadge}</td>
+                    <td>${pairedBadge}</td>
+                    <td><small>${lastOnline}</small></td>
+                    <td>
+                        <div class="btn-group btn-group-sm">
+                            ${!host.is_paired ? `<button class="btn btn-success" onclick="showPairModal('${host.id}')" title="Pair">
+                                <i class="bi bi-link-45deg"></i>
+                            </button>` : ''}
+                            <button class="btn btn-info" onclick="runDiagnostics('${host.id}')" title="Run Diagnostics">
+                                <i class="bi bi-shield-check"></i>
+                            </button>
+                            <button class="btn btn-primary" onclick="viewApps('${host.id}')" title="View Apps">
+                                <i class="bi bi-controller"></i>
+                            </button>
+                            <button class="btn btn-danger" onclick="deleteHost('${host.id}')" title="Delete">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    // Discover hosts
+    function discoverHosts() {
+        const statusDiv = document.getElementById('discovery-status');
+        statusDiv.style.display = 'block';
+        statusDiv.className = 'alert alert-info';
+        statusDiv.innerHTML = '<i class="bi bi-hourglass-split"></i> Scanning network for Sunshine hosts...';
+
+        fetch('/api/gaming/hosts/discover', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ async: true })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                statusDiv.className = 'alert alert-success';
+                statusDiv.innerHTML = '<i class="bi bi-check-circle"></i> Discovery started! Refreshing in 10 seconds...';
+                
+                // Refresh after 10 seconds
+                setTimeout(() => {
+                    loadHosts();
+                    statusDiv.style.display = 'none';
+                }, 10000);
+            } else {
+                statusDiv.className = 'alert alert-danger';
+                statusDiv.innerHTML = '<i class="bi bi-x-circle"></i> Discovery failed: ' + data.error;
+            }
+        })
+        .catch(error => {
+            statusDiv.className = 'alert alert-danger';
+            statusDiv.innerHTML = '<i class="bi bi-x-circle"></i> Discovery failed: ' + error;
+        });
+    }
+
+    // Show add host modal
+    function showAddHostModal() {
+        document.getElementById('hostIp').value = '';
+        document.getElementById('hostName').value = '';
+        new bootstrap.Modal(document.getElementById('addHostModal')).show();
+    }
+
+    // Add host
+    function addHost() {
+        const hostIp = document.getElementById('hostIp').value.trim();
+        const hostName = document.getElementById('hostName').value.trim();
+
+        if (!hostIp) {
+            alert('Please enter a host IP address');
+            return;
+        }
+
+        fetch('/api/gaming/hosts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ host_ip: hostIp, host_name: hostName })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                bootstrap.Modal.getInstance(document.getElementById('addHostModal')).hide();
+                loadHosts();
+                alert('Host added successfully!');
+            } else {
+                alert('Failed to add host: ' + data.error);
+            }
+        })
+        .catch(error => {
+            alert('Failed to add host: ' + error);
+        });
+    }
+
+    // Show pair modal
+    function showPairModal(hostId) {
+        document.getElementById('pairHostId').value = hostId;
+        document.getElementById('pairingPin').value = '';
+        new bootstrap.Modal(document.getElementById('pairHostModal')).show();
+    }
+
+    // Pair host
+    function pairHost() {
+        const hostId = document.getElementById('pairHostId').value;
+        const pin = document.getElementById('pairingPin').value.trim();
+
+        if (!pin || pin.length !== 4) {
+            alert('Please enter a 4-digit PIN');
+            return;
+        }
+
+        fetch('/api/gaming/pair', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ host_id: hostId, pin: pin })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                bootstrap.Modal.getInstance(document.getElementById('pairHostModal')).hide();
+                loadHosts();
+                alert('Pairing successful!');
+            } else {
+                alert('Pairing failed: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Pairing failed: ' + error);
+        });
+    }
+
+    // Delete host
+    function deleteHost(hostId) {
+        if (!confirm('Are you sure you want to delete this host?')) {
+            return;
+        }
+
+        fetch(`/api/gaming/hosts/${hostId}`, { method: 'DELETE' })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                loadHosts();
+                alert('Host deleted successfully');
+            } else {
+                alert('Failed to delete host: ' + data.error);
+            }
+        })
+        .catch(error => {
+            alert('Failed to delete host: ' + error);
+        });
+    }
+
+    // Run diagnostics
+    function runDiagnostics(hostId) {
+        const panel = document.getElementById('diagnostics-panel');
+        const content = document.getElementById('diagnostics-content');
+        
+        panel.style.display = 'block';
+        content.innerHTML = '<div class="text-center"><i class="bi bi-hourglass-split"></i> Running diagnostics...</div>';
+
+        fetch('/api/gaming/diagnostics', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ host_id: hostId })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                renderDiagnostics(data.diagnostics);
+            } else {
+                content.innerHTML = '<div class="alert alert-danger">Diagnostics failed: ' + data.error + '</div>';
+            }
+        })
+        .catch(error => {
+            content.innerHTML = '<div class="alert alert-danger">Diagnostics failed: ' + error + '</div>';
+        });
+    }
+
+    // Render diagnostics
+    function renderDiagnostics(diag) {
+        const content = document.getElementById('diagnostics-content');
+        
+        let html = `
+            <h6>Host: ${diag.host_name} (${diag.host_ip})</h6>
+            <p class="text-muted">Test completed at ${new Date(diag.timestamp).toLocaleString()}</p>
+            
+            <div class="alert alert-${diag.overall_status === 'healthy' ? 'success' : 'warning'}">
+                <strong>Overall Status:</strong> ${diag.overall_status === 'healthy' ? 'Healthy' : 'Issues Detected'}
+            </div>
+
+            <div class="row">
+        `;
+
+        // Ping test
+        if (diag.tests.ping) {
+            html += `
+                <div class="col-md-6 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h6><i class="bi bi-wifi"></i> Ping Test</h6>
+                            <p class="mb-1">${diag.tests.ping.success ? 
+                                '<span class="badge bg-success">Passed</span>' : 
+                                '<span class="badge bg-danger">Failed</span>'}</p>
+                            ${diag.tests.ping.latency_ms ? 
+                                `<small>Latency: ${diag.tests.ping.latency_ms}ms</small>` : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Latency test
+        if (diag.tests.latency) {
+            html += `
+                <div class="col-md-6 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h6><i class="bi bi-speedometer"></i> Latency Test</h6>
+                            <p class="mb-1">${diag.tests.latency.success ? 
+                                '<span class="badge bg-success">Passed</span>' : 
+                                '<span class="badge bg-danger">Failed</span>'}</p>
+                            ${diag.tests.latency.avg_ms ? 
+                                `<small>Average: ${diag.tests.latency.avg_ms}ms (${diag.tests.latency.quality})</small>` : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // API test
+        if (diag.tests.api) {
+            html += `
+                <div class="col-md-6 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h6><i class="bi bi-gear"></i> Sunshine API</h6>
+                            <p class="mb-1">${diag.tests.api.success ? 
+                                '<span class="badge bg-success">Accessible</span>' : 
+                                '<span class="badge bg-danger">Failed</span>'}</p>
+                            <small>${diag.tests.api.message}</small>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Ports test
+        if (diag.tests.ports) {
+            html += `
+                <div class="col-md-6 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h6><i class="bi bi-ethernet"></i> Port Connectivity</h6>
+                            <p class="mb-1">${diag.tests.ports.success ? 
+                                '<span class="badge bg-success">All Open</span>' : 
+                                '<span class="badge bg-warning">Some Blocked</span>'}</p>
+                            <small>${diag.tests.ports.message}</small>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        html += '</div>';
+        content.innerHTML = html;
+    }
+
+    // View applications
+    function viewApps(hostId) {
+        fetch(`/api/gaming/apps?host_id=${hostId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.applications.length > 0) {
+                let appsList = data.applications.map(app => 
+                    `- ${app.name || app.title || 'Unnamed'}`
+                ).join('\n');
+                alert(`Available Applications:\n\n${appsList}`);
+            } else {
+                alert('No applications found or failed to retrieve applications.');
+            }
+        })
+        .catch(error => {
+            alert('Failed to get applications: ' + error);
+        });
+    }
+
+    // Load sessions
+    function loadSessions() {
+        fetch('/api/gaming/sessions?limit=10')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    sessions = data.sessions;
+                    renderSessionsTable();
+                }
+            })
+            .catch(error => {
+                console.error('Failed to load sessions:', error);
+            });
+    }
+
+    // Render sessions table
+    function renderSessionsTable() {
+        const tbody = document.getElementById('sessions-table-body');
+        
+        if (sessions.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="text-center text-muted">
+                        <i class="bi bi-inbox"></i> No recent sessions
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        tbody.innerHTML = sessions.map(session => {
+            const latencyBadge = session.latency_ms < 30 ? 'latency-good' : 
+                                 session.latency_ms < 100 ? 'latency-fair' : 'latency-poor';
+            
+            const duration = session.duration_seconds ? 
+                Math.round(session.duration_seconds / 60) + ' min' : 
+                'In progress';
+            
+            const statusBadge = session.status === 'active' ? 
+                '<span class="badge bg-success">Active</span>' : 
+                '<span class="badge bg-secondary">Disconnected</span>';
+            
+            return `
+                <tr>
+                    <td>${session.host_name || session.host_ip}</td>
+                    <td>${session.game_name || 'Desktop'}</td>
+                    <td>${session.resolution || 'N/A'}</td>
+                    <td>${session.fps || 'N/A'} FPS</td>
+                    <td>
+                        ${session.latency_ms ? `
+                            <span class="latency-indicator ${latencyBadge}"></span>
+                            ${session.latency_ms}ms
+                        ` : 'N/A'}
+                    </td>
+                    <td>${duration}</td>
+                    <td>${statusBadge}</td>
+                </tr>
+            `;
+        }).join('');
+    }
+
     function copyAddress() {
         const address = document.getElementById('connection-address').textContent;
         navigator.clipboard.writeText(address);
