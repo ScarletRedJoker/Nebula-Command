@@ -229,11 +229,17 @@ www.scarletredjoker.com {
 # ============================================
 home.evindrake.net {
     reverse_proxy homeassistant:8123 {
-        header_up Host {host}
-        header_up X-Real-IP {remote_host}
-        
         # WebSocket support for Home Assistant
         header_up Upgrade {>Upgrade}
         header_up Connection {>Connection}
+        
+        # Preserve original request info for Home Assistant
+        header_up X-Forwarded-Host {host}
+        
+        # Increase timeout for long-polling connections
+        transport http {
+            read_timeout 90s
+            write_timeout 90s
+        }
     }
 }

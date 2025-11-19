@@ -24,15 +24,20 @@ function isRateLimitError(error: any): boolean {
   );
 }
 
-const DEFAULT_PROMPT = `Generate a fun and interesting Snapple-style fact. These should be surprising, entertaining, and true facts about the world. Keep it under 200 characters so it fits in a chat message. Just return the fact itself, no quotes or extra text.
+const DEFAULT_PROMPT = `Generate a fun, interesting, and mind-blowing fact about life, the universe, science, history, nature, or weird phenomena. These should be surprising Snapple-style facts that make people say "wow, I didn't know that!" 
 
-Examples:
+Topics to explore: space, animals, physics, human body, ancient civilizations, food science, geography, inventions, music, art, mathematics, weird laws, unusual traditions, or bizarre natural phenomena.
+
+Keep it under 200 characters so it fits in a chat message. Just return the fact itself, no quotes or extra text.
+
+Examples of good facts:
 - The first oranges weren't orange - they were green
 - A group of flamingos is called a "flamboyance"
-- Honey never spoils - archaeologists found 3000-year-old honey that was still edible
-- Octopuses have three hearts and blue blood
+- Honey never spoils - 3000-year-old honey is still edible
+- Bananas are berries, but strawberries aren't
+- There are more stars in space than grains of sand on Earth
 
-Generate one unique fact now:`;
+Generate one completely unique and fascinating fact now:`;
 
 export async function generateSnappleFact(customPrompt?: string, model: string = "gpt-4.1-mini"): Promise<string> {
   const prompt = customPrompt || DEFAULT_PROMPT;
