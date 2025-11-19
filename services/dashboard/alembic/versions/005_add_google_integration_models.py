@@ -4,10 +4,15 @@ Revision ID: 005
 Revises: 004
 Create Date: 2025-11-14 12:00:00.000000
 
+NASA-Grade Migration:
+- Manual enum creation with DO/EXCEPTION blocks for idempotency
+- All sa.Enum() use create_type=False to prevent SQLAlchemy auto-creation
+- Advisory locks in env.py prevent concurrent migration race conditions
+- Full rollback support
 """
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy import inspect
+from sqlalchemy import inspect, text
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
@@ -21,43 +26,58 @@ def upgrade() -> None:
     bind = op.get_bind()
     inspector = inspect(bind)
     
-    # Create enums for Google integration (fully idempotent - safe to run multiple times)
-    # Using EXCEPTION handling to prevent race conditions during concurrent migrations
-    op.execute("""
+    # Create enums with idempotent DO/EXCEPTION blocks
+    # Advisory locks in env.py prevent concurrent migrations
+    # This must happen BEFORE creating tables
+    
+    op.execute(text("""
         DO $$ BEGIN
             CREATE TYPE serviceconnectionstatus AS ENUM ('connected', 'disconnected', 'error', 'pending');
+            RAISE NOTICE 'Created ENUM serviceconnectionstatus';
         EXCEPTION
-            WHEN duplicate_object THEN null;
+            WHEN duplicate_object THEN
+                RAISE NOTICE 'ENUM serviceconnectionstatus already exists, skipping';
         END $$;
-    """)
-    op.execute("""
+    """))
+    
+    op.execute(text("""
         DO $$ BEGIN
             CREATE TYPE automationstatus AS ENUM ('active', 'inactive', 'error');
+            RAISE NOTICE 'Created ENUM automationstatus';
         EXCEPTION
-            WHEN duplicate_object THEN null;
+            WHEN duplicate_object THEN
+                RAISE NOTICE 'ENUM automationstatus already exists, skipping';
         END $$;
-    """)
-    op.execute("""
+    """))
+    
+    op.execute(text("""
         DO $$ BEGIN
             CREATE TYPE emailnotificationstatus AS ENUM ('pending', 'sent', 'failed');
+            RAISE NOTICE 'Created ENUM emailnotificationstatus';
         EXCEPTION
-            WHEN duplicate_object THEN null;
+            WHEN duplicate_object THEN
+                RAISE NOTICE 'ENUM emailnotificationstatus already exists, skipping';
         END $$;
-    """)
-    op.execute("""
+    """))
+    
+    op.execute(text("""
         DO $$ BEGIN
             CREATE TYPE backupstatus AS ENUM ('pending', 'uploading', 'completed', 'failed');
+            RAISE NOTICE 'Created ENUM backupstatus';
         EXCEPTION
-            WHEN duplicate_object THEN null;
+            WHEN duplicate_object THEN
+                RAISE NOTICE 'ENUM backupstatus already exists, skipping';
         END $$;
-    """)
+    """))
     
     # Create google_service_status table if it doesn't exist
+    # CRITICAL: Use create_type=False to prevent SQLAlchemy from auto-creating the enum
+    # The enum was already created above using EnumManager
     if not inspector.has_table('google_service_status'):
         op.create_table('google_service_status',
             sa.Column('id', postgresql.UUID(as_uuid=True), nullable=False),
             sa.Column('service_name', sa.String(length=50), nullable=False),
-            sa.Column('status', sa.Enum('connected', 'disconnected', 'error', 'pending', name='serviceconnectionstatus'), nullable=False, server_default='disconnected'),
+            sa.Column('status', postgresql.ENUM('connected', 'disconnected', 'error', 'pending', name='serviceconnectionstatus', create_type=False), nullable=False, server_default='disconnected'),
             sa.Column('last_connected', sa.DateTime(timezone=True), nullable=True),
             sa.Column('last_error', sa.Text(), nullable=True),
             sa.Column('error_count', sa.Integer(), nullable=False, server_default='0'),
@@ -82,7 +102,7 @@ def upgrade() -> None:
             sa.Column('ha_service_data', postgresql.JSON(astext_type=sa.Text()), nullable=True),
             sa.Column('lead_time_minutes', sa.Integer(), nullable=False, server_default='15'),
             sa.Column('lag_time_minutes', sa.Integer(), nullable=False, server_default='0'),
-            sa.Column('status', sa.Enum('active', 'inactive', 'error', name='automationstatus'), nullable=False, server_default='active'),
+            sa.Column('status', postgresql.ENUM('active', 'inactive', 'error', name='automationstatus', create_type=False), nullable=False, server_default='active'),
             sa.Column('last_triggered', sa.DateTime(timezone=True), nullable=True),
             sa.Column('trigger_count', sa.Integer(), nullable=False, server_default='0'),
             sa.Column('last_error', sa.Text(), nullable=True),
@@ -99,7 +119,7 @@ def upgrade() -> None:
             sa.Column('recipient', sa.String(length=255), nullable=False),
             sa.Column('subject', sa.String(length=500), nullable=False),
             sa.Column('template_type', sa.String(length=50), nullable=False, server_default='custom'),
-            sa.Column('status', sa.Enum('pending', 'sent', 'failed', name='emailnotificationstatus'), nullable=False, server_default='pending'),
+            sa.Column('status', postgresql.ENUM('pending', 'sent', 'failed', name='emailnotificationstatus', create_type=False), nullable=False, server_default='pending'),
             sa.Column('gmail_message_id', sa.String(length=255), nullable=True),
             sa.Column('gmail_thread_id', sa.String(length=255), nullable=True),
             sa.Column('sent_at', sa.DateTime(timezone=True), nullable=True),
@@ -120,7 +140,7 @@ def upgrade() -> None:
             sa.Column('file_size', sa.Integer(), nullable=False, server_default='0'),
             sa.Column('local_path', sa.String(length=1000), nullable=True),
             sa.Column('drive_folder_id', sa.String(length=255), nullable=True),
-            sa.Column('status', sa.Enum('pending', 'uploading', 'completed', 'failed', name='backupstatus'), nullable=False, server_default='pending'),
+            sa.Column('status', postgresql.ENUM('pending', 'uploading', 'completed', 'failed', name='backupstatus', create_type=False), nullable=False, server_default='pending'),
             sa.Column('uploaded_at', sa.DateTime(timezone=True), nullable=True),
             sa.Column('web_view_link', sa.String(length=1000), nullable=True),
             sa.Column('backup_type', sa.String(length=100), nullable=False, server_default='manual'),
