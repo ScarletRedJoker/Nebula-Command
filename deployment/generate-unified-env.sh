@@ -372,6 +372,33 @@ RESET_DB=${RESET_DB}
 
 EOF
 
+# Collect Home Assistant values
+echo ""
+echo "=== Home Assistant Configuration ==="
+echo "Configure connection to your Home Assistant instance:"
+echo "  - For Docker internal: http://homeassistant:8123"
+echo "  - For external access: https://home.evindrake.net"
+echo "To get a long-lived access token:"
+echo "  1. Go to your Home Assistant profile"
+echo "  2. Navigate to Security tab"
+echo "  3. Click 'Create Token' under Long-Lived Access Tokens"
+HOME_ASSISTANT_URL=$(get_or_generate "HOME_ASSISTANT_URL" "Home Assistant URL" "PROMPT" "http://homeassistant:8123")
+HOME_ASSISTANT_TOKEN=$(get_or_generate "HOME_ASSISTANT_TOKEN" "Home Assistant long-lived access token" "PROMPT" "")
+HOME_ASSISTANT_VERIFY_SSL=$(get_or_generate "HOME_ASSISTANT_VERIFY_SSL" "Verify SSL certificates (True/False)" "PROMPT" "False")
+
+# Write to temp file
+cat >> "$TEMP_ENV" << EOF
+# ============================================
+# Home Assistant (home.evindrake.net)
+# ============================================
+# URL: http://homeassistant:8123 (Docker) or https://home.evindrake.net (external)
+# Get long-lived access token: Profile > Security > Create Token
+HOME_ASSISTANT_URL=${HOME_ASSISTANT_URL}
+HOME_ASSISTANT_TOKEN=${HOME_ASSISTANT_TOKEN}
+HOME_ASSISTANT_VERIFY_SSL=${HOME_ASSISTANT_VERIFY_SSL}
+
+EOF
+
 
 # Collect Plex values
 echo ""
