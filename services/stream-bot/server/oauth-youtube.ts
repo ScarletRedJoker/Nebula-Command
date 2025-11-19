@@ -11,7 +11,7 @@ import {
   encryptToken,
   decryptToken 
 } from "./crypto-utils";
-import { oauthStorage } from "./oauth-storage";
+import { oauthStorageDB } from "./oauth-storage-db";
 
 const router = Router();
 
@@ -28,7 +28,7 @@ const YOUTUBE_SCOPES = [
  * Step 1: Initiate YouTube/Google OAuth flow
  * GET /auth/youtube
  */
-router.get('/youtube', requireAuth, (req, res) => {
+router.get('/youtube', requireAuth, async (req, res) => {
   try {
     const clientId = getEnv('YOUTUBE_CLIENT_ID');
     const redirectUri = getEnv('YOUTUBE_REDIRECT_URI');
@@ -44,11 +44,12 @@ router.get('/youtube', requireAuth, (req, res) => {
     const codeVerifier = generateCodeVerifier();
     const codeChallenge = generateCodeChallenge(codeVerifier);
 
-    // Store OAuth session for callback verification
-    oauthStorage.set(state, {
+    // Store OAuth session for callback verification (database-backed)
+    await oauthStorageDB.set(state, {
       userId: req.user!.id,
       platform: 'youtube',
       codeVerifier,
+      ipAddress: req.ip,
     });
 
     // Build authorization URL
@@ -91,8 +92,8 @@ router.get('/youtube/callback', async (req, res) => {
   }
 
   try {
-    // Verify state and get OAuth session
-    const session = oauthStorage.get(state);
+    // Verify state and get OAuth session (database-backed with atomic replay protection)
+    const session = await oauthStorageDB.consume(state);
     if (!session) {
       console.error('[YouTube OAuth] Invalid or expired state');
       return res.redirect('/settings?error=youtube_invalid_state');

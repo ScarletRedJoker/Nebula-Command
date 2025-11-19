@@ -11,7 +11,7 @@ import {
   encryptToken,
   decryptToken 
 } from "./crypto-utils";
-import { oauthStorage } from "./oauth-storage";
+import { oauthStorageDB } from "./oauth-storage-db";
 
 const router = Router();
 
@@ -31,7 +31,7 @@ const TWITCH_SCOPES = [
  * Step 1: Initiate Twitch OAuth flow
  * GET /auth/twitch
  */
-router.get('/twitch', requireAuth, (req, res) => {
+router.get('/twitch', requireAuth, async (req, res) => {
   try {
     const clientId = getEnv('TWITCH_CLIENT_ID');
     const redirectUri = getEnv('TWITCH_REDIRECT_URI');
@@ -47,11 +47,12 @@ router.get('/twitch', requireAuth, (req, res) => {
     const codeVerifier = generateCodeVerifier();
     const codeChallenge = generateCodeChallenge(codeVerifier);
 
-    // Store OAuth session for callback verification
-    oauthStorage.set(state, {
+    // Store OAuth session for callback verification (database-backed)
+    await oauthStorageDB.set(state, {
       userId: req.user!.id,
       platform: 'twitch',
       codeVerifier,
+      ipAddress: req.ip,
     });
 
     // Build authorization URL
@@ -92,8 +93,8 @@ router.get('/twitch/callback', async (req, res) => {
   }
 
   try {
-    // Verify state and get OAuth session
-    const session = oauthStorage.get(state);
+    // Verify state and get OAuth session (database-backed with atomic replay protection)
+    const session = await oauthStorageDB.consume(state);
     if (!session) {
       console.error('[Twitch OAuth] Invalid or expired state');
       return res.redirect('/settings?error=twitch_invalid_state');
@@ -161,8 +162,8 @@ router.get('/twitch/callback', async (req, res) => {
       }
     );
 
-    // Clear OAuth session
-    oauthStorage.delete(state);
+    // OAuth session already consumed (marked as used) by consume() call above
+    // Cleanup job will automatically remove used/expired sessions
 
     console.log(`[Twitch OAuth] Successfully connected user ${session.userId} to Twitch (@${login})`);
     res.redirect('/settings?success=twitch_connected');
