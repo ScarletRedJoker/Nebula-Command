@@ -24,7 +24,9 @@ def upgrade():
         sa.Column('is_active', sa.Boolean(), default=True),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
         sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
-        sa.PrimaryKeyConstraint('id')
+        sa.PrimaryKeyConstraint('id'),
+        sa.UniqueConstraint('mount_point', name='uq_nas_mounts_mount_point'),
+        sa.UniqueConstraint('share_name', name='uq_nas_mounts_share_name')
     )
     op.create_index('ix_nas_mounts_share_name', 'nas_mounts', ['share_name'])
     op.create_index('ix_nas_mounts_is_active', 'nas_mounts', ['is_active'])
@@ -50,6 +52,8 @@ def downgrade():
     op.drop_index('ix_nas_backup_jobs_status', 'nas_backup_jobs')
     op.drop_table('nas_backup_jobs')
     
+    op.drop_constraint('uq_nas_mounts_share_name', 'nas_mounts', type_='unique')
+    op.drop_constraint('uq_nas_mounts_mount_point', 'nas_mounts', type_='unique')
     op.drop_index('ix_nas_mounts_is_active', 'nas_mounts')
     op.drop_index('ix_nas_mounts_share_name', 'nas_mounts')
     op.drop_table('nas_mounts')

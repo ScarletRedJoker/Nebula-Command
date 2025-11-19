@@ -114,6 +114,21 @@ def mount_share():
                 'error': 'Missing required fields'
             }), 400
 
+        with db_service.get_session() as db:
+            existing_mount_point = db.query(NASMount).filter_by(mount_point=mount_point).first()
+            if existing_mount_point:
+                return jsonify({
+                    'success': False,
+                    'error': f'Mount point {mount_point} is already in use'
+                }), 400
+            
+            existing_share = db.query(NASMount).filter_by(share_name=share_name).first()
+            if existing_share:
+                return jsonify({
+                    'success': False,
+                    'error': f'Share {share_name} is already mounted at {existing_share.mount_point}'
+                }), 400
+
         nas_service = NASService()
         result = nas_service.mount_smb_share(share_name, mount_point, username, password)
 
@@ -125,6 +140,7 @@ def mount_share():
                     is_active=True
                 )
                 db.add(nas_mount)
+                db.commit()
 
         return jsonify(result), 200 if result.get('success') else 500
 

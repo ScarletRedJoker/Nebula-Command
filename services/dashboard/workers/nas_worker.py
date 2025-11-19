@@ -19,7 +19,7 @@ def run_nas_backup(job_id: int) -> None:
                 return
 
             job.status = 'running'
-            db.flush()
+            db.commit()
 
         nas_service = NASService()
         
@@ -41,6 +41,7 @@ def run_nas_backup(job_id: int) -> None:
                 job.status = 'failed'
                 job.error_message = result.get('error', 'Unknown error')
             
+            db.commit()
             logger.info(f"Backup job {job_id} completed with status: {job.status}")
 
     except Exception as e:
@@ -50,6 +51,7 @@ def run_nas_backup(job_id: int) -> None:
             if job:
                 job.status = 'failed'
                 job.error_message = str(e)
+                db.commit()
 
 
 @celery.task(name='workers.nas_worker.discover_nas_periodic')

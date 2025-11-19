@@ -1,6 +1,7 @@
 import os
 import subprocess
 import logging
+import tempfile
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 import socket
@@ -69,7 +70,8 @@ class NASService:
             return []
 
     def mount_smb_share(self, share_name: str, mount_point: str, username: Optional[str] = None, password: Optional[str] = None) -> Dict[str, Any]:
-        """Mount SMB/CIFS share from NAS"""
+        """Mount SMB/CIFS share from NAS using secure credentials file"""
+        creds_file = None
         try:
             username = username if username is not None else self.nas_user
             password = password if password is not None else self.nas_password
@@ -83,12 +85,21 @@ class NASService:
 
             os.makedirs(mount_point, exist_ok=True)
 
+            fd, creds_file = tempfile.mkstemp(prefix='cifs-creds-', suffix='.conf')
+            try:
+                os.write(fd, f'username={username}\n'.encode())
+                os.write(fd, f'password={password}\n'.encode())
+            finally:
+                os.close(fd)
+            
+            os.chmod(creds_file, 0o600)
+
             mount_cmd = [
                 'mount',
                 '-t', 'cifs',
                 f'//{nas_host}/{share_name}',
                 mount_point,
-                '-o', f'username={username},password={password},uid=1000,gid=1000,rw'
+                '-o', f'credentials={creds_file},uid=1000,gid=1000,rw'
             ]
 
             result = subprocess.run(
@@ -117,6 +128,12 @@ class NASService:
                 'success': False,
                 'error': str(e)
             }
+        finally:
+            if creds_file and os.path.exists(creds_file):
+                try:
+                    os.unlink(creds_file)
+                except Exception as e:
+                    logger.warning(f"Failed to cleanup credentials file: {e}")
 
     def unmount_share(self, mount_point: str) -> Dict[str, Any]:
         """Unmount NAS share"""
@@ -171,12 +188,15 @@ class NASService:
 
     def backup_to_nas(self, source_path: str, dest_share: str, backup_name: str) -> Dict[str, Any]:
         """Create backup of local path to NAS share"""
+        temp_mount = f"{self.mount_base}/backup-temp"
+        mount_succeeded = False
+        
         try:
-            temp_mount = f"{self.mount_base}/backup-temp"
-            
             mount_result = self.mount_smb_share(dest_share, temp_mount)
             if not mount_result.get('success'):
                 return mount_result
+            
+            mount_succeeded = True
 
             dest_path = os.path.join(temp_mount, backup_name)
             
@@ -195,8 +215,6 @@ class NASService:
                 timeout=3600
             )
 
-            self.unmount_share(temp_mount)
-
             if result.returncode == 0:
                 return {
                     'success': True,
@@ -211,14 +229,16 @@ class NASService:
 
         except Exception as e:
             logger.error(f"Error during NAS backup: {e}")
-            try:
-                self.unmount_share(temp_mount)
-            except:
-                pass
             return {
                 'success': False,
                 'error': str(e)
             }
+        finally:
+            if mount_succeeded:
+                try:
+                    self.unmount_share(temp_mount)
+                except Exception as e:
+                    logger.error(f"Failed to unmount {temp_mount}: {e}")
 
     def test_connection(self) -> Dict[str, Any]:
         """Test connection to NAS"""
