@@ -3,52 +3,6 @@
 ## Overview
 The Nebula Command Dashboard is a web-based interface for managing a Ubuntu 25.10 server, designed to streamline operations, enhance reliability, and enable intelligent automation and monitoring. Key capabilities include one-click database deployments, game streaming integration, robust domain health monitoring, and integrations with Google Services and Smart Home platforms. The project aims to become an AI-first infrastructure copilot, "Jarvis," providing autonomous diagnosis, remediation, and execution of infrastructure issues, acting as a mission control for actionable intelligence and streamlined automation.
 
-## Recent Changes (November 19, 2025)
-
-### 🚀 Complete System Optimization & Enhancement (COMPLETED!)
-- ✅ **Discord Bot TicketChannelManager**: Tickets now organized into "Active Tickets" and "Ticket Archive" categories with automatic cleanup (30+ days), daily cleanup job, and graceful fallback to admin channel.
-- ✅ **Kick OAuth Token Refresh**: Implemented missing Kick OAuth token refresh with single-use token rotation pattern, exponential backoff retry, and proper error handling.
-- ✅ **Comprehensive OAuth Error Handling**: Added robust error handling to all OAuth flows (Twitch, YouTube, Spotify, Kick) with environment validation on startup, 10-second timeouts, retry logic, token validation, and user-friendly error messages.
-- ✅ **Dashboard Query Optimization**: Added 60+ database indexes (timestamps, foreign keys, compound indexes), eliminated N+1 queries, implemented pagination (max 100 items/page), created migration 013_optimize_indexes.
-- ✅ **Service Health Check Monitoring**: Health endpoints for all services (/health), health monitoring service polls every 30 seconds, automatic alerting for degraded services, complete REST API for health retrieval, documentation in HEALTH_MONITORING.md.
-- ✅ **Redis Caching System**: Cache service with graceful degradation, caching for expensive queries (storage metrics, marketplace apps, agent tasks), TTL presets (5min, 1hour, 24hour), automatic cache invalidation, connection pooling (max 50 connections).
-- ✅ **MinIO Storage Optimization**: Lifecycle policies for automatic storage management (auto-delete temp files after 90 days, archive logs after 30 days, delete incomplete uploads after 7 days), REST API for lifecycle management.
-- ✅ **Unified Logging Aggregation**: Centralized logging collecting from all Docker containers, stored in PostgreSQL with full-text search, real-time WebSocket streaming, 30-day retention with automatic rotation, REST API with filters.
-- ✅ **Production-Ready Fixes**: Fixed duplicate Alembic migration revision IDs (013 chain), corrected NAS pagination offset bug, verified migration chain integrity.
-
-## Recent Changes (November 19, 2025) - Previous Updates
-
-### 🤖 Autonomous Features Activation (COMPLETE!)
-- ✅ **Autonomous Monitoring System**: Continuous health checks every 5 minutes with self-healing capabilities. Automatically restarts containers, creates repair tasks, monitors database/network/disk health.
-- ✅ **Continuous Optimization Engine**: Analyzes resource usage every 30 minutes, identifies over/under-provisioned containers, suggests database optimizations, tracks performance trends.
-- ✅ **Autonomous Security Scanning**: Hourly vulnerability scans, SSL monitoring, failed login tracking, security scoring (0-100), automatic remediation task creation.
-- ✅ **Multi-Agent Collaboration**: Five specialist AI agents (Jarvis Prime, Athena, Mercury, Atlas, Sentinel) work together to diagnose and fix complex issues autonomously.
-- ✅ **Task Approval Workflow**: Server-side approval enforcement with API endpoints for approving/rejecting autonomous actions. System requests permission for destructive operations.
-- ✅ **Celery Periodic Tasks**: Six background jobs running continuously (health check, monitoring, optimization, security, daily reports) in dedicated autonomous queue.
-- ✅ **Comprehensive Documentation**: Created `AUTONOMOUS_FEATURES_GUIDE.md` with complete usage instructions, API docs, and best practices.
-
-### 🚀 NASA-Grade Database Migration System (PRODUCTION READY!)
-- ✅ **Complete System Rebuild**: Replaced brittle migration architecture with industry-standard patterns following Django, Rails, and Prisma best practices.
-- ✅ **Zero-Failure Tolerance Architecture**: 
-  - **EnumManager System** (`services/dashboard/db/enum_manager.py`): Idempotent PostgreSQL ENUM handling with blocking advisory locks, post-creation verification, and comprehensive error handling.
-  - **Refactored Migration 005**: Uses `create_type=False` pattern to prevent SQLAlchemy auto-creation race conditions. All ENUMs created via DO/EXCEPTION blocks.
-  - **Advisory Lock System** (`services/dashboard/alembic/env.py`): Blocking `pg_advisory_lock()` with 60s timeout, automatic orphaned lock detection and cleanup, transaction-scoped timeouts using SET LOCAL.
-  - **Universal Recovery Script** (`scripts/nasa-grade-db-recovery.sh`): Supports both Docker and host-based PostgreSQL via environment variables, timeout protection on every operation, structured JSON logging.
-  - **Autonomous Health Monitoring** (`services/dashboard/services/database_health_monitor.py`): Secure parameterized SQL queries (zero SQL injection risk), detects migration issues, provides actionable recommendations, integrates with Jarvis.
-- ✅ **Production Guarantees**: Never hangs (all operations timeout), never fails silently (all errors raise exceptions), never has race conditions (advisory locks), fully idempotent (safe to run multiple times), self-healing (Jarvis auto-recovery).
-- ✅ **Comprehensive Documentation**: Created `DATABASE_MIGRATION_GUIDE.md` with complete deployment instructions, troubleshooting guide, best practices, and FAQ.
-- ✅ **Architect Approved**: Full production sign-off granted - meets NASA-grade reliability requirements with zero-failure tolerance.
-
-### Critical Bug Fixes
-- ✅ **Database Migration Race Condition Fixed**: Resolved critical bug where both dashboard and celery-worker ran migrations concurrently, causing duplicate enum type errors and preventing Jarvis from starting. Migration 005 now uses idempotent SQL, and only dashboard runs migrations.
-- ✅ **Stream-Bot OpenAI Configuration Fixed**: Added fallback from `AI_INTEGRATIONS_OPENAI_API_KEY` to `OPENAI_API_KEY` so Stream-Bot works with both variable naming conventions. Previously caused bot to use demo "octopus facts" instead of real AI-generated Snapple facts.
-- ✅ **SQL Injection Vulnerability Eliminated**: Fixed DatabaseHealthMonitor to use parameterized queries with PostgreSQL ANY() operator instead of string interpolation.
-
-### Configuration & Documentation
-- ✅ **Home Assistant Environment Configuration**: Added HOME_ASSISTANT_URL, HOME_ASSISTANT_TOKEN, and HOME_ASSISTANT_VERIFY_SSL to `deployment/generate-unified-env.sh` with detailed setup instructions.
-- ✅ **Stream-Bot TypeScript Fixes**: Resolved all 12 LSP errors in `bot-worker.ts` including missing shoutoutService import, Set iteration compatibility, and type conversions.
-- ✅ **Comprehensive Deployment Fix Guide**: Created `URGENT_FIX_DEPLOYMENT_ISSUES.md` explaining root causes of deployment failures and providing clear recovery steps for production.
-
 ## User Preferences
 - User: Evin
 - Ubuntu 25.10 desktop with Twingate VPN and dynamic DNS (ZoneEdit)
@@ -84,11 +38,14 @@ The Nebula Command Dashboard is a web-based interface for managing a Ubuntu 25.1
 - **Other Services**: Includes a Static Website, n8n for workflow automation, Plex for media streaming, and a custom Dockerized VNC Desktop for remote access.
 
 ### System Design Choices
-- **Database Architecture**: A single PostgreSQL container manages multiple databases (`ticketbot`, `streambot`, `jarvis`), with automatic provisioning and concurrency protection.
-- **Unified Deployment System**: Managed by `homelab-manager.sh` and orchestrated by `docker-compose.unified.yml`, utilizing Caddy for automatic SSL. An automated Replit to Ubuntu sync every 5 minutes maintains alignment between development and production. Deployment is handled by `linear-deploy.sh`, which performs validation, provisioning, deployment, and verification. **Integration Management**: `homelab-manager.sh` now includes comprehensive integration status checking (option 20) and setup guidance (option 21) for all services including ZoneEdit DNS, Home Assistant, Discord Bot, OpenAI, Spotify, and Twitch.
-- **Production Readiness**: Emphasizes comprehensive security audits, environment variable-based secrets, robust OAuth, automatic HTTPS, SQL injection prevention, secure Docker configurations, secure session management, and input validation. Performance is ensured via health check endpoints, database connection pooling, and optimized Docker images. Error handling includes React Error Boundaries, comprehensive logging, user-friendly messages, automatic retry logic with exponential backoff, and circuit breaker patterns.
+- **Database Architecture**: A single PostgreSQL container manages multiple databases (`ticketbot`, `streambot`, `jarvis`), with automatic provisioning and concurrency protection. Includes a zero-failure tolerance migration system with idempotent ENUM handling, advisory locks, and a universal recovery script.
+- **Unified Deployment System**: Managed by `homelab-manager.sh` and orchestrated by `docker-compose.unified.yml`, utilizing Caddy for automatic SSL. An automated Replit to Ubuntu sync every 5 minutes maintains alignment between development and production. Deployment is handled by `linear-deploy.sh`, which performs validation, provisioning, deployment, and verification. `homelab-manager.sh` now includes comprehensive integration status checking and setup guidance for all services.
+- **Production Readiness**: Emphasizes comprehensive security audits, environment variable-based secrets, robust OAuth (including token refresh), automatic HTTPS, SQL injection prevention, secure Docker configurations, secure session management, and input validation. Performance is ensured via health check endpoints, database connection pooling, and optimized Docker images. Error handling includes React Error Boundaries, comprehensive logging, user-friendly messages, automatic retry logic with exponential backoff, and circuit breaker patterns. Critical production fixes have been implemented for Discord ticket spam, VNC/Code-Server access, and Home Assistant connection.
+- **Autonomous Features**: Includes an Autonomous Monitoring System (continuous health checks, self-healing), Continuous Optimization Engine (resource usage analysis, optimization suggestions), Autonomous Security Scanning (vulnerability scans, SSL monitoring, security scoring), and Multi-Agent Collaboration (five specialist AI agents for complex issue resolution). Tasks require server-side approval for destructive operations. Celery periodic tasks manage background jobs.
 - **Security Monitoring**: The dashboard includes comprehensive security monitoring features such as optional rate limiting, SSL certificate monitoring, failed login monitoring (Redis-based), and service health monitoring.
 - **Lifecycle Management**: `homelab-manager.sh` includes automatic cleanup of orphaned containers/images and comprehensive diagnostics (database migrations, orphaned resources, disk space, log rotation).
+- **Comprehensive System Optimization**: Includes 60+ database indexes, N+1 query elimination, pagination, service health check monitoring with a REST API, Redis caching with graceful degradation, MinIO storage lifecycle policies, and unified logging aggregation with full-text search and real-time WebSocket streaming.
+- **Environment Variable Validation**: A script `scripts/validate-env-vars.sh` exists for comprehensive secret validation of all critical environment variables.
 
 ## External Dependencies
 
@@ -97,7 +54,7 @@ The Nebula Command Dashboard is a web-based interface for managing a Ubuntu 25.1
 - SQLAlchemy, Alembic, psycopg2-binary
 - Redis, Celery, eventlet
 - MinIO (S3-compatible object storage)
-- Google APIs: `google-api-python-client`, `google-auth`, `google-auth-httplib2`, `google-auth-oauthlib`
+- Google APIs: `google-api-python-client`, `google-auth`, `google-auth-httplib2`, `google-auth-oauthlib` (for Calendar, Gmail, Drive)
 - Bootstrap 5, Chart.js
 
 **Discord Bot:**
@@ -118,3 +75,4 @@ The Nebula Command Dashboard is a web-based interface for managing a Ubuntu 25.1
 - Docker & Docker Compose
 - Let's Encrypt
 - Zyxel NAS326 (1TB) via SMB/CIFS
+- Home Assistant
