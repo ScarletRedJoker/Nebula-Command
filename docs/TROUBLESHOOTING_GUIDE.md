@@ -486,6 +486,82 @@ cat services/dashboard/migrations/versions/[latest].py
 docker exec homelab-dashboard python -m flask db upgrade
 ```
 
+### Database Migration: agent_messages Foreign Key Error
+
+**Error:**
+```
+psycopg2.errors.DatatypeMismatch: foreign key constraint "agent_messages_from_agent_id_fkey" cannot be implemented
+DETAIL: Key columns "from_agent_id" and "id" are of incompatible types: character varying and uuid.
+```
+
+**Cause:**
+Legacy `agent_messages` table from early development has VARCHAR columns, but production migrations expect UUID.
+
+**Root Cause:**
+Production database has old `agent_messages` table:
+- `from_agent_id`: VARCHAR (old)
+- `to_agent_id`: VARCHAR (old)
+- `response_to`: VARCHAR (old)
+
+Migration 014 expects:
+- `from_agent_id`: UUID (new)
+- `to_agent_id`: UUID (new)
+- `response_to`: UUID (new)
+
+When migration runs:
+1. Table exists → Guard clause skips DROP/CREATE
+2. Tries to add foreign key with UUID
+3. PostgreSQL ERROR: VARCHAR != UUID
+
+**Solution:**
+```bash
+# Use the homelab-manager.sh menu
+./homelab-manager.sh
+# Select Option 22a: Fix Production Database Schema (VARCHAR → UUID)
+
+# Or run the script directly:
+./deployment/scripts/fix-production-database.sh
+
+# After fix completes, run migrations:
+docker exec homelab-dashboard python -m alembic upgrade head
+
+# Restart services:
+./homelab-manager.sh
+# Choose: 2) Quick Restart
+```
+
+**Manual Fix (if needed):**
+```bash
+# Connect to database
+psql "postgresql://user:password@host:5432/database"
+
+# Check column types
+SELECT column_name, data_type 
+FROM information_schema.columns 
+WHERE table_name = 'agent_messages' 
+  AND column_name IN ('from_agent_id', 'to_agent_id', 'response_to');
+
+# If VARCHAR detected, drop and recreate:
+DROP TABLE IF EXISTS agent_messages CASCADE;
+DROP TABLE IF EXISTS chat_history CASCADE;
+
+# Exit psql and run migrations
+docker exec homelab-dashboard python -m alembic upgrade head
+```
+
+**Prevention:**
+This is a one-time fix for production databases that existed before UUID migration was added. New deployments will have the correct schema from the start.
+
+**Verification:**
+```bash
+# Verify migration completed successfully
+./homelab-manager.sh
+# Option 7: Check Database Status
+
+# Check for any errors in logs
+docker logs homelab-dashboard | grep -i "agent_messages"
+```
+
 ### Performance Issues
 
 **Symptoms:**

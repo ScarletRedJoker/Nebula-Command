@@ -58,6 +58,7 @@ show_menu() {
     echo ""
     echo -e "  ${BOLD}Database Maintenance:${NC}"
     echo -e "    ${GREEN}22)${NC} 🔧 Fix Stuck Database Migrations"
+    echo -e "    ${GREEN}22a)${NC} 🗄️ Fix Production Database Schema (VARCHAR → UUID)"
     echo ""
     echo -e "  ${BOLD}Verification:${NC}"
     echo -e "    ${GREEN}23)${NC} ✅ Run Full Deployment Verification"
@@ -1661,6 +1662,77 @@ fix_stuck_migrations() {
     pause
 }
 
+# Fix Production Database Schema (VARCHAR → UUID)
+fix_production_database_schema() {
+    echo ""
+    echo -e "${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BOLD}${BLUE}  🗄️ FIX PRODUCTION DATABASE SCHEMA${NC}"
+    echo -e "${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    echo -e "${BOLD}${RED}⚠️  WARNING: This operation will modify your database${NC}"
+    echo ""
+    echo "This script will:"
+    echo "  • Check for legacy agent_messages table with VARCHAR columns"
+    echo "  • Convert VARCHAR columns to UUID (or drop and recreate)"
+    echo "  • Fix foreign key constraint mismatches"
+    echo ""
+    echo -e "${YELLOW}This fixes migration 014 errors related to agent_messages column types.${NC}"
+    echo ""
+    echo -e "${BOLD}IMPORTANT:${NC}"
+    echo "  1. This script is idempotent - safe to run multiple times"
+    echo "  2. It will check column types before making changes"
+    echo "  3. You'll be given options to backup data if needed"
+    echo "  4. Recommended for production databases with existing data"
+    echo ""
+    
+    read -p "Do you want to proceed? (yes/no): " confirm
+    
+    if [ "$confirm" != "yes" ]; then
+        echo ""
+        echo -e "${YELLOW}Schema fix cancelled${NC}"
+        pause
+        return
+    fi
+    
+    echo ""
+    echo "Starting schema fix..."
+    echo ""
+    
+    # Check if script exists
+    if [ ! -f "./deployment/scripts/fix-production-database.sh" ]; then
+        echo -e "${RED}✗ Error: fix-production-database.sh not found${NC}"
+        echo -e "${YELLOW}Expected location: ./deployment/scripts/fix-production-database.sh${NC}"
+        pause
+        return
+    fi
+    
+    # Make script executable
+    chmod +x ./deployment/scripts/fix-production-database.sh
+    
+    # Run the fix script
+    if ./deployment/scripts/fix-production-database.sh; then
+        echo ""
+        echo -e "${GREEN}✓ Schema fix completed successfully${NC}"
+        echo ""
+        echo "Recommended next steps:"
+        echo "  1. Run migrations: docker exec homelab-dashboard python -m alembic upgrade head"
+        echo "  2. Restart services: Option 2 (Quick Restart)"
+        echo "  3. Check logs: Option 11 (View Service Logs)"
+        echo "  4. Verify database: Option 7 (Check Database Status)"
+    else
+        echo ""
+        echo -e "${RED}✗ Schema fix encountered errors${NC}"
+        echo -e "${YELLOW}Please review the error messages above${NC}"
+        echo ""
+        echo "Troubleshooting tips:"
+        echo "  • Ensure NEON_DATABASE_URL is set in .env"
+        echo "  • Verify database is accessible"
+        echo "  • Check database logs for connection errors"
+    fi
+    
+    pause
+}
+
 # Run Full Deployment Verification
 run_deployment_verification() {
     echo ""
@@ -2014,6 +2086,7 @@ main() {
             20) check_all_integrations ;;
             21) view_integration_guide ;;
             22) fix_stuck_migrations ;;
+            22a) fix_production_database_schema ;;
             23) run_deployment_verification ;;
             0) 
                 echo ""
