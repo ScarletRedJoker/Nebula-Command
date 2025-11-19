@@ -3,6 +3,13 @@
 ## Overview
 The Nebula Command Dashboard is a web-based interface for managing a Ubuntu 25.10 server, designed to streamline operations, enhance reliability, and enable intelligent automation and monitoring. Key capabilities include one-click database deployments, game streaming integration, robust domain health monitoring, and integrations with Google Services and Smart Home platforms. The project aims to become an AI-first infrastructure copilot, "Jarvis," providing autonomous diagnosis, remediation, and execution of infrastructure issues, acting as a mission control for actionable intelligence and streamlined automation.
 
+## Recent Changes (November 19, 2025)
+- ✅ **Home Assistant Environment Configuration**: Added HOME_ASSISTANT_URL, HOME_ASSISTANT_TOKEN, and HOME_ASSISTANT_VERIFY_SSL to `deployment/generate-unified-env.sh` with detailed setup instructions for obtaining long-lived access tokens.
+- ✅ **Stream-Bot TypeScript Fixes**: Resolved all 12 LSP errors in `bot-worker.ts` including missing shoutoutService import, Set iteration compatibility, boolean type conversions, and Kick API argument mismatches.
+- ✅ **Comprehensive Fix Guide**: Created `COMPREHENSIVE_FIX_GUIDE.md` with step-by-step instructions for fixing Home Assistant connectivity, OAuth configuration for Twitch/YouTube/Kick, Snapple facts troubleshooting, database migrations, and complete deployment validation.
+- ✅ **Database Migrations**: Verified automatic migration system for dashboard's homelab_jarvis database via docker-entrypoint.sh with Alembic.
+- ✅ **Stream-Bot Fact Generation**: Confirmed OpenAI GPT-4.1-mini integration working correctly for generating Snapple-style facts under 200 characters.
+
 ## User Preferences
 - User: Evin
 - Ubuntu 25.10 desktop with Twingate VPN and dynamic DNS (ZoneEdit)
