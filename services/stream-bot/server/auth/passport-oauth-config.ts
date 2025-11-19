@@ -237,7 +237,7 @@ async function findOrCreateUserFromOAuth(profile: OAuthProfile, existingUserId?:
             randomMaxMinutes: 60,
             aiModel: "gpt-5-mini",
             aiPromptTemplate:
-              "Generate a fun, interesting, and engaging fact similar to a Snapple fact. Keep it under 200 characters.",
+              "Generate a fun, mind-blowing fact about life, the universe, science, history, nature, or weird phenomena. Topics: space, animals, physics, human body, ancient civilizations, food science, geography, inventions, unusual traditions, or bizarre natural phenomena. Keep it under 200 characters.",
             aiTemperature: 1,
             enableChatTriggers: true,
             chatKeywords: ["!snapple", "!fact"],

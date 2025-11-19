@@ -11,6 +11,11 @@ http:
     - 172.18.0.0/16
     - 192.168.0.0/16
     - 10.0.0.0/8
+  # Required for reverse proxy through Caddy
+  cors_allowed_origins:
+    - https://home.evindrake.net
+  # Keep IP ban protection enabled for security
+  login_attempts_threshold: 5
   
 # Enable frontend
 frontend:
