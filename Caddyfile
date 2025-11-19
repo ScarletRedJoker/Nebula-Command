@@ -1,6 +1,6 @@
 # Homelab Caddyfile - Auto SSL with Let's Encrypt
 # DNS Records Required: See DNS_SETUP_GUIDE.md for details
-# Last Updated: 2025-11-15
+# Last Updated: 2025-11-19
 
 {
         email evin@evindrake.net
