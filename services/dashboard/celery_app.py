@@ -68,6 +68,7 @@ celery_app.conf.update(
     worker_max_tasks_per_child=1000,
     task_acks_late=True,
     task_reject_on_worker_lost=True,
+    broker_connection_retry_on_startup=True,
     task_routes={
         'workers.workflow_worker.run_deployment_workflow': {'queue': 'deployments'},
         'workers.workflow_worker.run_dns_update_workflow': {'queue': 'dns'},

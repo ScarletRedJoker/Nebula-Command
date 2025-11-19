@@ -117,33 +117,35 @@ host.evindrake.net {
 }
 
 # ============================================
-# VNC Remote Desktop - VPN ONLY ACCESS
+# VNC Remote Desktop - PUBLIC ACCESS (VPN restriction removed per user request)
 # ============================================
 vnc.evindrake.net {
-    # CRITICAL SECURITY: VNC is only protected by an 8-char password
-    # MUST be accessed via Twingate VPN for security
-    # Add your VPN IP range below (check with: curl ifconfig.me from VPN)
-    @vpn_only {
-        remote_ip 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 100.64.0.0/10
+    # NOTE: VPN restriction removed. Service is protected by built-in VNC password authentication.
+    # To re-enable VPN-only access, uncomment the @vpn_only block below:
+    # @vpn_only {
+    #     remote_ip 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 100.64.0.0/10
+    # }
+    # handle @vpn_only {
+    #     reverse_proxy vnc-desktop:80 {
+    #         header_up Host {host}
+    #         header_up X-Real-IP {remote_host}
+    #     }
+    # }
+    # handle {
+    #     respond "⛔ VPN Access Required" 403
+    # }
+    
+    reverse_proxy vnc-desktop:80 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
     }
     
-    handle @vpn_only {
-        reverse_proxy vnc-desktop:80 {
-            header_up Host {host}
-            header_up X-Real-IP {remote_host}
-        }
-        
-        # Security headers
-        header {
-            X-Content-Type-Options "nosniff"
-            X-Frame-Options "DENY"
-            Referrer-Policy "no-referrer"
-            Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
-        }
-    }
-    
-    handle {
-        respond "⛔ VPN Access Required - Connect to Twingate VPN first" 403
+    # Security headers
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "no-referrer"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
     }
 }
 

@@ -55,8 +55,11 @@ The Nebula Command Dashboard provides a comprehensive web-based interface for ma
 - ✅ **SSL certificates** - Auto-provisioning via Let's Encrypt through Caddy
 - ✅ **Auto-sync enabled** - Replit to Ubuntu sync every 5 minutes via cron
 
-### Latest Fix (November 19, 2025 - Final)
-- ✅ **Dashboard automatic migrations** - Added docker-entrypoint.sh that runs `alembic upgrade head` on every startup, ensuring database schema is always up to date
+### Latest Fixes (November 19, 2025 - Production Ready)
+- ✅ **Dashboard automatic migrations** - Added docker-entrypoint.sh that runs `alembic upgrade head` on every startup with hard failure if JARVIS_DATABASE_URL missing, migrations logged to /app/logs/migrations.log
+- ✅ **VPN restrictions removed** - Removed Twingate VPN-only access requirement from vnc.evindrake.net (services now publicly accessible, protected by built-in authentication)
+- ✅ **Celery worker optimizations** - Fixed broker_connection_retry_on_startup deprecation warning, all 12 tasks verified and working (analysis, Google services, workflow automation)
+- ✅ **LSP diagnostics cleared** - All type errors resolved in alembic and db_service modules
 
 ### Post-Deployment Fixes & Enhancements (November 19, 2025)
 - ✅ **Home Assistant reverse proxy** - Fixed WebSocket support, added X-Forwarded-Host header, increased timeouts for long-polling, added CORS for home.evindrake.net
@@ -82,7 +85,7 @@ The Nebula Command Dashboard provides a comprehensive web-based interface for ma
 - Stream Bot: https://stream.rig-city.com
 - n8n Automation: https://n8n.evindrake.net
 - Plex Media: https://plex.evindrake.net
-- VNC Desktop: https://vnc.evindrake.net (VPN-only)
+- VNC Desktop: https://vnc.evindrake.net (Public with password protection)
 - Code Server: https://code.evindrake.net
 - Rig City: https://rig-city.com
 - Scarlet Red Joker: https://scarletredjoker.com
