@@ -11,9 +11,36 @@ All services are production-ready with appropriate security controls for a homel
 ### 1. VNC Remote Desktop (vnc.evindrake.net)
 
 **Current State:** 
-- Publicly accessible (VPN restriction removed per user request)
-- Protected by VNC 8-character password authentication
-- Relies on Ubuntu host-level Fail2Ban for brute-force protection
+- Publicly accessible (VPN restriction removed per user request - "I want them working, not blocked")
+- Protected by VNC 8-character password + Ubuntu host Fail2Ban
+- No additional HTTP-level authentication (works immediately without manual setup)
+
+**Current Security Level:** ACCEPTABLE for homelab/private network use
+
+**Security Controls in Place:**
+1. VNC password authentication (8-character minimum)
+2. Ubuntu host-level Fail2Ban (blocks brute-force attempts at IP level)
+3. HTTPS/TLS encryption (Let's Encrypt)
+4. Security headers (X-Frame-Options: DENY, etc.)
+
+**For Enhanced Security (Optional - Internet-Facing Deployments):**
+
+**Option 1: Re-enable VPN Restriction (Recommended)**
+Uncomment the @vpn_only block in Caddyfile to restrict to Twingate VPN network:
+```caddyfile
+@vpn_only {
+    remote_ip 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 100.64.0.0/10
+}
+handle @vpn_only {
+    reverse_proxy vnc-desktop:80 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+    }
+}
+handle {
+    respond "⛔ VPN Access Required" 403
+}
+```
 
 **Recommendations for Enhanced Security (Optional):**
 - **Option A:** Install Caddy rate-limiting plugin:

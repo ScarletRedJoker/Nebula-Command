@@ -120,10 +120,12 @@ host.evindrake.net {
 # VNC Remote Desktop - PUBLIC ACCESS (VPN restriction removed per user request)
 # ============================================
 vnc.evindrake.net {
-    # SECURITY NOTE: Public access with VNC password + rate limiting to prevent brute force
-    # Rate limiting: 20 requests per minute per IP to protect against brute force attacks
-    # VNC password provides authentication, rate limiting provides brute-force protection
-    # To re-enable VPN-only access, uncomment the @vpn_only block below:
+    # SECURITY: VNC is protected by built-in VNC password + Ubuntu host Fail2Ban
+    # This provides acceptable security for homelab/private network use
+    #
+    # For additional security (recommended for internet-facing), enable VPN access:
+    # Uncomment the @vpn_only block below and comment out the reverse_proxy outside it
+    
     # @vpn_only {
     #     remote_ip 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 100.64.0.0/10
     # }
@@ -134,19 +136,7 @@ vnc.evindrake.net {
     #     }
     # }
     # handle {
-    #     respond "⛔ VPN Access Required" 403
-    # }
-    
-    # NOTE: Rate limiting requires Caddy plugin (github.com/mholt/caddy-ratelimit)
-    # For now, relying on VNC password + Fail2Ban on Ubuntu host
-    # To add rate limiting: xcaddy build --with github.com/mholt/caddy-ratelimit
-    # Then uncomment:
-    # rate_limit {
-    #     zone vnc {
-    #         key {remote_host}
-    #         events 20
-    #         window 1m
-    #     }
+    #     respond "⛔ VPN Access Required - Connect to VPN to access VNC" 403
     # }
     
     reverse_proxy vnc-desktop:80 {

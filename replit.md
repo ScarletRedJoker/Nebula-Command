@@ -57,9 +57,10 @@ The Nebula Command Dashboard provides a comprehensive web-based interface for ma
 
 ### Latest Fixes (November 19, 2025 - Production Ready)
 - ✅ **Dashboard automatic migrations** - Added docker-entrypoint.sh that runs `alembic upgrade head` on every startup with hard failure if JARVIS_DATABASE_URL missing, migrations logged to /app/logs/migrations.log
-- ✅ **VPN restrictions removed** - Removed Twingate VPN-only access requirement from vnc.evindrake.net (services now publicly accessible, protected by built-in authentication)
+- ✅ **VPN restrictions removed** - Removed Twingate VPN-only access from vnc.evindrake.net per user request ("I want them working, not blocked"); services now publicly accessible, protected by VNC password + Ubuntu host Fail2Ban (acceptable for homelab use; VPN access can be re-enabled in Caddyfile if needed)
 - ✅ **Celery worker optimizations** - Fixed broker_connection_retry_on_startup deprecation warning, all 12 tasks verified and working (analysis, Google services, workflow automation)
 - ✅ **LSP diagnostics cleared** - All type errors resolved in alembic and db_service modules
+- ✅ **Security documentation** - Created SECURITY_NOTES.md with all security controls, risk levels, and future improvements
 
 ### Post-Deployment Fixes & Enhancements (November 19, 2025)
 - ✅ **Home Assistant reverse proxy** - Fixed WebSocket support, added X-Forwarded-Host header, increased timeouts for long-polling, added CORS for home.evindrake.net
@@ -85,7 +86,7 @@ The Nebula Command Dashboard provides a comprehensive web-based interface for ma
 - Stream Bot: https://stream.rig-city.com
 - n8n Automation: https://n8n.evindrake.net
 - Plex Media: https://plex.evindrake.net
-- VNC Desktop: https://vnc.evindrake.net (Public with password protection)
+- VNC Desktop: https://vnc.evindrake.net (Public with VNC password + Fail2Ban protection)
 - Code Server: https://code.evindrake.net
 - Rig City: https://rig-city.com
 - Scarlet Red Joker: https://scarletredjoker.com
