@@ -152,7 +152,17 @@ rebuild_deploy() {
     sleep 3  # Give Docker time to detach containers
     
     echo ""
-    echo "Step 3: Removing homelab network (if exists and unused)..."
+    echo "Step 3: Removing orphaned containers and old images..."
+    # Remove any orphaned containers (like old ollama, etc.)
+    echo "  → Removing orphaned containers..."
+    docker container prune -f 2>/dev/null || true
+    # Clean up old Docker images, build cache, and dangling resources
+    echo "  → Cleaning up old images and build cache..."
+    docker system prune -f
+    echo "  ✓ Cleanup complete"
+    
+    echo ""
+    echo "Step 4: Removing homelab network (if exists and unused)..."
     # Check if network exists and has no attached containers
     if docker network inspect homelabhub_homelab >/dev/null 2>&1; then
         ATTACHED_CONTAINERS=$(docker network inspect homelabhub_homelab --format='{{range .Containers}}{{.Name}} {{end}}' 2>/dev/null | wc -w)
@@ -169,15 +179,15 @@ rebuild_deploy() {
     fi
     
     echo ""
-    echo "Step 4: Building containers (no cache)..."
+    echo "Step 5: Building containers (no cache)..."
     docker-compose -f docker-compose.unified.yml build --no-cache
     
     echo ""
-    echo "Step 5: Starting services..."
+    echo "Step 6: Starting services..."
     docker-compose -f docker-compose.unified.yml up -d --remove-orphans
     
     echo ""
-    echo -e "${GREEN}✓ Rebuild complete${NC}"
+    echo -e "${GREEN}✓ Rebuild complete - All orphaned containers and old images cleaned up${NC}"
     pause
 }
 
