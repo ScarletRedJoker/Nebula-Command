@@ -129,6 +129,10 @@ def add_host():
     JSON body:
         host_ip: Host IP address (required)
         host_name: Host name (optional)
+        ssh_user: SSH username (optional, defaults to Config.SSH_USER)
+        ssh_port: SSH port (optional, defaults to 22)
+        ssh_key_path: SSH key path (optional, defaults to Config.SSH_KEY_PATH)
+        sunshine_api_key: Sunshine API key (optional, defaults to Config.SUNSHINE_API_KEY)
     
     Returns:
         JSON with added host information
@@ -144,8 +148,19 @@ def add_host():
         
         host_ip = data['host_ip']
         host_name = data.get('host_name')
+        ssh_user = data.get('ssh_user')
+        ssh_port = data.get('ssh_port')
+        ssh_key_path = data.get('ssh_key_path')
+        sunshine_api_key = data.get('sunshine_api_key')
         
-        host = game_streaming_service.add_host_manual(host_ip, host_name)
+        host = game_streaming_service.add_host_manual(
+            host_ip, 
+            host_name,
+            ssh_user=ssh_user,
+            ssh_port=ssh_port,
+            ssh_key_path=ssh_key_path,
+            sunshine_api_key=sunshine_api_key
+        )
         
         return jsonify({
             'success': True,
@@ -175,6 +190,11 @@ def update_host(host_id):
     JSON body:
         host_name: New host name (optional)
         host_ip: New IP address (optional)
+        api_url: Sunshine API URL (optional)
+        ssh_user: SSH username (optional)
+        ssh_port: SSH port (optional)
+        ssh_key_path: SSH key path (optional)
+        sunshine_api_key: Sunshine API key (optional)
     
     Returns:
         JSON with updated host information
@@ -523,4 +543,82 @@ def check_host_health(host_id):
         return jsonify({
             'success': False,
             'error': str(e)
+        }), 500
+
+
+@game_streaming_bp.route('/api/gaming/system-check', methods=['GET'])
+@login_required
+def system_check():
+    """
+    Check system requirements for Sunshine installation on REMOTE host
+    Used by the Setup Wizard to verify GPU, drivers, and NVENC support via SSH
+    
+    Query params:
+        host_id: UUID of the Sunshine host to check (required)
+    
+    Returns:
+        JSON with system check results including error states
+    """
+    try:
+        host_id = request.args.get('host_id')
+        
+        if not host_id:
+            return jsonify({
+                'success': False,
+                'error': 'Missing required parameter',
+                'error_details': 'host_id parameter is required'
+            }), 400
+        
+        # Run remote system check via SSH
+        result = game_streaming_service.check_system_requirements_remote(host_id)
+        
+        # Return the result (includes success, error, checks, etc.)
+        status_code = 200 if result.get('success') else 500
+        return jsonify(result), status_code
+        
+    except Exception as e:
+        logger.error(f"System check failed: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'System check failed',
+            'error_details': str(e)
+        }), 500
+
+
+@game_streaming_bp.route('/api/gaming/performance-metrics', methods=['GET'])
+@login_required
+def get_performance_metrics():
+    """
+    Get real-time performance metrics for game streaming from REMOTE host
+    Queries the specified Sunshine host via SSH for GPU stats, encoder utilization, etc.
+    
+    Query params:
+        host_id: UUID of the Sunshine host to monitor (required)
+    
+    Returns:
+        JSON with performance metrics including host_id and error states
+    """
+    try:
+        host_id = request.args.get('host_id')
+        
+        if not host_id:
+            return jsonify({
+                'success': False,
+                'error': 'Missing required parameter',
+                'error_details': 'host_id parameter is required'
+            }), 400
+        
+        # Get remote performance metrics via SSH
+        result = game_streaming_service.get_performance_metrics_remote(host_id)
+        
+        # Return the result (includes success, error, metrics, host_id, etc.)
+        status_code = 200 if result.get('success') else 500
+        return jsonify(result), status_code
+        
+    except Exception as e:
+        logger.error(f"Failed to get performance metrics: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'Metrics unavailable',
+            'error_details': str(e)
         }), 500

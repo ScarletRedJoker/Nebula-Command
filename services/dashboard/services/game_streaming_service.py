@@ -8,7 +8,7 @@ import requests
 import uuid
 from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime, timedelta
-from services.dashboard.config import Config
+from config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -44,21 +44,74 @@ class GameStreamingService:
         logger.info(f"║ Auto-Discovery: {str(self.auto_discover):<43} ║")
         logger.info("╚══════════════════════════════════════════════════════════════╝")
     
-    def _get_sunshine_url(self, host_ip: str, port: Optional[int] = None, use_https: bool = False) -> str:
+    def _get_sunshine_url(self, host_id: Optional[str] = None, host_ip: Optional[str] = None, 
+                          port: Optional[int] = None, use_https: bool = False) -> str:
         """
         Build Sunshine API URL
         
+        Prioritizes host-specific api_url from database if host_id provided,
+        falls back to building URL from host_ip/port or Config defaults.
+        
         Args:
-            host_ip: Host IP address
+            host_id: Host UUID (optional, uses database api_url if available)
+            host_ip: Host IP address (optional, used if host_id not provided)
             port: Port number (defaults to configured port)
             use_https: Use HTTPS instead of HTTP
             
         Returns:
             Full URL to Sunshine API
         """
+        from models.gaming import SunshineHost
+        
+        # Try to get host-specific URL from database
+        if host_id and self.db_service and self.db_service.is_available:
+            try:
+                with self.db_service.get_session() as session:
+                    host = session.query(SunshineHost).filter_by(id=host_id).first()
+                    if host and host.api_url:
+                        return host.api_url
+                    if host and not host_ip:
+                        host_ip = host.host_ip
+            except Exception as e:
+                logger.warning(f"Failed to get host-specific URL from database: {e}")
+        
+        # Fallback to building URL from parameters or Config
+        if not host_ip:
+            host_ip = self.sunshine_host or Config.SUNSHINE_HOST
+        
         protocol = 'https' if use_https else 'http'
         port = port or self.sunshine_port
         return f"{protocol}://{host_ip}:{port}"
+    
+    def _get_sunshine_api_key(self, host_id: Optional[str] = None) -> Optional[str]:
+        """
+        Get Sunshine API key for a host
+        
+        Prioritizes host-specific API key from host_metadata,
+        falls back to Config default.
+        
+        Args:
+            host_id: Host UUID (optional)
+            
+        Returns:
+            API key string or None
+        """
+        from models.gaming import SunshineHost
+        
+        # Try to get host-specific API key from database
+        if host_id and self.db_service and self.db_service.is_available:
+            try:
+                with self.db_service.get_session() as session:
+                    host = session.query(SunshineHost).filter_by(id=host_id).first()
+                    if host and host.host_metadata:
+                        api_key = host.host_metadata.get('sunshine_api_key')
+                        if api_key:
+                            return api_key
+            except Exception as e:
+                logger.warning(f"Failed to get host-specific API key from database: {e}")
+        
+        # Fallback to Config default
+        return self.sunshine_api_key or Config.SUNSHINE_API_KEY
     
     def auto_discover_hosts(self, network_range: Optional[str] = None) -> List[Dict]:
         """
@@ -222,7 +275,7 @@ class GameStreamingService:
             True if Sunshine is accessible, False otherwise
         """
         try:
-            url = self._get_sunshine_url(host_ip)
+            url = self._get_sunshine_url(host_ip=host_ip)
             response = requests.get(
                 f"{url}/api/ping",
                 timeout=timeout,
@@ -232,7 +285,7 @@ class GameStreamingService:
         except:
             # Also try the web UI endpoint
             try:
-                url = self._get_sunshine_url(host_ip)
+                url = self._get_sunshine_url(host_ip=host_ip)
                 response = requests.get(url, timeout=timeout, verify=False)
                 # Check if response contains "Sunshine" in HTML
                 return response.status_code == 200 and 'sunshine' in response.text.lower()
@@ -250,7 +303,7 @@ class GameStreamingService:
             Dictionary with host information or None
         """
         try:
-            url = self._get_sunshine_url(host_ip)
+            url = self._get_sunshine_url(host_ip=host_ip)
             
             # Try to get system info from API
             try:
@@ -301,13 +354,19 @@ class GameStreamingService:
         except:
             return host_ip
     
-    def add_host_manual(self, host_ip: str, host_name: Optional[str] = None) -> Dict:
+    def add_host_manual(self, host_ip: str, host_name: Optional[str] = None, 
+                       ssh_user: Optional[str] = None, ssh_port: Optional[int] = None,
+                       ssh_key_path: Optional[str] = None, sunshine_api_key: Optional[str] = None) -> Dict:
         """
         Manually add a Sunshine host
         
         Args:
             host_ip: Host IP address
             host_name: Optional hostname
+            ssh_user: SSH username (optional, defaults to Config.SSH_USER)
+            ssh_port: SSH port (optional, defaults to 22)
+            ssh_key_path: SSH key path (optional, defaults to Config.SSH_KEY_PATH)
+            sunshine_api_key: Sunshine API key (optional, defaults to Config.SUNSHINE_API_KEY)
             
         Returns:
             Host information dictionary
@@ -330,6 +389,17 @@ class GameStreamingService:
         if host_name:
             host_info['host_name'] = host_name
         
+        # Build host_metadata with SSH credentials
+        host_metadata = {}
+        if ssh_user:
+            host_metadata['ssh_user'] = ssh_user
+        if ssh_port:
+            host_metadata['ssh_port'] = ssh_port
+        if ssh_key_path:
+            host_metadata['ssh_key_path'] = ssh_key_path
+        if sunshine_api_key:
+            host_metadata['sunshine_api_key'] = sunshine_api_key
+        
         # Save to database
         with self.db_service.get_session() as session:
             # Check if already exists
@@ -341,6 +411,7 @@ class GameStreamingService:
                 existing.api_url = host_info.get('api_url')
                 existing.last_online = datetime.utcnow()
                 existing.gpu_model = host_info.get('gpu_model')
+                existing.host_metadata = host_metadata if host_metadata else existing.host_metadata
                 session.commit()
                 host = existing
             else:
@@ -351,6 +422,7 @@ class GameStreamingService:
                     host_name=host_info.get('host_name'),
                     api_url=host_info.get('api_url'),
                     gpu_model=host_info.get('gpu_model'),
+                    host_metadata=host_metadata if host_metadata else None,
                     last_online=datetime.utcnow()
                 )
                 session.add(host)
@@ -381,6 +453,8 @@ class GameStreamingService:
         Args:
             host_id: Host UUID
             updates: Dictionary of fields to update
+                Supported fields: host_name, host_ip, api_url,
+                ssh_user, ssh_port, ssh_key_path, sunshine_api_key
             
         Returns:
             Updated host dictionary
@@ -396,11 +470,21 @@ class GameStreamingService:
             if not host:
                 raise ValueError(f"Host {host_id} not found")
             
-            # Update allowed fields
+            # Update basic fields
             allowed_fields = ['host_name', 'host_ip', 'api_url']
             for field, value in updates.items():
                 if field in allowed_fields:
                     setattr(host, field, value)
+            
+            # Update SSH credentials in host_metadata
+            ssh_fields = ['ssh_user', 'ssh_port', 'ssh_key_path', 'sunshine_api_key']
+            ssh_updates = {k: v for k, v in updates.items() if k in ssh_fields and v is not None}
+            
+            if ssh_updates:
+                # Merge with existing metadata
+                current_metadata = host.host_metadata or {}
+                current_metadata.update(ssh_updates)
+                host.host_metadata = current_metadata
             
             host.updated_at = datetime.utcnow()
             session.commit()
@@ -701,7 +785,7 @@ class GameStreamingService:
     def _test_sunshine_api(self, host_ip: str) -> Dict:
         """Test Sunshine API availability"""
         try:
-            url = self._get_sunshine_url(host_ip)
+            url = self._get_sunshine_url(host_ip=host_ip)
             response = requests.get(f"{url}/api/config", timeout=5, verify=False)
             
             success = response.status_code == 200
@@ -722,7 +806,7 @@ class GameStreamingService:
         """Test network latency with multiple samples"""
         try:
             latencies = []
-            url = self._get_sunshine_url(host_ip)
+            url = self._get_sunshine_url(host_ip=host_ip)
             
             for _ in range(5):
                 start = datetime.utcnow()
@@ -865,6 +949,519 @@ class GameStreamingService:
             db_session.commit()
             
             return game_session.to_dict()
+    
+    def _get_ssh_connection(self, host_id: str) -> Tuple[str, 'SSHService']:
+        """
+        Get SSH connection for a Sunshine host
+        
+        Uses per-host SSH credentials from host_metadata if available,
+        falls back to Config defaults otherwise.
+        
+        Args:
+            host_id: Host UUID
+            
+        Returns:
+            Tuple of (host_ip, SSHService instance)
+            
+        Raises:
+            ValueError: If host not found
+            RuntimeError: If SSH connection fails
+        """
+        from models.gaming import SunshineHost
+        from services.ssh_service import SSHService
+        
+        if not self.db_service or not self.db_service.is_available:
+            raise RuntimeError("Database service not available")
+        
+        # Get host from database
+        with self.db_service.get_session() as session:
+            host = session.query(SunshineHost).filter_by(id=host_id).first()
+            
+            if not host:
+                raise ValueError(f"Host {host_id} not found")
+            
+            host_ip = host.host_ip
+            host_metadata = host.host_metadata or {}
+        
+        # Use host-specific SSH credentials from host_metadata if available,
+        # otherwise fall back to Config defaults
+        ssh_host = host_ip
+        ssh_port = host_metadata.get('ssh_port') or Config.SSH_PORT
+        ssh_user = host_metadata.get('ssh_user') or Config.SSH_USER
+        ssh_key_path = host_metadata.get('ssh_key_path') or Config.SSH_KEY_PATH
+        
+        # Validate key path exists if provided
+        if ssh_key_path and not os.path.exists(ssh_key_path):
+            logger.warning(f"SSH key path does not exist: {ssh_key_path}, attempting connection without key")
+            ssh_key_path = None
+        
+        logger.debug(f"Connecting to {host_ip} via SSH - port: {ssh_port}, user: {ssh_user}, key: {ssh_key_path or 'password'}")
+        
+        ssh_service = SSHService(
+            host=ssh_host,
+            port=ssh_port,
+            username=ssh_user,
+            key_path=ssh_key_path
+        )
+        
+        # Test connection
+        if not ssh_service.connect():
+            raise RuntimeError(f"Failed to connect to host {host_ip} via SSH")
+        
+        return host_ip, ssh_service
+    
+    def check_system_requirements_remote(self, host_id: str) -> Dict:
+        """
+        Check system requirements on remote Sunshine host via SSH
+        Runs verify-nvenc.sh script if available, otherwise uses nvidia-smi
+        
+        Args:
+            host_id: Host UUID
+            
+        Returns:
+            Dictionary with system check results:
+            {
+                'success': bool,
+                'host_id': str,
+                'host_ip': str,
+                'checks': {
+                    'gpu': bool,
+                    'gpu_model': str,
+                    'driver': bool,
+                    'driver_version': str,
+                    'nvenc': bool,
+                    'nvenc_sessions': int,
+                    'vram_total': int,
+                    'vram_used': int
+                },
+                'error': str (if failed),
+                'error_details': str (if failed)
+            }
+        """
+        try:
+            host_ip, ssh = self._get_ssh_connection(host_id)
+            
+            checks = {
+                'gpu': False,
+                'gpu_model': None,
+                'driver': False,
+                'driver_version': None,
+                'nvenc': False,
+                'nvenc_sessions': 0,
+                'vram_total': None,
+                'vram_used': None
+            }
+            
+            # Try running verify-nvenc.sh if it exists
+            success, output, error = ssh.execute_command('bash ~/verify-nvenc.sh 2>&1')
+            
+            if not success:
+                # Fallback to nvidia-smi if verify-nvenc.sh not found
+                logger.info(f"verify-nvenc.sh not found on {host_ip}, using nvidia-smi fallback")
+                success, output, error = ssh.execute_command(
+                    'nvidia-smi --query-gpu=name,driver_version,memory.total,memory.used --format=csv,noheader'
+                )
+                
+                if not success:
+                    ssh.disconnect()
+                    
+                    if 'nvidia-smi: command not found' in error or 'not found' in error:
+                        return {
+                            'success': False,
+                            'host_id': host_id,
+                            'host_ip': host_ip,
+                            'error': 'NVIDIA drivers not installed',
+                            'error_details': 'nvidia-smi command not found on remote host. Please install NVIDIA drivers.',
+                            'checks': checks
+                        }
+                    elif 'No devices found' in error or 'no NVIDIA' in error.lower():
+                        return {
+                            'success': False,
+                            'host_id': host_id,
+                            'host_ip': host_ip,
+                            'error': 'No NVIDIA GPU found',
+                            'error_details': 'No NVIDIA GPU detected on remote host.',
+                            'checks': checks
+                        }
+                    else:
+                        return {
+                            'success': False,
+                            'host_id': host_id,
+                            'host_ip': host_ip,
+                            'error': 'GPU check failed',
+                            'error_details': error,
+                            'checks': checks
+                        }
+                
+                # Parse nvidia-smi output
+                if output:
+                    parts = output.strip().split(',')
+                    if len(parts) >= 4:
+                        checks['gpu'] = True
+                        checks['gpu_model'] = parts[0].strip()
+                        checks['driver'] = True
+                        checks['driver_version'] = parts[1].strip()
+                        checks['vram_total'] = int(parts[2].strip().split()[0])  # Remove 'MiB'
+                        checks['vram_used'] = int(parts[3].strip().split()[0])
+                        
+                        # Check if GPU supports NVENC
+                        gpu_name = checks['gpu_model'].upper()
+                        if any(x in gpu_name for x in ['RTX', 'GTX', 'QUADRO', 'TESLA']):
+                            checks['nvenc'] = True
+                
+                # Get encoder stats if available
+                success2, encoder_output, _ = ssh.execute_command(
+                    'nvidia-smi --query-gpu=encoder.stats.sessionCount --format=csv,noheader 2>&1'
+                )
+                if success2 and encoder_output.strip().isdigit():
+                    checks['nvenc_sessions'] = int(encoder_output.strip())
+            
+            else:
+                # Parse verify-nvenc.sh output
+                logger.info(f"Successfully ran verify-nvenc.sh on {host_ip}")
+                
+                # Extract GPU info from script output
+                if '✓ PASSED' in output and 'GPU' in output:
+                    checks['gpu'] = True
+                    
+                    # Extract GPU model
+                    gpu_match = re.search(r'GPU:\s*(.+)', output)
+                    if gpu_match:
+                        checks['gpu_model'] = gpu_match.group(1).strip()
+                    
+                    # Extract driver version
+                    driver_match = re.search(r'Driver:\s*(.+)|Driver version\s*(.+)', output)
+                    if driver_match:
+                        checks['driver'] = True
+                        checks['driver_version'] = (driver_match.group(1) or driver_match.group(2)).strip()
+                    
+                    # Extract VRAM info
+                    vram_total_match = re.search(r'VRAM Total:\s*(\d+)', output)
+                    vram_used_match = re.search(r'VRAM Used:\s*(\d+)', output)
+                    if vram_total_match:
+                        checks['vram_total'] = int(vram_total_match.group(1))
+                    if vram_used_match:
+                        checks['vram_used'] = int(vram_used_match.group(1))
+                    
+                    # Check NVENC support
+                    if 'NVENC' in output and '✓' in output:
+                        checks['nvenc'] = True
+                    
+                    # Extract encoder sessions
+                    enc_sessions_match = re.search(r'Active encoding sessions:\s*(\d+)', output)
+                    if enc_sessions_match:
+                        checks['nvenc_sessions'] = int(enc_sessions_match.group(1))
+                
+                # Check for failures
+                if '✗ FAILED' in output:
+                    error_msg = "System check failed"
+                    if 'No NVIDIA GPU found' in output:
+                        error_msg = "No NVIDIA GPU found"
+                    elif 'nvidia-smi not found' in output:
+                        error_msg = "NVIDIA drivers not installed"
+                    elif 'NVENC' in output and 'FAILED' in output:
+                        error_msg = "NVENC not supported"
+                    
+                    ssh.disconnect()
+                    return {
+                        'success': False,
+                        'host_id': host_id,
+                        'host_ip': host_ip,
+                        'error': error_msg,
+                        'error_details': output,
+                        'checks': checks
+                    }
+            
+            ssh.disconnect()
+            
+            # Determine overall success
+            success = checks['gpu'] and checks['driver']
+            
+            return {
+                'success': success,
+                'host_id': host_id,
+                'host_ip': host_ip,
+                'checks': checks
+            }
+            
+        except ValueError as e:
+            logger.error(f"Host validation error: {e}")
+            return {
+                'success': False,
+                'host_id': host_id,
+                'error': 'Host not found',
+                'error_details': str(e)
+            }
+        except RuntimeError as e:
+            logger.error(f"SSH connection error: {e}")
+            return {
+                'success': False,
+                'host_id': host_id,
+                'error': 'Host unreachable',
+                'error_details': f'Cannot connect to host via SSH: {str(e)}'
+            }
+        except Exception as e:
+            logger.error(f"System check failed: {e}", exc_info=True)
+            return {
+                'success': False,
+                'host_id': host_id,
+                'error': 'System check failed',
+                'error_details': str(e)
+            }
+    
+    def get_performance_metrics_remote(self, host_id: str) -> Dict:
+        """
+        Get real-time performance metrics from remote Sunshine host via SSH
+        
+        Queries GPU metrics via nvidia-smi, then tries Sunshine API for session data,
+        falling back to GameSession database if API unavailable.
+        Supports partial success (GPU metrics work even if session data fails).
+        
+        Args:
+            host_id: Host UUID
+            
+        Returns:
+            Dictionary with performance metrics:
+            {
+                'success': bool,
+                'host_id': str,
+                'host_ip': str,
+                'metrics': {
+                    'active_sessions': int,
+                    'gpu_utilization': int,
+                    'encoder_utilization': int,
+                    'vram': {'used': int, 'total': int},
+                    'gpu_temperature': int,
+                    'encoder_stats': {
+                        'session_count': int,
+                        'avg_fps': float,
+                        'bitrate': float
+                    },
+                    'network_latency': float,
+                    'streaming_quality': {'resolution': str, 'fps': int}
+                },
+                'partial': bool (True if some metrics failed),
+                'warnings': list (non-critical errors),
+                'error': str (if completely failed)
+            }
+        """
+        from models.gaming import SunshineHost
+        
+        warnings = []
+        gpu_metrics_available = False
+        session_metrics_available = False
+        
+        try:
+            host_ip, ssh = self._get_ssh_connection(host_id)
+            
+            # Get host info for API URL
+            with self.db_service.get_session() as session:
+                host = session.query(SunshineHost).filter_by(id=host_id).first()
+                api_url = host.api_url if host else None
+            
+            metrics = {
+                'active_sessions': 0,
+                'gpu_utilization': 0,
+                'encoder_utilization': 0,
+                'vram': None,
+                'gpu_temperature': None,
+                'encoder_stats': {
+                    'session_count': 0,
+                    'avg_fps': None,
+                    'bitrate': None
+                },
+                'network_latency': None,
+                'streaming_quality': None
+            }
+            
+            # === PART 1: Get GPU metrics using nvidia-smi ===
+            try:
+                success, output, error = ssh.execute_command(
+                    'nvidia-smi --query-gpu=utilization.gpu,utilization.encoder,memory.used,memory.total,temperature.gpu --format=csv,noheader,nounits'
+                )
+                
+                if success and output:
+                    parts = output.strip().split(',')
+                    if len(parts) >= 5:
+                        metrics['gpu_utilization'] = int(parts[0].strip())
+                        metrics['encoder_utilization'] = int(parts[1].strip())
+                        metrics['vram'] = {
+                            'used': int(parts[2].strip()),
+                            'total': int(parts[3].strip())
+                        }
+                        metrics['gpu_temperature'] = int(parts[4].strip())
+                        gpu_metrics_available = True
+                else:
+                    warnings.append('GPU metrics unavailable: nvidia-smi query failed')
+                
+                # Get encoder session count from nvidia-smi
+                success2, encoder_output, _ = ssh.execute_command(
+                    'nvidia-smi --query-gpu=encoder.stats.sessionCount,encoder.stats.averageFps --format=csv,noheader 2>&1'
+                )
+                
+                if success2 and encoder_output:
+                    enc_parts = encoder_output.strip().split(',')
+                    if len(enc_parts) >= 1 and enc_parts[0].strip().isdigit():
+                        metrics['encoder_stats']['session_count'] = int(enc_parts[0].strip())
+                        metrics['active_sessions'] = metrics['encoder_stats']['session_count']
+                    
+                    if len(enc_parts) >= 2 and enc_parts[1].strip():
+                        try:
+                            metrics['encoder_stats']['avg_fps'] = float(enc_parts[1].strip())
+                        except ValueError:
+                            pass
+                            
+            except Exception as e:
+                logger.warning(f"GPU metrics query failed: {e}")
+                warnings.append(f'GPU metrics unavailable: {str(e)}')
+            
+            ssh.disconnect()
+            
+            # === PART 2: Try Sunshine API for session metrics ===
+            sunshine_api_success = False
+            if api_url:
+                try:
+                    logger.debug(f"Querying Sunshine API at {api_url}")
+                    
+                    # Get host-specific API key
+                    api_key = self._get_sunshine_api_key(host_id)
+                    
+                    # Build headers with API key if available
+                    headers = {}
+                    if api_key:
+                        headers['Authorization'] = f'Bearer {api_key}'
+                    
+                    # Try to get stats from Sunshine API
+                    response = requests.get(
+                        f"{api_url}/api/stats",
+                        headers=headers,
+                        timeout=5,
+                        verify=False
+                    )
+                    
+                    if response.status_code == 200:
+                        stats_data = response.json()
+                        
+                        # Extract session metrics from API response
+                        if 'sessions' in stats_data:
+                            sessions_list = stats_data['sessions']
+                            metrics['active_sessions'] = len(sessions_list)
+                            
+                            # Calculate average latency from active sessions
+                            latencies = [s.get('latency_ms', 0) for s in sessions_list if s.get('latency_ms')]
+                            if latencies:
+                                metrics['network_latency'] = round(sum(latencies) / len(latencies), 1)
+                            
+                            # Get streaming quality from first active session
+                            if sessions_list and sessions_list[0]:
+                                first_session = sessions_list[0]
+                                if first_session.get('resolution') or first_session.get('fps'):
+                                    metrics['streaming_quality'] = {
+                                        'resolution': first_session.get('resolution', 'Unknown'),
+                                        'fps': first_session.get('fps')
+                                    }
+                                if first_session.get('bitrate_mbps'):
+                                    metrics['encoder_stats']['bitrate'] = first_session['bitrate_mbps']
+                            
+                            sunshine_api_success = True
+                            session_metrics_available = True
+                            logger.debug("Successfully retrieved session metrics from Sunshine API")
+                    else:
+                        logger.debug(f"Sunshine API returned status {response.status_code}")
+                        
+                except requests.exceptions.ConnectionError:
+                    logger.debug("Sunshine API not reachable, will try database fallback")
+                    warnings.append('Sunshine API unavailable: Connection failed')
+                except requests.exceptions.Timeout:
+                    logger.debug("Sunshine API timeout, will try database fallback")
+                    warnings.append('Sunshine API unavailable: Timeout')
+                except Exception as e:
+                    logger.debug(f"Sunshine API query failed: {e}")
+                    warnings.append(f'Sunshine API unavailable: {str(e)}')
+            
+            # === PART 3: Fallback to GameSession database if API failed ===
+            if not sunshine_api_success:
+                try:
+                    logger.debug("Falling back to GameSession database for session metrics")
+                    
+                    active_sessions = self.get_sessions(status='active', limit=100)
+                    
+                    # Filter sessions for this specific host
+                    host_sessions = [s for s in active_sessions if s.get('host_ip') == host_ip]
+                    
+                    if host_sessions:
+                        # Update active sessions count if we have database records
+                        if not metrics['active_sessions']:
+                            metrics['active_sessions'] = len(host_sessions)
+                        
+                        # Calculate average latency from sessions
+                        latency_values = [s.get('latency_ms', 0) for s in host_sessions if s.get('latency_ms')]
+                        if latency_values:
+                            metrics['network_latency'] = round(sum(latency_values) / len(latency_values), 1)
+                        
+                        # Get streaming quality from most recent session
+                        if host_sessions[0].get('resolution'):
+                            resolution = host_sessions[0]['resolution']
+                            metrics['streaming_quality'] = {
+                                'resolution': resolution,
+                                'fps': host_sessions[0].get('fps')
+                            }
+                        
+                        # Get bitrate
+                        if host_sessions[0].get('bitrate_mbps'):
+                            metrics['encoder_stats']['bitrate'] = host_sessions[0]['bitrate_mbps']
+                        
+                        session_metrics_available = True
+                        logger.debug(f"Retrieved session metrics from database: {len(host_sessions)} sessions")
+                    else:
+                        logger.debug("No active sessions found in database")
+                        warnings.append('Session metrics unavailable: No active sessions')
+                        
+                except Exception as e:
+                    logger.warning(f"Database session query failed: {e}")
+                    warnings.append(f'Session metrics unavailable: {str(e)}')
+            
+            # Determine overall success
+            partial = bool(warnings)
+            success = gpu_metrics_available or session_metrics_available
+            
+            result = {
+                'success': success,
+                'host_id': host_id,
+                'host_ip': host_ip,
+                'metrics': metrics
+            }
+            
+            if partial:
+                result['partial'] = True
+                result['warnings'] = warnings
+            
+            return result
+            
+        except ValueError as e:
+            logger.error(f"Host validation error: {e}")
+            return {
+                'success': False,
+                'host_id': host_id,
+                'error': 'Host not found',
+                'error_details': str(e)
+            }
+        except RuntimeError as e:
+            logger.error(f"SSH connection error: {e}")
+            return {
+                'success': False,
+                'host_id': host_id,
+                'error': 'Host unreachable',
+                'error_details': f'Cannot connect to host via SSH: {str(e)}'
+            }
+        except Exception as e:
+            logger.error(f"Failed to get performance metrics: {e}", exc_info=True)
+            return {
+                'success': False,
+                'host_id': host_id,
+                'error': 'Metrics unavailable',
+                'error_details': str(e)
+            }
 
 
 # Global service instance (will be initialized with db_service in __init__.py or when imported)

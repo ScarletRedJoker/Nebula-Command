@@ -49,6 +49,9 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1><i class="bi bi-controller"></i> Game Streaming</h1>
         <div>
+            <button class="btn btn-success me-2" onclick="showSetupWizard()">
+                <i class="bi bi-magic"></i> Setup Sunshine
+            </button>
             <button class="btn btn-primary" onclick="loadHosts()">
                 <i class="bi bi-arrow-clockwise"></i> Refresh
             </button>
@@ -158,6 +161,131 @@
                             </tr>
                         </tbody>
                     </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Performance Monitoring Dashboard -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-graph-up"></i> Performance Monitoring</h5>
+                    <div>
+                        <span class="badge bg-secondary" id="monitor-status">Not Monitoring</span>
+                        <button class="btn btn-sm btn-success ms-2" onclick="toggleMonitoring()" id="monitor-toggle-btn">
+                            <i class="bi bi-play-fill"></i> Start Monitoring
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Host Selector -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="monitor-host-selector" class="form-label">
+                                <i class="bi bi-pc-display"></i> Select Host to Monitor
+                            </label>
+                            <select class="form-select" id="monitor-host-selector">
+                                <option value="">-- Select a Sunshine host --</option>
+                            </select>
+                            <small class="text-muted">Choose which Sunshine host to monitor in real-time</small>
+                        </div>
+                        <div class="col-md-6">
+                            <div id="monitor-error-alert" class="alert alert-danger mt-4" style="display:none;"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Real-time Stats -->
+                    <div class="row mb-4">
+                        <div class="col-md-3">
+                            <div class="stat-card">
+                                <div class="stat-label">Active Sessions</div>
+                                <div class="stat-value" id="stat-active-sessions">0</div>
+                                <small class="text-muted">Currently streaming</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-card">
+                                <div class="stat-label">GPU Utilization</div>
+                                <div class="stat-value" id="stat-gpu-util">
+                                    <span id="gpu-util-value">0</span>%
+                                </div>
+                                <small class="text-muted">NVENC encoder</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-card">
+                                <div class="stat-label">Network Latency</div>
+                                <div class="stat-value" id="stat-latency">
+                                    <span id="latency-value">--</span><span style="font-size: 1.2rem;">ms</span>
+                                </div>
+                                <small class="text-muted">Average ping</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-card">
+                                <div class="stat-label">Streaming Quality</div>
+                                <div class="stat-value" id="stat-quality">
+                                    <span id="quality-value">--</span><span style="font-size: 1.2rem;">p</span>
+                                </div>
+                                <small class="text-muted" id="quality-fps">@ -- FPS</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Performance Charts -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <h6>GPU Utilization Over Time</h6>
+                            <canvas id="gpuUtilChart" height="200"></canvas>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Network Latency</h6>
+                            <canvas id="latencyChart" height="200"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Detailed Metrics -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Encoder Stats</h6>
+                            <table class="table table-sm">
+                                <tr>
+                                    <td>Session Count</td>
+                                    <td class="text-end"><strong id="encoder-sessions">0</strong></td>
+                                </tr>
+                                <tr>
+                                    <td>Average FPS</td>
+                                    <td class="text-end"><strong id="encoder-fps">--</strong></td>
+                                </tr>
+                                <tr>
+                                    <td>Bitrate</td>
+                                    <td class="text-end"><strong id="encoder-bitrate">-- Mbps</strong></td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>System Resources</h6>
+                            <table class="table table-sm">
+                                <tr>
+                                    <td>VRAM Usage</td>
+                                    <td class="text-end"><strong id="vram-usage">-- / -- MB</strong></td>
+                                </tr>
+                                <tr>
+                                    <td>GPU Temperature</td>
+                                    <td class="text-end"><strong id="gpu-temp">--°C</strong></td>
+                                </tr>
+                                <tr>
+                                    <td>Encoder Utilization</td>
+                                    <td class="text-end"><strong id="encoder-util">--%</strong></td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Performance Alerts -->
+                    <div id="performance-alerts" class="mt-3"></div>
                 </div>
             </div>
         </div>
@@ -407,6 +535,37 @@
                         <input type="text" class="form-control" id="hostName" 
                                placeholder="Windows Gaming PC">
                     </div>
+                    
+                    <hr class="my-3">
+                    <h6 class="text-muted mb-3">SSH Credentials (Optional)</h6>
+                    <p class="text-muted small">Configure SSH credentials for this host. If not specified, global defaults will be used.</p>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">SSH Username</label>
+                        <input type="text" class="form-control" id="sshUser" 
+                               placeholder="Default from Config">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">SSH Port</label>
+                        <input type="number" class="form-control" id="sshPort" 
+                               placeholder="22">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">SSH Key Path</label>
+                        <input type="text" class="form-control" id="sshKeyPath" 
+                               placeholder="Default from Config">
+                        <div class="form-text">Path to SSH private key file on the dashboard server</div>
+                    </div>
+                    
+                    <hr class="my-3">
+                    <h6 class="text-muted mb-3">Sunshine API (Optional)</h6>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Sunshine API Key</label>
+                        <input type="password" class="form-control" id="sunshineApiKey" 
+                               placeholder="Default from Config">
+                        <div class="form-text">API key for accessing Sunshine API on this host</div>
+                    </div>
                 </form>
             </div>
             <div class="modal-footer">
@@ -448,6 +607,352 @@
     </div>
 </div>
 
+<!-- Setup Wizard Modal -->
+<div class="modal fade" id="setupWizardModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-magic"></i> Sunshine Setup Wizard</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Progress Steps -->
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="wizard-step" data-step="1">
+                            <div class="step-number">1</div>
+                            <small>Prerequisites</small>
+                        </div>
+                        <div class="wizard-line"></div>
+                        <div class="wizard-step" data-step="2">
+                            <div class="step-number">2</div>
+                            <small>Download</small>
+                        </div>
+                        <div class="wizard-line"></div>
+                        <div class="wizard-step" data-step="3">
+                            <div class="step-number">3</div>
+                            <small>Install</small>
+                        </div>
+                        <div class="wizard-line"></div>
+                        <div class="wizard-step" data-step="4">
+                            <div class="step-number">4</div>
+                            <small>Configure</small>
+                        </div>
+                        <div class="wizard-line"></div>
+                        <div class="wizard-step" data-step="5">
+                            <div class="step-number">5</div>
+                            <small>Connect</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 1: Prerequisites Check -->
+                <div class="wizard-content" id="wizard-step-1">
+                    <h5><i class="bi bi-clipboard-check"></i> Prerequisites Check</h5>
+                    <p class="text-muted">Verify your system meets the requirements for Sunshine</p>
+                    
+                    <div class="alert alert-info">
+                        <strong>System Requirements:</strong>
+                        <ul class="mb-0">
+                            <li>Ubuntu 25.10 (or 22.04+)</li>
+                            <li>NVIDIA GPU with NVENC support (RTX/GTX series)</li>
+                            <li>NVIDIA drivers installed (nvidia-smi working)</li>
+                            <li>4GB+ RAM</li>
+                            <li>Wired network connection (recommended)</li>
+                        </ul>
+                    </div>
+
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h6>Select Sunshine Host</h6>
+                            <p class="text-muted small">Choose the Sunshine host to check, or add a new host first</p>
+                            <select class="form-select mb-3" id="wizard-host-selector">
+                                <option value="">-- Select a Sunshine host --</option>
+                            </select>
+                            <small class="text-muted">
+                                <i class="bi bi-info-circle"></i> 
+                                If no hosts are available, click "Add Host" or "Scan Network" in the main dashboard first.
+                            </small>
+                        </div>
+                    </div>
+
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h6>System Status</h6>
+                            <div id="system-check-results">
+                                <p class="text-muted">Select a host and click "Check System" to verify</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-primary" onclick="checkSystemRequirements()">
+                        <i class="bi bi-search"></i> Check System
+                    </button>
+                </div>
+
+                <!-- Step 2: Download Setup Scripts -->
+                <div class="wizard-content d-none" id="wizard-step-2">
+                    <h5><i class="bi bi-download"></i> Download Setup Scripts</h5>
+                    <p class="text-muted">Download the Sunshine installation scripts to your Ubuntu server</p>
+                    
+                    <div class="alert alert-success">
+                        <strong>Available Scripts:</strong>
+                        <ul class="mb-0">
+                            <li><code>setup-sunshine.sh</code> - Complete automated installation</li>
+                            <li><code>verify-nvenc.sh</code> - GPU encoding verification tool</li>
+                            <li><code>README.md</code> - Detailed setup documentation</li>
+                        </ul>
+                    </div>
+
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <strong>SSH Download Command</strong>
+                        </div>
+                        <div class="card-body">
+                            <p class="mb-2">Run this command on your Ubuntu server:</p>
+                            <div class="connection-code mb-2">
+<pre style="margin: 0; background: none; border: none; padding: 0;">cd ~
+wget https://raw.githubusercontent.com/YourRepo/sunshine-setup/setup-sunshine.sh
+wget https://raw.githubusercontent.com/YourRepo/sunshine-setup/verify-nvenc.sh
+wget https://raw.githubusercontent.com/YourRepo/sunshine-setup/README.md
+chmod +x setup-sunshine.sh verify-nvenc.sh</pre>
+                            </div>
+                            <button class="btn btn-sm btn-outline-primary" onclick="copySshCommand()">
+                                <i class="bi bi-clipboard"></i> Copy Command
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <strong>Expected File Permissions</strong>
+                        </div>
+                        <div class="card-body">
+                            <code>-rwxr-xr-x setup-sunshine.sh</code><br>
+                            <code>-rwxr-xr-x verify-nvenc.sh</code><br>
+                            <code>-rw-r--r-- README.md</code>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 3: Run Installation -->
+                <div class="wizard-content d-none" id="wizard-step-3">
+                    <h5><i class="bi bi-terminal"></i> Run Installation</h5>
+                    <p class="text-muted">Execute the installation scripts on your Ubuntu server</p>
+                    
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <strong>Step 1: Verify GPU Support</strong>
+                        </div>
+                        <div class="card-body">
+                            <p>Run the verification script:</p>
+                            <div class="connection-code mb-2">
+                                <code>./verify-nvenc.sh</code>
+                            </div>
+                            <div class="alert alert-info mb-0">
+                                <strong>Expected Output:</strong><br>
+                                <small><code>✓ PASSED: GPU supports NVENC hardware encoding<br>
+                                ✓ PASSED: Driver version XXX.XX<br>
+                                ✓ PASSED: NVENC libraries found<br>
+                                ✓ All NVENC tests passed!</code></small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <strong>Step 2: Run Installer</strong>
+                        </div>
+                        <div class="card-body">
+                            <p>Run the setup script (do NOT use sudo):</p>
+                            <div class="connection-code mb-2">
+                                <code>./setup-sunshine.sh</code>
+                            </div>
+                            <div class="alert alert-success mb-0">
+                                <strong>Expected Output:</strong><br>
+                                <small><code>✓ Found NVIDIA GPU: RTX 3060<br>
+                                ✓ NVIDIA driver installed: 545.29.06<br>
+                                ✓ Dependencies installed<br>
+                                ✓ Sunshine installed<br>
+                                ✓ NVENC configuration created<br>
+                                ✓ Sunshine service installed and started<br>
+                                Installation Complete!</code></small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header bg-warning">
+                            <strong><i class="bi bi-exclamation-triangle"></i> Troubleshooting</strong>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>If installation fails:</strong></p>
+                            <ul class="mb-0">
+                                <li><strong>"No NVIDIA GPU detected"</strong> - Verify GPU is visible with <code>lspci | grep -i nvidia</code></li>
+                                <li><strong>"nvidia-smi not found"</strong> - Install drivers: <code>sudo ubuntu-drivers autoinstall && sudo reboot</code></li>
+                                <li><strong>"Permission denied"</strong> - Make sure you run WITHOUT sudo, and scripts are executable</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 4: Configure Sunshine -->
+                <div class="wizard-content d-none" id="wizard-step-4">
+                    <h5><i class="bi bi-gear"></i> Configure Sunshine</h5>
+                    <p class="text-muted">Access the Sunshine Web UI and configure your streaming settings</p>
+                    
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <strong>Access Sunshine Web UI</strong>
+                        </div>
+                        <div class="card-body">
+                            <p>Open in your browser:</p>
+                            <div class="connection-code mb-3">
+                                <a href="http://{{ windows_kvm_ip }}:47990" target="_blank" id="sunshine-webui-link">
+                                    http://{{ windows_kvm_ip }}:47990
+                                </a>
+                            </div>
+                            <div class="alert alert-warning">
+                                <strong>First-Time Setup:</strong> Complete the initial wizard in the Web UI to create an admin account and configure basic settings.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <strong>Pairing with Moonlight</strong>
+                        </div>
+                        <div class="card-body">
+                            <ol class="mb-0">
+                                <li>Download Moonlight client for your device</li>
+                                <li>In Moonlight, click "Add PC"</li>
+                                <li>Enter server IP: <code>{{ windows_kvm_ip }}</code></li>
+                                <li>Moonlight will show a 4-digit PIN</li>
+                                <li>Go to Sunshine Web UI → PIN section</li>
+                                <li>Enter the PIN and confirm pairing</li>
+                            </ol>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <strong>Recommended Settings</strong>
+                        </div>
+                        <div class="card-body">
+                            <table class="table table-sm mb-0">
+                                <tr><td>Encoder</td><td><strong>NVENC (automatic)</strong></td></tr>
+                                <tr><td>Preset</td><td><strong>p6 or p7</strong> (RTX 3060)</td></tr>
+                                <tr><td>Resolution</td><td><strong>1920x1080</strong></td></tr>
+                                <tr><td>FPS</td><td><strong>60</strong></td></tr>
+                                <tr><td>Bitrate</td><td><strong>20-30 Mbps</strong> (LAN)</td></tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 5: Connect Dashboard -->
+                <div class="wizard-content d-none" id="wizard-step-5">
+                    <h5><i class="bi bi-broadcast"></i> Connect Dashboard</h5>
+                    <p class="text-muted">Connect this dashboard to your Sunshine host for monitoring</p>
+                    
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <strong>Auto-Discover Host</strong>
+                        </div>
+                        <div class="card-body">
+                            <p>Automatically find your Sunshine host on the network:</p>
+                            <button class="btn btn-primary mb-3" onclick="wizardDiscoverHost()">
+                                <i class="bi bi-radar"></i> Auto-Discover
+                            </button>
+                            <div id="wizard-discover-result"></div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <strong>Test Connection</strong>
+                        </div>
+                        <div class="card-body">
+                            <p>Verify connectivity to your Sunshine host:</p>
+                            <button class="btn btn-success mb-3" onclick="wizardTestConnection()">
+                                <i class="bi bi-check-circle"></i> Test Connection
+                            </button>
+                            <div id="wizard-test-result"></div>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-success" id="wizard-success" style="display: none;">
+                        <h6><i class="bi bi-check-circle-fill"></i> Setup Complete!</h6>
+                        <p class="mb-0">Your Sunshine host is configured and ready for game streaming. You can now close this wizard and start using Moonlight to stream games!</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="wizard-prev-btn" onclick="previousWizardStep()" style="display: none;">
+                    <i class="bi bi-arrow-left"></i> Previous
+                </button>
+                <button type="button" class="btn btn-primary" id="wizard-next-btn" onclick="nextWizardStep()">
+                    Next <i class="bi bi-arrow-right"></i>
+                </button>
+                <button type="button" class="btn btn-success" id="wizard-finish-btn" onclick="finishWizard()" style="display: none;">
+                    <i class="bi bi-check-circle"></i> Finish
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.wizard-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+}
+
+.step-number {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--bg-tertiary);
+    border: 2px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    margin-bottom: 5px;
+    transition: all 0.3s ease;
+}
+
+.wizard-step.active .step-number {
+    background: linear-gradient(135deg, #8B5CF6 0%, #EC4899 50%, #3B82F6 100%);
+    border-color: #8B5CF6;
+    color: white;
+    box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4);
+}
+
+.wizard-step.completed .step-number {
+    background: var(--accent-green);
+    border-color: var(--accent-green);
+    color: white;
+}
+
+.wizard-step.completed .step-number::after {
+    content: '✓';
+}
+
+.wizard-line {
+    flex: 1;
+    height: 2px;
+    background: var(--border-color);
+    margin: 0 10px;
+}
+
+.wizard-content {
+    min-height: 400px;
+}
+</style>
+
 <script>
     let hosts = [];
     let sessions = [];
@@ -466,6 +971,10 @@
                 if (data.success) {
                     hosts = data.hosts;
                     renderHostsTable();
+                    
+                    // Populate host selectors
+                    populateHostSelector('wizard-host-selector');
+                    populateHostSelector('monitor-host-selector');
                 }
             })
             .catch(error => {
@@ -567,6 +1076,10 @@
     function showAddHostModal() {
         document.getElementById('hostIp').value = '';
         document.getElementById('hostName').value = '';
+        document.getElementById('sshUser').value = '';
+        document.getElementById('sshPort').value = '';
+        document.getElementById('sshKeyPath').value = '';
+        document.getElementById('sunshineApiKey').value = '';
         new bootstrap.Modal(document.getElementById('addHostModal')).show();
     }
 
@@ -574,16 +1087,31 @@
     function addHost() {
         const hostIp = document.getElementById('hostIp').value.trim();
         const hostName = document.getElementById('hostName').value.trim();
+        const sshUser = document.getElementById('sshUser').value.trim();
+        const sshPort = document.getElementById('sshPort').value.trim();
+        const sshKeyPath = document.getElementById('sshKeyPath').value.trim();
+        const sunshineApiKey = document.getElementById('sunshineApiKey').value.trim();
 
         if (!hostIp) {
             alert('Please enter a host IP address');
             return;
         }
 
+        const requestBody = {
+            host_ip: hostIp,
+            host_name: hostName || undefined
+        };
+        
+        // Add SSH credentials only if provided
+        if (sshUser) requestBody.ssh_user = sshUser;
+        if (sshPort) requestBody.ssh_port = parseInt(sshPort);
+        if (sshKeyPath) requestBody.ssh_key_path = sshKeyPath;
+        if (sunshineApiKey) requestBody.sunshine_api_key = sunshineApiKey;
+
         fetch('/api/gaming/hosts', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ host_ip: hostIp, host_name: hostName })
+            body: JSON.stringify(requestBody)
         })
         .then(response => response.json())
         .then(data => {
@@ -875,5 +1403,532 @@
         const address = '{{ windows_kvm_ip }}';
         alert(`To connect:\n\n1. Download and install Moonlight for your device\n2. Launch Moonlight and click "Add PC"\n3. Enter: ${address}\n4. Enter the PIN shown in Moonlight into Sunshine Web UI\n5. Start streaming!\n\nSee the Setup Guide for detailed instructions.`);
     }
+
+    // ========================================
+    // Setup Wizard Functions
+    // ========================================
+    let currentWizardStep = 1;
+    const totalWizardSteps = 5;
+
+    function showSetupWizard() {
+        currentWizardStep = 1;
+        updateWizardStep();
+        
+        // Populate host selector in wizard
+        populateHostSelector('wizard-host-selector');
+        
+        new bootstrap.Modal(document.getElementById('setupWizardModal')).show();
+    }
+    
+    function populateHostSelector(selectorId) {
+        const selector = document.getElementById(selectorId);
+        
+        if (!selector) return;
+        
+        // Clear existing options except the first one
+        selector.innerHTML = '<option value="">-- Select a Sunshine host --</option>';
+        
+        // Add hosts from global hosts array
+        if (hosts && hosts.length > 0) {
+            hosts.forEach(host => {
+                const option = document.createElement('option');
+                option.value = host.id;
+                option.textContent = `${host.host_name || host.host_ip} (${host.host_ip})`;
+                selector.appendChild(option);
+            });
+        }
+    }
+
+    function nextWizardStep() {
+        if (currentWizardStep < totalWizardSteps) {
+            currentWizardStep++;
+            updateWizardStep();
+        }
+    }
+
+    function previousWizardStep() {
+        if (currentWizardStep > 1) {
+            currentWizardStep--;
+            updateWizardStep();
+        }
+    }
+
+    function updateWizardStep() {
+        document.querySelectorAll('.wizard-content').forEach(content => {
+            content.classList.add('d-none');
+        });
+        
+        document.getElementById(`wizard-step-${currentWizardStep}`).classList.remove('d-none');
+        
+        document.querySelectorAll('.wizard-step').forEach((step, index) => {
+            const stepNum = index + 1;
+            step.classList.remove('active', 'completed');
+            
+            if (stepNum === currentWizardStep) {
+                step.classList.add('active');
+            } else if (stepNum < currentWizardStep) {
+                step.classList.add('completed');
+            }
+        });
+        
+        document.getElementById('wizard-prev-btn').style.display = currentWizardStep > 1 ? 'inline-block' : 'none';
+        document.getElementById('wizard-next-btn').style.display = currentWizardStep < totalWizardSteps ? 'inline-block' : 'none';
+        document.getElementById('wizard-finish-btn').style.display = currentWizardStep === totalWizardSteps ? 'inline-block' : 'none';
+    }
+
+    function checkSystemRequirements() {
+        const resultsDiv = document.getElementById('system-check-results');
+        const hostSelector = document.getElementById('wizard-host-selector');
+        const hostId = hostSelector.value;
+        
+        if (!hostId) {
+            resultsDiv.innerHTML = `<div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle"></i> Please select a Sunshine host first
+            </div>`;
+            return;
+        }
+        
+        resultsDiv.innerHTML = '<p class="text-muted"><i class="bi bi-hourglass-split"></i> Checking remote system via SSH...</p>';
+        
+        fetch(`/api/gaming/system-check?host_id=${hostId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.checks) {
+                    const checks = data.checks;
+                    let html = '<div class="list-group">';
+                    
+                    html += `<div class="list-group-item list-group-item-info">
+                        <strong><i class="bi bi-hdd-network"></i> Host:</strong> ${data.host_ip || 'Remote host'}
+                    </div>`;
+                    
+                    html += `<div class="list-group-item ${checks.gpu ? 'list-group-item-success' : 'list-group-item-danger'}">
+                        <strong>${checks.gpu ? '✓' : '✗'} NVIDIA GPU:</strong> ${checks.gpu_model || 'Not detected'}
+                    </div>`;
+                    
+                    html += `<div class="list-group-item ${checks.driver ? 'list-group-item-success' : 'list-group-item-danger'}">
+                        <strong>${checks.driver ? '✓' : '✗'} NVIDIA Driver:</strong> ${checks.driver_version || 'Not installed'}
+                    </div>`;
+                    
+                    html += `<div class="list-group-item ${checks.nvenc ? 'list-group-item-success' : 'list-group-item-warning'}">
+                        <strong>${checks.nvenc ? '✓' : '⚠'} NVENC Support:</strong> ${checks.nvenc ? 'Available' : 'Check required'}
+                    </div>`;
+                    
+                    if (checks.vram_total) {
+                        html += `<div class="list-group-item list-group-item-info">
+                            <strong><i class="bi bi-memory"></i> VRAM:</strong> ${checks.vram_used} / ${checks.vram_total} MB
+                        </div>`;
+                    }
+                    
+                    html += '</div>';
+                    resultsDiv.innerHTML = html;
+                } else {
+                    // Show specific error message
+                    const errorMsg = data.error || 'Unknown error';
+                    const errorDetails = data.error_details || '';
+                    
+                    let html = `<div class="alert alert-danger">
+                        <strong><i class="bi bi-x-circle"></i> ${errorMsg}</strong>`;
+                    
+                    if (errorDetails) {
+                        html += `<br><small class="text-muted">${errorDetails}</small>`;
+                    }
+                    
+                    if (data.host_ip) {
+                        html += `<br><small>Host: ${data.host_ip}</small>`;
+                    }
+                    
+                    html += '</div>';
+                    
+                    // Show partial results if available
+                    if (data.checks) {
+                        html += '<p class="text-muted"><small>Partial Results:</small></p>';
+                        html += '<div class="list-group">';
+                        
+                        if (data.checks.gpu_model) {
+                            html += `<div class="list-group-item">
+                                <strong>GPU:</strong> ${data.checks.gpu_model}
+                            </div>`;
+                        }
+                        
+                        if (data.checks.driver_version) {
+                            html += `<div class="list-group-item">
+                                <strong>Driver:</strong> ${data.checks.driver_version}
+                            </div>`;
+                        }
+                        
+                        html += '</div>';
+                    }
+                    
+                    resultsDiv.innerHTML = html;
+                }
+            })
+            .catch(error => {
+                resultsDiv.innerHTML = `<div class="alert alert-danger">
+                    <strong><i class="bi bi-x-circle"></i> Check failed</strong><br>
+                    <small>${error.message || error}</small>
+                </div>`;
+            });
+    }
+
+    function copySshCommand() {
+        const command = `cd ~
+wget https://raw.githubusercontent.com/YourRepo/sunshine-setup/setup-sunshine.sh
+wget https://raw.githubusercontent.com/YourRepo/sunshine-setup/verify-nvenc.sh
+wget https://raw.githubusercontent.com/YourRepo/sunshine-setup/README.md
+chmod +x setup-sunshine.sh verify-nvenc.sh`;
+        
+        navigator.clipboard.writeText(command).then(() => {
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="bi bi-check"></i> Copied!';
+            btn.classList.add('btn-success');
+            btn.classList.remove('btn-outline-primary');
+            
+            setTimeout(() => {
+                btn.innerHTML = originalText;
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-outline-primary');
+            }, 2000);
+        });
+    }
+
+    function wizardDiscoverHost() {
+        const resultDiv = document.getElementById('wizard-discover-result');
+        resultDiv.innerHTML = '<p class="text-muted"><i class="bi bi-hourglass-split"></i> Scanning network...</p>';
+        
+        discoverHosts();
+        
+        setTimeout(() => {
+            if (hosts.length > 0) {
+                resultDiv.innerHTML = `<div class="alert alert-success">
+                    <i class="bi bi-check-circle"></i> Found ${hosts.length} host(s)! Host has been added to your dashboard.
+                </div>`;
+            } else {
+                resultDiv.innerHTML = `<div class="alert alert-warning">
+                    No hosts found. Try manually adding the host IP in the main dashboard.
+                </div>`;
+            }
+        }, 12000);
+    }
+
+    function wizardTestConnection() {
+        const resultDiv = document.getElementById('wizard-test-result');
+        resultDiv.innerHTML = '<p class="text-muted"><i class="bi bi-hourglass-split"></i> Testing connection...</p>';
+        
+        if (hosts.length === 0) {
+            resultDiv.innerHTML = '<div class="alert alert-warning">No hosts configured. Please discover or add a host first.</div>';
+            return;
+        }
+        
+        const firstHost = hosts[0];
+        runDiagnostics(firstHost.id);
+        
+        setTimeout(() => {
+            resultDiv.innerHTML = `<div class="alert alert-success">
+                <i class="bi bi-check-circle"></i> Connection test complete! Check the diagnostics panel above for details.
+            </div>`;
+            document.getElementById('wizard-success').style.display = 'block';
+        }, 5000);
+    }
+
+    function finishWizard() {
+        bootstrap.Modal.getInstance(document.getElementById('setupWizardModal')).hide();
+        loadHosts();
+        alert('Setup complete! Your Sunshine host is ready for game streaming.');
+    }
+
+    // ========================================
+    // Performance Monitoring Functions
+    // ========================================
+    let monitoringActive = false;
+    let monitoringInterval = null;
+    let gpuUtilChart = null;
+    let latencyChart = null;
+
+    function toggleMonitoring() {
+        monitoringActive = !monitoringActive;
+        
+        const statusBadge = document.getElementById('monitor-status');
+        const toggleBtn = document.getElementById('monitor-toggle-btn');
+        
+        if (monitoringActive) {
+            statusBadge.textContent = 'Monitoring Active';
+            statusBadge.className = 'badge bg-success';
+            toggleBtn.innerHTML = '<i class="bi bi-pause-fill"></i> Stop Monitoring';
+            toggleBtn.className = 'btn btn-sm btn-danger ms-2';
+            
+            loadPerformanceMetrics();
+            monitoringInterval = setInterval(loadPerformanceMetrics, 5000);
+        } else {
+            statusBadge.textContent = 'Not Monitoring';
+            statusBadge.className = 'badge bg-secondary';
+            toggleBtn.innerHTML = '<i class="bi bi-play-fill"></i> Start Monitoring';
+            toggleBtn.className = 'btn btn-sm btn-success ms-2';
+            
+            if (monitoringInterval) {
+                clearInterval(monitoringInterval);
+                monitoringInterval = null;
+            }
+        }
+    }
+
+    function loadPerformanceMetrics() {
+        const hostSelector = document.getElementById('monitor-host-selector');
+        const hostId = hostSelector.value;
+        const errorAlert = document.getElementById('monitor-error-alert');
+        
+        if (!hostId) {
+            errorAlert.innerHTML = '<i class="bi bi-exclamation-triangle"></i> Please select a host to monitor';
+            errorAlert.style.display = 'block';
+            return;
+        }
+        
+        // Hide error alert while loading
+        errorAlert.style.display = 'none';
+        
+        fetch(`/api/gaming/performance-metrics?host_id=${hostId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.metrics) {
+                    updateMetricsDisplay(data.metrics);
+                    updatePerformanceCharts(data.metrics);
+                    checkPerformanceAlerts(data.metrics);
+                    errorAlert.style.display = 'none';
+                } else {
+                    // Show specific error message
+                    const errorMsg = data.error || 'Metrics unavailable';
+                    const errorDetails = data.error_details || '';
+                    
+                    errorAlert.innerHTML = `<strong><i class="bi bi-x-circle"></i> ${errorMsg}</strong>`;
+                    
+                    if (errorDetails) {
+                        errorAlert.innerHTML += `<br><small>${errorDetails}</small>`;
+                    }
+                    
+                    if (data.host_ip) {
+                        errorAlert.innerHTML += `<br><small>Host: ${data.host_ip}</small>`;
+                    }
+                    
+                    errorAlert.style.display = 'block';
+                    
+                    // Reset metrics display to show "No data"
+                    resetMetricsDisplay();
+                }
+            })
+            .catch(error => {
+                console.error('Failed to load performance metrics:', error);
+                errorAlert.innerHTML = `<strong><i class="bi bi-x-circle"></i> Failed to load metrics</strong><br>
+                    <small>${error.message || error}</small>`;
+                errorAlert.style.display = 'block';
+                resetMetricsDisplay();
+            });
+    }
+    
+    function resetMetricsDisplay() {
+        // Reset all metrics to "No data" state
+        document.getElementById('stat-active-sessions').textContent = '--';
+        document.getElementById('gpu-util-value').textContent = '--';
+        document.getElementById('latency-value').textContent = '--';
+        document.getElementById('quality-value').textContent = '--';
+        document.getElementById('quality-fps').textContent = '@ -- FPS';
+        document.getElementById('encoder-sessions').textContent = '--';
+        document.getElementById('encoder-fps').textContent = '--';
+        document.getElementById('encoder-bitrate').textContent = '-- Mbps';
+    }
+
+    function updateMetricsDisplay(metrics) {
+        document.getElementById('stat-active-sessions').textContent = metrics.active_sessions || 0;
+        
+        const gpuUtil = metrics.gpu_utilization || 0;
+        document.getElementById('gpu-util-value').textContent = gpuUtil;
+        document.getElementById('stat-gpu-util').style.color = getUtilizationColor(gpuUtil);
+        
+        const latency = metrics.network_latency || '--';
+        document.getElementById('latency-value').textContent = latency !== '--' ? latency : '--';
+        if (latency !== '--') {
+            document.getElementById('stat-latency').style.color = getLatencyColor(latency);
+        }
+        
+        if (metrics.streaming_quality) {
+            document.getElementById('quality-value').textContent = metrics.streaming_quality.resolution || '--';
+            document.getElementById('quality-fps').textContent = `@ ${metrics.streaming_quality.fps || '--'} FPS`;
+        }
+        
+        document.getElementById('encoder-sessions').textContent = metrics.encoder_stats?.session_count || 0;
+        document.getElementById('encoder-fps').textContent = metrics.encoder_stats?.avg_fps || '--';
+        document.getElementById('encoder-bitrate').textContent = metrics.encoder_stats?.bitrate 
+            ? `${metrics.encoder_stats.bitrate} Mbps` 
+            : '-- Mbps';
+        
+        document.getElementById('vram-usage').textContent = metrics.vram 
+            ? `${metrics.vram.used} / ${metrics.vram.total} MB`
+            : '-- / -- MB';
+        document.getElementById('gpu-temp').textContent = metrics.gpu_temperature 
+            ? `${metrics.gpu_temperature}°C` 
+            : '--°C';
+        document.getElementById('encoder-util').textContent = metrics.encoder_utilization 
+            ? `${metrics.encoder_utilization}%` 
+            : '--%';
+    }
+
+    function getUtilizationColor(util) {
+        if (util < 50) return 'var(--accent-green)';
+        if (util < 80) return 'var(--accent-yellow)';
+        return 'var(--accent-red)';
+    }
+
+    function getLatencyColor(latency) {
+        if (latency < 30) return 'var(--accent-green)';
+        if (latency < 100) return 'var(--accent-yellow)';
+        return 'var(--accent-red)';
+    }
+
+    function initPerformanceCharts() {
+        const chartConfig = {
+            type: 'line',
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(139, 92, 246, 0.1)'
+                        },
+                        ticks: {
+                            color: 'var(--text-secondary)'
+                        }
+                    },
+                    x: {
+                        grid: {
+                            color: 'rgba(139, 92, 246, 0.1)'
+                        },
+                        ticks: {
+                            color: 'var(--text-secondary)'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                }
+            }
+        };
+        
+        const gpuCtx = document.getElementById('gpuUtilChart').getContext('2d');
+        gpuUtilChart = new Chart(gpuCtx, {
+            ...chartConfig,
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'GPU Utilization %',
+                    data: [],
+                    borderColor: '#8B5CF6',
+                    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                    borderWidth: 2,
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                ...chartConfig.options,
+                scales: {
+                    ...chartConfig.options.scales,
+                    y: {
+                        ...chartConfig.options.scales.y,
+                        max: 100
+                    }
+                }
+            }
+        });
+        
+        const latencyCtx = document.getElementById('latencyChart').getContext('2d');
+        latencyChart = new Chart(latencyCtx, {
+            ...chartConfig,
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Latency (ms)',
+                    data: [],
+                    borderColor: '#3B82F6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    borderWidth: 2,
+                    tension: 0.4,
+                    fill: true
+                }]
+            }
+        });
+    }
+
+    function updatePerformanceCharts(metrics) {
+        if (!gpuUtilChart || !latencyChart) {
+            initPerformanceCharts();
+        }
+        
+        const now = new Date().toLocaleTimeString();
+        
+        gpuUtilChart.data.labels.push(now);
+        gpuUtilChart.data.datasets[0].data.push(metrics.gpu_utilization || 0);
+        
+        if (gpuUtilChart.data.labels.length > 20) {
+            gpuUtilChart.data.labels.shift();
+            gpuUtilChart.data.datasets[0].data.shift();
+        }
+        gpuUtilChart.update('none');
+        
+        latencyChart.data.labels.push(now);
+        latencyChart.data.datasets[0].data.push(metrics.network_latency || 0);
+        
+        if (latencyChart.data.labels.length > 20) {
+            latencyChart.data.labels.shift();
+            latencyChart.data.datasets[0].data.shift();
+        }
+        latencyChart.update('none');
+    }
+
+    function checkPerformanceAlerts(metrics) {
+        const alertsDiv = document.getElementById('performance-alerts');
+        let alerts = [];
+        
+        if (metrics.network_latency && metrics.network_latency > 100) {
+            alerts.push({
+                type: 'warning',
+                message: `High network latency detected: ${metrics.network_latency}ms. Consider using wired connection.`
+            });
+        }
+        
+        if (metrics.gpu_utilization && metrics.gpu_utilization > 90) {
+            alerts.push({
+                type: 'danger',
+                message: `GPU utilization very high: ${metrics.gpu_utilization}%. Performance may be impacted.`
+            });
+        }
+        
+        if (metrics.streaming_quality && metrics.streaming_quality.fps < 30) {
+            alerts.push({
+                type: 'warning',
+                message: `Low FPS detected: ${metrics.streaming_quality.fps}. Check encoder settings or network bandwidth.`
+            });
+        }
+        
+        if (alerts.length > 0) {
+            alertsDiv.innerHTML = alerts.map(alert => 
+                `<div class="alert alert-${alert.type}">
+                    <i class="bi bi-exclamation-triangle"></i> ${alert.message}
+                </div>`
+            ).join('');
+        } else {
+            alertsDiv.innerHTML = '';
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        if (typeof Chart !== 'undefined') {
+            initPerformanceCharts();
+        }
+    });
 </script>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 {% endblock %}
