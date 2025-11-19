@@ -1,6 +1,6 @@
 import os
 from openai import OpenAI
-from typing import List, Dict, Generator
+from typing import List, Dict, Generator, Optional
 import logging
 import json
 
@@ -97,7 +97,38 @@ Provide specific troubleshooting steps and potential solutions."""
             return f"Error: {str(e)}"
     
     def chat(self, message: str, conversation_history: List[Dict] = None, model: str = "gpt-5") -> str:
+        # Validate and default model parameter
+        if not model or not isinstance(model, str):
+            model = "gpt-5"
+        
+        # Check if using Ollama model
+        if model.startswith("ollama/"):
+            if self.ollama and self.ollama.enabled:
+                # Use Ollama for chat
+                model_name = model.replace("ollama/", "")
+                messages = self._build_chat_messages(conversation_history, message)
+                try:
+                    response_parts = list(self.ollama.chat(model_name, messages, stream=False))
+                    return ''.join(response_parts) if response_parts else "No response generated"
+                except Exception as e:
+                    logger.error(f"Error in Ollama chat: {e}")
+                    return f"Error using Ollama: {str(e)}"
+            else:
+                return "Ollama not available. Please check Ollama service configuration."
+        
+        # Use OpenAI for chat
         if not self.enabled or self.client is None:
+            # Try Ollama as fallback if OpenAI not available
+            if self.ollama and self.ollama.enabled:
+                logger.info("OpenAI not available, falling back to Ollama")
+                # Use default Ollama model
+                messages = self._build_chat_messages(conversation_history, message)
+                try:
+                    response_parts = list(self.ollama.chat("llama2", messages, stream=False))
+                    return ''.join(response_parts) if response_parts else "No response generated"
+                except Exception as e:
+                    logger.error(f"Error in Ollama fallback: {e}")
+                    return f"AI service not available. Please configure OpenAI API or Ollama."
             return "AI chat is not available. Please check API configuration."
         
         try:
@@ -137,6 +168,32 @@ Format your responses using Markdown for better readability:
             logger.error(f"Error in AI chat: {e}")
             return f"Error: {str(e)}"
     
+    def _build_chat_messages(self, conversation_history: Optional[List[Dict]], message: str) -> List[Dict]:
+        """Build chat messages array for Ollama/OpenAI"""
+        messages = [
+            {"role": "system", "content": """You are Jarvis, an AI-first homelab copilot assistant. You help with:
+- Docker container management and troubleshooting
+- Server health monitoring and diagnostics
+- Network configuration and debugging
+- Log analysis and error resolution
+- Service deployment and orchestration
+
+Be concise, practical, and action-oriented. When diagnosing issues, suggest specific commands or checks the user can perform. Focus on real solutions, not just general advice.
+
+Format your responses using Markdown for better readability:
+- Use **bold** for important terms
+- Use `code` for commands, file paths, and configuration values
+- Use code blocks with language tags for multi-line code (```bash, ```python, etc.)
+- Use lists for step-by-step instructions
+- Use headers (##, ###) for organizing longer responses"""}
+        ]
+        
+        if conversation_history:
+            messages.extend(conversation_history)
+        
+        messages.append({"role": "user", "content": message})
+        return messages
+    
     def chat_stream(self, message: str, conversation_history: List[Dict] = None, model: str = "gpt-5") -> Generator[str, None, None]:
         """
         Stream chat responses using Server-Sent Events (SSE)
@@ -144,6 +201,10 @@ Format your responses using Markdown for better readability:
         
         Yields SSE-formatted messages with JSON data
         """
+        # Validate and default model parameter
+        if not model or not isinstance(model, str):
+            model = "gpt-5"
+        
         # Detect if using Ollama model (starts with "ollama/")
         if model.startswith("ollama/"):
             model_name = model.replace("ollama/", "")
@@ -192,6 +253,22 @@ Format your responses using Markdown for better readability:
         
         # OpenAI streaming
         if not self.enabled or self.client is None:
+            # Try Ollama as fallback if OpenAI not available
+            if self.ollama and self.ollama.enabled:
+                logger.info("OpenAI not available for streaming, falling back to Ollama")
+                try:
+                    messages = self._build_chat_messages(conversation_history, message)
+                    # Use default Ollama model for fallback
+                    for chunk in self.ollama.chat("llama2", messages, stream=True):
+                        yield f"data: {json.dumps({'content': chunk})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+                except Exception as e:
+                    logger.error(f"Error in Ollama streaming fallback: {e}")
+                    yield f"data: {json.dumps({'error': f'AI service not available: {str(e)}'})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+            
             yield f"data: {json.dumps({'error': 'AI chat is not available. Please check API configuration.'})}\n\n"
             yield "data: [DONE]\n\n"
             return
