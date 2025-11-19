@@ -29,16 +29,20 @@ class Agent(Base):
     """Represents an AI agent in the swarm"""
     __tablename__ = 'agents'
     
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default='gen_random_uuid()')
     agent_type: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text)
     system_prompt: Mapped[Optional[str]] = mapped_column(Text)
     capabilities: Mapped[Optional[dict]] = mapped_column(JSONB)
+    config: Mapped[Optional[dict]] = mapped_column(JSONB)
     model: Mapped[str] = mapped_column(String(50), default='gpt-5')
     status: Mapped[str] = mapped_column(String(20), default=AgentStatus.IDLE.value)
     current_task_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey('agent_tasks.id', ondelete='SET NULL'))
+    tasks_completed: Mapped[int] = mapped_column(Integer, default=0)
+    tasks_failed: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     last_active: Mapped[Optional[datetime]] = mapped_column(DateTime, default=datetime.utcnow)
     
     tasks: Mapped[list["AgentTask"]] = relationship("AgentTask", back_populates="agent", foreign_keys="AgentTask.assigned_agent_id")
@@ -70,7 +74,7 @@ class AgentTask(Base):
     description: Mapped[str] = mapped_column(Text, nullable=False)
     priority: Mapped[int] = mapped_column(Integer, default=5)
     status: Mapped[str] = mapped_column(String(50), default='pending')
-    assigned_agent_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey('agents.id', ondelete='SET NULL'))
+    assigned_agent_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey('agents.id', ondelete='SET NULL'))
     parent_task_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey('agent_tasks.id', ondelete='SET NULL'))
     
     context: Mapped[Optional[dict]] = mapped_column(JSONB)
@@ -124,8 +128,8 @@ class AgentConversation(Base):
     
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     task_id: Mapped[int] = mapped_column(Integer, ForeignKey('agent_tasks.id', ondelete='CASCADE'), nullable=False)
-    from_agent_id: Mapped[int] = mapped_column(Integer, ForeignKey('agents.id', ondelete='CASCADE'), nullable=False)
-    to_agent_id: Mapped[int] = mapped_column(Integer, ForeignKey('agents.id', ondelete='CASCADE'), nullable=False)
+    from_agent_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('agents.id', ondelete='CASCADE'), nullable=False)
+    to_agent_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('agents.id', ondelete='CASCADE'), nullable=False)
     message: Mapped[str] = mapped_column(Text, nullable=False)
     message_type: Mapped[str] = mapped_column(String(50), default='consultation')
     timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

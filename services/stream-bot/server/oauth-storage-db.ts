@@ -13,26 +13,8 @@
 
 import { db } from "./db";
 import { sql } from "drizzle-orm";
-import { pgTable, text, timestamp, jsonb, uuid, index } from "drizzle-orm/pg-core";
 import { eq, lt, and } from "drizzle-orm";
-
-// OAuth Session Table Schema
-export const oauthSessions = pgTable('oauth_sessions', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  state: text('state').notNull().unique(),
-  userId: text('user_id').notNull(),
-  platform: text('platform').notNull(), // 'twitch', 'youtube', 'kick'
-  codeVerifier: text('code_verifier'), // PKCE code verifier
-  metadata: jsonb('metadata'), // Additional OAuth metadata
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
-  usedAt: timestamp('used_at', { withTimezone: true }), // Tracks if session was used (one-time use)
-  ipAddress: text('ip_address'), // For security auditing
-}, (table) => ({
-  stateIdx: index('oauth_sessions_state_idx').on(table.state),
-  expiresAtIdx: index('oauth_sessions_expires_at_idx').on(table.expiresAt),
-  userIdIdx: index('oauth_sessions_user_id_idx').on(table.userId),
-}));
+import { oauthSessions } from "@shared/schema";
 
 export type OAuthSession = typeof oauthSessions.$inferSelect;
 export type InsertOAuthSession = typeof oauthSessions.$inferInsert;

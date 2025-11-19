@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, boolean, integer, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, boolean, integer, jsonb, uniqueIndex, uuid, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -37,6 +37,25 @@ export const platformConnections = pgTable("platform_connections", {
 }, (table) => ({
   userPlatformIdx: uniqueIndex("platform_connections_user_id_platform_unique").on(table.userId, table.platform),
   platformUserIdx: uniqueIndex("platform_connections_platform_platform_user_id_unique").on(table.platform, table.platformUserId),
+}));
+
+// OAuth Sessions - Database-backed OAuth state storage for scalable, production-ready OAuth flows
+// Replaces in-memory storage, supports horizontal scaling, automatic expiration, and replay attack prevention
+export const oauthSessions = pgTable("oauth_sessions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  state: text("state").notNull().unique(),
+  userId: text("user_id").notNull(),
+  platform: text("platform").notNull(), // 'twitch', 'youtube', 'kick', 'spotify'
+  codeVerifier: text("code_verifier"), // PKCE code verifier
+  metadata: jsonb("metadata"), // Additional OAuth metadata
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  usedAt: timestamp("used_at", { withTimezone: true }), // Tracks if session was used (one-time use)
+  ipAddress: text("ip_address"), // For security auditing
+}, (table) => ({
+  stateIdx: index("oauth_sessions_state_idx").on(table.state),
+  expiresAtIdx: index("oauth_sessions_expires_at_idx").on(table.expiresAt),
+  userIdIdx: index("oauth_sessions_user_id_idx").on(table.userId),
 }));
 
 // Bot configs - per-user bot configuration (replaces singleton botSettings)

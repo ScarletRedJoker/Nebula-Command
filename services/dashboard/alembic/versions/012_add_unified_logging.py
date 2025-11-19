@@ -33,7 +33,7 @@ def upgrade():
     op.create_index('idx_log_level', 'unified_logs', ['log_level'])
     op.create_index('idx_timestamp', 'unified_logs', ['timestamp'])
     
-    op.create_index('idx_service_timestamp', 'unified_logs', ['service', 'timestamp'])
+    op.create_index('idx_unified_logs_service_timestamp', 'unified_logs', ['service', 'timestamp'])
     op.create_index('idx_log_level_timestamp', 'unified_logs', ['log_level', 'timestamp'])
     op.create_index('idx_service_level_timestamp', 'unified_logs', ['service', 'log_level', 'timestamp'])
     
@@ -47,7 +47,7 @@ def downgrade():
     op.drop_index('idx_message_fulltext', 'unified_logs')
     op.drop_index('idx_service_level_timestamp', 'unified_logs')
     op.drop_index('idx_log_level_timestamp', 'unified_logs')
-    op.drop_index('idx_service_timestamp', 'unified_logs')
+    op.drop_index('idx_unified_logs_service_timestamp', 'unified_logs')
     op.drop_index('idx_timestamp', 'unified_logs')
     op.drop_index('idx_log_level', 'unified_logs')
     op.drop_index('idx_service', 'unified_logs')

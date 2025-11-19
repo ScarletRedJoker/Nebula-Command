@@ -15,94 +15,146 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Storage metrics indexes
-    op.create_index('ix_storage_metrics_timestamp', 'storage_metrics', ['timestamp'])
-    op.create_index('ix_storage_metrics_metric_type', 'storage_metrics', ['metric_type'])
-    op.create_index('ix_storage_metrics_metric_type_timestamp', 'storage_metrics', ['metric_type', 'timestamp'])
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    
+    def index_exists(table_name, index_name):
+        try:
+            indexes = inspector.get_indexes(table_name)
+            return any(idx['name'] == index_name for idx in indexes)
+        except:
+            return False
+    
+    def table_exists(table_name):
+        """Check if table exists"""
+        try:
+            existing_tables = inspector.get_table_names()
+            return table_name in existing_tables
+        except:
+            return False
+    
+    def safe_create_index(index_name, table_name, columns, alt_prefix=None):
+        """Create index only if table and index don't exist"""
+        if not table_exists(table_name):
+            return
+        if index_exists(table_name, index_name):
+            return
+        if alt_prefix and index_exists(table_name, index_name.replace('ix_', alt_prefix)):
+            return
+        try:
+            op.create_index(index_name, table_name, columns)
+        except Exception as e:
+            if 'already exists' not in str(e) and 'does not exist' not in str(e):
+                raise
+    
+    # Storage metrics indexes (check if they exist first - migration 009 may have created some)
+    if not index_exists('storage_metrics', 'ix_storage_metrics_timestamp'):
+        op.create_index('ix_storage_metrics_timestamp', 'storage_metrics', ['timestamp'])
+    if not index_exists('storage_metrics', 'ix_storage_metrics_metric_type') and not index_exists('storage_metrics', 'ix_storage_metrics_type'):
+        op.create_index('ix_storage_metrics_metric_type', 'storage_metrics', ['metric_type'])
+    if not index_exists('storage_metrics', 'ix_storage_metrics_metric_type_timestamp') and not index_exists('storage_metrics', 'ix_storage_metrics_type_timestamp'):
+        op.create_index('ix_storage_metrics_metric_type_timestamp', 'storage_metrics', ['metric_type', 'timestamp'])
     
     # Storage alerts indexes
-    op.create_index('ix_storage_alerts_alert_enabled', 'storage_alerts', ['alert_enabled'])
-    op.create_index('ix_storage_alerts_created_at', 'storage_alerts', ['created_at'])
-    op.create_index('ix_storage_alerts_updated_at', 'storage_alerts', ['updated_at'])
+    if not index_exists('storage_alerts', 'ix_storage_alerts_alert_enabled'):
+        op.create_index('ix_storage_alerts_alert_enabled', 'storage_alerts', ['alert_enabled'])
+    if not index_exists('storage_alerts', 'ix_storage_alerts_created_at'):
+        op.create_index('ix_storage_alerts_created_at', 'storage_alerts', ['created_at'])
+    if not index_exists('storage_alerts', 'ix_storage_alerts_updated_at'):
+        op.create_index('ix_storage_alerts_updated_at', 'storage_alerts', ['updated_at'])
     
-    # Agent indexes
-    op.create_index('ix_agents_status', 'agents', ['status'])
-    op.create_index('ix_agents_created_at', 'agents', ['created_at'])
-    op.create_index('ix_agents_last_active', 'agents', ['last_active'])
-    op.create_index('ix_agents_current_task_id', 'agents', ['current_task_id'])
+    # Agent indexes (check for both idx_ and ix_ prefixes)
+    if not index_exists('agents', 'ix_agents_status') and not index_exists('agents', 'idx_agents_status'):
+        op.create_index('ix_agents_status', 'agents', ['status'])
+    if not index_exists('agents', 'ix_agents_created_at'):
+        op.create_index('ix_agents_created_at', 'agents', ['created_at'])
+    if not index_exists('agents', 'ix_agents_last_active'):
+        op.create_index('ix_agents_last_active', 'agents', ['last_active'])
+    if not index_exists('agents', 'ix_agents_current_task_id'):
+        op.create_index('ix_agents_current_task_id', 'agents', ['current_task_id'])
     
-    # Agent tasks indexes
-    op.create_index('ix_agent_tasks_status', 'agent_tasks', ['status'])
-    op.create_index('ix_agent_tasks_priority', 'agent_tasks', ['priority'])
-    op.create_index('ix_agent_tasks_created_at', 'agent_tasks', ['created_at'])
-    op.create_index('ix_agent_tasks_started_at', 'agent_tasks', ['started_at'])
-    op.create_index('ix_agent_tasks_completed_at', 'agent_tasks', ['completed_at'])
-    op.create_index('ix_agent_tasks_assigned_agent_id', 'agent_tasks', ['assigned_agent_id'])
-    op.create_index('ix_agent_tasks_parent_task_id', 'agent_tasks', ['parent_task_id'])
-    op.create_index('ix_agent_tasks_status_priority', 'agent_tasks', ['status', 'priority'])
-    op.create_index('ix_agent_tasks_status_created_at', 'agent_tasks', ['status', 'created_at'])
+    # Agent tasks indexes (check for both idx_ and ix_ prefixes from migration 007)
+    for idx_name, columns in [
+        ('ix_agent_tasks_status', ['status']),
+        ('ix_agent_tasks_priority', ['priority']),
+        ('ix_agent_tasks_created_at', ['created_at']),
+        ('ix_agent_tasks_started_at', ['started_at']),
+        ('ix_agent_tasks_completed_at', ['completed_at']),
+        ('ix_agent_tasks_assigned_agent_id', ['assigned_agent_id']),
+        ('ix_agent_tasks_parent_task_id', ['parent_task_id']),
+        ('ix_agent_tasks_status_priority', ['status', 'priority']),
+        ('ix_agent_tasks_status_created_at', ['status', 'created_at'])
+    ]:
+        alt_name = idx_name.replace('ix_', 'idx_')
+        if not index_exists('agent_tasks', idx_name) and not index_exists('agent_tasks', alt_name):
+            op.create_index(idx_name, 'agent_tasks', columns)
     
-    # Agent conversation indexes
-    op.create_index('ix_agent_conversations_task_id', 'agent_conversations', ['task_id'])
-    op.create_index('ix_agent_conversations_from_agent_id', 'agent_conversations', ['from_agent_id'])
-    op.create_index('ix_agent_conversations_to_agent_id', 'agent_conversations', ['to_agent_id'])
-    op.create_index('ix_agent_conversations_timestamp', 'agent_conversations', ['timestamp'])
+    # Agent conversation indexes (check for both idx_ and ix_ prefixes from migration 007)
+    for idx_name, columns in [
+        ('ix_agent_conversations_task_id', ['task_id']),
+        ('ix_agent_conversations_from_agent_id', ['from_agent_id']),
+        ('ix_agent_conversations_to_agent_id', ['to_agent_id']),
+        ('ix_agent_conversations_timestamp', ['timestamp'])
+    ]:
+        alt_name = idx_name.replace('ix_', 'idx_')
+        if not index_exists('agent_conversations', idx_name) and not index_exists('agent_conversations', alt_name):
+            op.create_index(idx_name, 'agent_conversations', columns)
     
     # Google service status indexes
-    op.create_index('ix_google_service_status_status', 'google_service_status', ['status'])
-    op.create_index('ix_google_service_status_created_at', 'google_service_status', ['created_at'])
-    op.create_index('ix_google_service_status_updated_at', 'google_service_status', ['updated_at'])
-    op.create_index('ix_google_service_status_last_connected', 'google_service_status', ['last_connected'])
+    safe_create_index('ix_google_service_status_status', 'google_service_status', ['status'])
+    safe_create_index('ix_google_service_status_created_at', 'google_service_status', ['created_at'])
+    safe_create_index('ix_google_service_status_updated_at', 'google_service_status', ['updated_at'])
+    safe_create_index('ix_google_service_status_last_connected', 'google_service_status', ['last_connected'])
     
     # Calendar automations indexes
-    op.create_index('ix_calendar_automations_status', 'calendar_automations', ['status'])
-    op.create_index('ix_calendar_automations_created_at', 'calendar_automations', ['created_at'])
-    op.create_index('ix_calendar_automations_updated_at', 'calendar_automations', ['updated_at'])
-    op.create_index('ix_calendar_automations_last_triggered', 'calendar_automations', ['last_triggered'])
+    safe_create_index('ix_calendar_automations_status', 'calendar_automations', ['status'])
+    safe_create_index('ix_calendar_automations_created_at', 'calendar_automations', ['created_at'])
+    safe_create_index('ix_calendar_automations_updated_at', 'calendar_automations', ['updated_at'])
+    safe_create_index('ix_calendar_automations_last_triggered', 'calendar_automations', ['last_triggered'])
     
     # Email notifications indexes
-    op.create_index('ix_email_notifications_status', 'email_notifications', ['status'])
-    op.create_index('ix_email_notifications_created_at', 'email_notifications', ['created_at'])
-    op.create_index('ix_email_notifications_sent_at', 'email_notifications', ['sent_at'])
-    op.create_index('ix_email_notifications_recipient', 'email_notifications', ['recipient'])
+    safe_create_index('ix_email_notifications_status', 'email_notifications', ['status'])
+    safe_create_index('ix_email_notifications_created_at', 'email_notifications', ['created_at'])
+    safe_create_index('ix_email_notifications_sent_at', 'email_notifications', ['sent_at'])
+    safe_create_index('ix_email_notifications_recipient', 'email_notifications', ['recipient'])
     
     # Drive backups indexes
-    op.create_index('ix_drive_backups_status', 'drive_backups', ['status'])
-    op.create_index('ix_drive_backups_created_at', 'drive_backups', ['created_at'])
-    op.create_index('ix_drive_backups_updated_at', 'drive_backups', ['updated_at'])
-    op.create_index('ix_drive_backups_uploaded_at', 'drive_backups', ['uploaded_at'])
-    op.create_index('ix_drive_backups_deleted', 'drive_backups', ['deleted'])
-    op.create_index('ix_drive_backups_deleted_status', 'drive_backups', ['deleted', 'status'])
+    safe_create_index('ix_drive_backups_status', 'drive_backups', ['status'])
+    safe_create_index('ix_drive_backups_created_at', 'drive_backups', ['created_at'])
+    safe_create_index('ix_drive_backups_updated_at', 'drive_backups', ['updated_at'])
+    safe_create_index('ix_drive_backups_uploaded_at', 'drive_backups', ['uploaded_at'])
+    safe_create_index('ix_drive_backups_deleted', 'drive_backups', ['deleted'])
+    safe_create_index('ix_drive_backups_deleted_status', 'drive_backups', ['deleted', 'status'])
     
     # NAS mounts indexes
-    op.create_index('ix_nas_mounts_is_active', 'nas_mounts', ['is_active'])
-    op.create_index('ix_nas_mounts_created_at', 'nas_mounts', ['created_at'])
-    op.create_index('ix_nas_mounts_updated_at', 'nas_mounts', ['updated_at'])
+    safe_create_index('ix_nas_mounts_is_active', 'nas_mounts', ['is_active'])
+    safe_create_index('ix_nas_mounts_created_at', 'nas_mounts', ['created_at'])
+    safe_create_index('ix_nas_mounts_updated_at', 'nas_mounts', ['updated_at'])
     
     # NAS backup jobs indexes
-    op.create_index('ix_nas_backup_jobs_status', 'nas_backup_jobs', ['status'])
-    op.create_index('ix_nas_backup_jobs_created_at', 'nas_backup_jobs', ['created_at'])
-    op.create_index('ix_nas_backup_jobs_completed_at', 'nas_backup_jobs', ['completed_at'])
+    safe_create_index('ix_nas_backup_jobs_status', 'nas_backup_jobs', ['status'])
+    safe_create_index('ix_nas_backup_jobs_created_at', 'nas_backup_jobs', ['created_at'])
+    safe_create_index('ix_nas_backup_jobs_completed_at', 'nas_backup_jobs', ['completed_at'])
     
     # Deployment indexes (additional)
-    op.create_index('ix_deployments_status', 'deployments', ['status'])
-    op.create_index('ix_deployments_deployed_at', 'deployments', ['deployed_at'])
-    op.create_index('ix_deployments_health_status', 'deployments', ['health_status'])
-    op.create_index('ix_deployments_last_health_check', 'deployments', ['last_health_check'])
-    op.create_index('ix_deployments_status_health_status', 'deployments', ['status', 'health_status'])
+    safe_create_index('ix_deployments_status', 'deployments', ['status'])
+    safe_create_index('ix_deployments_deployed_at', 'deployments', ['deployed_at'])
+    safe_create_index('ix_deployments_health_status', 'deployments', ['health_status'])
+    safe_create_index('ix_deployments_last_health_check', 'deployments', ['last_health_check'])
+    safe_create_index('ix_deployments_status_health_status', 'deployments', ['status', 'health_status'])
     
     # Deployed apps indexes (additional)
-    op.create_index('ix_deployed_apps_deployed_at', 'deployed_apps', ['deployed_at'])
-    op.create_index('ix_deployed_apps_last_check', 'deployed_apps', ['last_check'])
-    op.create_index('ix_deployed_apps_health_status', 'deployed_apps', ['health_status'])
+    safe_create_index('ix_deployed_apps_deployed_at', 'deployed_apps', ['deployed_at'])
+    safe_create_index('ix_deployed_apps_last_check', 'deployed_apps', ['last_check'])
+    safe_create_index('ix_deployed_apps_health_status', 'deployed_apps', ['health_status'])
     
     # Workflow indexes (additional to 003)
-    op.create_index('ix_workflows_completed_at', 'workflows', ['completed_at'])
-    op.create_index('ix_workflows_workflow_type', 'workflows', ['workflow_type'])
+    safe_create_index('ix_workflows_completed_at', 'workflows', ['completed_at'])
+    safe_create_index('ix_workflows_workflow_type', 'workflows', ['workflow_type'])
     
     # Task indexes (additional to 003)
-    op.create_index('ix_tasks_created_at', 'tasks', ['created_at'])
-    op.create_index('ix_tasks_completed_at', 'tasks', ['completed_at'])
+    safe_create_index('ix_tasks_created_at', 'tasks', ['created_at'])
+    safe_create_index('ix_tasks_completed_at', 'tasks', ['completed_at'])
 
 
 def downgrade() -> None:
