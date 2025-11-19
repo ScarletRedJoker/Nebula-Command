@@ -3,9 +3,7 @@ import uuid
 from datetime import datetime
 from sqlalchemy import Column, String, Integer, BigInteger, DateTime, Text, Boolean
 from sqlalchemy.dialects.postgresql import UUID, JSONB
-from sqlalchemy.ext.declarative import declarative_base
-
-Base = declarative_base()
+from . import Base
 
 
 class DBCredential(Base):

@@ -26,6 +26,11 @@ from .google_integration import GoogleServiceStatus, CalendarAutomation, EmailNo
 from .marketplace import MarketplaceApp, DeployedApp
 from .agent import Agent, AgentTask, AgentConversation, AgentType, AgentStatus
 from .subscription import Subscription, LicenseActivation, UsageMetric, SubscriptionTier, SubscriptionStatus
+from .plex import PlexImportJob, PlexImportItem
+from .service_ops import ServiceTelemetry
+from .storage import StorageMetric, StorageAlert
+from .gaming import GameSession, SunshineHost
+from .db_admin import DBCredential, DBBackupJob
 
 __all__ = [
     'Base',
@@ -56,5 +61,14 @@ __all__ = [
     'LicenseActivation',
     'UsageMetric',
     'SubscriptionTier',
-    'SubscriptionStatus'
+    'SubscriptionStatus',
+    'PlexImportJob',
+    'PlexImportItem',
+    'ServiceTelemetry',
+    'StorageMetric',
+    'StorageAlert',
+    'GameSession',
+    'SunshineHost',
+    'DBCredential',
+    'DBBackupJob'
 ]

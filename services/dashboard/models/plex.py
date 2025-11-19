@@ -4,9 +4,7 @@ from datetime import datetime
 from sqlalchemy import Column, String, Integer, BigInteger, DateTime, ForeignKey, Text, Float, Boolean
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
-from sqlalchemy.ext.declarative import declarative_base
-
-Base = declarative_base()
+from . import Base
 
 
 class PlexImportJob(Base):

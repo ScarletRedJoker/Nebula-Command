@@ -75,6 +75,8 @@ class Config:
     DB_ADMIN_ALLOWED_HOSTS = os.environ.get('DB_ADMIN_ALLOWED_HOSTS', 'discord-bot-db,localhost').split(',')
     DB_BACKUP_RETENTION_DAYS = int(os.environ.get('DB_BACKUP_RETENTION_DAYS', '30'))
     DB_BACKUP_SCHEDULE = os.environ.get('DB_BACKUP_SCHEDULE', '0 2 * * *')  # 2 AM daily
+    DB_ADMIN_ENCRYPTION_KEY = os.environ.get('DB_ADMIN_ENCRYPTION_KEY', '')
+    # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
     
     # Monitoring & Telemetry
     TELEMETRY_COLLECTION_INTERVAL = int(os.environ.get('TELEMETRY_COLLECTION_INTERVAL', '30'))  # seconds

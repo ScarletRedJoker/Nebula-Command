@@ -1,7 +1,7 @@
 """Feature Expansion - Plex, Service Ops, Storage, Gaming, DB Admin
 
-Revision ID: 006
-Revises: 005
+Revision ID: 009
+Revises: 008
 Create Date: 2025-11-19 03:00:00.000000
 
 """
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision = '006'
-down_revision = '005'
+revision = '009'
+down_revision = '008'
 branch_labels = None
 depends_on = None
 
