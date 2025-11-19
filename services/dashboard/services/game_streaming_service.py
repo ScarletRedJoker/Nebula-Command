@@ -8,7 +8,7 @@ import requests
 import uuid
 from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime, timedelta
-from config import Config
+from services.dashboard.config import Config
 
 logger = logging.getLogger(__name__)
 

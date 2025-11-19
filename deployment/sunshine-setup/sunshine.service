@@ -1,0 +1,36 @@
+[Unit]
+Description=Sunshine Game Streaming Server
+Documentation=https://docs.lizardbyte.dev/projects/sunshine
+After=network.target
+
+[Service]
+Type=simple
+User=%i
+Group=%i
+ExecStart=/usr/bin/sunshine
+Restart=on-failure
+RestartSec=5s
+
+# Security hardening
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/home/%i/.config/sunshine /tmp
+NoNewPrivileges=true
+LimitNOFILE=8192
+
+# Allow access to GPU devices
+DeviceAllow=/dev/dri rw
+DeviceAllow=/dev/nvidia0 rw
+DeviceAllow=/dev/nvidiactl rw
+DeviceAllow=/dev/nvidia-modeset rw
+
+# Environment
+Environment="HOME=/home/%i"
+Environment="XDG_RUNTIME_DIR=/run/user/%U"
+
+# Required for GPU acceleration
+SupplementaryGroups=video render
+
+[Install]
+WantedBy=multi-user.target

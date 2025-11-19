@@ -41,9 +41,9 @@ class GameSession(Base):
             'latency_ms': self.latency_ms,
             'game_name': self.game_name,
             'game_metadata': self.game_metadata,
-            'started_at': self.started_at.isoformat() if self.started_at else None,
-            'ended_at': self.ended_at.isoformat() if self.ended_at else None,
-            'duration_seconds': (self.ended_at - self.started_at).total_seconds() if self.ended_at else None,
+            'started_at': self.started_at.isoformat() if self.started_at is not None else None,
+            'ended_at': self.ended_at.isoformat() if self.ended_at is not None else None,
+            'duration_seconds': (self.ended_at - self.started_at).total_seconds() if self.ended_at is not None else None,
         }
 
 
@@ -72,10 +72,10 @@ class SunshineHost(Base):
             'api_url': self.api_url,
             'is_paired': self.is_paired,
             'pairing_pin': self.pairing_pin,
-            'last_online': self.last_online.isoformat() if self.last_online else None,
+            'last_online': self.last_online.isoformat() if self.last_online is not None else None,
             'gpu_model': self.gpu_model,
             'applications': self.applications,
             'host_metadata': self.host_metadata,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'created_at': self.created_at.isoformat() if self.created_at is not None else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at is not None else None,
         }

@@ -29,7 +29,7 @@ def login_required(f):
 @login_required
 def game_streaming_page():
     """Render game streaming page"""
-    from config import Config
+    from services.dashboard.config import Config
     return render_template(
         'game_streaming.html',
         windows_kvm_ip=Config.WINDOWS_KVM_IP or Config.SUNSHINE_HOST or 'Not configured'
