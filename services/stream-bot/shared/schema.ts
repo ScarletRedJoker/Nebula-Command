@@ -701,6 +701,33 @@ export const sentimentAnalysis = pgTable("sentiment_analysis", {
   userDateIdx: uniqueIndex("sentiment_analysis_user_id_date_unique").on(table.userId, table.date),
 }));
 
+// OBS Connections - Store OBS WebSocket connection settings per user
+export const obsConnections = pgTable("obs_connections", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }).unique(),
+  host: text("host").default("localhost").notNull(),
+  port: integer("port").default(4455).notNull(),
+  password: text("password").notNull(), // Encrypted password for OBS WebSocket
+  isConnected: boolean("is_connected").default(false).notNull(),
+  lastConnectedAt: timestamp("last_connected_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// OBS Automations - Event-triggered OBS actions
+export const obsAutomations = pgTable("obs_automations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  enabled: boolean("enabled").default(true).notNull(),
+  trigger: jsonb("trigger").notNull(), // {type: 'follow' | 'subscribe' | 'bits' | 'raid' | 'command' | 'timer', value?: string}
+  actions: jsonb("actions").notNull(), // Array of {type: 'scene' | 'source_visibility' | 'text_update' | 'media_play', params: object, delay?: number}
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  userNameIdx: uniqueIndex("obs_automations_user_id_name_unique").on(table.userId, table.name),
+}));
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users, {
   email: z.string().email("Invalid email address"),
@@ -1114,6 +1141,34 @@ export const insertSentimentAnalysisSchema = createInsertSchema(sentimentAnalysi
   createdAt: true,
 });
 
+export const insertOBSConnectionSchema = createInsertSchema(obsConnections, {
+  host: z.string().min(1, "Host is required"),
+  port: z.coerce.number().min(1).max(65535),
+  password: z.string().min(1, "Password is required"),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertOBSAutomationSchema = createInsertSchema(obsAutomations, {
+  name: z.string().min(1, "Name is required").max(100, "Name too long"),
+  enabled: z.boolean().optional(),
+  trigger: z.object({
+    type: z.enum(["follow", "subscribe", "bits", "raid", "command", "timer"]),
+    value: z.string().optional(),
+  }),
+  actions: z.array(z.object({
+    type: z.enum(["scene", "source_visibility", "text_update", "media_play"]),
+    params: z.record(z.any()),
+    delay: z.number().optional(),
+  })),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Update schemas for partial updates
 export const updateUserSchema = insertUserSchema.partial();
 export const updateBotConfigSchema = insertBotConfigSchema.partial();
@@ -1143,6 +1198,8 @@ export const updateChatbotSettingsSchema = insertChatbotSettingsSchema.partial()
 export const updateChatbotResponseSchema = insertChatbotResponseSchema.partial();
 export const updateChatbotContextSchema = insertChatbotContextSchema.partial();
 export const updateChatbotPersonalitySchema = insertChatbotPersonalitySchema.partial();
+export const updateOBSConnectionSchema = insertOBSConnectionSchema.partial();
+export const updateOBSAutomationSchema = insertOBSAutomationSchema.partial();
 
 // Signup schema - for user registration
 export const signupSchema = z.object({
@@ -1200,6 +1257,8 @@ export type ChatbotContext = typeof chatbotContext.$inferSelect;
 export type ChatbotPersonality = typeof chatbotPersonalities.$inferSelect;
 export type AnalyticsSnapshot = typeof analyticsSnapshots.$inferSelect;
 export type SentimentAnalysis = typeof sentimentAnalysis.$inferSelect;
+export type OBSConnection = typeof obsConnections.$inferSelect;
+export type OBSAutomation = typeof obsAutomations.$inferSelect;
 
 // Insert types
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -1245,6 +1304,8 @@ export type InsertChatbotContext = z.infer<typeof insertChatbotContextSchema>;
 export type InsertChatbotPersonality = z.infer<typeof insertChatbotPersonalitySchema>;
 export type InsertAnalyticsSnapshot = z.infer<typeof insertAnalyticsSnapshotSchema>;
 export type InsertSentimentAnalysis = z.infer<typeof insertSentimentAnalysisSchema>;
+export type InsertOBSConnection = z.infer<typeof insertOBSConnectionSchema>;
+export type InsertOBSAutomation = z.infer<typeof insertOBSAutomationSchema>;
 
 // Update types
 export type UpdateUser = z.infer<typeof updateUserSchema>;
@@ -1271,6 +1332,8 @@ export type UpdatePrediction = z.infer<typeof updatePredictionSchema>;
 export type UpdatePredictionBet = z.infer<typeof updatePredictionBetSchema>;
 export type UpdateAlertSettings = z.infer<typeof updateAlertSettingsSchema>;
 export type UpdateMilestone = z.infer<typeof updateMilestoneSchema>;
+export type UpdateOBSConnection = z.infer<typeof updateOBSConnectionSchema>;
+export type UpdateOBSAutomation = z.infer<typeof updateOBSAutomationSchema>;
 
 // Auth types
 export type Signup = z.infer<typeof signupSchema>;
