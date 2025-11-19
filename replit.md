@@ -66,7 +66,7 @@ The Nebula Command Dashboard provides a comprehensive web-based interface for ma
   - **NEW: Manual diagnostics option (12b)** - Run lifecycle diagnostics on-demand to detect and auto-fix common issues
 - ✅ **Fixed LSP type errors** - Added proper type hints to services/dashboard/services/db_service.py
 - ✅ **Comprehensive Lifecycle Diagnostics** - Created `homelab-lifecycle-diagnostics.sh` that automatically detects and fixes:
-  - Database migrations (runs Alembic migrations if needed)
+  - **Database migrations (FIXED: now checks if tables actually exist)** - Queries database to verify 'agents' table exists, runs Alembic migrations if missing
   - Orphaned containers cleanup
   - Dangling Docker images removal
   - Service health issues detection

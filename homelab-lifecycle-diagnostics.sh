@@ -25,25 +25,27 @@ ISSUES_FIXED=0
 echo -e "${BOLD}[1/6] Checking dashboard database migrations...${NC}"
 
 if docker ps | grep -q homelab-dashboard; then
-    # Check if migrations are needed
-    MIGRATION_STATUS=$(docker exec homelab-dashboard alembic current 2>&1 || echo "error")
+    # Check if the 'agents' table actually exists in the database
+    TABLE_CHECK=$(docker exec discord-bot-db psql -U postgres -d homelab_jarvis -tAc "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'agents');" 2>&1 || echo "error")
     
-    if echo "$MIGRATION_STATUS" | grep -q "Can't locate revision"; then
-        echo -e "  ${YELLOW}⚠ Database migrations not run${NC}"
+    if echo "$TABLE_CHECK" | grep -q "^t$"; then
+        # Table exists, migrations are up to date
+        echo -e "  ${GREEN}✓ Migrations up to date (agents table exists)${NC}"
+    elif docker ps | grep -q discord-bot-db; then
+        # Table doesn't exist, need to run migrations
+        echo -e "  ${YELLOW}⚠ Database migrations not run (agents table missing)${NC}"
         ISSUES_FOUND=$((ISSUES_FOUND + 1))
         
         echo -e "  ${BLUE}→ Running migrations...${NC}"
-        if docker exec homelab-dashboard alembic upgrade head 2>&1; then
+        if docker exec homelab-dashboard alembic upgrade head 2>&1 | grep -E "(Running upgrade|upgrade ->|done)"; then
             echo -e "  ${GREEN}✓ Migrations completed${NC}"
             ISSUES_FIXED=$((ISSUES_FIXED + 1))
         else
-            echo -e "  ${RED}✗ Migration failed${NC}"
+            echo -e "  ${RED}✗ Migration failed - check logs${NC}"
         fi
-    elif echo "$MIGRATION_STATUS" | grep -q "error"; then
-        echo -e "  ${YELLOW}⚠ Cannot check migrations (database may not be available)${NC}"
-        ISSUES_FOUND=$((ISSUES_FOUND + 1))
     else
-        echo -e "  ${GREEN}✓ Migrations up to date${NC}"
+        echo -e "  ${YELLOW}⚠ Cannot check migrations (database not available)${NC}"
+        ISSUES_FOUND=$((ISSUES_FOUND + 1))
     fi
 else
     echo -e "  ${YELLOW}⚠ Dashboard container not running${NC}"
