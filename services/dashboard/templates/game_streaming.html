@@ -133,6 +133,134 @@
         </div>
     </div>
 
+    <!-- App & Game Management -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-controller"></i> App & Game Management</h5>
+                    <div>
+                        <select class="form-select form-select-sm d-inline-block me-2" style="width: auto;" id="app-host-selector">
+                            <option value="">-- Select Host --</option>
+                        </select>
+                        <button class="btn btn-sm btn-success" onclick="GameStreaming.showAddAppModal()" id="add-app-btn" disabled>
+                            <i class="bi bi-plus-circle"></i> Add App
+                        </button>
+                        <button class="btn btn-sm btn-primary" onclick="GameStreaming.loadApps()" id="refresh-apps-btn" disabled>
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="apps-loading" class="text-center py-4" style="display:none;">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2 text-muted">Loading apps...</p>
+                    </div>
+                    
+                    <div id="apps-container">
+                        <div class="alert alert-info mb-0">
+                            <i class="bi bi-info-circle"></i> Select a Sunshine host above to view and manage apps/games
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Active Streaming Sessions -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-broadcast"></i> Active Streaming Sessions</h5>
+                    <button class="btn btn-sm btn-primary" onclick="GameStreaming.refreshActiveSessions()">
+                        <i class="bi bi-arrow-clockwise"></i> Refresh
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div id="active-sessions-container">
+                        <div class="alert alert-secondary mb-0">
+                            <i class="bi bi-info-circle"></i> No active streaming sessions
+                        </div>
+                    </div>
+                    
+                    <!-- Detailed Session Telemetry -->
+                    <div id="session-telemetry-container" class="mt-3">
+                        <!-- Populated by loadDetailedTelemetry() -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quality Presets -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-sliders"></i> Streaming Quality Presets</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            <div class="quality-preset-card" onclick="GameStreaming.applyQualityPreset('ultra')">
+                                <div class="preset-name">Ultra (4K60)</div>
+                                <div class="preset-details">
+                                    <small>3840x2160 @ 60fps</small><br>
+                                    <small>80 Mbps, HEVC</small>
+                                </div>
+                                <div class="preset-badge"><span class="badge bg-danger">High Quality</span></div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="quality-preset-card" onclick="GameStreaming.applyQualityPreset('high')">
+                                <div class="preset-name">High (1440p60)</div>
+                                <div class="preset-details">
+                                    <small>2560x1440 @ 60fps</small><br>
+                                    <small>40 Mbps, HEVC</small>
+                                </div>
+                                <div class="preset-badge"><span class="badge bg-warning">Recommended</span></div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="quality-preset-card" onclick="GameStreaming.applyQualityPreset('balanced')">
+                                <div class="preset-name">Balanced (1080p60)</div>
+                                <div class="preset-details">
+                                    <small>1920x1080 @ 60fps</small><br>
+                                    <small>20 Mbps, H.264</small>
+                                </div>
+                                <div class="preset-badge"><span class="badge bg-success">Balanced</span></div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="quality-preset-card" onclick="GameStreaming.applyQualityPreset('performance')">
+                                <div class="preset-name">Performance (1080p30)</div>
+                                <div class="preset-details">
+                                    <small>1920x1080 @ 30fps</small><br>
+                                    <small>10 Mbps, H.264</small>
+                                </div>
+                                <div class="preset-badge"><span class="badge bg-info">Low Latency</span></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Current Quality Configuration Display -->
+                    <div id="current-quality-config" class="mt-3">
+                        <div class="alert alert-secondary mb-0">
+                            <small><i class="bi bi-info-circle"></i> Loading current configuration...</small>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-success mt-3 mb-0">
+                        <i class="bi bi-check-circle"></i> <strong>Click a preset above</strong> to automatically configure your Sunshine host. The settings will be applied directly to the server.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Session History -->
     <div class="row mb-4">
         <div class="col-12">
@@ -951,7 +1079,198 @@ chmod +x setup-sunshine.sh verify-nvenc.sh</pre>
 .wizard-content {
     min-height: 400px;
 }
+
+.quality-preset-card {
+    padding: 20px;
+    border: 2px solid var(--border-color);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: var(--card-bg);
+}
+
+.quality-preset-card:hover {
+    border-color: var(--accent-purple);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
+}
+
+.preset-name {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 10px;
+}
+
+.preset-details {
+    color: var(--text-secondary);
+    margin-bottom: 10px;
+}
+
+.preset-badge {
+    margin-top: 10px;
+}
+
+.app-card {
+    padding: 15px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    margin-bottom: 10px;
+    background: var(--card-bg);
+    transition: all 0.2s ease;
+}
+
+.app-card:hover {
+    border-color: var(--accent-purple);
+    box-shadow: 0 2px 8px rgba(139, 92, 246, 0.2);
+}
+
+.app-name {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 5px;
+}
+
+.app-command {
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    background: rgba(0, 0, 0, 0.2);
+    padding: 5px 8px;
+    border-radius: 4px;
+    margin-bottom: 10px;
+}
+
+.session-card {
+    padding: 15px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    margin-bottom: 10px;
+    background: var(--card-bg);
+}
+
+.session-card.active {
+    border-left: 4px solid var(--accent-green);
+}
+
+.session-telemetry-card {
+    padding: 15px;
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    border-radius: 8px;
+    background: rgba(139, 92, 246, 0.05);
+}
+
+.metric-box {
+    padding: 10px;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    text-align: center;
+}
+
+.metric-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 5px;
+}
+
+.metric-value {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.metric-box.bg-warning-subtle {
+    background: rgba(255, 193, 7, 0.15);
+    border-color: rgba(255, 193, 7, 0.3);
+}
+
+.metric-box.bg-danger-subtle {
+    background: rgba(220, 53, 69, 0.15);
+    border-color: rgba(220, 53, 69, 0.3);
+}
 </style>
+
+<!-- Add/Edit App Modal -->
+<div class="modal fade" id="addAppModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="appModalTitle">Add New App</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addAppForm">
+                    <input type="hidden" id="appEditIndex">
+                    
+                    <div class="mb-3">
+                        <label class="form-label">App Name *</label>
+                        <input type="text" class="form-control" id="appName" required 
+                               placeholder="My Game">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Executable Command *</label>
+                        <input type="text" class="form-control" id="appCmd" required 
+                               placeholder="/usr/bin/steam -bigpicture">
+                        <small class="text-muted">Full path to executable or command</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Working Directory</label>
+                        <input type="text" class="form-control" id="appWorkingDir" 
+                               placeholder="/home/user/games">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Icon/Image Path</label>
+                        <input type="text" class="form-control" id="appImagePath" 
+                               placeholder="/path/to/icon.png">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Prep Commands</label>
+                        <textarea class="form-control" id="appPrepCmd" rows="2" 
+                                  placeholder="Commands to run before launching app"></textarea>
+                        <small class="text-muted">Run before app launches (one per line)</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Detached Commands</label>
+                        <textarea class="form-control" id="appDetached" rows="2" 
+                                  placeholder="Background processes"></textarea>
+                        <small class="text-muted">Background processes (one per line)</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Quick Templates</label>
+                        <div class="btn-group d-flex" role="group">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" 
+                                    onclick="GameStreaming.applyTemplate('steam')">
+                                <i class="bi bi-steam"></i> Steam
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" 
+                                    onclick="GameStreaming.applyTemplate('epic')">
+                                <i class="bi bi-controller"></i> Epic
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" 
+                                    onclick="GameStreaming.applyTemplate('desktop')">
+                                <i class="bi bi-display"></i> Desktop
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" onclick="GameStreaming.saveApp()">Save App</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <script>
     let hosts = [];
@@ -1927,7 +2246,675 @@ chmod +x setup-sunshine.sh verify-nvenc.sh`;
         if (typeof Chart !== 'undefined') {
             initPerformanceCharts();
         }
+        
+        populateHostSelector('app-host-selector');
+        
+        const appHostSelector = document.getElementById('app-host-selector');
+        if (appHostSelector) {
+            appHostSelector.addEventListener('change', function() {
+                const hostId = this.value;
+                const addAppBtn = document.getElementById('add-app-btn');
+                const refreshAppsBtn = document.getElementById('refresh-apps-btn');
+                
+                if (hostId) {
+                    addAppBtn.disabled = false;
+                    refreshAppsBtn.disabled = false;
+                    GameStreaming.loadApps();
+                } else {
+                    addAppBtn.disabled = true;
+                    refreshAppsBtn.disabled = true;
+                    document.getElementById('apps-container').innerHTML = `
+                        <div class="alert alert-info mb-0">
+                            <i class="bi bi-info-circle"></i> Select a Sunshine host above to view and manage apps/games
+                        </div>`;
+                }
+            });
+        }
+        
+        if (typeof GameStreaming !== 'undefined') {
+            GameStreaming.loadCurrentQualityConfig();
+            GameStreaming.loadDetailedTelemetry();
+        }
     });
+
+    const GameStreaming = {
+        currentApps: [],
+        
+        loadApps: function() {
+            const hostId = document.getElementById('app-host-selector').value;
+            if (!hostId) {
+                return;
+            }
+            
+            const container = document.getElementById('apps-container');
+            const loading = document.getElementById('apps-loading');
+            
+            loading.style.display = 'block';
+            container.style.display = 'none';
+            
+            fetch(`/api/gaming/hosts/${hostId}/apps`)
+                .then(response => response.json())
+                .then(data => {
+                    loading.style.display = 'none';
+                    container.style.display = 'block';
+                    
+                    if (data.success) {
+                        this.currentApps = data.apps || [];
+                        this.renderApps();
+                    } else {
+                        container.innerHTML = `
+                            <div class="alert alert-danger mb-0">
+                                <i class="bi bi-exclamation-triangle"></i> ${data.error || 'Failed to load apps'}
+                            </div>`;
+                    }
+                })
+                .catch(error => {
+                    loading.style.display = 'none';
+                    container.style.display = 'block';
+                    container.innerHTML = `
+                        <div class="alert alert-danger mb-0">
+                            <i class="bi bi-exclamation-triangle"></i> Connection error: ${error.message}
+                        </div>`;
+                });
+        },
+        
+        renderApps: function() {
+            const container = document.getElementById('apps-container');
+            
+            if (this.currentApps.length === 0) {
+                container.innerHTML = `
+                    <div class="alert alert-info mb-0">
+                        <i class="bi bi-info-circle"></i> No apps configured. Click "Add App" to get started.
+                    </div>`;
+                return;
+            }
+            
+            const html = this.currentApps.map((app, index) => `
+                <div class="app-card">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                            <div class="app-name">
+                                <i class="bi bi-controller"></i> ${this.escapeHtml(app.name || app.output || 'Unnamed App')}
+                            </div>
+                            <div class="app-command">${this.escapeHtml(app.cmd ? app.cmd.join(' ') : 'No command')}</div>
+                            ${app.image ? `<small class="text-muted"><i class="bi bi-image"></i> ${this.escapeHtml(app.image)}</small><br>` : ''}
+                            ${app['working-dir'] ? `<small class="text-muted"><i class="bi bi-folder"></i> ${this.escapeHtml(app['working-dir'])}</small>` : ''}
+                        </div>
+                        <div class="btn-group-vertical" role="group">
+                            <button class="btn btn-sm btn-success" onclick="GameStreaming.startApp(${index})" title="Start App">
+                                <i class="bi bi-play-fill"></i> Start
+                            </button>
+                            <button class="btn btn-sm btn-primary" onclick="GameStreaming.editApp(${index})" title="Edit">
+                                <i class="bi bi-pencil"></i> Edit
+                            </button>
+                            <button class="btn btn-sm btn-danger" onclick="GameStreaming.deleteApp(${index})" title="Delete">
+                                <i class="bi bi-trash"></i> Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+            
+            container.innerHTML = html;
+        },
+        
+        showAddAppModal: function() {
+            document.getElementById('appModalTitle').textContent = 'Add New App';
+            document.getElementById('addAppForm').reset();
+            document.getElementById('appEditIndex').value = '';
+            
+            const modal = new bootstrap.Modal(document.getElementById('addAppModal'));
+            modal.show();
+        },
+        
+        editApp: function(index) {
+            const app = this.currentApps[index];
+            
+            document.getElementById('appModalTitle').textContent = 'Edit App';
+            document.getElementById('appEditIndex').value = index;
+            document.getElementById('appName').value = app.name || app.output || '';
+            document.getElementById('appCmd').value = app.cmd ? app.cmd.join(' ') : '';
+            document.getElementById('appWorkingDir').value = app['working-dir'] || '';
+            document.getElementById('appImagePath').value = app.image || '';
+            document.getElementById('appPrepCmd').value = app['prep-cmd'] ? app['prep-cmd'].join('\n') : '';
+            document.getElementById('appDetached').value = app.detached ? app.detached.join('\n') : '';
+            
+            const modal = new bootstrap.Modal(document.getElementById('addAppModal'));
+            modal.show();
+        },
+        
+        saveApp: function() {
+            const hostId = document.getElementById('app-host-selector').value;
+            const editIndex = document.getElementById('appEditIndex').value;
+            const isEdit = editIndex !== '';
+            
+            const appConfig = {
+                name: document.getElementById('appName').value,
+                output: document.getElementById('appName').value,
+                cmd: document.getElementById('appCmd').value.trim().split(/\s+/),
+                'working-dir': document.getElementById('appWorkingDir').value || undefined,
+                image: document.getElementById('appImagePath').value || undefined,
+                'prep-cmd': document.getElementById('appPrepCmd').value 
+                    ? document.getElementById('appPrepCmd').value.split('\n').filter(l => l.trim())
+                    : undefined,
+                detached: document.getElementById('appDetached').value
+                    ? document.getElementById('appDetached').value.split('\n').filter(l => l.trim())
+                    : undefined
+            };
+            
+            Object.keys(appConfig).forEach(key => {
+                if (appConfig[key] === undefined || appConfig[key] === '') {
+                    delete appConfig[key];
+                }
+            });
+            
+            const url = isEdit 
+                ? `/api/gaming/hosts/${hostId}/apps/${editIndex}`
+                : `/api/gaming/hosts/${hostId}/apps`;
+            const method = isEdit ? 'PUT' : 'POST';
+            
+            fetch(url, {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(appConfig)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    bootstrap.Modal.getInstance(document.getElementById('addAppModal')).hide();
+                    this.showToast(isEdit ? 'App updated successfully' : 'App added successfully', 'success');
+                    this.loadApps();
+                } else {
+                    this.showToast('Error: ' + (data.error || 'Unknown error'), 'danger');
+                }
+            })
+            .catch(error => {
+                this.showToast('Connection error: ' + error.message, 'danger');
+            });
+        },
+        
+        deleteApp: function(index) {
+            if (!confirm('Are you sure you want to delete this app?')) {
+                return;
+            }
+            
+            const hostId = document.getElementById('app-host-selector').value;
+            
+            fetch(`/api/gaming/hosts/${hostId}/apps/${index}`, {
+                method: 'DELETE'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    this.showToast('App deleted successfully', 'success');
+                    this.loadApps();
+                } else {
+                    this.showToast('Error: ' + (data.error || 'Unknown error'), 'danger');
+                }
+            })
+            .catch(error => {
+                this.showToast('Connection error: ' + error.message, 'danger');
+            });
+        },
+        
+        startApp: function(index) {
+            const hostId = document.getElementById('app-host-selector').value;
+            const app = this.currentApps[index];
+            
+            fetch(`/api/gaming/hosts/${hostId}/apps/${index}/start`, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    this.showToast(`Started streaming: ${app.name || app.output}`, 'success');
+                    setTimeout(() => this.refreshActiveSessions(), 1000);
+                } else {
+                    this.showToast('Error: ' + (data.error || 'Failed to start app'), 'danger');
+                }
+            })
+            .catch(error => {
+                this.showToast('Connection error: ' + error.message, 'danger');
+            });
+        },
+        
+        stopSession: function(hostId) {
+            if (!confirm('Are you sure you want to stop the active streaming session?')) {
+                return;
+            }
+            
+            fetch(`/api/gaming/hosts/${hostId}/apps/stop`, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    this.showToast('Streaming session stopped', 'success');
+                    setTimeout(() => this.refreshActiveSessions(), 1000);
+                } else {
+                    this.showToast('Error: ' + (data.error || 'Failed to stop session'), 'danger');
+                }
+            })
+            .catch(error => {
+                this.showToast('Connection error: ' + error.message, 'danger');
+            });
+        },
+        
+        refreshActiveSessions: function() {
+            const container = document.getElementById('active-sessions-container');
+            
+            if (!hosts || hosts.length === 0) {
+                container.innerHTML = `
+                    <div class="alert alert-secondary mb-0">
+                        <i class="bi bi-info-circle"></i> No hosts configured
+                    </div>`;
+                return;
+            }
+            
+            container.innerHTML = `
+                <div class="text-center py-3">
+                    <div class="spinner-border spinner-border-sm text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <small class="ms-2">Checking active sessions...</small>
+                </div>`;
+            
+            Promise.all(hosts.map(host => 
+                fetch(`/api/gaming/hosts/${host.id}/sessions/active`)
+                    .then(r => r.json())
+                    .then(data => ({host, data}))
+                    .catch(error => ({host, error}))
+            ))
+            .then(results => {
+                const activeSessions = results.filter(r => r.data && r.data.success && r.data.sessions && r.data.sessions.length > 0);
+                
+                if (activeSessions.length === 0) {
+                    container.innerHTML = `
+                        <div class="alert alert-secondary mb-0">
+                            <i class="bi bi-info-circle"></i> No active streaming sessions
+                        </div>`;
+                    return;
+                }
+                
+                const html = activeSessions.map(({host, data}) => {
+                    return data.sessions.map(session => `
+                        <div class="session-card active">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <h6 class="mb-2">
+                                        <i class="bi bi-broadcast text-success"></i> 
+                                        <strong>${this.escapeHtml(session.app_name || 'Unknown App')}</strong>
+                                    </h6>
+                                    <div class="row g-2 small">
+                                        <div class="col-md-3">
+                                            <i class="bi bi-pc-display"></i> Host: ${this.escapeHtml(host.name)}
+                                        </div>
+                                        <div class="col-md-3">
+                                            <i class="bi bi-aspect-ratio"></i> ${session.resolution || 'N/A'} @ ${session.fps || 'N/A'} FPS
+                                        </div>
+                                        <div class="col-md-3">
+                                            <i class="bi bi-speedometer"></i> ${session.bitrate || 'N/A'}
+                                        </div>
+                                        <div class="col-md-3">
+                                            <i class="bi bi-clock"></i> ${session.duration || 'N/A'}
+                                        </div>
+                                    </div>
+                                    ${session.client ? `<div class="mt-2 small text-muted"><i class="bi bi-laptop"></i> Client: ${this.escapeHtml(session.client)}</div>` : ''}
+                                </div>
+                                <button class="btn btn-sm btn-danger" onclick="GameStreaming.stopSession('${host.id}')" title="Stop Session">
+                                    <i class="bi bi-stop-fill"></i> Stop
+                                </button>
+                            </div>
+                        </div>
+                    `).join('');
+                }).join('');
+                
+                container.innerHTML = html;
+            });
+        },
+        
+        applyTemplate: function(type) {
+            const templates = {
+                steam: {
+                    name: 'Steam Big Picture',
+                    cmd: 'steam -bigpicture',
+                    workingDir: '',
+                    imagePath: '/usr/share/pixmaps/steam.png'
+                },
+                epic: {
+                    name: 'Epic Games Launcher',
+                    cmd: 'com.epicgames.Launcher',
+                    workingDir: '',
+                    imagePath: ''
+                },
+                desktop: {
+                    name: 'Desktop',
+                    cmd: '/usr/bin/env DISPLAY=:0 startplasma-x11',
+                    workingDir: '',
+                    imagePath: ''
+                }
+            };
+            
+            const template = templates[type];
+            if (template) {
+                document.getElementById('appName').value = template.name;
+                document.getElementById('appCmd').value = template.cmd;
+                document.getElementById('appWorkingDir').value = template.workingDir;
+                document.getElementById('appImagePath').value = template.imagePath;
+            }
+        },
+        
+        applyQualityPreset: function(preset) {
+            if (!hosts || hosts.length === 0) {
+                this.showToast('No Sunshine hosts configured. Please add a host first.', 'warning');
+                return;
+            }
+            
+            const hostId = hosts[0].id;
+            
+            const presetNames = {
+                ultra: 'Ultra (4K60)',
+                high: 'High (1440p60)',
+                balanced: 'Balanced (1080p60)',
+                performance: 'Performance (1080p30)'
+            };
+            
+            const presetName = presetNames[preset] || preset;
+            
+            this.showToast(`Applying ${presetName} preset to Sunshine host...`, 'info');
+            
+            fetch(`/api/gaming/hosts/${hostId}/quality-config`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ preset: preset })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const config = data.applied_config;
+                    this.showToast(
+                        `✓ Quality preset applied to Sunshine host!\n\n` +
+                        `Resolution: ${config.resolution}\n` +
+                        `FPS: ${config.fps}\n` +
+                        `Bitrate: ${config.bitrate / 1000} Mbps\n` +
+                        `Codec: ${config.codec.toUpperCase()}\n` +
+                        `Encoder Preset: ${config.encoder_preset}`,
+                        'success'
+                    );
+                    
+                    this.loadCurrentQualityConfig(hostId);
+                } else {
+                    let errorMsg = 'Failed to apply quality preset: ' + (data.error || 'Unknown error');
+                    let errorType = 'danger';
+                    
+                    if (data.status_code === 401) {
+                        errorMsg = '🔒 Authentication Failed\n\nCannot authenticate with Sunshine API. Please check your API key in host configuration.';
+                    } else if (data.status_code === 503 || data.error?.includes('Cannot connect')) {
+                        errorMsg = '📡 Host Unreachable\n\nCannot connect to Sunshine host. Please verify the host is online and Sunshine is running.';
+                        errorType = 'warning';
+                    } else if (data.status_code === 404) {
+                        errorMsg = '❌ API Endpoint Not Found\n\nYour Sunshine version may not support quality configuration via API. Please upgrade to the latest version.';
+                    }
+                    
+                    this.showToast(errorMsg, errorType);
+                }
+            })
+            .catch(error => {
+                this.showToast(
+                    '⚠️ Connection Error\n\n' +
+                    'Failed to communicate with the server: ' + error.message + '\n\n' +
+                    'Please check your network connection and try again.',
+                    'danger'
+                );
+            });
+        },
+        
+        loadCurrentQualityConfig: function(hostId) {
+            if (!hostId && hosts && hosts.length > 0) {
+                hostId = hosts[0].id;
+            }
+            
+            if (!hostId) {
+                return;
+            }
+            
+            fetch(`/api/gaming/hosts/${hostId}/quality-config`)
+                .then(response => response.json())
+                .then(data => {
+                    const container = document.getElementById('current-quality-config');
+                    if (!container) return;
+                    
+                    if (data.success && data.config) {
+                        const config = data.config;
+                        container.innerHTML = `
+                            <div class="alert alert-info mb-0">
+                                <h6 class="mb-2"><i class="bi bi-check-circle"></i> Current Quality Configuration</h6>
+                                <div class="row g-2 small">
+                                    <div class="col-md-3">
+                                        <strong>Resolution:</strong> ${config.resolution}
+                                    </div>
+                                    <div class="col-md-3">
+                                        <strong>FPS:</strong> ${config.fps}
+                                    </div>
+                                    <div class="col-md-3">
+                                        <strong>Bitrate:</strong> ${config.bitrate / 1000} Mbps
+                                    </div>
+                                    <div class="col-md-3">
+                                        <strong>Codec:</strong> ${config.codec.toUpperCase()}
+                                    </div>
+                                </div>
+                                ${data.updated_at ? `<small class="text-muted">Last updated: ${new Date(data.updated_at).toLocaleString()}</small>` : ''}
+                            </div>
+                        `;
+                    } else {
+                        container.innerHTML = `
+                            <div class="alert alert-secondary mb-0">
+                                <small><i class="bi bi-info-circle"></i> ${data.message || 'No quality configuration set (using Sunshine defaults)'}</small>
+                            </div>
+                        `;
+                    }
+                })
+                .catch(error => {
+                    console.error('Failed to load quality config:', error);
+                });
+        },
+        
+        loadDetailedTelemetry: function(hostId) {
+            if (!hostId && hosts && hosts.length > 0) {
+                hostId = hosts[0].id;
+            }
+            
+            if (!hostId) {
+                return;
+            }
+            
+            const container = document.getElementById('session-telemetry-container');
+            if (!container) return;
+            
+            container.innerHTML = `
+                <div class="text-center py-3">
+                    <div class="spinner-border spinner-border-sm text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <small class="ms-2">Fetching telemetry...</small>
+                </div>`;
+            
+            fetch(`/api/gaming/hosts/${hostId}/telemetry?persist=true`)
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.success) {
+                        let errorMsg = 'Failed to load telemetry';
+                        if (data.error?.includes('unreachable')) {
+                            errorMsg = 'Host unreachable - check if Sunshine is running';
+                        } else if (data.error?.includes('Authentication')) {
+                            errorMsg = 'Authentication failed - check API key';
+                        }
+                        
+                        container.innerHTML = `
+                            <div class="alert alert-warning mb-0">
+                                <i class="bi bi-exclamation-triangle"></i> ${errorMsg}
+                                <button class="btn btn-sm btn-outline-warning ms-2" onclick="GameStreaming.loadDetailedTelemetry('${hostId}')">
+                                    <i class="bi bi-arrow-clockwise"></i> Retry
+                                </button>
+                            </div>
+                        `;
+                        return;
+                    }
+                    
+                    const telemetry = data.telemetry;
+                    const sessions = telemetry.active_sessions || [];
+                    const gpu = telemetry.gpu_stats || {};
+                    const aggregate = telemetry.aggregate_stats || {};
+                    
+                    if (sessions.length === 0) {
+                        container.innerHTML = `
+                            <div class="alert alert-secondary mb-0">
+                                <i class="bi bi-info-circle"></i> No active streaming sessions
+                            </div>
+                        `;
+                        return;
+                    }
+                    
+                    const sessionsHtml = sessions.map((session, idx) => `
+                        <div class="session-telemetry-card mb-3">
+                            <h6 class="mb-2">
+                                <i class="bi bi-broadcast text-success"></i> 
+                                Session ${idx + 1} ${session.client_device ? '- ' + this.escapeHtml(session.client_device) : ''}
+                            </h6>
+                            
+                            <div class="row g-2 mb-2">
+                                <div class="col-md-4">
+                                    <div class="metric-box">
+                                        <div class="metric-label">Stream Quality</div>
+                                        <div class="metric-value">${session.resolution || 'N/A'} @ ${session.fps || 'N/A'} FPS</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="metric-box">
+                                        <div class="metric-label">Encoder</div>
+                                        <div class="metric-value">
+                                            <span class="badge bg-${session.encoder?.includes('NVENC') ? 'success' : 'secondary'}">
+                                                ${session.encoder || 'Unknown'}
+                                            </span>
+                                            ${session.codec ? `<small>(${session.codec.toUpperCase()})</small>` : ''}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="metric-box">
+                                        <div class="metric-label">Bitrate</div>
+                                        <div class="metric-value">${session.bitrate_kbps ? (session.bitrate_kbps / 1000).toFixed(1) + ' Mbps' : 'N/A'}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row g-2 mb-2">
+                                <div class="col-md-3">
+                                    <div class="metric-box ${session.latency_ms > 50 ? 'bg-warning-subtle' : ''}">
+                                        <div class="metric-label">Latency</div>
+                                        <div class="metric-value">${session.latency_ms ? session.latency_ms.toFixed(1) + ' ms' : 'N/A'}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="metric-box ${(session.dropped_frames_pct || 0) > 5 ? 'bg-danger-subtle' : ''}">
+                                        <div class="metric-label">Dropped Frames</div>
+                                        <div class="metric-value">
+                                            ${session.dropped_frames !== null ? session.dropped_frames : 'N/A'}
+                                            ${session.dropped_frames_pct !== null ? `(${session.dropped_frames_pct.toFixed(1)}%)` : ''}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="metric-box">
+                                        <div class="metric-label">Packet Loss</div>
+                                        <div class="metric-value">${session.packet_loss_pct !== null ? session.packet_loss_pct.toFixed(2) + '%' : 'N/A'}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="metric-box">
+                                        <div class="metric-label">Client IP</div>
+                                        <div class="metric-value"><small>${session.client_ip || 'N/A'}</small></div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            ${session.duration_seconds ? `<small class="text-muted">Duration: ${Math.floor(session.duration_seconds / 60)} min ${session.duration_seconds % 60} sec</small>` : ''}
+                        </div>
+                    `).join('');
+                    
+                    const gpuHtml = gpu.temperature !== null || gpu.utilization !== null ? `
+                        <div class="alert alert-dark mb-3">
+                            <h6 class="mb-2"><i class="bi bi-gpu-card"></i> GPU Hardware Stats (During Session)</h6>
+                            <div class="row g-2">
+                                <div class="col-md-3">
+                                    <div class="metric-box ${gpu.temperature > 80 ? 'bg-danger-subtle' : ''}">
+                                        <div class="metric-label">GPU Temp</div>
+                                        <div class="metric-value">${gpu.temperature !== null ? gpu.temperature + '°C' : 'N/A'}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="metric-box">
+                                        <div class="metric-label">GPU Usage</div>
+                                        <div class="metric-value">${gpu.utilization !== null ? gpu.utilization + '%' : 'N/A'}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="metric-box">
+                                        <div class="metric-label">Encoder Usage</div>
+                                        <div class="metric-value">${gpu.encoder_utilization !== null ? gpu.encoder_utilization + '%' : 'N/A'}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="metric-box">
+                                        <div class="metric-label">VRAM</div>
+                                        <div class="metric-value">
+                                            ${gpu.vram_used !== null && gpu.vram_total !== null 
+                                                ? `${gpu.vram_used} / ${gpu.vram_total} MB` 
+                                                : 'N/A'}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    ` : '';
+                    
+                    container.innerHTML = sessionsHtml + gpuHtml;
+                })
+                .catch(error => {
+                    container.innerHTML = `
+                        <div class="alert alert-danger mb-0">
+                            <i class="bi bi-exclamation-triangle"></i> Connection error: ${error.message}
+                            <button class="btn btn-sm btn-outline-danger ms-2" onclick="GameStreaming.loadDetailedTelemetry('${hostId}')">
+                                <i class="bi bi-arrow-clockwise"></i> Retry
+                            </button>
+                        </div>
+                    `;
+                });
+        },
+        
+        showToast: function(message, type = 'info') {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+            alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            document.body.appendChild(alertDiv);
+            
+            setTimeout(() => {
+                alertDiv.remove();
+            }, 5000);
+        },
+        
+        escapeHtml: function(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    };
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>

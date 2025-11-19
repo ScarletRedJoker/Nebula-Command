@@ -113,6 +113,544 @@ class GameStreamingService:
         # Fallback to Config default
         return self.sunshine_api_key or Config.SUNSHINE_API_KEY
     
+    def _make_sunshine_request(self, host_id: str, method: str, endpoint: str, **kwargs) -> Dict:
+        """
+        Centralized Sunshine API request handler with proper auth and TLS
+        
+        Features:
+        - Uses per-host Sunshine API credentials from host_metadata
+        - Proper SSL cert validation (or explicit per-host skip flag)
+        - Unified auth header construction (Bearer or Basic based on host config)
+        - Timeout handling with sensible defaults
+        - Connection error handling with specific messages
+        
+        Args:
+            host_id: Host UUID
+            method: HTTP method (GET, POST, PUT, PATCH, DELETE)
+            endpoint: API endpoint (e.g., '/api/config')
+            **kwargs: Additional arguments to pass to requests.request()
+        
+        Returns:
+            Dictionary with success status and data or error:
+            {
+                'success': bool,
+                'data': dict (if successful),
+                'error': str (if failed),
+                'status_code': int (if failed)
+            }
+        """
+        from models.gaming import SunshineHost
+        from requests.auth import HTTPBasicAuth
+        
+        if not self.db_service or not self.db_service.is_available:
+            return {
+                'success': False,
+                'error': 'Database service not available'
+            }
+        
+        try:
+            with self.db_service.get_session() as session:
+                host = session.query(SunshineHost).filter_by(id=host_id).first()
+                
+                if not host:
+                    return {
+                        'success': False,
+                        'error': f'Host {host_id} not found'
+                    }
+                
+                # Get API URL and credentials
+                api_url = self._get_sunshine_url(host_id)
+                api_key = self._get_sunshine_api_key(host_id)
+                
+                # Get per-host SSL verification setting (default: False for self-signed certs)
+                host_metadata = host.host_metadata or {}
+                verify_ssl = host_metadata.get('sunshine_verify_ssl', False)
+                
+                # Build headers
+                headers = kwargs.pop('headers', {})
+                
+                # Construct auth header based on configuration
+                auth = None
+                if api_key:
+                    # Use Bearer token auth if API key is configured
+                    headers['Authorization'] = f'Bearer {api_key}'
+                else:
+                    # Fall back to Basic auth if credentials are in host_metadata
+                    username = host_metadata.get('sunshine_username')
+                    password = host_metadata.get('sunshine_password')
+                    if username and password:
+                        auth = HTTPBasicAuth(username, password)
+                
+                # Set default timeout if not provided
+                timeout = kwargs.pop('timeout', 10)
+                
+                # Make the request
+                url = f"{api_url}{endpoint}"
+                logger.debug(f"Making {method} request to {url} (verify_ssl={verify_ssl})")
+                
+                response = requests.request(
+                    method,
+                    url,
+                    headers=headers,
+                    auth=auth,
+                    verify=verify_ssl,
+                    timeout=timeout,
+                    **kwargs
+                )
+                
+                # Check for HTTP errors
+                response.raise_for_status()
+                
+                # Try to parse JSON response
+                try:
+                    data = response.json()
+                except ValueError:
+                    # Not JSON, return text content
+                    data = {'text': response.text}
+                
+                return {
+                    'success': True,
+                    'data': data,
+                    'status_code': response.status_code
+                }
+                
+        except requests.exceptions.ConnectionError as e:
+            logger.error(f"Connection error to Sunshine host {host_id}: {e}")
+            return {
+                'success': False,
+                'error': 'Cannot connect to Sunshine host',
+                'error_details': str(e)
+            }
+        except requests.exceptions.Timeout as e:
+            logger.error(f"Timeout connecting to Sunshine host {host_id}: {e}")
+            return {
+                'success': False,
+                'error': 'Request timeout',
+                'error_details': f'Connection timed out after {timeout}s'
+            }
+        except requests.exceptions.HTTPError as e:
+            status_code = e.response.status_code if e.response else None
+            
+            if status_code == 401:
+                logger.error(f"Authentication failed for Sunshine host {host_id}")
+                return {
+                    'success': False,
+                    'error': 'Authentication failed - check API key',
+                    'status_code': 401
+                }
+            elif status_code == 404:
+                return {
+                    'success': False,
+                    'error': f'Endpoint not found: {endpoint}',
+                    'status_code': 404
+                }
+            else:
+                logger.error(f"HTTP error {status_code} for Sunshine host {host_id}: {e}")
+                return {
+                    'success': False,
+                    'error': f'HTTP {status_code}',
+                    'error_details': str(e),
+                    'status_code': status_code
+                }
+        except Exception as e:
+            logger.error(f"Unexpected error making request to Sunshine host {host_id}: {e}", exc_info=True)
+            return {
+                'success': False,
+                'error': 'Unexpected error',
+                'error_details': str(e)
+            }
+    
+    def update_sunshine_quality_config(self, host_id: str, quality_preset: Dict) -> Dict:
+        """
+        Update Sunshine quality configuration via API
+        
+        This actually modifies the Sunshine server configuration to use the specified
+        quality settings for encoding.
+        
+        Args:
+            host_id: Host UUID
+            quality_preset: Dictionary with quality settings:
+                {
+                    'resolution': '1920x1080',  # Video resolution
+                    'fps': 60,                   # Target FPS
+                    'bitrate': 20000,            # Bitrate in kbps
+                    'encoder_preset': 'p6',      # NVENC preset (p1-p7)
+                    'codec': 'h264'              # Codec: h264, h265, av1
+                }
+        
+        Returns:
+            Dictionary with result:
+            {
+                'success': bool,
+                'message': str,
+                'applied_config': dict (if successful),
+                'error': str (if failed)
+            }
+        """
+        from models.gaming import SunshineHost
+        
+        if not self.db_service or not self.db_service.is_available:
+            return {
+                'success': False,
+                'error': 'Database service not available'
+            }
+        
+        try:
+            # Validate quality preset
+            required_fields = ['resolution', 'fps', 'bitrate', 'encoder_preset', 'codec']
+            for field in required_fields:
+                if field not in quality_preset:
+                    return {
+                        'success': False,
+                        'error': f'Missing required field: {field}'
+                    }
+            
+            # Build Sunshine config payload
+            # Note: Actual Sunshine config format may vary by version
+            config_payload = {
+                'video': {
+                    'resolution': quality_preset['resolution'],
+                    'fps': quality_preset['fps'],
+                    'bitrate': quality_preset['bitrate'],
+                    'encoder': quality_preset['codec'],
+                    'encoder_preset': quality_preset['encoder_preset']
+                }
+            }
+            
+            # Make API request to update config
+            result = self._make_sunshine_request(
+                host_id,
+                'POST',
+                '/api/config',
+                json=config_payload
+            )
+            
+            if not result['success']:
+                return result
+            
+            # Persist configuration to host_metadata for reuse
+            with self.db_service.get_session() as session:
+                host = session.query(SunshineHost).filter_by(id=host_id).first()
+                
+                if host:
+                    host_metadata = host.host_metadata or {}
+                    host_metadata['quality_config'] = quality_preset
+                    host_metadata['quality_config_updated_at'] = datetime.utcnow().isoformat()
+                    host.host_metadata = host_metadata
+                    session.commit()
+                    
+                    logger.info(f"Quality configuration applied to Sunshine host {host_id}: {quality_preset}")
+            
+            return {
+                'success': True,
+                'message': 'Quality configuration applied successfully',
+                'applied_config': quality_preset
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to update quality config for host {host_id}: {e}", exc_info=True)
+            return {
+                'success': False,
+                'error': 'Failed to update configuration',
+                'error_details': str(e)
+            }
+    
+    def get_detailed_session_telemetry(self, host_id: str) -> Dict:
+        """
+        Get comprehensive session telemetry from Sunshine
+        
+        Combines data from:
+        - Sunshine API (active sessions, encoder stats, client info)
+        - SSH/nvidia-smi (GPU stats during session)
+        - Database (historical metrics)
+        
+        Returns comprehensive telemetry including:
+        - Active sessions with encoder stats (NVENC usage, quality, dropped frames)
+        - Client IP/device info
+        - Current bitrate/resolution/FPS from actual stream
+        - Network stats (latency, packet loss)
+        - Host GPU stats during session (temperature, utilization, VRAM)
+        
+        Args:
+            host_id: Host UUID
+        
+        Returns:
+            Dictionary with detailed telemetry:
+            {
+                'success': bool,
+                'host_id': str,
+                'host_ip': str,
+                'telemetry': {
+                    'active_sessions': [
+                        {
+                            'session_id': str,
+                            'client_ip': str,
+                            'client_device': str,
+                            'resolution': str,
+                            'fps': int,
+                            'bitrate_kbps': int,
+                            'encoder': str (NVENC/x264),
+                            'codec': str,
+                            'dropped_frames': int,
+                            'dropped_frames_pct': float,
+                            'latency_ms': float,
+                            'packet_loss_pct': float,
+                            'duration_seconds': int
+                        }
+                    ],
+                    'gpu_stats': {
+                        'temperature': int,
+                        'utilization': int,
+                        'vram_used': int,
+                        'vram_total': int,
+                        'encoder_utilization': int
+                    },
+                    'aggregate_stats': {
+                        'total_sessions': int,
+                        'avg_latency_ms': float,
+                        'avg_bitrate_mbps': float,
+                        'total_dropped_frames': int
+                    }
+                },
+                'error': str (if failed)
+            }
+        """
+        from models.gaming import SunshineHost, GameSession
+        
+        if not self.db_service or not self.db_service.is_available:
+            return {
+                'success': False,
+                'error': 'Database service not available'
+            }
+        
+        try:
+            with self.db_service.get_session() as session:
+                host = session.query(SunshineHost).filter_by(id=host_id).first()
+                
+                if not host:
+                    return {
+                        'success': False,
+                        'error': f'Host {host_id} not found'
+                    }
+                
+                host_ip = host.host_ip
+            
+            telemetry = {
+                'active_sessions': [],
+                'gpu_stats': {},
+                'aggregate_stats': {}
+            }
+            
+            # PART 1: Get active sessions from Sunshine API
+            api_result = self._make_sunshine_request(host_id, 'GET', '/api/sessions')
+            
+            if api_result['success'] and 'data' in api_result:
+                sessions_data = api_result['data']
+                
+                if isinstance(sessions_data, dict) and 'sessions' in sessions_data:
+                    for sess in sessions_data['sessions']:
+                        session_info = {
+                            'session_id': sess.get('id', 'unknown'),
+                            'client_ip': sess.get('client_ip'),
+                            'client_device': sess.get('client_device'),
+                            'resolution': sess.get('resolution'),
+                            'fps': sess.get('fps'),
+                            'bitrate_kbps': sess.get('bitrate'),
+                            'encoder': sess.get('encoder', 'Unknown'),
+                            'codec': sess.get('codec', 'h264'),
+                            'dropped_frames': sess.get('dropped_frames', 0),
+                            'dropped_frames_pct': sess.get('dropped_frames_pct', 0.0),
+                            'latency_ms': sess.get('latency_ms'),
+                            'packet_loss_pct': sess.get('packet_loss_pct', 0.0),
+                            'duration_seconds': sess.get('duration_seconds', 0)
+                        }
+                        telemetry['active_sessions'].append(session_info)
+            
+            # PART 2: Get GPU stats via SSH (already implemented in get_performance_metrics_remote)
+            perf_result = self.get_performance_metrics_remote(host_id)
+            
+            if perf_result['success'] and 'metrics' in perf_result:
+                metrics = perf_result['metrics']
+                telemetry['gpu_stats'] = {
+                    'temperature': metrics.get('gpu_temperature'),
+                    'utilization': metrics.get('gpu_utilization', 0),
+                    'vram_used': metrics['vram']['used'] if metrics.get('vram') else None,
+                    'vram_total': metrics['vram']['total'] if metrics.get('vram') else None,
+                    'encoder_utilization': metrics.get('encoder_utilization', 0)
+                }
+                
+                # If Sunshine API didn't return sessions, use SSH encoder stats
+                if not telemetry['active_sessions'] and metrics.get('encoder_stats'):
+                    enc_stats = metrics['encoder_stats']
+                    if enc_stats.get('session_count', 0) > 0:
+                        # Create placeholder session info from encoder stats
+                        telemetry['active_sessions'].append({
+                            'session_id': 'detected_via_nvidia_smi',
+                            'client_ip': 'Unknown',
+                            'client_device': 'Unknown',
+                            'resolution': metrics.get('streaming_quality', {}).get('resolution') if metrics.get('streaming_quality') else None,
+                            'fps': enc_stats.get('avg_fps'),
+                            'bitrate_kbps': int(enc_stats.get('bitrate', 0) * 1000) if enc_stats.get('bitrate') else None,
+                            'encoder': 'NVENC',
+                            'codec': 'Unknown',
+                            'dropped_frames': None,
+                            'dropped_frames_pct': None,
+                            'latency_ms': metrics.get('network_latency'),
+                            'packet_loss_pct': None,
+                            'duration_seconds': None
+                        })
+            
+            # PART 3: Calculate aggregate stats
+            if telemetry['active_sessions']:
+                total_sessions = len(telemetry['active_sessions'])
+                
+                latencies = [s['latency_ms'] for s in telemetry['active_sessions'] if s.get('latency_ms')]
+                bitrates = [s['bitrate_kbps'] for s in telemetry['active_sessions'] if s.get('bitrate_kbps')]
+                dropped_frames = [s['dropped_frames'] for s in telemetry['active_sessions'] if s.get('dropped_frames') is not None]
+                
+                telemetry['aggregate_stats'] = {
+                    'total_sessions': total_sessions,
+                    'avg_latency_ms': round(sum(latencies) / len(latencies), 1) if latencies else None,
+                    'avg_bitrate_mbps': round(sum(bitrates) / len(bitrates) / 1000, 2) if bitrates else None,
+                    'total_dropped_frames': sum(dropped_frames) if dropped_frames else 0
+                }
+            else:
+                telemetry['aggregate_stats'] = {
+                    'total_sessions': 0,
+                    'avg_latency_ms': None,
+                    'avg_bitrate_mbps': None,
+                    'total_dropped_frames': 0
+                }
+            
+            logger.info(f"Retrieved detailed telemetry for host {host_id}: {len(telemetry['active_sessions'])} active sessions")
+            
+            return {
+                'success': True,
+                'host_id': host_id,
+                'host_ip': host_ip,
+                'telemetry': telemetry
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to get detailed telemetry for host {host_id}: {e}", exc_info=True)
+            return {
+                'success': False,
+                'host_id': host_id,
+                'error': 'Failed to retrieve telemetry',
+                'error_details': str(e)
+            }
+    
+    def persist_session_metrics(self, host_id: str, session_data: Dict) -> Dict:
+        """
+        Persist session metrics to GameSession database for history/analytics
+        
+        Args:
+            host_id: Host UUID
+            session_data: Session metrics dictionary (from get_detailed_session_telemetry)
+        
+        Returns:
+            Dictionary with result:
+            {
+                'success': bool,
+                'persisted_sessions': int,
+                'error': str (if failed)
+            }
+        """
+        from models.gaming import SunshineHost, GameSession
+        
+        if not self.db_service or not self.db_service.is_available:
+            return {
+                'success': False,
+                'error': 'Database service not available'
+            }
+        
+        try:
+            with self.db_service.get_session() as db_session:
+                host = db_session.query(SunshineHost).filter_by(id=host_id).first()
+                
+                if not host:
+                    return {
+                        'success': False,
+                        'error': f'Host {host_id} not found'
+                    }
+                
+                persisted_count = 0
+                
+                # Get active sessions from telemetry
+                active_sessions = session_data.get('active_sessions', [])
+                
+                for sess in active_sessions:
+                    # Check if session already exists in database
+                    session_id_str = sess.get('session_id')
+                    
+                    if session_id_str and session_id_str != 'detected_via_nvidia_smi':
+                        # Try to find existing session
+                        existing_session = db_session.query(GameSession).filter_by(
+                            id=session_id_str
+                        ).first()
+                        
+                        if existing_session:
+                            # Update existing session with latest metrics
+                            existing_session.latency_ms = sess.get('latency_ms')
+                            existing_session.fps = sess.get('fps')
+                            existing_session.bitrate_mbps = sess.get('bitrate_kbps') / 1000.0 if sess.get('bitrate_kbps') else None
+                            existing_session.resolution = sess.get('resolution')
+                            
+                            # Update game_metadata with detailed stats
+                            metadata = existing_session.game_metadata or {}
+                            metadata.update({
+                                'encoder': sess.get('encoder'),
+                                'codec': sess.get('codec'),
+                                'dropped_frames': sess.get('dropped_frames'),
+                                'dropped_frames_pct': sess.get('dropped_frames_pct'),
+                                'packet_loss_pct': sess.get('packet_loss_pct'),
+                                'last_updated': datetime.utcnow().isoformat()
+                            })
+                            existing_session.game_metadata = metadata
+                            persisted_count += 1
+                        else:
+                            # Create new session
+                            new_session = GameSession(
+                                id=uuid.uuid4(),
+                                session_type='moonlight',
+                                host_ip=host.host_ip,
+                                host_name=host.host_name,
+                                status='active',
+                                client_device=sess.get('client_device'),
+                                resolution=sess.get('resolution'),
+                                fps=sess.get('fps'),
+                                bitrate_mbps=sess.get('bitrate_kbps') / 1000.0 if sess.get('bitrate_kbps') else None,
+                                latency_ms=sess.get('latency_ms'),
+                                game_metadata={
+                                    'encoder': sess.get('encoder'),
+                                    'codec': sess.get('codec'),
+                                    'dropped_frames': sess.get('dropped_frames'),
+                                    'dropped_frames_pct': sess.get('dropped_frames_pct'),
+                                    'packet_loss_pct': sess.get('packet_loss_pct'),
+                                    'client_ip': sess.get('client_ip')
+                                },
+                                started_at=datetime.utcnow()
+                            )
+                            db_session.add(new_session)
+                            persisted_count += 1
+                
+                db_session.commit()
+                
+                logger.info(f"Persisted {persisted_count} session metrics for host {host_id}")
+                
+                return {
+                    'success': True,
+                    'persisted_sessions': persisted_count
+                }
+                
+        except Exception as e:
+            logger.error(f"Failed to persist session metrics for host {host_id}: {e}", exc_info=True)
+            return {
+                'success': False,
+                'error': 'Failed to persist metrics',
+                'error_details': str(e)
+            }
+    
     def auto_discover_hosts(self, network_range: Optional[str] = None) -> List[Dict]:
         """
         Auto-discover Sunshine hosts on the network using ARP/nmap
@@ -1461,6 +1999,608 @@ class GameStreamingService:
                 'host_id': host_id,
                 'error': 'Metrics unavailable',
                 'error_details': str(e)
+            }
+    
+    def get_sunshine_apps(self, host_id: str) -> Dict:
+        """
+        Get all apps configured on Sunshine host via API
+        
+        Args:
+            host_id: Host UUID
+            
+        Returns:
+            Dictionary with apps list and metadata
+        """
+        from models.gaming import SunshineHost
+        
+        if not self.db_service or not self.db_service.is_available:
+            raise RuntimeError("Database service not available")
+        
+        with self.db_service.get_session() as session:
+            host = session.query(SunshineHost).filter_by(id=host_id).first()
+            
+            if not host:
+                raise ValueError(f"Host {host_id} not found")
+            
+            try:
+                url = f"{host.api_url}/api/apps"
+                api_key = self._get_sunshine_api_key(host_id)
+                
+                headers = {}
+                if api_key:
+                    headers['Authorization'] = f'Bearer {api_key}'
+                
+                response = requests.get(
+                    url,
+                    headers=headers,
+                    timeout=10,
+                    verify=False
+                )
+                
+                if response.status_code == 200:
+                    apps_data = response.json()
+                    
+                    # Update host cache
+                    host.applications = apps_data
+                    host.last_online = datetime.utcnow()
+                    session.commit()
+                    
+                    return {
+                        'success': True,
+                        'apps': apps_data if isinstance(apps_data, list) else apps_data.get('apps', []),
+                        'count': len(apps_data) if isinstance(apps_data, list) else len(apps_data.get('apps', []))
+                    }
+                elif response.status_code == 401 or response.status_code == 403:
+                    return {
+                        'success': False,
+                        'error': 'Authentication failed',
+                        'error_details': 'Invalid or missing API key'
+                    }
+                else:
+                    return {
+                        'success': False,
+                        'error': 'Failed to retrieve apps',
+                        'error_details': response.text
+                    }
+                    
+            except requests.exceptions.ConnectionError:
+                return {
+                    'success': False,
+                    'error': 'Connection failed',
+                    'error_details': 'Cannot connect to Sunshine host'
+                }
+            except requests.exceptions.Timeout:
+                return {
+                    'success': False,
+                    'error': 'Request timeout',
+                    'error_details': 'Sunshine host did not respond in time'
+                }
+            except Exception as e:
+                logger.error(f"Failed to get apps from host {host_id}: {e}")
+                return {
+                    'success': False,
+                    'error': 'Unexpected error',
+                    'error_details': str(e)
+                }
+    
+    def add_sunshine_app(self, host_id: str, app_config: Dict) -> Dict:
+        """
+        Add new app to Sunshine host via API
+        
+        Args:
+            host_id: Host UUID
+            app_config: App configuration dictionary with fields:
+                - name: App name (required)
+                - cmd: Command/executable path (required)
+                - image_path: Icon path (optional)
+                - working_dir: Working directory (optional)
+                - prep_cmd: Prep commands (optional)
+                - detached: Detached commands (optional)
+            
+        Returns:
+            Result dictionary with success status
+        """
+        from models.gaming import SunshineHost
+        
+        if not self.db_service or not self.db_service.is_available:
+            raise RuntimeError("Database service not available")
+        
+        # Validate required fields
+        if not app_config.get('name'):
+            raise ValueError("App name is required")
+        if not app_config.get('cmd'):
+            raise ValueError("Executable command is required")
+        
+        with self.db_service.get_session() as session:
+            host = session.query(SunshineHost).filter_by(id=host_id).first()
+            
+            if not host:
+                raise ValueError(f"Host {host_id} not found")
+            
+            try:
+                url = f"{host.api_url}/api/apps"
+                api_key = self._get_sunshine_api_key(host_id)
+                
+                headers = {'Content-Type': 'application/json'}
+                if api_key:
+                    headers['Authorization'] = f'Bearer {api_key}'
+                
+                response = requests.post(
+                    url,
+                    json=app_config,
+                    headers=headers,
+                    timeout=10,
+                    verify=False
+                )
+                
+                if response.status_code in [200, 201]:
+                    # Refresh apps cache
+                    self.get_sunshine_apps(host_id)
+                    
+                    return {
+                        'success': True,
+                        'message': f"App '{app_config['name']}' added successfully",
+                        'app': response.json() if response.text else app_config
+                    }
+                elif response.status_code == 401 or response.status_code == 403:
+                    return {
+                        'success': False,
+                        'error': 'Authentication failed',
+                        'error_details': 'Invalid or missing API key'
+                    }
+                else:
+                    return {
+                        'success': False,
+                        'error': 'Failed to add app',
+                        'error_details': response.text
+                    }
+                    
+            except requests.exceptions.ConnectionError:
+                return {
+                    'success': False,
+                    'error': 'Connection failed',
+                    'error_details': 'Cannot connect to Sunshine host'
+                }
+            except Exception as e:
+                logger.error(f"Failed to add app to host {host_id}: {e}")
+                return {
+                    'success': False,
+                    'error': 'Unexpected error',
+                    'error_details': str(e)
+                }
+    
+    def update_sunshine_app(self, host_id: str, app_index: int, app_config: Dict) -> Dict:
+        """
+        Update existing app on Sunshine host via API
+        
+        Args:
+            host_id: Host UUID
+            app_index: App index in Sunshine's app list
+            app_config: Updated app configuration
+            
+        Returns:
+            Result dictionary with success status
+        """
+        from models.gaming import SunshineHost
+        
+        if not self.db_service or not self.db_service.is_available:
+            raise RuntimeError("Database service not available")
+        
+        with self.db_service.get_session() as session:
+            host = session.query(SunshineHost).filter_by(id=host_id).first()
+            
+            if not host:
+                raise ValueError(f"Host {host_id} not found")
+            
+            try:
+                url = f"{host.api_url}/api/apps/{app_index}"
+                api_key = self._get_sunshine_api_key(host_id)
+                
+                headers = {'Content-Type': 'application/json'}
+                if api_key:
+                    headers['Authorization'] = f'Bearer {api_key}'
+                
+                response = requests.put(
+                    url,
+                    json=app_config,
+                    headers=headers,
+                    timeout=10,
+                    verify=False
+                )
+                
+                if response.status_code == 200:
+                    # Refresh apps cache
+                    self.get_sunshine_apps(host_id)
+                    
+                    return {
+                        'success': True,
+                        'message': f"App updated successfully",
+                        'app': response.json() if response.text else app_config
+                    }
+                elif response.status_code == 404:
+                    return {
+                        'success': False,
+                        'error': 'App not found',
+                        'error_details': f'No app found at index {app_index}'
+                    }
+                elif response.status_code == 401 or response.status_code == 403:
+                    return {
+                        'success': False,
+                        'error': 'Authentication failed',
+                        'error_details': 'Invalid or missing API key'
+                    }
+                else:
+                    return {
+                        'success': False,
+                        'error': 'Failed to update app',
+                        'error_details': response.text
+                    }
+                    
+            except requests.exceptions.ConnectionError:
+                return {
+                    'success': False,
+                    'error': 'Connection failed',
+                    'error_details': 'Cannot connect to Sunshine host'
+                }
+            except Exception as e:
+                logger.error(f"Failed to update app on host {host_id}: {e}")
+                return {
+                    'success': False,
+                    'error': 'Unexpected error',
+                    'error_details': str(e)
+                }
+    
+    def delete_sunshine_app(self, host_id: str, app_index: int) -> Dict:
+        """
+        Delete app from Sunshine host via API
+        
+        Args:
+            host_id: Host UUID
+            app_index: App index in Sunshine's app list
+            
+        Returns:
+            Result dictionary with success status
+        """
+        from models.gaming import SunshineHost
+        
+        if not self.db_service or not self.db_service.is_available:
+            raise RuntimeError("Database service not available")
+        
+        with self.db_service.get_session() as session:
+            host = session.query(SunshineHost).filter_by(id=host_id).first()
+            
+            if not host:
+                raise ValueError(f"Host {host_id} not found")
+            
+            try:
+                url = f"{host.api_url}/api/apps/{app_index}"
+                api_key = self._get_sunshine_api_key(host_id)
+                
+                headers = {}
+                if api_key:
+                    headers['Authorization'] = f'Bearer {api_key}'
+                
+                response = requests.delete(
+                    url,
+                    headers=headers,
+                    timeout=10,
+                    verify=False
+                )
+                
+                if response.status_code in [200, 204]:
+                    # Refresh apps cache
+                    self.get_sunshine_apps(host_id)
+                    
+                    return {
+                        'success': True,
+                        'message': 'App deleted successfully'
+                    }
+                elif response.status_code == 404:
+                    return {
+                        'success': False,
+                        'error': 'App not found',
+                        'error_details': f'No app found at index {app_index}'
+                    }
+                elif response.status_code == 401 or response.status_code == 403:
+                    return {
+                        'success': False,
+                        'error': 'Authentication failed',
+                        'error_details': 'Invalid or missing API key'
+                    }
+                else:
+                    return {
+                        'success': False,
+                        'error': 'Failed to delete app',
+                        'error_details': response.text
+                    }
+                    
+            except requests.exceptions.ConnectionError:
+                return {
+                    'success': False,
+                    'error': 'Connection failed',
+                    'error_details': 'Cannot connect to Sunshine host'
+                }
+            except Exception as e:
+                logger.error(f"Failed to delete app from host {host_id}: {e}")
+                return {
+                    'success': False,
+                    'error': 'Unexpected error',
+                    'error_details': str(e)
+                }
+    
+    def start_sunshine_app(self, host_id: str, app_index: int) -> Dict:
+        """
+        Start streaming session for specific app remotely
+        
+        Args:
+            host_id: Host UUID
+            app_index: App index to launch
+            
+        Returns:
+            Result dictionary with success status
+        """
+        from models.gaming import SunshineHost
+        
+        if not self.db_service or not self.db_service.is_available:
+            raise RuntimeError("Database service not available")
+        
+        with self.db_service.get_session() as session:
+            host = session.query(SunshineHost).filter_by(id=host_id).first()
+            
+            if not host:
+                raise ValueError(f"Host {host_id} not found")
+            
+            try:
+                url = f"{host.api_url}/api/apps/{app_index}/start"
+                api_key = self._get_sunshine_api_key(host_id)
+                
+                headers = {}
+                if api_key:
+                    headers['Authorization'] = f'Bearer {api_key}'
+                
+                response = requests.post(
+                    url,
+                    headers=headers,
+                    timeout=10,
+                    verify=False
+                )
+                
+                if response.status_code == 200:
+                    return {
+                        'success': True,
+                        'message': 'App launched successfully',
+                        'session': response.json() if response.text else {}
+                    }
+                elif response.status_code == 404:
+                    return {
+                        'success': False,
+                        'error': 'App not found',
+                        'error_details': f'No app found at index {app_index}'
+                    }
+                elif response.status_code == 401 or response.status_code == 403:
+                    return {
+                        'success': False,
+                        'error': 'Authentication failed',
+                        'error_details': 'Invalid or missing API key'
+                    }
+                else:
+                    return {
+                        'success': False,
+                        'error': 'Failed to start app',
+                        'error_details': response.text
+                    }
+                    
+            except requests.exceptions.ConnectionError:
+                return {
+                    'success': False,
+                    'error': 'Connection failed',
+                    'error_details': 'Cannot connect to Sunshine host'
+                }
+            except Exception as e:
+                logger.error(f"Failed to start app on host {host_id}: {e}")
+                return {
+                    'success': False,
+                    'error': 'Unexpected error',
+                    'error_details': str(e)
+                }
+    
+    def stop_sunshine_app(self, host_id: str) -> Dict:
+        """
+        Stop current streaming session on Sunshine host
+        
+        Args:
+            host_id: Host UUID
+            
+        Returns:
+            Result dictionary with success status
+        """
+        from models.gaming import SunshineHost
+        
+        if not self.db_service or not self.db_service.is_available:
+            raise RuntimeError("Database service not available")
+        
+        with self.db_service.get_session() as session:
+            host = session.query(SunshineHost).filter_by(id=host_id).first()
+            
+            if not host:
+                raise ValueError(f"Host {host_id} not found")
+            
+            try:
+                url = f"{host.api_url}/api/apps/close"
+                api_key = self._get_sunshine_api_key(host_id)
+                
+                headers = {}
+                if api_key:
+                    headers['Authorization'] = f'Bearer {api_key}'
+                
+                response = requests.post(
+                    url,
+                    headers=headers,
+                    timeout=10,
+                    verify=False
+                )
+                
+                if response.status_code == 200:
+                    return {
+                        'success': True,
+                        'message': 'Streaming session stopped successfully'
+                    }
+                elif response.status_code == 401 or response.status_code == 403:
+                    return {
+                        'success': False,
+                        'error': 'Authentication failed',
+                        'error_details': 'Invalid or missing API key'
+                    }
+                else:
+                    return {
+                        'success': False,
+                        'error': 'Failed to stop streaming',
+                        'error_details': response.text
+                    }
+                    
+            except requests.exceptions.ConnectionError:
+                return {
+                    'success': False,
+                    'error': 'Connection failed',
+                    'error_details': 'Cannot connect to Sunshine host'
+                }
+            except Exception as e:
+                logger.error(f"Failed to stop streaming on host {host_id}: {e}")
+                return {
+                    'success': False,
+                    'error': 'Unexpected error',
+                    'error_details': str(e)
+                }
+    
+    def get_sunshine_config(self, host_id: str) -> Dict:
+        """
+        Get Sunshine configuration and active session info
+        
+        Args:
+            host_id: Host UUID
+            
+        Returns:
+            Configuration dictionary with active sessions
+        """
+        from models.gaming import SunshineHost
+        
+        if not self.db_service or not self.db_service.is_available:
+            raise RuntimeError("Database service not available")
+        
+        with self.db_service.get_session() as session:
+            host = session.query(SunshineHost).filter_by(id=host_id).first()
+            
+            if not host:
+                raise ValueError(f"Host {host_id} not found")
+            
+            try:
+                url = f"{host.api_url}/api/config"
+                api_key = self._get_sunshine_api_key(host_id)
+                
+                headers = {}
+                if api_key:
+                    headers['Authorization'] = f'Bearer {api_key}'
+                
+                response = requests.get(
+                    url,
+                    headers=headers,
+                    timeout=10,
+                    verify=False
+                )
+                
+                if response.status_code == 200:
+                    config_data = response.json()
+                    
+                    return {
+                        'success': True,
+                        'config': config_data,
+                        'active_sessions': config_data.get('clients', [])
+                    }
+                elif response.status_code == 401 or response.status_code == 403:
+                    return {
+                        'success': False,
+                        'error': 'Authentication failed',
+                        'error_details': 'Invalid or missing API key'
+                    }
+                else:
+                    return {
+                        'success': False,
+                        'error': 'Failed to get configuration',
+                        'error_details': response.text
+                    }
+                    
+            except requests.exceptions.ConnectionError:
+                return {
+                    'success': False,
+                    'error': 'Connection failed',
+                    'error_details': 'Cannot connect to Sunshine host'
+                }
+            except Exception as e:
+                logger.error(f"Failed to get config from host {host_id}: {e}")
+                return {
+                    'success': False,
+                    'error': 'Unexpected error',
+                    'error_details': str(e)
+                }
+    
+    def get_active_streaming_sessions(self, host_id: str) -> Dict:
+        """
+        Get currently active streaming sessions for a host
+        
+        Args:
+            host_id: Host UUID
+            
+        Returns:
+            Dictionary with active sessions list
+        """
+        # Try to get from Sunshine API first
+        config_result = self.get_sunshine_config(host_id)
+        
+        if config_result.get('success'):
+            sessions = config_result.get('active_sessions', [])
+            return {
+                'success': True,
+                'sessions': sessions,
+                'count': len(sessions),
+                'source': 'sunshine_api'
+            }
+        
+        # Fallback to database
+        try:
+            from models.gaming import GameSession, SunshineHost
+            
+            if not self.db_service or not self.db_service.is_available:
+                return {
+                    'success': False,
+                    'error': 'Database unavailable',
+                    'sessions': []
+                }
+            
+            with self.db_service.get_session() as session:
+                host = session.query(SunshineHost).filter_by(id=host_id).first()
+                
+                if not host:
+                    raise ValueError(f"Host {host_id} not found")
+                
+                # Query active sessions from database
+                active_sessions = session.query(GameSession).filter(
+                    GameSession.host_ip == host.host_ip,
+                    GameSession.status == 'active'
+                ).all()
+                
+                return {
+                    'success': True,
+                    'sessions': [s.to_dict() for s in active_sessions],
+                    'count': len(active_sessions),
+                    'source': 'database'
+                }
+                
+        except Exception as e:
+            logger.error(f"Failed to get active sessions for host {host_id}: {e}")
+            return {
+                'success': False,
+                'error': str(e),
+                'sessions': []
             }
 
 

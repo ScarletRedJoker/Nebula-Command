@@ -622,3 +622,480 @@ def get_performance_metrics():
             'error': 'Metrics unavailable',
             'error_details': str(e)
         }), 500
+
+
+@game_streaming_bp.route('/api/gaming/hosts/<host_id>/apps', methods=['GET'])
+@login_required
+def get_host_apps(host_id):
+    """
+    Get all apps configured on Sunshine host via API
+    
+    Returns:
+        JSON with apps list
+    """
+    try:
+        result = game_streaming_service.get_sunshine_apps(host_id)
+        
+        if result.get('success'):
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+            
+    except ValueError as e:
+        return jsonify({
+            'success': False,
+            'error': 'Host not found',
+            'error_details': str(e)
+        }), 404
+    except Exception as e:
+        logger.error(f"Failed to get apps for host {host_id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'Unexpected error',
+            'error_details': str(e)
+        }), 500
+
+
+@game_streaming_bp.route('/api/gaming/hosts/<host_id>/apps', methods=['POST'])
+@login_required
+def add_host_app(host_id):
+    """
+    Add new app to Sunshine host
+    
+    JSON body:
+        name: App name (required)
+        cmd: Executable command/path (required)
+        image_path: Icon path (optional)
+        working_dir: Working directory (optional)
+        prep_cmd: Prep commands (optional)
+        detached: Detached commands (optional)
+    
+    Returns:
+        JSON with result
+    """
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': 'No app configuration provided'
+            }), 400
+        
+        result = game_streaming_service.add_sunshine_app(host_id, data)
+        
+        if result.get('success'):
+            return jsonify(result), 201
+        else:
+            return jsonify(result), 400
+            
+    except ValueError as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 400
+    except Exception as e:
+        logger.error(f"Failed to add app to host {host_id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'Unexpected error',
+            'error_details': str(e)
+        }), 500
+
+
+@game_streaming_bp.route('/api/gaming/hosts/<host_id>/apps/<int:app_index>', methods=['PUT'])
+@login_required
+def update_host_app(host_id, app_index):
+    """
+    Update existing app on Sunshine host
+    
+    JSON body:
+        name: App name (optional)
+        cmd: Executable command/path (optional)
+        image_path: Icon path (optional)
+        working_dir: Working directory (optional)
+        prep_cmd: Prep commands (optional)
+        detached: Detached commands (optional)
+    
+    Returns:
+        JSON with result
+    """
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': 'No update data provided'
+            }), 400
+        
+        result = game_streaming_service.update_sunshine_app(host_id, app_index, data)
+        
+        if result.get('success'):
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+            
+    except ValueError as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 404
+    except Exception as e:
+        logger.error(f"Failed to update app on host {host_id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'Unexpected error',
+            'error_details': str(e)
+        }), 500
+
+
+@game_streaming_bp.route('/api/gaming/hosts/<host_id>/apps/<int:app_index>', methods=['DELETE'])
+@login_required
+def delete_host_app(host_id, app_index):
+    """
+    Delete app from Sunshine host
+    
+    Returns:
+        JSON with result
+    """
+    try:
+        result = game_streaming_service.delete_sunshine_app(host_id, app_index)
+        
+        if result.get('success'):
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+            
+    except ValueError as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 404
+    except Exception as e:
+        logger.error(f"Failed to delete app from host {host_id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'Unexpected error',
+            'error_details': str(e)
+        }), 500
+
+
+@game_streaming_bp.route('/api/gaming/hosts/<host_id>/apps/<int:app_index>/start', methods=['POST'])
+@login_required
+def start_host_app(host_id, app_index):
+    """
+    Start streaming session for specific app remotely
+    
+    Returns:
+        JSON with result
+    """
+    try:
+        result = game_streaming_service.start_sunshine_app(host_id, app_index)
+        
+        if result.get('success'):
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+            
+    except ValueError as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 404
+    except Exception as e:
+        logger.error(f"Failed to start app on host {host_id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'Unexpected error',
+            'error_details': str(e)
+        }), 500
+
+
+@game_streaming_bp.route('/api/gaming/hosts/<host_id>/apps/stop', methods=['POST'])
+@login_required
+def stop_host_app(host_id):
+    """
+    Stop current streaming session on Sunshine host
+    
+    Returns:
+        JSON with result
+    """
+    try:
+        result = game_streaming_service.stop_sunshine_app(host_id)
+        
+        if result.get('success'):
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+            
+    except ValueError as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 404
+    except Exception as e:
+        logger.error(f"Failed to stop streaming on host {host_id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'Unexpected error',
+            'error_details': str(e)
+        }), 500
+
+
+@game_streaming_bp.route('/api/gaming/hosts/<host_id>/sessions/active', methods=['GET'])
+@login_required
+def get_active_sessions(host_id):
+    """
+    Get currently active streaming sessions for a host
+    
+    Returns:
+        JSON with active sessions
+    """
+    try:
+        result = game_streaming_service.get_active_streaming_sessions(host_id)
+        
+        return jsonify(result)
+            
+    except ValueError as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'sessions': []
+        }), 404
+    except Exception as e:
+        logger.error(f"Failed to get active sessions for host {host_id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'Unexpected error',
+            'error_details': str(e),
+            'sessions': []
+        }), 500
+
+
+@game_streaming_bp.route('/api/gaming/hosts/<host_id>/quality-config', methods=['PUT'])
+@login_required
+def update_quality_config(host_id):
+    """
+    Update Sunshine quality configuration via API
+    
+    This endpoint ACTUALLY configures the Sunshine server's encoding settings
+    instead of just providing recommendations to the client.
+    
+    JSON body:
+        preset: str ('ultra', 'high', 'balanced', 'performance') OR custom config:
+        {
+            'resolution': '1920x1080',
+            'fps': 60,
+            'bitrate': 20000,  # kbps
+            'encoder_preset': 'p6',  # NVENC preset (p1-p7)
+            'codec': 'h264'  # h264, h265, or av1
+        }
+    
+    Returns:
+        JSON with result including applied configuration
+    """
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': 'No configuration data provided'
+            }), 400
+        
+        # Define quality presets
+        QUALITY_PRESETS = {
+            'ultra': {
+                'resolution': '3840x2160',
+                'fps': 60,
+                'bitrate': 80000,
+                'encoder_preset': 'p6',
+                'codec': 'h265'
+            },
+            'high': {
+                'resolution': '2560x1440',
+                'fps': 60,
+                'bitrate': 40000,
+                'encoder_preset': 'p6',
+                'codec': 'h265'
+            },
+            'balanced': {
+                'resolution': '1920x1080',
+                'fps': 60,
+                'bitrate': 20000,
+                'encoder_preset': 'p6',
+                'codec': 'h264'
+            },
+            'performance': {
+                'resolution': '1920x1080',
+                'fps': 30,
+                'bitrate': 10000,
+                'encoder_preset': 'p4',
+                'codec': 'h264'
+            }
+        }
+        
+        # Check if using named preset or custom config
+        if 'preset' in data:
+            preset_name = data['preset']
+            if preset_name not in QUALITY_PRESETS:
+                return jsonify({
+                    'success': False,
+                    'error': f'Invalid preset: {preset_name}',
+                    'available_presets': list(QUALITY_PRESETS.keys())
+                }), 400
+            
+            quality_config = QUALITY_PRESETS[preset_name]
+        else:
+            # Use custom configuration
+            quality_config = data
+        
+        # Apply configuration to Sunshine
+        result = game_streaming_service.update_sunshine_quality_config(host_id, quality_config)
+        
+        if result['success']:
+            return jsonify(result)
+        else:
+            status_code = 400
+            if 'status_code' in result:
+                status_code = result['status_code']
+            elif 'Authentication failed' in result.get('error', ''):
+                status_code = 401
+            elif 'Cannot connect' in result.get('error', ''):
+                status_code = 503
+            
+            return jsonify(result), status_code
+            
+    except ValueError as e:
+        return jsonify({
+            'success': False,
+            'error': 'Host not found',
+            'error_details': str(e)
+        }), 404
+    except Exception as e:
+        logger.error(f"Failed to update quality config for host {host_id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'Unexpected error',
+            'error_details': str(e)
+        }), 500
+
+
+@game_streaming_bp.route('/api/gaming/hosts/<host_id>/quality-config', methods=['GET'])
+@login_required
+def get_quality_config(host_id):
+    """
+    Get current Sunshine quality configuration
+    
+    Returns the currently applied quality settings for the host
+    
+    Returns:
+        JSON with current configuration
+    """
+    try:
+        from models.gaming import SunshineHost
+        from services.database_service import db_service
+        
+        if not db_service or not db_service.is_available:
+            return jsonify({
+                'success': False,
+                'error': 'Database service not available'
+            }), 500
+        
+        with db_service.get_session() as session:
+            host = session.query(SunshineHost).filter_by(id=host_id).first()
+            
+            if not host:
+                return jsonify({
+                    'success': False,
+                    'error': 'Host not found'
+                }), 404
+            
+            host_metadata = host.host_metadata or {}
+            quality_config = host_metadata.get('quality_config')
+            
+            if quality_config:
+                return jsonify({
+                    'success': True,
+                    'config': quality_config,
+                    'updated_at': host_metadata.get('quality_config_updated_at')
+                })
+            else:
+                return jsonify({
+                    'success': True,
+                    'config': None,
+                    'message': 'No quality configuration set (using Sunshine defaults)'
+                })
+                
+    except Exception as e:
+        logger.error(f"Failed to get quality config for host {host_id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'Unexpected error',
+            'error_details': str(e)
+        }), 500
+
+
+@game_streaming_bp.route('/api/gaming/hosts/<host_id>/telemetry', methods=['GET'])
+@login_required
+def get_session_telemetry(host_id):
+    """
+    Get detailed session telemetry for a Sunshine host
+    
+    This returns REAL metrics from Sunshine API and nvidia-smi including:
+    - Active sessions with encoder stats (NVENC usage, quality, dropped frames)
+    - Client IP/device info
+    - Current bitrate/resolution/FPS from actual stream
+    - Network stats (latency, packet loss)
+    - Host GPU stats during session (temperature, utilization, VRAM)
+    
+    Query params:
+        persist: bool (default: false) - Whether to persist metrics to database
+    
+    Returns:
+        JSON with comprehensive telemetry data
+    """
+    try:
+        persist = request.args.get('persist', 'false').lower() == 'true'
+        
+        # Get detailed telemetry
+        result = game_streaming_service.get_detailed_session_telemetry(host_id)
+        
+        if not result['success']:
+            status_code = 500
+            if 'Host not found' in result.get('error', ''):
+                status_code = 404
+            elif 'unreachable' in result.get('error', '').lower():
+                status_code = 503
+            
+            return jsonify(result), status_code
+        
+        # Persist to database if requested
+        if persist and result['success']:
+            persist_result = game_streaming_service.persist_session_metrics(
+                host_id,
+                result.get('telemetry', {})
+            )
+            
+            if persist_result['success']:
+                result['persisted'] = True
+                result['persisted_sessions'] = persist_result.get('persisted_sessions', 0)
+            else:
+                logger.warning(f"Failed to persist metrics: {persist_result.get('error')}")
+        
+        return jsonify(result)
+            
+    except ValueError as e:
+        return jsonify({
+            'success': False,
+            'error': 'Host not found',
+            'error_details': str(e)
+        }), 404
+    except Exception as e:
+        logger.error(f"Failed to get telemetry for host {host_id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'Telemetry unavailable',
+            'error_details': str(e)
+        }), 500
