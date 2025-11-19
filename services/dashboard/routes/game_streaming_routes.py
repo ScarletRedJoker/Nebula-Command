@@ -431,6 +431,151 @@ def update_session(session_id):
         }), 500
 
 
+@game_streaming_bp.route('/api/gaming/hosts/<host_id>/sessions/start', methods=['POST'])
+@login_required
+def start_streaming_session(host_id):
+    """
+    Start a new streaming session for a host
+    
+    JSON body:
+        app_name: Name of app/game being streamed (required)
+        client_info: Client device information (optional)
+            {
+                'device_name': str,
+                'device_type': str,
+                'resolution': str,
+                'user_id': str
+            }
+    
+    Returns:
+        JSON with session_id and session details
+    """
+    try:
+        data = request.get_json() or {}
+        
+        if not data.get('app_name'):
+            return jsonify({
+                'success': False,
+                'error': 'app_name is required'
+            }), 400
+        
+        app_name = data['app_name']
+        client_info = data.get('client_info', {})
+        
+        # Add user_id from session if not provided
+        if 'user_id' not in client_info:
+            client_info['user_id'] = session.get('username', 'unknown')
+        
+        result = game_streaming_service.create_streaming_session(
+            host_id, 
+            app_name, 
+            client_info
+        )
+        
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+        
+    except ValueError as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 404
+    except Exception as e:
+        logger.error(f"Failed to start streaming session: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@game_streaming_bp.route('/api/gaming/sessions/<session_id>/stop', methods=['POST'])
+@login_required
+def stop_streaming_session(session_id):
+    """
+    Stop an active streaming session
+    
+    Returns:
+        JSON with final session statistics
+    """
+    try:
+        result = game_streaming_service.end_streaming_session(session_id)
+        
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+        
+    except ValueError as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 404
+    except Exception as e:
+        logger.error(f"Failed to stop streaming session {session_id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@game_streaming_bp.route('/api/gaming/hosts/<host_id>/sessions/current', methods=['GET'])
+@login_required
+def get_current_streaming_session(host_id):
+    """
+    Get current active session for a host
+    
+    Returns:
+        JSON with active session or null
+    """
+    try:
+        result = game_streaming_service.get_current_session(host_id)
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"Failed to get current session for host {host_id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@game_streaming_bp.route('/api/gaming/sessions/<session_id>/stats', methods=['PUT'])
+@login_required
+def update_streaming_session_stats(session_id):
+    """
+    Update session statistics (called periodically from telemetry)
+    
+    JSON body:
+        bitrate: Current bitrate in Mbps (optional)
+        fps: Current FPS (optional)
+        latency: Current latency in ms (optional)
+        dropped_frames: Number of dropped frames (optional)
+        total_frames: Total frames (optional)
+        resolution: Current resolution (optional)
+    
+    Returns:
+        JSON success response
+    """
+    try:
+        data = request.get_json() or {}
+        
+        game_streaming_service.update_session_stats(session_id, data)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Session stats updated'
+        })
+        
+    except Exception as e:
+        logger.error(f"Failed to update session stats for {session_id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 @game_streaming_bp.route('/api/gaming/diagnostics', methods=['POST'])
 @login_required
 def run_diagnostics():

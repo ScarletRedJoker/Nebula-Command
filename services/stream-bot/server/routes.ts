@@ -21,6 +21,7 @@ import oauthSpotifyRoutes from "./oauth-spotify";
 import oauthYoutubeRoutes from "./oauth-youtube";
 import oauthTwitchRoutes from "./oauth-twitch";
 import overlayRoutes from "./overlay-routes";
+import obsRoutes from "./obs-routes";
 import { requireAuth } from "./auth/middleware";
 import { sessionMiddleware } from "./index";
 import { shoutoutService } from "./shoutout-service";
@@ -42,6 +43,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/auth", oauthTwitchRoutes);
   app.use("/api/spotify", spotifyRoutes);
   app.use("/api/overlay", overlayRoutes);
+  app.use("/api/obs", obsRoutes);
   const httpServer = createServer(app);
 
   // Bootstrap botManager

@@ -1005,6 +1005,33 @@ $apps | ConvertTo-Json -Compress
             
             logger.info(f"Retrieved detailed telemetry for host {host_id}: {len(telemetry['active_sessions'])} active sessions")
             
+            # PART 4: Auto-integration with session management
+            # If there's an active session for this host, automatically update its stats
+            if telemetry['active_sessions']:
+                try:
+                    current_session_result = self.get_current_session(host_id)
+                    
+                    if current_session_result.get('success') and current_session_result.get('session'):
+                        active_session = telemetry['active_sessions'][0]
+                        
+                        stats_to_update = {
+                            'avg_fps': active_session.get('fps'),
+                            'avg_bitrate': active_session.get('bitrate_kbps') / 1000 if active_session.get('bitrate_kbps') else None,
+                            'avg_latency': active_session.get('latency_ms'),
+                            'dropped_frames_pct': active_session.get('dropped_frames_pct')
+                        }
+                        
+                        stats_to_update = {k: v for k, v in stats_to_update.items() if v is not None}
+                        
+                        if stats_to_update:
+                            session_id = current_session_result['session']['id']
+                            update_result = self.update_session_stats(session_id, stats_to_update)
+                            
+                            if update_result.get('success'):
+                                logger.debug(f"Auto-updated session {session_id} stats from telemetry: {stats_to_update}")
+                except Exception as e:
+                    logger.warning(f"Failed to auto-update session stats from telemetry: {e}")
+            
             return {
                 'success': True,
                 'host_id': host_id,
@@ -1968,6 +1995,284 @@ $apps | ConvertTo-Json -Compress
             db_session.commit()
             
             return game_session.to_dict()
+    
+    def create_streaming_session(self, host_id: str, app_name: str, client_info: dict) -> dict:
+        """
+        Creates new GameSession record linked to a host
+        
+        Args:
+            host_id: Host UUID
+            app_name: Name of app/game being streamed
+            client_info: Dictionary with client device information
+                {
+                    'device_name': str,
+                    'device_type': str,
+                    'resolution': str,
+                    'user_id': str (optional)
+                }
+        
+        Returns:
+            Dictionary with session information including session_id
+        """
+        from models.gaming import GameSession, SunshineHost
+        
+        if not self.db_service or not self.db_service.is_available:
+            raise RuntimeError("Database service not available")
+        
+        with self.db_service.get_session() as db_session:
+            host = db_session.query(SunshineHost).filter_by(id=host_id).first()
+            
+            if not host:
+                raise ValueError(f"Host {host_id} not found")
+            
+            # Check if there's already an active session for this host
+            active_session = db_session.query(GameSession).filter_by(
+                host_id=host_id,
+                status='active'
+            ).first()
+            
+            if active_session:
+                logger.warning(f"Host {host_id} already has an active session {active_session.id}")
+                return {
+                    'success': False,
+                    'error': 'Host already has an active streaming session',
+                    'existing_session': active_session.to_dict()
+                }
+            
+            # Create new session
+            game_session = GameSession(
+                id=uuid.uuid4(),
+                session_type='moonlight',
+                user_id=client_info.get('user_id'),
+                host_id=host_id,
+                host_ip=host.host_ip,
+                host_name=host.host_name,
+                status='active',
+                app_name=app_name,
+                game_name=app_name,
+                client_device=client_info.get('device_name', 'Unknown Device'),
+                resolution=client_info.get('resolution'),
+                game_metadata={
+                    'device_type': client_info.get('device_type'),
+                    'started_by': client_info.get('user_id', 'unknown')
+                }
+            )
+            
+            db_session.add(game_session)
+            db_session.commit()
+            
+            logger.info(f"Created streaming session {game_session.id} for host {host_id}, app: {app_name}")
+            
+            return {
+                'success': True,
+                'session_id': str(game_session.id),
+                'session': game_session.to_dict()
+            }
+    
+    def end_streaming_session(self, session_id: str) -> dict:
+        """
+        Ends a streaming session and calculates final statistics
+        
+        Args:
+            session_id: Session UUID
+        
+        Returns:
+            Dictionary with final session statistics
+        """
+        from models.gaming import GameSession
+        
+        if not self.db_service or not self.db_service.is_available:
+            raise RuntimeError("Database service not available")
+        
+        with self.db_service.get_session() as db_session:
+            game_session = db_session.query(GameSession).filter_by(id=session_id).first()
+            
+            if not game_session:
+                raise ValueError(f"Session {session_id} not found")
+            
+            if game_session.status != 'active':
+                return {
+                    'success': False,
+                    'error': f'Session is not active (current status: {game_session.status})',
+                    'session': game_session.to_dict()
+                }
+            
+            # Update session end time
+            game_session.ended_at = datetime.utcnow()
+            game_session.status = 'disconnected'
+            
+            # Set session outcome based on duration and metrics
+            duration_seconds = (game_session.ended_at - game_session.started_at).total_seconds()
+            
+            if duration_seconds < 60:
+                game_session.session_outcome = 'interrupted'
+            elif game_session.dropped_frames_pct and game_session.dropped_frames_pct > 10:
+                game_session.session_outcome = 'error'
+            else:
+                game_session.session_outcome = 'completed'
+            
+            db_session.commit()
+            
+            session_dict = game_session.to_dict()
+            
+            logger.info(f"Ended streaming session {session_id} - Duration: {duration_seconds}s, Outcome: {game_session.session_outcome}")
+            
+            return {
+                'success': True,
+                'session': session_dict,
+                'stats': {
+                    'duration_seconds': duration_seconds,
+                    'duration_formatted': self._format_duration(duration_seconds),
+                    'avg_bitrate': game_session.avg_bitrate,
+                    'avg_fps': game_session.avg_fps,
+                    'avg_latency': game_session.avg_latency,
+                    'dropped_frames_pct': game_session.dropped_frames_pct,
+                    'total_data_gb': session_dict.get('total_data_gb'),
+                    'outcome': game_session.session_outcome
+                }
+            }
+    
+    def get_current_session(self, host_id: str) -> dict:
+        """
+        Returns active session for a host (if any)
+        
+        Args:
+            host_id: Host UUID
+        
+        Returns:
+            Dictionary with session information or None if no active session
+        """
+        from models.gaming import GameSession
+        
+        if not self.db_service or not self.db_service.is_available:
+            return {'success': True, 'session': None}
+        
+        with self.db_service.get_session() as db_session:
+            active_session = db_session.query(GameSession).filter_by(
+                host_id=host_id,
+                status='active'
+            ).first()
+            
+            if active_session:
+                return {
+                    'success': True,
+                    'session': active_session.to_dict()
+                }
+            else:
+                return {
+                    'success': True,
+                    'session': None
+                }
+    
+    def update_session_stats(self, session_id: str, stats: dict):
+        """
+        Updates session metrics (called periodically from telemetry)
+        
+        Calculates running averages for:
+        - avg_bitrate
+        - avg_fps
+        - avg_latency
+        - dropped_frames_pct
+        
+        Args:
+            session_id: Session UUID
+            stats: Dictionary with current metrics
+                {
+                    'bitrate': float (Mbps),
+                    'fps': int,
+                    'latency': float (ms),
+                    'dropped_frames': int,
+                    'total_frames': int,
+                    'resolution': str (optional),
+                }
+        
+        Returns:
+            None (updates session in database)
+        """
+        from models.gaming import GameSession
+        
+        if not self.db_service or not self.db_service.is_available:
+            logger.warning(f"Cannot update session stats - database not available")
+            return
+        
+        try:
+            with self.db_service.get_session() as db_session:
+                game_session = db_session.query(GameSession).filter_by(id=session_id).first()
+                
+                if not game_session:
+                    logger.warning(f"Session {session_id} not found for stats update")
+                    return
+                
+                if game_session.status != 'active':
+                    logger.debug(f"Session {session_id} is not active, skipping stats update")
+                    return
+                
+                # Calculate running averages
+                # Simple approach: weight current value with new value (exponential moving average)
+                alpha = 0.3  # Weight for new value
+                
+                if stats.get('bitrate') is not None:
+                    if game_session.avg_bitrate is None:
+                        game_session.avg_bitrate = stats['bitrate']
+                    else:
+                        game_session.avg_bitrate = (1 - alpha) * game_session.avg_bitrate + alpha * stats['bitrate']
+                    game_session.bitrate_mbps = stats['bitrate']
+                
+                if stats.get('fps') is not None:
+                    if game_session.avg_fps is None:
+                        game_session.avg_fps = float(stats['fps'])
+                    else:
+                        game_session.avg_fps = (1 - alpha) * game_session.avg_fps + alpha * float(stats['fps'])
+                    game_session.fps = stats['fps']
+                
+                if stats.get('latency') is not None:
+                    if game_session.avg_latency is None:
+                        game_session.avg_latency = stats['latency']
+                    else:
+                        game_session.avg_latency = (1 - alpha) * game_session.avg_latency + alpha * stats['latency']
+                    game_session.latency_ms = stats['latency']
+                
+                if stats.get('dropped_frames') is not None and stats.get('total_frames') is not None:
+                    total_frames = stats['total_frames']
+                    if total_frames > 0:
+                        dropped_pct = (stats['dropped_frames'] / total_frames) * 100
+                        if game_session.dropped_frames_pct is None:
+                            game_session.dropped_frames_pct = dropped_pct
+                        else:
+                            game_session.dropped_frames_pct = (1 - alpha) * game_session.dropped_frames_pct + alpha * dropped_pct
+                
+                if stats.get('resolution'):
+                    game_session.resolution = stats['resolution']
+                
+                db_session.commit()
+                
+                logger.debug(f"Updated stats for session {session_id}: "
+                           f"bitrate={game_session.avg_bitrate:.1f}, "
+                           f"fps={game_session.avg_fps:.1f}, "
+                           f"latency={game_session.avg_latency:.1f}ms")
+                
+        except Exception as e:
+            logger.error(f"Failed to update session stats for {session_id}: {e}")
+    
+    def _format_duration(self, seconds: float) -> str:
+        """
+        Format duration in seconds to human-readable format
+        
+        Args:
+            seconds: Duration in seconds
+        
+        Returns:
+            Formatted string (e.g., "2h 15m", "45m", "30s")
+        """
+        if seconds < 60:
+            return f"{int(seconds)}s"
+        elif seconds < 3600:
+            minutes = int(seconds / 60)
+            return f"{minutes}m"
+        else:
+            hours = int(seconds / 3600)
+            minutes = int((seconds % 3600) / 60)
+            return f"{hours}h {minutes}m"
     
     def _get_ssh_connection(self, host_id: str) -> Tuple[str, 'SSHService']:
         """

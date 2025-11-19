@@ -195,6 +195,126 @@
         </div>
     </div>
 
+    <!-- Streaming Session Management -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-controller"></i> Streaming Session Management</h5>
+                </div>
+                <div class="card-body">
+                    <!-- Session Control Panel -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="session-host-selector" class="form-label">
+                                <i class="bi bi-pc-display"></i> Select Host
+                            </label>
+                            <select class="form-select" id="session-host-selector" onchange="SessionManagement.onHostSelected()">
+                                <option value="">-- Select a host --</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="session-app-selector" class="form-label">
+                                <i class="bi bi-app"></i> Select App/Game
+                            </label>
+                            <select class="form-select" id="session-app-selector" disabled>
+                                <option value="">-- Select host first --</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="session-device-name" class="form-label">
+                                <i class="bi bi-phone"></i> Client Device Name
+                            </label>
+                            <input type="text" class="form-control" id="session-device-name" placeholder="e.g., Living Room Shield TV">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="session-resolution" class="form-label">
+                                <i class="bi bi-aspect-ratio"></i> Resolution
+                            </label>
+                            <select class="form-select" id="session-resolution">
+                                <option value="3840x2160">4K (3840x2160)</option>
+                                <option value="2560x1440">1440p (2560x1440)</option>
+                                <option value="1920x1080" selected>1080p (1920x1080)</option>
+                                <option value="1280x720">720p (1280x720)</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Session Action Buttons -->
+                    <div class="mb-3">
+                        <button class="btn btn-success me-2" id="start-session-btn" onclick="SessionManagement.startSession()" disabled>
+                            <i class="bi bi-play-circle"></i> Start Session
+                        </button>
+                        <button class="btn btn-danger" id="stop-session-btn" onclick="SessionManagement.stopSession()" style="display:none;">
+                            <i class="bi bi-stop-circle"></i> Stop Session
+                        </button>
+                    </div>
+                    
+                    <!-- Current Session Card -->
+                    <div id="current-session-card" style="display:none;">
+                        <div class="card bg-light">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h6 class="mb-0">
+                                    <span class="latency-indicator latency-good"></span>
+                                    Current Session
+                                </h6>
+                                <span class="badge bg-success" id="session-status-badge">Active</span>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <p class="mb-2">
+                                            <strong><i class="bi bi-clock"></i> Duration:</strong>
+                                            <span id="session-duration" class="text-primary">0s</span>
+                                        </p>
+                                        <p class="mb-2">
+                                            <strong><i class="bi bi-app"></i> App/Game:</strong>
+                                            <span id="session-app-name">-</span>
+                                        </p>
+                                        <p class="mb-2">
+                                            <strong><i class="bi bi-pc-display"></i> Host:</strong>
+                                            <span id="session-host-name">-</span>
+                                        </p>
+                                        <p class="mb-2">
+                                            <strong><i class="bi bi-phone"></i> Client Device:</strong>
+                                            <span id="session-client-device">-</span>
+                                        </p>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <p class="mb-2">
+                                            <strong><i class="bi bi-aspect-ratio"></i> Resolution:</strong>
+                                            <span id="session-current-resolution">-</span>
+                                        </p>
+                                        <p class="mb-2">
+                                            <strong><i class="bi bi-speedometer"></i> FPS:</strong>
+                                            <span id="session-current-fps">-</span>
+                                        </p>
+                                        <p class="mb-2">
+                                            <strong><i class="bi bi-broadcast"></i> Bitrate:</strong>
+                                            <span id="session-current-bitrate">-</span>
+                                        </p>
+                                        <p class="mb-2">
+                                            <strong><i class="bi bi-lightning"></i> Latency:</strong>
+                                            <span id="session-current-latency">-</span>
+                                        </p>
+                                    </div>
+                                </div>
+                                <div class="mt-2">
+                                    <small class="text-muted">
+                                        <strong>Session ID:</strong> <code id="session-id-display">-</code>
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Quality Presets -->
     <div class="row mb-4">
         <div class="col-12">
@@ -265,25 +385,29 @@
     <div class="row mb-4">
         <div class="col-12">
             <div class="card">
-                <div class="card-header">
+                <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0"><i class="bi bi-clock-history"></i> Recent Sessions</h5>
+                    <button class="btn btn-sm btn-primary" onclick="SessionManagement.loadRecentSessions()">
+                        <i class="bi bi-arrow-clockwise"></i> Refresh
+                    </button>
                 </div>
                 <div class="card-body">
-                    <table class="table table-sm">
+                    <table class="table table-sm table-hover">
                         <thead>
                             <tr>
                                 <th>Host</th>
-                                <th>Game/App</th>
-                                <th>Resolution</th>
-                                <th>FPS</th>
-                                <th>Latency</th>
+                                <th>App/Game</th>
                                 <th>Duration</th>
-                                <th>Status</th>
+                                <th>Avg Quality</th>
+                                <th>Data Streamed</th>
+                                <th>Client</th>
+                                <th>Outcome</th>
+                                <th>Started</th>
                             </tr>
                         </thead>
                         <tbody id="sessions-table-body">
                             <tr>
-                                <td colspan="7" class="text-center text-muted">
+                                <td colspan="8" class="text-center text-muted">
                                     <i class="bi bi-inbox"></i> No recent sessions
                                 </td>
                             </tr>
@@ -2344,7 +2468,306 @@ chmod +x setup-sunshine.sh verify-nvenc.sh`;
             GameStreaming.loadCurrentQualityConfig();
             GameStreaming.loadDetailedTelemetry();
         }
+        
+        populateHostSelector('session-host-selector');
+        SessionManagement.loadRecentSessions();
     });
+
+    const SessionManagement = {
+        currentSession: null,
+        sessionTimer: null,
+        sessionStartTime: null,
+        selectedHostId: null,
+        
+        onHostSelected: async function() {
+            const hostSelector = document.getElementById('session-host-selector');
+            this.selectedHostId = hostSelector.value;
+            
+            const appSelector = document.getElementById('session-app-selector');
+            const startBtn = document.getElementById('start-session-btn');
+            
+            if (!this.selectedHostId) {
+                appSelector.disabled = true;
+                appSelector.innerHTML = '<option value="">-- Select host first --</option>';
+                startBtn.disabled = true;
+                return;
+            }
+            
+            try {
+                const appsResponse = await fetch(`/api/gaming/hosts/${this.selectedHostId}/apps`);
+                const appsData = await appsResponse.json();
+                
+                if (appsData.success && appsData.apps) {
+                    appSelector.disabled = false;
+                    appSelector.innerHTML = '<option value="">-- Select app/game --</option>' +
+                        appsData.apps.map(app => {
+                            const name = app.name || app.output || 'Unnamed App';
+                            return `<option value="${this.escapeHtml(name)}">${this.escapeHtml(name)}</option>`;
+                        }).join('');
+                    startBtn.disabled = false;
+                } else {
+                    appSelector.innerHTML = '<option value="">No apps available</option>';
+                    startBtn.disabled = true;
+                }
+                
+                await this.checkCurrentSession(this.selectedHostId);
+            } catch (error) {
+                console.error('Failed to load apps:', error);
+                appSelector.innerHTML = '<option value="">Error loading apps</option>';
+                startBtn.disabled = true;
+            }
+        },
+        
+        async startSession() {
+            const hostId = this.selectedHostId;
+            const appSelector = document.getElementById('session-app-selector');
+            const appName = appSelector.value;
+            const deviceName = document.getElementById('session-device-name').value;
+            const resolution = document.getElementById('session-resolution').value;
+            
+            if (!hostId || !appName) {
+                alert('Please select a host and app/game');
+                return;
+            }
+            
+            const startBtn = document.getElementById('start-session-btn');
+            startBtn.disabled = true;
+            startBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Starting...';
+            
+            try {
+                const response = await fetch(`/api/gaming/hosts/${hostId}/sessions/start`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        app_name: appName,
+                        client_info: {
+                            device_name: deviceName || 'Unknown Device',
+                            device_type: 'desktop',
+                            resolution: resolution
+                        }
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.currentSession = data.session;
+                    this.sessionStartTime = new Date(data.session.started_at);
+                    this.showCurrentSession(data.session);
+                    this.startSessionTimer();
+                    
+                    document.getElementById('start-session-btn').style.display = 'none';
+                    document.getElementById('stop-session-btn').style.display = 'inline-block';
+                    
+                    this.showNotification('Session started successfully', 'success');
+                } else {
+                    alert('Failed to start session: ' + data.error);
+                    startBtn.disabled = false;
+                    startBtn.innerHTML = '<i class="bi bi-play-circle"></i> Start Session';
+                }
+            } catch (error) {
+                console.error('Failed to start session:', error);
+                alert('Failed to start session: ' + error.message);
+                startBtn.disabled = false;
+                startBtn.innerHTML = '<i class="bi bi-play-circle"></i> Start Session';
+            }
+        },
+        
+        async stopSession() {
+            if (!this.currentSession || !this.currentSession.id) {
+                return;
+            }
+            
+            const stopBtn = document.getElementById('stop-session-btn');
+            stopBtn.disabled = true;
+            stopBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Stopping...';
+            
+            try {
+                const response = await fetch(`/api/gaming/sessions/${this.currentSession.id}/stop`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.stopSessionTimer();
+                    this.hideCurrentSession();
+                    
+                    document.getElementById('start-session-btn').style.display = 'inline-block';
+                    document.getElementById('start-session-btn').disabled = false;
+                    document.getElementById('stop-session-btn').style.display = 'none';
+                    
+                    this.currentSession = null;
+                    this.sessionStartTime = null;
+                    
+                    this.loadRecentSessions();
+                    
+                    const stats = data.stats;
+                    const message = `Session ended!\nDuration: ${stats.duration_formatted}\nAvg Quality: ${stats.avg_fps ? stats.avg_fps.toFixed(0) + ' FPS' : 'N/A'}\nData: ${stats.total_data_gb ? stats.total_data_gb.toFixed(2) + ' GB' : 'N/A'}`;
+                    this.showNotification(message, 'info');
+                } else {
+                    alert('Failed to stop session: ' + data.error);
+                    stopBtn.disabled = false;
+                    stopBtn.innerHTML = '<i class="bi bi-stop-circle"></i> Stop Session';
+                }
+            } catch (error) {
+                console.error('Failed to stop session:', error);
+                alert('Failed to stop session: ' + error.message);
+                stopBtn.disabled = false;
+                stopBtn.innerHTML = '<i class="bi bi-stop-circle"></i> Stop Session';
+            }
+        },
+        
+        async checkCurrentSession(hostId) {
+            if (!hostId) return;
+            
+            try {
+                const response = await fetch(`/api/gaming/hosts/${hostId}/sessions/current`);
+                const data = await response.json();
+                
+                if (data.success && data.session) {
+                    this.currentSession = data.session;
+                    this.sessionStartTime = new Date(data.session.started_at);
+                    this.showCurrentSession(data.session);
+                    this.startSessionTimer();
+                    
+                    document.getElementById('start-session-btn').style.display = 'none';
+                    document.getElementById('stop-session-btn').style.display = 'inline-block';
+                }
+            } catch (error) {
+                console.error('Failed to check current session:', error);
+            }
+        },
+        
+        showCurrentSession(session) {
+            const card = document.getElementById('current-session-card');
+            card.style.display = 'block';
+            
+            document.getElementById('session-id-display').textContent = session.id;
+            document.getElementById('session-app-name').textContent = session.app_name || session.game_name || '-';
+            document.getElementById('session-host-name').textContent = session.host_name || session.host_ip;
+            document.getElementById('session-client-device').textContent = session.client_device || '-';
+            document.getElementById('session-current-resolution').textContent = session.resolution || '-';
+            document.getElementById('session-current-fps').textContent = session.fps ? session.fps + ' FPS' : '-';
+            document.getElementById('session-current-bitrate').textContent = session.bitrate_mbps ? session.bitrate_mbps.toFixed(1) + ' Mbps' : '-';
+            document.getElementById('session-current-latency').textContent = session.latency_ms ? session.latency_ms.toFixed(0) + ' ms' : '-';
+        },
+        
+        hideCurrentSession() {
+            document.getElementById('current-session-card').style.display = 'none';
+        },
+        
+        startSessionTimer() {
+            this.stopSessionTimer();
+            
+            this.sessionTimer = setInterval(() => {
+                if (this.sessionStartTime) {
+                    const now = new Date();
+                    const durationSeconds = Math.floor((now - this.sessionStartTime) / 1000);
+                    const formatted = this.formatDuration(durationSeconds);
+                    document.getElementById('session-duration').textContent = formatted;
+                }
+            }, 1000);
+        },
+        
+        stopSessionTimer() {
+            if (this.sessionTimer) {
+                clearInterval(this.sessionTimer);
+                this.sessionTimer = null;
+            }
+        },
+        
+        formatDuration(seconds) {
+            if (seconds < 60) {
+                return `${seconds}s`;
+            } else if (seconds < 3600) {
+                const minutes = Math.floor(seconds / 60);
+                const secs = seconds % 60;
+                return `${minutes}m ${secs}s`;
+            } else {
+                const hours = Math.floor(seconds / 3600);
+                const minutes = Math.floor((seconds % 3600) / 60);
+                return `${hours}h ${minutes}m`;
+            }
+        },
+        
+        async loadRecentSessions() {
+            try {
+                const response = await fetch('/api/gaming/sessions?limit=20');
+                const data = await response.json();
+                
+                if (data.success && data.sessions) {
+                    this.renderRecentSessions(data.sessions);
+                }
+            } catch (error) {
+                console.error('Failed to load recent sessions:', error);
+            }
+        },
+        
+        renderRecentSessions(sessions) {
+            const tbody = document.getElementById('sessions-table-body');
+            
+            if (!sessions || sessions.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="8" class="text-center text-muted">
+                            <i class="bi bi-inbox"></i> No recent sessions
+                        </td>
+                    </tr>`;
+                return;
+            }
+            
+            tbody.innerHTML = sessions.map(session => {
+                const duration = session.duration_seconds ? 
+                    this.formatDuration(Math.floor(session.duration_seconds)) : '-';
+                
+                const avgQuality = session.avg_fps && session.avg_bitrate ?
+                    `${Math.round(session.avg_fps)} FPS @ ${session.avg_bitrate.toFixed(1)} Mbps` :
+                    (session.resolution || '-');
+                
+                const dataStreamed = session.total_data_gb ?
+                    `${session.total_data_gb.toFixed(2)} GB` : '-';
+                
+                let outcomeBadge = '';
+                if (session.session_outcome === 'completed') {
+                    outcomeBadge = '<span class="badge bg-success">Completed</span>';
+                } else if (session.session_outcome === 'interrupted') {
+                    outcomeBadge = '<span class="badge bg-warning">Interrupted</span>';
+                } else if (session.session_outcome === 'error') {
+                    outcomeBadge = '<span class="badge bg-danger">Error</span>';
+                } else {
+                    outcomeBadge = `<span class="badge bg-secondary">${session.status || 'Unknown'}</span>`;
+                }
+                
+                const startedAt = session.started_at ?
+                    new Date(session.started_at).toLocaleString() : '-';
+                
+                return `
+                    <tr>
+                        <td>${this.escapeHtml(session.host_name || session.host_ip)}</td>
+                        <td>${this.escapeHtml(session.app_name || session.game_name || '-')}</td>
+                        <td>${duration}</td>
+                        <td><small>${avgQuality}</small></td>
+                        <td>${dataStreamed}</td>
+                        <td><small>${this.escapeHtml(session.client_device || '-')}</small></td>
+                        <td>${outcomeBadge}</td>
+                        <td><small>${startedAt}</small></td>
+                    </tr>`;
+            }).join('');
+        },
+        
+        escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        },
+        
+        showNotification(message, type = 'info') {
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+    };
 
     const GameStreaming = {
         currentApps: [],

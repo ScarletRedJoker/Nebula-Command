@@ -30,6 +30,7 @@ import SongRequests from "@/pages/song-requests";
 import Polls from "@/pages/polls";
 import Alerts from "@/pages/alerts";
 import Chatbot from "@/pages/chatbot";
+import OBSControl from "@/pages/obs-control";
 import NotFound from "@/pages/not-found";
 import SpotifyOverlay from "@/pages/spotify-overlay";
 import YouTubeOverlay from "@/pages/youtube-overlay";
@@ -92,6 +93,7 @@ function ProtectedRouter() {
               <Route path="/song-requests" component={SongRequests} />
               <Route path="/alerts" component={Alerts} />
               <Route path="/chatbot" component={Chatbot} />
+              <Route path="/obs-control" component={OBSControl} />
               <Route path="/settings" component={Settings} />
               <Route path="/profile" component={Profile} />
               <Route component={NotFound} />

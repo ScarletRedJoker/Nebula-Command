@@ -1,4 +1,4 @@
-import { Home, Settings, Activity, Zap, History, MessageSquare, Shield, Trophy, Megaphone, BarChart3, Gamepad2, Coins, Music, Vote, Bell, Bot, Sparkles } from "lucide-react";
+import { Home, Settings, Activity, Zap, History, MessageSquare, Shield, Trophy, Megaphone, BarChart3, Gamepad2, Coins, Music, Vote, Bell, Bot, Sparkles, Video } from "lucide-react";
 import { SiTwitch, SiYoutube, SiKick } from "react-icons/si";
 import {
   Sidebar,
@@ -51,6 +51,12 @@ const featureItems = [
     badge: "AI",
   },
   {
+    title: "OBS Control",
+    url: "/obs-control",
+    icon: Video,
+    badge: "New",
+  },
+  {
     title: "Giveaways",
     url: "/giveaways",
     icon: Trophy,
@@ -69,7 +75,6 @@ const featureItems = [
     title: "Currency",
     url: "/currency",
     icon: Coins,
-    badge: "New",
   },
   {
     title: "Polls",
