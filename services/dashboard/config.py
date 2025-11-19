@@ -57,6 +57,30 @@ class Config:
     HOME_ASSISTANT_HEALTH_CHECK_INTERVAL = int(os.environ.get('HOME_ASSISTANT_HEALTH_CHECK_INTERVAL', '300'))  # 5 minutes
     HOME_ASSISTANT_MAX_RETRIES = int(os.environ.get('HOME_ASSISTANT_MAX_RETRIES', '3'))
     
+    # Plex Media Server configuration
+    PLEX_URL = os.environ.get('PLEX_URL', 'http://plex:32400')
+    PLEX_TOKEN = os.environ.get('PLEX_TOKEN', '')  # Get from Plex settings
+    PLEX_MEDIA_PATH = os.environ.get('PLEX_MEDIA_PATH', '/home/evin/contain/HomeLabHub/services/plex/media')
+    PLEX_MOVIES_PATH = os.path.join(PLEX_MEDIA_PATH, 'Movies')
+    PLEX_TV_PATH = os.path.join(PLEX_MEDIA_PATH, 'TV Shows')
+    PLEX_MUSIC_PATH = os.path.join(PLEX_MEDIA_PATH, 'Music')
+    
+    # Game Streaming configuration (Sunshine/Moonlight)
+    SUNSHINE_HOST = os.environ.get('SUNSHINE_HOST', os.environ.get('WINDOWS_KVM_IP', ''))
+    SUNSHINE_PORT = int(os.environ.get('SUNSHINE_PORT', '47990'))
+    SUNSHINE_API_KEY = os.environ.get('SUNSHINE_API_KEY', '')
+    SUNSHINE_AUTO_DISCOVER = os.environ.get('SUNSHINE_AUTO_DISCOVER', 'true').lower() == 'true'
+    
+    # Database Administration
+    DB_ADMIN_ALLOWED_HOSTS = os.environ.get('DB_ADMIN_ALLOWED_HOSTS', 'discord-bot-db,localhost').split(',')
+    DB_BACKUP_RETENTION_DAYS = int(os.environ.get('DB_BACKUP_RETENTION_DAYS', '30'))
+    DB_BACKUP_SCHEDULE = os.environ.get('DB_BACKUP_SCHEDULE', '0 2 * * *')  # 2 AM daily
+    
+    # Monitoring & Telemetry
+    TELEMETRY_COLLECTION_INTERVAL = int(os.environ.get('TELEMETRY_COLLECTION_INTERVAL', '30'))  # seconds
+    STORAGE_SCAN_INTERVAL = int(os.environ.get('STORAGE_SCAN_INTERVAL', '3600'))  # 1 hour
+    STORAGE_ALERT_THRESHOLD = float(os.environ.get('STORAGE_ALERT_THRESHOLD', '80.0'))  # percent
+    
     # MinIO configuration
     MINIO_ENDPOINT = os.environ.get('MINIO_ENDPOINT', 'minio:9000')
     MINIO_ACCESS_KEY = os.environ.get('MINIO_ROOT_USER', 'admin')
