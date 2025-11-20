@@ -1,8 +1,6 @@
 #!/bin/bash
-
 # ╔════════════════════════════════════════════════════════════════╗
-# ║              HOMELAB UNIFIED CONTROL - FINAL FIX              ║
-# ║                   NO ENV RESET - JUST WORKS                   ║
+# ║              HOMELAB - SIMPLE & WORKING                       ║
 # ╚════════════════════════════════════════════════════════════════╝
 
 set -euo pipefail
@@ -13,11 +11,41 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m'
-BOLD='\033[1m'
 
-# Configuration
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-cd "$SCRIPT_DIR"
+# Auto-detect project root
+if [ -d "/home/evin/contain/HomeLabHub" ]; then
+    # On Ubuntu server
+    PROJECT_ROOT="/home/evin/contain/HomeLabHub"
+else
+    # In development/Replit
+    PROJECT_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+fi
+
+ENV_FILE="$PROJECT_ROOT/.env"
+COMPOSE_FILE="$PROJECT_ROOT/docker-compose.yml"
+
+echo -e "${CYAN}Project Root: $PROJECT_ROOT${NC}"
+
+# Verify files exist
+if [ ! -f "$ENV_FILE" ]; then
+    echo -e "${RED}ERROR: .env file not found at $ENV_FILE${NC}"
+    echo "Run this script from your Ubuntu server at /home/evin/contain/HomeLabHub"
+    exit 1
+fi
+
+if [ ! -f "$COMPOSE_FILE" ]; then
+    echo -e "${RED}ERROR: docker-compose.yml not found at $COMPOSE_FILE${NC}"
+    exit 1
+fi
+
+# Docker Compose command with ABSOLUTE PATHS
+compose() {
+    docker compose \
+        --project-directory "$PROJECT_ROOT" \
+        --env-file "$ENV_FILE" \
+        -f "$COMPOSE_FILE" \
+        "$@"
+}
 
 # Service list
 ALL_SERVICES=(
@@ -29,270 +57,193 @@ ALL_SERVICES=(
     "rig-city-site" "scarletredjoker-web"
 )
 
-# ============================================
-# CORE FUNCTIONS
-# ============================================
-is_service_running() {
-    docker ps --format "{{.Names}}" 2>/dev/null | grep -q "^$1$"
+# Check if service is running
+is_running() {
+    docker ps --format "{{.Names}}" | grep -q "^$1$"
 }
 
-get_running_count() {
+# Count running services
+count_running() {
     local count=0
     for service in "${ALL_SERVICES[@]}"; do
-        is_service_running "$service" && ((count++))
+        is_running "$service" && ((count++))
     done
     echo $count
 }
 
 # ============================================
-# FIX COMMAND - THE REAL SOLUTION
+# FIX COMMAND - Simple and Effective
 # ============================================
-fix_all_issues() {
-    echo -e "${CYAN}╔════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║     FIXING WITHOUT TOUCHING .ENV      ║${NC}"
-    echo -e "${CYAN}╚════════════════════════════════════════╝${NC}"
+fix() {
+    echo -e "${CYAN}═══ FIXING HOMELAB ═══${NC}\n"
+    
+    echo "Project: $PROJECT_ROOT"
+    echo "Env File: $ENV_FILE"
     echo ""
     
-    # Check if .env exists
-    if [ ! -f .env ]; then
-        echo -e "${RED}No .env file found!${NC}"
-        echo "Run: ./homelab env"
-        exit 1
-    fi
+    # Force recreate ALL containers with correct environment
+    echo -e "${CYAN}[1/3] Force recreating all services with environment...${NC}"
+    compose up -d --force-recreate
     
-    echo -e "${CYAN}[1/3] Force recreating services to load environment...${NC}"
-    # THE KEY FIX: Force recreate containers to load the .env file
-    docker compose --env-file .env up -d --force-recreate
-    
-    echo -e "${CYAN}[2/3] Waiting for services to stabilize...${NC}"
+    echo -e "${CYAN}[2/3] Waiting for stability...${NC}"
     sleep 10
     
-    echo -e "${CYAN}[3/3] Checking databases...${NC}"
+    # Create databases if PostgreSQL is ready
+    echo -e "${CYAN}[3/3] Setting up databases...${NC}"
     if docker exec homelab-postgres pg_isready -U postgres &>/dev/null; then
-        # Create databases if missing (using correct syntax)
         for db in ticketbot streambot homelab_jarvis; do
             if ! docker exec homelab-postgres psql -U postgres -lqt 2>/dev/null | cut -d \| -f 1 | grep -qw "$db"; then
-                echo "  Creating database $db..."
+                echo "  Creating database: $db"
                 docker exec homelab-postgres psql -U postgres -c "CREATE DATABASE $db;" 2>/dev/null || true
             fi
         done
         echo -e "${GREEN}✓ Databases ready${NC}"
     fi
     
-    # Clean dangling images
-    local dangling=$(docker images -f "dangling=true" -q 2>/dev/null | wc -l)
-    if [ "$dangling" -gt 0 ]; then
-        docker rmi $(docker images -f "dangling=true" -q) 2>/dev/null || true
-        echo -e "${GREEN}✓ Cleaned $dangling dangling images${NC}"
-    fi
-    
-    # Final status
-    local count=$(get_running_count)
+    # Status
+    local running=$(count_running)
     echo ""
-    if [ $count -eq 15 ]; then
+    if [ $running -eq 15 ]; then
         echo -e "${GREEN}✅ SUCCESS! All 15/15 services running!${NC}"
     else
-        echo -e "${YELLOW}⚠ $count/15 services running${NC}"
-        echo "Check logs: ./homelab logs [service]"
+        echo -e "${YELLOW}⚠ $running/15 services running${NC}"
+        echo "Check logs: ./homelab logs"
     fi
 }
 
 # ============================================
-# SMART ENV SETUP (only prompts for missing)
+# STATUS COMMAND
 # ============================================
-setup_env() {
-    echo -e "${CYAN}Checking environment...${NC}"
-    
-    # If .env exists, check what's missing
-    if [ -f .env ]; then
-        # Source it to check variables
-        source .env
-        
-        # Only check truly critical variables
-        local missing=()
-        [ -z "${OPENAI_API_KEY:-}" ] && missing+=("OPENAI_API_KEY")
-        [ -z "${POSTGRES_PASSWORD:-}" ] && [ -z "${DATABASE_URL:-}" ] && missing+=("POSTGRES_PASSWORD")
-        [ -z "${WEB_USERNAME:-}" ] && missing+=("WEB_USERNAME") 
-        [ -z "${WEB_PASSWORD:-}" ] && missing+=("WEB_PASSWORD")
-        
-        if [ ${#missing[@]} -eq 0 ]; then
-            echo -e "${GREEN}✓ All required variables present${NC}"
-            return 0
-        fi
-        
-        echo -e "${YELLOW}Missing: ${missing[*]}${NC}"
-        echo "Adding only missing variables..."
-        
-        # Add only what's missing
-        for var in "${missing[@]}"; do
-            case "$var" in
-                POSTGRES_PASSWORD)
-                    local pass=$(openssl rand -base64 32 2>/dev/null || echo "homelab-$(date +%s)")
-                    echo "POSTGRES_PASSWORD=$pass" >> .env
-                    echo "DATABASE_URL=postgresql://postgres:$pass@homelab-postgres:5432/homelab" >> .env
-                    echo -e "${GREEN}✓ Generated database credentials${NC}"
-                    ;;
-                WEB_USERNAME)
-                    echo -e "Enter dashboard username: "
-                    read -r username
-                    echo "WEB_USERNAME=$username" >> .env
-                    ;;
-                WEB_PASSWORD)
-                    echo -e "Enter dashboard password: "
-                    read -r password
-                    echo "WEB_PASSWORD=$password" >> .env
-                    ;;
-                OPENAI_API_KEY)
-                    echo -e "Enter OpenAI API key: "
-                    read -r key
-                    echo "OPENAI_API_KEY=$key" >> .env
-                    ;;
-            esac
-        done
-    else
-        # No .env - create minimal required
-        echo -e "${YELLOW}Creating new .env with essentials...${NC}"
-        
-        # Copy example if available
-        [ -f .env.example ] && cp .env.example .env || touch .env
-        
-        # Get OpenAI key
-        echo -n "Enter OpenAI API key: "
-        read -r openai_key
-        echo "OPENAI_API_KEY=$openai_key" >> .env
-        
-        # Generate database
-        local pass=$(openssl rand -base64 32 2>/dev/null || echo "homelab-$(date +%s)")
-        echo "POSTGRES_PASSWORD=$pass" >> .env
-        echo "DATABASE_URL=postgresql://postgres:$pass@homelab-postgres:5432/homelab" >> .env
-        
-        # Dashboard login
-        echo -n "Enter dashboard username: "
-        read -r username
-        echo "WEB_USERNAME=$username" >> .env
-        
-        echo -n "Enter dashboard password: "
-        read -r password  
-        echo "WEB_PASSWORD=$password" >> .env
-        
-        echo -e "${GREEN}✓ Environment created${NC}"
-    fi
-}
-
-# ============================================
-# STATUS DISPLAY  
-# ============================================
-show_status() {
+status() {
     echo -e "\n${CYAN}═══ Service Status ═══${NC}\n"
     
     local running=0
-    local stopped=0
-    
     for service in "${ALL_SERVICES[@]}"; do
-        if is_service_running "$service"; then
-            printf "%-25s ${GREEN}● Running${NC}\n" "$service"
+        if is_running "$service"; then
+            echo -e "$service: ${GREEN}● Running${NC}"
             ((running++))
         else
-            printf "%-25s ${RED}○ Stopped${NC}\n" "$service"
-            ((stopped++))
+            echo -e "$service: ${RED}○ Stopped${NC}"
         fi
     done
     
-    echo -e "\n${BOLD}Summary:${NC}"
+    echo ""
     if [ $running -eq 15 ]; then
-        echo -e "  ${GREEN}✅ All 15/15 services running!${NC}"
+        echo -e "${GREEN}✅ All 15/15 services running${NC}"
     else
-        echo -e "  ${YELLOW}⚠ Only $running/15 services running${NC}"
-        [ $stopped -gt 0 ] && echo -e "  ${RED}   $stopped services stopped${NC}"
+        echo -e "${YELLOW}⚠ $running/15 services running${NC}"
     fi
-    
-    # Check for issues
-    local dangling=$(docker images -f "dangling=true" -q 2>/dev/null | wc -l)
-    [ "$dangling" -gt 0 ] && echo -e "  ${YELLOW}⚠ $dangling dangling images${NC}"
 }
 
 # ============================================
-# DEPLOY WITH FORCE RECREATE
+# LOGS COMMAND with Auto-Save
 # ============================================
-deploy_all() {
-    echo -e "${CYAN}Deploying all services...${NC}"
+logs() {
+    mkdir -p "$PROJECT_ROOT/logs"
+    local timestamp=$(date +%Y%m%d-%H%M%S)
     
-    # Ensure env exists
-    setup_env
-    
-    # Build if requested
-    if [ "${1:-}" == "--build" ]; then
-        docker compose build
+    if [ $# -eq 0 ]; then
+        # All services
+        echo -e "${CYAN}Showing logs for all services...${NC}"
+        compose logs --tail=100 -f | tee "$PROJECT_ROOT/logs/all-services-$timestamp.log"
+    else
+        # Specific service
+        echo -e "${CYAN}Showing logs for $1...${NC}"
+        compose logs --tail=100 -f "$1" | tee "$PROJECT_ROOT/logs/$1-$timestamp.log"
     fi
-    
-    # THE KEY: Force recreate to load environment
-    docker compose --env-file .env up -d --force-recreate
-    
-    sleep 10
-    show_status
 }
 
 # ============================================
-# MAIN HANDLER
+# DEBUG COMMAND - Show What Docker Sees
 # ============================================
-main() {
-    # Check Docker
-    if ! command -v docker &>/dev/null; then
-        echo -e "${RED}Docker not installed!${NC}"
-        exit 1
+debug() {
+    echo -e "${CYAN}═══ Debug Information ═══${NC}\n"
+    
+    echo "Project Root: $PROJECT_ROOT"
+    echo "Current Dir: $(pwd)"
+    echo ""
+    
+    echo -e "${CYAN}Checking .env file:${NC}"
+    if [ -f "$ENV_FILE" ]; then
+        echo -e "${GREEN}✓ .env exists${NC}"
+        echo "  Variables loaded:"
+        grep -c "=" "$ENV_FILE" | xargs echo "  "
+        echo ""
+        echo "  Checking critical variables:"
+        grep "^WEB_USERNAME=" "$ENV_FILE" || echo -e "  ${RED}✗ WEB_USERNAME missing${NC}"
+        grep "^WEB_PASSWORD=" "$ENV_FILE" || echo -e "  ${RED}✗ WEB_PASSWORD missing${NC}"
+        grep "^POSTGRES_PASSWORD=" "$ENV_FILE" || echo -e "  ${RED}✗ POSTGRES_PASSWORD missing${NC}"
+    else
+        echo -e "${RED}✗ .env NOT FOUND${NC}"
     fi
     
-    case "${1:-help}" in
-        fix)
-            fix_all_issues
-            ;;
-        status)
-            show_status
-            ;;
-        start|deploy)
-            deploy_all --build
-            ;;
-        env)
-            setup_env
-            ;;
-        logs)
-            shift
-            docker compose logs -f --tail=100 "$@"
-            ;;
-        restart)
-            # Force recreate to reload environment
-            shift
-            if [ $# -eq 0 ]; then
-                docker compose --env-file .env up -d --force-recreate
-            else
-                docker compose --env-file .env up -d --force-recreate "$@"
-            fi
-            ;;
-        stop)
-            docker compose down
-            ;;
-        help|*)
-            cat << EOF
-${CYAN}HomeLabHub Control${NC}
+    echo ""
+    echo -e "${CYAN}Checking homelab-dashboard container environment:${NC}"
+    if is_running "homelab-dashboard"; then
+        echo "  WEB_USERNAME in container:"
+        docker exec homelab-dashboard env | grep "WEB_USERNAME" || echo -e "  ${RED}✗ NOT SET${NC}"
+        echo "  POSTGRES_PASSWORD in container:"
+        docker exec homelab-dashboard env | grep "POSTGRES_PASSWORD" || echo -e "  ${RED}✗ NOT SET${NC}"
+    else
+        echo -e "${YELLOW}  Dashboard not running${NC}"
+    fi
+    
+    echo ""
+    echo -e "${CYAN}Service Status:${NC}"
+    status
+}
 
-Usage: $0 [command]
+# ============================================
+# MAIN
+# ============================================
+case "${1:-help}" in
+    fix|start)
+        fix
+        ;;
+    status)
+        status
+        ;;
+    logs)
+        shift
+        logs "$@"
+        ;;
+    debug)
+        debug
+        ;;
+    restart)
+        echo "Restarting all services..."
+        compose restart
+        ;;
+    stop)
+        compose down
+        echo -e "${GREEN}✓ All services stopped${NC}"
+        ;;
+    help|*)
+        cat << 'EOF'
+╔════════════════════════════════════════════════════════╗
+║           HOMELAB - Simple Management                  ║
+╚════════════════════════════════════════════════════════╝
+
+Usage: ./homelab [command]
 
 Commands:
-  ${GREEN}fix${NC}      - Fix everything (force reload env)
-  ${GREEN}status${NC}   - Show what's running  
-  ${GREEN}start${NC}    - Deploy all services
-  ${GREEN}env${NC}      - Setup environment (only missing vars)
-  ${GREEN}logs${NC}     - View logs
-  ${GREEN}restart${NC}  - Restart with env reload
-  ${GREEN}stop${NC}     - Stop everything
+  fix      - Fix everything and start all services
+  status   - Show which services are running  
+  logs     - View logs (add service name for specific)
+  debug    - Show detailed debugging info
+  restart  - Restart all services
+  stop     - Stop everything
 
-THE FIX: Your .env is perfect but Docker cached old empty environment.
-Run: $0 fix
+Examples:
+  ./homelab fix                    # Fix all issues
+  ./homelab status                 # Check what's running
+  ./homelab logs homelab-dashboard # View dashboard logs
+  ./homelab debug                  # Debug environment issues
 
-This forces Docker to recreate containers with your existing .env values.
+The key: This script uses ABSOLUTE PATHS so Docker finds
+your .env file and configurations correctly.
+
+Run on your Ubuntu server at: /home/evin/contain/HomeLabHub
 EOF
-            ;;
-    esac
-}
-
-main "$@"
+        ;;
+esac
