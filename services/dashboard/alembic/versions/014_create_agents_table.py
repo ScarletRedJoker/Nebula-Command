@@ -7,6 +7,9 @@ Create Date: 2025-11-19
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB, UUID
+import logging
+
+logger = logging.getLogger('alembic.runtime.migration')
 
 revision = '014_create_agents_table'
 down_revision = '013'
@@ -17,6 +20,26 @@ def upgrade():
     conn = op.get_bind()
     inspector = sa.inspect(conn)
     existing_tables = inspector.get_table_names()
+    
+    # AUTO-REPAIR: Check if agents table exists with wrong ID type
+    if 'agents' in existing_tables:
+        # Check agents.id column type
+        columns = inspector.get_columns('agents')
+        id_column = next((col for col in columns if col['name'] == 'id'), None)
+        
+        if id_column:
+            id_type = str(id_column['type']).lower()
+            
+            # If ID is not UUID, drop and recreate
+            if 'uuid' not in id_type:
+                logger.warning(f"⚠️  agents.id is {id_type}, expected UUID - dropping for recreation")
+                logger.info("🔧 Auto-repair: Dropping legacy tables...")
+                op.execute("DROP TABLE IF EXISTS agent_messages CASCADE")
+                op.execute("DROP TABLE IF EXISTS chat_history CASCADE")
+                op.execute("DROP TABLE IF EXISTS agents CASCADE")
+                logger.info("✓ Legacy tables dropped, will recreate with correct UUID types")
+                # Reset existing_tables so tables get recreated below
+                existing_tables = []
     
     if 'agents' not in existing_tables:
         op.create_table(

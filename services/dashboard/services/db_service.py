@@ -13,12 +13,20 @@ logger = logging.getLogger(__name__)
 
 class DatabaseService:
     def __init__(self):
-        self.database_url: Optional[str] = os.environ.get('JARVIS_DATABASE_URL')
+        from services.db_url_resolver import get_database_url
+        
+        try:
+            self.database_url: Optional[str] = get_database_url()
+            logger.info(f"Database URL resolved successfully")
+        except ValueError as e:
+            logger.warning(f"No database URL found: {e}. Database features will be unavailable.")
+            self.database_url = None
+        
         self._engine: Optional[Engine] = None
         self._session_factory: Optional[sessionmaker] = None
         
         if not self.database_url:
-            logger.warning("JARVIS_DATABASE_URL not set. Database features will be unavailable.")
+            logger.warning("Database URL not available. Database features will be unavailable.")
             return
             
         try:
@@ -97,6 +105,26 @@ class DatabaseService:
             return False
         
         try:
+            # Run schema validation and auto-repair BEFORE migrations
+            from services.schema_validator import SchemaValidator
+            
+            logger.info("Running pre-migration schema validation...")
+            validator = SchemaValidator(self.database_url)
+            
+            if not validator.validate_and_repair_agents_schema():
+                logger.error("Schema validation/repair failed")
+                return False
+            
+            # Log repair report for transparency
+            report = validator.get_report()
+            if report['repairs_made']:
+                logger.info(f"✓ Auto-repairs completed: {len(report['repairs_made'])} actions")
+                for repair in report['repairs_made']:
+                    logger.info(f"  - {repair}")
+            else:
+                logger.info("✓ No schema repairs needed")
+            
+            # Now run migrations (they will succeed because schema is fixed)
             dashboard_dir = os.path.dirname(os.path.dirname(__file__))
             alembic_ini = os.path.join(dashboard_dir, 'alembic.ini')
             

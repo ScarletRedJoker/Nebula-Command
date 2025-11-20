@@ -32,10 +32,18 @@ MIGRATION_LOCK_TIMEOUT_SECONDS = 60
 STATEMENT_TIMEOUT_SECONDS = 120
 
 def get_url():
-    url = os.environ.get("JARVIS_DATABASE_URL")
-    if not url:
-        raise RuntimeError("JARVIS_DATABASE_URL environment variable is not set")
-    return url
+    """
+    Get database URL using unified resolver.
+    Supports multiple environment variable names for flexibility.
+    """
+    try:
+        from services.db_url_resolver import get_database_url
+        url = get_database_url()
+        logger.info(f"Database URL resolved successfully for migrations")
+        return url
+    except ValueError as e:
+        logger.error(f"Database URL resolution failed: {e}")
+        raise RuntimeError(f"Database URL not found: {e}")
 
 def run_migrations_offline() -> None:
     url = get_url()
