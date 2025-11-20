@@ -2,22 +2,58 @@
 Database Management API Routes
 RESTful API for database provisioning and management
 """
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, session
 from services.database_provisioner import get_provisioner
 from functools import wraps
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
 database_bp = Blueprint('database', __name__, url_prefix='/api/databases')
 
 def require_admin(f):
-    """Decorator to require admin authentication"""
+    """Decorator to require admin authentication for database operations"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        # TODO: Add proper authentication check
-        # For now, check if user is logged in via session
-        return f(*args, **kwargs)
+        # Check session authentication first (web login)
+        session_authenticated = session.get('authenticated', False)
+        
+        if session_authenticated:
+            return f(*args, **kwargs)
+        
+        # Fall back to API key authentication
+        api_key = request.headers.get('X-API-Key')
+        valid_api_key = os.environ.get('DASHBOARD_API_KEY')
+        
+        if api_key and valid_api_key and api_key == valid_api_key:
+            return f(*args, **kwargs)
+        
+        # Authentication failed - log the attempt
+        try:
+            from services.security_monitor import security_monitor
+            from services.activity_service import activity_service
+            
+            ip_address = request.remote_addr or 'unknown'
+            result = security_monitor.log_failed_login(
+                ip_address=ip_address,
+                username=request.headers.get('X-API-Key', 'unknown')[:20] if api_key else 'database_api',
+                service='database_api'
+            )
+            
+            # Log activity if alert triggered
+            if result.get('alert_triggered'):
+                activity_service.log_activity(
+                    'security',
+                    f"Security alert: {result.get('count')} failed database API auth attempts from {ip_address}",
+                    'shield-exclamation',
+                    'danger'
+                )
+        except Exception as e:
+            logger.error(f"Error logging failed database API auth attempt: {e}")
+        
+        return jsonify({'success': False, 'error': 'Unauthorized - Authentication required for database operations'}), 401
+    
     return decorated_function
 
 
