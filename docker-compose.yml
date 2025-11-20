@@ -115,6 +115,8 @@ services:
       - HOME_ASSISTANT_URL=${HOME_ASSISTANT_URL:-http://homeassistant:8123}
       - HOME_ASSISTANT_TOKEN=${HOME_ASSISTANT_TOKEN:-}
       - HOME_ASSISTANT_VERIFY_SSL=${HOME_ASSISTANT_VERIFY_SSL:-False}
+      - AI_PROVIDER=openai
+      - AI_MODEL=gpt-3.5-turbo
 
   # ============================================
   # Celery Worker - Background Task Processing
@@ -144,6 +146,8 @@ services:
       - COMPOSE_FILE=/docker-compose.unified.yml
       - CADDYFILE_PATH=/Caddyfile
       - ENV_FILE=/.env
+      - AI_PROVIDER=openai
+      - AI_MODEL=gpt-3.5-turbo
     env_file:
       - .env
     volumes:
@@ -247,6 +251,7 @@ services:
       SESSION_SECRET: ${STREAMBOT_SESSION_SECRET}
       OPENAI_API_KEY: ${STREAMBOT_OPENAI_API_KEY:-${OPENAI_API_KEY}}
       OPENAI_BASE_URL: ${STREAMBOT_OPENAI_BASE_URL:-https://api.openai.com/v1}
+      STREAMBOT_FACT_MODEL: gpt-3.5-turbo
       NODE_ENV: ${STREAMBOT_NODE_ENV:-production}
       PORT: ${STREAMBOT_PORT:-5000}
       HOST: 0.0.0.0
@@ -378,6 +383,8 @@ services:
       # Only VNC_PASSWORD is needed for authentication
       - RESOLUTION=1920x1080
       - TZ=America/New_York
+      - NOVNC_ENABLE=true
+      - ENABLE_WEB_CLIENT=true
     volumes:
       - vnc_home:/home/evin
       - /home/${SERVICE_USER:-evin}/contain:/home/evin/host-projects:ro
