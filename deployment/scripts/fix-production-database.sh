@@ -19,13 +19,14 @@ fi
 
 source .env
 
-# Try DATABASE_URL first, fallback to NEON_DATABASE_URL
-if [ -z "${DATABASE_URL:-}" ] && [ -z "${NEON_DATABASE_URL:-}" ]; then
-    echo "❌ Error: Neither DATABASE_URL nor NEON_DATABASE_URL is set in .env"
+# Try all common database URL variable names
+if [ -z "${DATABASE_URL:-}" ] && [ -z "${NEON_DATABASE_URL:-}" ] && [ -z "${POSTGRES_URL:-}" ]; then
+    echo "❌ Error: No database URL found in .env"
+    echo "   Looked for: DATABASE_URL, NEON_DATABASE_URL, POSTGRES_URL"
     exit 1
 fi
 
-DB_URL="${DATABASE_URL:-${NEON_DATABASE_URL}}"
+DB_URL="${DATABASE_URL:-${NEON_DATABASE_URL:-${POSTGRES_URL}}}"
 
 # Extract database components from URL
 # Format: postgresql://user:password@host:port/database
