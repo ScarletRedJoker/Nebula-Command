@@ -17,15 +17,13 @@ export async function setupVite(app: Express, server: Server) {
   const { nanoid } = await import("nanoid");
   
   const viteLogger = createLogger();
-  
-  const serverOptions = {
-    middlewareMode: true,
-    hmr: false,
-    allowedHosts: true as true,
-  };
 
   const vite = await createViteServer({
-    ...viteConfig,
+    // Only include specific parts of vite config, not the server config
+    plugins: viteConfig.plugins,
+    resolve: viteConfig.resolve,
+    root: viteConfig.root,
+    build: viteConfig.build,
     configFile: false,
     customLogger: {
       ...viteLogger,
@@ -34,7 +32,12 @@ export async function setupVite(app: Express, server: Server) {
         process.exit(1);
       },
     },
-    server: serverOptions,
+    server: {
+      middlewareMode: true,
+      hmr: {
+        server: server,  // Use existing HTTP server for HMR WebSocket
+      },
+    },
     appType: "custom",
   });
 
