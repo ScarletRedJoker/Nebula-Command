@@ -138,6 +138,51 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Create default development user for testing without OAuth
+  async function ensureDevUser() {
+    if (NODE_ENV !== 'development') {
+      return;
+    }
+
+    try {
+      const { db } = await import('./db');
+      const { users } = await import('@shared/schema');
+      const { eq } = await import('drizzle-orm');
+
+      const devUserId = 'dev-user-00000000-0000-0000-0000-000000000000';
+      const devEmail = 'dev@stream-bot.local';
+
+      // Check if dev user already exists
+      const [existingUser] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, devUserId))
+        .limit(1);
+
+      if (!existingUser) {
+        // Create dev user
+        await db.insert(users).values({
+          id: devUserId,
+          email: devEmail,
+          passwordHash: null,
+          primaryPlatform: null,
+          role: 'admin',
+          isActive: true,
+          onboardingCompleted: true,
+          onboardingStep: 4,
+          dismissedWelcome: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+        console.log('✓ Created default development user (dev@stream-bot.local)');
+      } else {
+        console.log('✓ Development user already exists');
+      }
+    } catch (error) {
+      console.error('❌ Failed to create development user:', error);
+    }
+  }
+
   // Validate OAuth environment variables at startup
   function validateOAuthEnvironment() {
     console.log('\n' + '='.repeat(60));
@@ -184,6 +229,9 @@ app.use((req, res, next) => {
   }
 
   validateOAuthEnvironment();
+
+  // Create default dev user in development mode
+  await ensureDevUser();
 
   const server = await registerRoutes(app);
 

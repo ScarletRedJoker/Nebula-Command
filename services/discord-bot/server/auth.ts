@@ -76,6 +76,8 @@ export function setupAuth(app: Express, storage: IStorage): void {
    */
   app.set('trust proxy', 1);
   
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  
   /**
    * Validate SESSION_SECRET exists
    * 
@@ -83,10 +85,20 @@ export function setupAuth(app: Express, storage: IStorage): void {
    * - SESSION_SECRET signs session IDs to prevent tampering
    * - Without it, sessions are vulnerable to forgery attacks
    * - Exit immediately rather than running with weak security
+   * 
+   * Development Mode:
+   * - Uses a default insecure secret for easier development
+   * - Allows testing without OAuth configuration
    */
-  if (!process.env.SESSION_SECRET) {
-    console.error('SESSION_SECRET environment variable is required for session security');
-    process.exit(1);
+  let sessionSecret = process.env.SESSION_SECRET;
+  if (!sessionSecret) {
+    if (isDevelopment) {
+      console.warn('⚠️  [DEV MODE] SESSION_SECRET not set, using default insecure secret');
+      sessionSecret = 'dev-insecure-secret-change-in-production';
+    } else {
+      console.error('SESSION_SECRET environment variable is required for session security');
+      process.exit(1);
+    }
   }
 
   /**
@@ -104,7 +116,7 @@ export function setupAuth(app: Express, storage: IStorage): void {
    */
   app.use(
     session({
-      secret: process.env.SESSION_SECRET,
+      secret: sessionSecret,
       resave: false,
       saveUninitialized: false,
       cookie: {
@@ -126,6 +138,62 @@ export function setupAuth(app: Express, storage: IStorage): void {
    */
   app.use(passport.initialize());
   app.use(passport.session());
+
+  /**
+   * Development Mode Authentication Bypass
+   * 
+   * In development mode, automatically populate req.user with a default dev user.
+   * This allows testing all API endpoints without OAuth configuration.
+   * 
+   * Security Note:
+   * - Only active when NODE_ENV=development
+   * - Creates a mock user with admin privileges
+   * - All connected servers are simulated as accessible
+   */
+  if (isDevelopment) {
+    console.log('🔓 [DEV MODE] Authentication bypass enabled - all routes are accessible');
+    
+    app.use(async (req: Request, res: Response, next: NextFunction) => {
+      // Skip if already authenticated via real OAuth
+      if (req.isAuthenticated()) {
+        return next();
+      }
+
+      // Create or retrieve default dev user from database
+      const devUserId = 'dev-user-000000000000000000';
+      let devUser = await storage.getDiscordUser(devUserId);
+      
+      if (!devUser) {
+        console.log('🔧 [DEV MODE] Creating default development user...');
+        try {
+          devUser = await storage.createDiscordUser({
+            id: devUserId,
+            username: 'DevUser',
+            discriminator: '0000',
+            avatar: null,
+            isAdmin: true,
+            serverId: null,
+            onboardingCompleted: true,
+            adminGuilds: JSON.stringify(['dev-server-1', 'dev-server-2']),
+            connectedServers: JSON.stringify(['dev-server-1', 'dev-server-2'])
+          });
+          console.log('✅ [DEV MODE] Default development user created');
+        } catch (error) {
+          console.error('❌ [DEV MODE] Failed to create dev user:', error);
+          return next();
+        }
+      }
+
+      // Auto-populate req.user for all requests
+      (req as any).user = {
+        ...devUser,
+        adminGuilds: devUser.adminGuilds ? JSON.parse(devUser.adminGuilds) : [],
+        connectedServers: devUser.connectedServers ? JSON.parse(devUser.connectedServers) : []
+      };
+
+      next();
+    });
+  }
 
   /**
    * Discord OAuth Strategy Configuration
@@ -959,6 +1027,11 @@ export function setupAuth(app: Express, storage: IStorage): void {
  * Protects routes by ensuring user is authenticated.
  * Use this middleware on routes that require a logged-in user.
  * 
+ * Development Mode:
+ * - In development, req.user is automatically populated by the dev middleware
+ * - This allows testing without OAuth configuration
+ * - Production behavior remains unchanged
+ * 
  * @param {Request} req - Express request object
  * @param {Response} res - Express response object
  * @param {NextFunction} next - Express next function
@@ -971,6 +1044,11 @@ export function setupAuth(app: Express, storage: IStorage): void {
  * });
  */
 export function isAuthenticated(req: Request, res: Response, next: NextFunction) {
+  // In development mode, req.user is auto-populated by dev middleware
+  if (process.env.NODE_ENV === 'development' && req.user) {
+    return next();
+  }
+  
   if (req.isAuthenticated()) {
     return next();
   }
@@ -988,6 +1066,11 @@ export function isAuthenticated(req: Request, res: Response, next: NextFunction)
  * 2. User object exists
  * 3. User has isAdmin = true (is admin in at least one server)
  * 
+ * Development Mode:
+ * - In development, the auto-populated dev user has admin privileges
+ * - This allows testing admin endpoints without OAuth configuration
+ * - Production behavior remains unchanged
+ * 
  * @param {Request} req - Express request object
  * @param {Response} res - Express response object
  * @param {NextFunction} next - Express next function
@@ -999,6 +1082,11 @@ export function isAuthenticated(req: Request, res: Response, next: NextFunction)
  * });
  */
 export function isAdmin(req: Request, res: Response, next: NextFunction) {
+  // In development mode, dev user has admin privileges
+  if (process.env.NODE_ENV === 'development' && req.user && (req.user as any).isAdmin) {
+    return next();
+  }
+  
   if (req.isAuthenticated() && req.user && (req.user as any).isAdmin) {
     return next();
   }

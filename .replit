@@ -17,23 +17,11 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "dashboard"
+args = "stream-bot"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "stream-bot"
-
-[[workflows.workflow]]
-name = "dashboard"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd services/dashboard && python main.py"
-waitForPort = 5000
-
-[workflows.workflow.metadata]
-outputType = "webview"
+args = "discord-bot"
 
 [[workflows.workflow]]
 name = "stream-bot"
@@ -47,6 +35,18 @@ task = "shell.exec"
 args = "cd services/stream-bot && APP_URL=\"https://${REPLIT_DEV_DOMAIN}\" TWITCH_SIGNIN_CALLBACK_URL=\"https://${REPLIT_DEV_DOMAIN}/api/auth/twitch/callback\" YOUTUBE_SIGNIN_CALLBACK_URL=\"https://${REPLIT_DEV_DOMAIN}/api/auth/youtube/callback\" KICK_SIGNIN_CALLBACK_URL=\"https://${REPLIT_DEV_DOMAIN}/api/auth/kick/callback\" PORT=3000 npm run dev"
 waitForPort = 3000
 
+[[workflows.workflow]]
+name = "discord-bot"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd services/discord-bot && NODE_ENV=development npm run dev"
+waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
 [[ports]]
 localPort = 3000
 externalPort = 3000
@@ -54,10 +54,6 @@ externalPort = 3000
 [[ports]]
 localPort = 5000
 externalPort = 80
-
-[[ports]]
-localPort = 24678
-externalPort = 3001
 
 [[ports]]
 localPort = 36179
@@ -70,10 +66,6 @@ externalPort = 3002
 [[ports]]
 localPort = 41711
 externalPort = 4200
-
-[[ports]]
-localPort = 45479
-externalPort = 5000
 
 [[ports]]
 localPort = 46877

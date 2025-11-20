@@ -69,6 +69,7 @@ if (NODE_ENV === 'production' && !SESSION_SECRET) {
 
 if (!SESSION_SECRET && NODE_ENV !== 'production') {
   console.warn("⚠️  WARNING: SESSION_SECRET not set! Using insecure default for development.");
+  console.warn("🔓 Development mode: Authentication bypass is enabled - OAuth not required.");
 }
 
 /**
@@ -334,10 +335,12 @@ app.use((req, res, next) => {
   /**
    * Port Configuration
    * 
-   * Preferred port: 5000 (required for Replit port forwarding)
+   * Preferred port: 4000 (development environment)
    * Fallback: Use PORT environment variable if set
+   * 
+   * Note: Port 5000 is used by dashboard in Replit
    */
-  const preferredPort = 5000;
+  const preferredPort = 4000;
   const port = process.env.PORT ? parseInt(process.env.PORT) : preferredPort;
   
   /**
