@@ -1,18 +1,17 @@
 #!/bin/bash
 
 # ╔════════════════════════════════════════════════════════════════╗
-# ║         HOMELAB UNIFIED PLATFORM - COMPLETE SOLUTION          ║
-# ║           ONE SCRIPT TO RULE THEM ALL v3.0                    ║
+# ║         HOMELAB UNIFIED CONTROL - PRODUCTION READY            ║
+# ║                    ONE SCRIPT TO RULE THEM ALL                ║
 # ╚════════════════════════════════════════════════════════════════╝
 
-set -e
+set -euo pipefail
 
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-MAGENTA='\033[0;35m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 BOLD='\033[1m'
@@ -21,651 +20,457 @@ BOLD='\033[1m'
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$SCRIPT_DIR"
 
-# Track issues and fixes
-ISSUES_FOUND=0
-ISSUES_FIXED=0
-SERVICES_EXPECTED=15
-SERVICES_RUNNING=0
+# ============================================
+# SERVICE DEPENDENCY GRAPH
+# ============================================
+declare -A SERVICE_CONFIG
+SERVICE_CONFIG=(
+    ["homelab-postgres"]="type:database|health:pg_isready -U postgres|critical:true"
+    ["homelab-redis"]="type:cache|health:redis-cli ping|critical:true"
+    ["homelab-minio"]="type:storage|health:curl -f http://localhost:9000/minio/health/live|critical:false"
+    ["homelab-dashboard"]="type:app|health:curl -f http://localhost:5000/health|depends:homelab-postgres,homelab-redis"
+    ["homelab-celery-worker"]="type:worker|health:none|depends:homelab-redis"
+    ["discord-bot"]="type:bot|health:none|depends:homelab-postgres"
+    ["stream-bot"]="type:bot|health:none|depends:homelab-postgres"
+    ["caddy"]="type:proxy|health:none|critical:true"
+    ["vnc-desktop"]="type:ui|health:none|critical:false"
+    ["code-server"]="type:ui|health:none|critical:false"
+    ["plex-server"]="type:app|health:none|critical:false"
+    ["n8n"]="type:app|health:none|critical:false"
+    ["homeassistant"]="type:app|health:none|critical:false"
+    ["rig-city-site"]="type:web|health:none|critical:false"
+    ["scarletredjoker-web"]="type:web|health:none|critical:false"
+)
+
+ALL_SERVICES=(
+    "homelab-postgres" "homelab-redis" "homelab-minio"
+    "homelab-dashboard" "homelab-celery-worker"
+    "discord-bot" "stream-bot"
+    "caddy" "vnc-desktop" "code-server"
+    "plex-server" "n8n" "homeassistant"
+    "rig-city-site" "scarletredjoker-web"
+)
 
 # ============================================
-# AUTOMATIC STARTUP WITH FULL FIXES
+# STATE-AWARE ENVIRONMENT MANAGER
 # ============================================
-
-auto_startup() {
-    echo -e "${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║       HOMELAB AUTOMATIC STARTUP & FIX SYSTEM                  ║${NC}"
-    echo -e "${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
-    echo ""
+manage_environment() {
+    local ENV_FILE=".env"
+    local ENV_BACKUP=".env.backup.$(date +%s)"
     
-    # Phase 1: Environment Setup
-    echo -e "${BLUE}━━━ Phase 1: Environment Setup ━━━${NC}"
-    setup_environment
-    
-    # Phase 2: Cleanup & Preparation
-    echo -e "\n${BLUE}━━━ Phase 2: Cleanup & Preparation ━━━${NC}"
-    cleanup_system
-    
-    # Phase 3: Database Setup
-    echo -e "\n${BLUE}━━━ Phase 3: Database Setup ━━━${NC}"
-    setup_database
-    
-    # Phase 4: Build & Deploy
-    echo -e "\n${BLUE}━━━ Phase 4: Build & Deploy Services ━━━${NC}"
-    deploy_all_services
-    
-    # Phase 5: Health Checks & Fixes
-    echo -e "\n${BLUE}━━━ Phase 5: Health Checks & Auto-Fix ━━━${NC}"
-    perform_health_checks
-    auto_fix_issues
-    
-    # Phase 6: Final Verification
-    echo -e "\n${BLUE}━━━ Phase 6: Final Verification ━━━${NC}"
-    final_verification
-    
-    # Summary
-    show_summary
-}
-
-# ============================================
-# SETUP FUNCTIONS
-# ============================================
-
-setup_environment() {
-    # Check if .env exists
-    if [ ! -f .env ]; then
-        echo -e "${YELLOW}⚠ No .env file found. Starting interactive setup...${NC}"
-        interactive_env_setup
-    else
-        # Load environment
-        set -a
-        source .env
-        set +a
-        echo -e "${GREEN}✓ Environment loaded${NC}"
-        
-        # Validate critical variables
-        validate_env_vars
-    fi
-}
-
-interactive_env_setup() {
-    echo -e "\n${CYAN}═══ Interactive Environment Setup ═══${NC}\n"
-    
-    # Create .env from template or scratch
-    if [ -f .env.example ]; then
-        cp .env.example .env
-        echo -e "${GREEN}✓ Created .env from template${NC}"
-    else
-        touch .env
-        echo -e "${GREEN}✓ Created new .env file${NC}"
-    fi
-    
-    # Interactive prompts for required values
-    echo -e "\n${BOLD}Enter your configuration:${NC}\n"
-    
-    # OpenAI API Key (required for Jarvis)
-    echo -ne "${CYAN}OpenAI API Key${NC} (for Jarvis AI): "
-    read -r openai_key
-    if [ ! -z "$openai_key" ]; then
-        echo "OPENAI_API_KEY=$openai_key" >> .env
-    fi
-    
-    # Discord Bot Token
-    echo -ne "${CYAN}Discord Bot Token${NC} (leave empty to skip): "
-    read -r discord_token
-    if [ ! -z "$discord_token" ]; then
-        echo "DISCORD_BOT_TOKEN=$discord_token" >> .env
-    fi
-    
-    # Database URL (Neon)
-    echo -ne "${CYAN}Neon Database URL${NC} (leave empty for local PostgreSQL): "
-    read -r db_url
-    if [ ! -z "$db_url" ]; then
-        echo "DATABASE_URL=$db_url" >> .env
-    else
-        # Generate local PostgreSQL password
-        db_pass=$(openssl rand -base64 32)
-        echo "POSTGRES_PASSWORD=$db_pass" >> .env
-        echo "DATABASE_URL=postgresql://postgres:$db_pass@homelab-postgres:5432/homelab" >> .env
-        echo -e "${GREEN}✓ Generated local PostgreSQL configuration${NC}"
-    fi
-    
-    # Domain configuration
-    echo -ne "${CYAN}Your domain${NC} (default: evindrake.net): "
-    read -r domain
-    domain=${domain:-evindrake.net}
-    echo "DOMAIN=$domain" >> .env
-    
-    # Load the new environment
-    set -a
-    source .env
-    set +a
-    
-    echo -e "\n${GREEN}✓ Environment configuration complete!${NC}"
-}
-
-validate_env_vars() {
-    local missing=()
-    
-    # Check critical variables
-    [ -z "$OPENAI_API_KEY" ] && missing+=("OPENAI_API_KEY")
-    [ -z "$DATABASE_URL" ] && [ -z "$POSTGRES_PASSWORD" ] && missing+=("DATABASE_URL or POSTGRES_PASSWORD")
-    
-    if [ ${#missing[@]} -gt 0 ]; then
-        echo -e "${YELLOW}⚠ Missing environment variables: ${missing[*]}${NC}"
-        echo -n "Would you like to set them now? (y/n): "
-        read -r response
-        if [[ "$response" =~ ^[Yy]$ ]]; then
-            interactive_env_setup
-        fi
-    else
-        echo -e "${GREEN}✓ All critical environment variables present${NC}"
-    fi
-}
-
-# ============================================
-# CLEANUP FUNCTIONS
-# ============================================
-
-cleanup_system() {
-    echo "1. Stopping any existing containers..."
-    docker compose down --remove-orphans 2>/dev/null || true
-    
-    echo "2. Removing dangling images..."
-    local dangling=$(docker images -f "dangling=true" -q | wc -l)
-    if [ "$dangling" -gt 0 ]; then
-        docker rmi $(docker images -f "dangling=true" -q) 2>/dev/null || true
-        echo -e "${GREEN}✓ Removed $dangling dangling images${NC}"
-        ((ISSUES_FIXED++))
-    fi
-    
-    echo "3. Cleaning unused volumes..."
-    docker volume prune -f 2>/dev/null || true
-    
-    echo "4. Cleaning unused networks..."
-    docker network prune -f 2>/dev/null || true
-    
-    echo "5. Removing old container logs..."
-    find /var/lib/docker/containers -name "*.log" -size +100M -delete 2>/dev/null || true
-    
-    echo -e "${GREEN}✓ System cleanup complete${NC}"
-}
-
-# ============================================
-# DATABASE SETUP
-# ============================================
-
-setup_database() {
-    echo "Setting up PostgreSQL database..."
-    
-    # Start PostgreSQL first
-    docker compose up -d homelab-postgres 2>/dev/null || {
-        echo -e "${YELLOW}⚠ PostgreSQL start failed, attempting fix...${NC}"
-        fix_postgresql
-    }
-    
-    # Wait for PostgreSQL
-    echo -n "Waiting for PostgreSQL to be ready"
-    for i in {1..30}; do
-        if docker exec homelab-postgres pg_isready -U postgres 2>/dev/null; then
-            echo -e " ${GREEN}✓${NC}"
-            break
-        fi
-        echo -n "."
-        sleep 2
-    done
-    
-    # Create required databases
-    echo "Creating databases..."
-    docker exec homelab-postgres psql -U postgres -c "CREATE DATABASE IF NOT EXISTS ticketbot;" 2>/dev/null || true
-    docker exec homelab-postgres psql -U postgres -c "CREATE DATABASE IF NOT EXISTS streambot;" 2>/dev/null || true
-    docker exec homelab-postgres psql -U postgres -c "CREATE DATABASE IF NOT EXISTS homelab_jarvis;" 2>/dev/null || true
-    
-    # Run migrations
-    echo "Running database migrations..."
-    fix_database_migrations
-    
-    echo -e "${GREEN}✓ Database setup complete${NC}"
-}
-
-fix_postgresql() {
-    echo "Fixing PostgreSQL setup..."
-    
-    # Ensure PostgreSQL user exists
-    docker exec homelab-postgres psql -U postgres -c "
-    DO \$\$
-    BEGIN
-        IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'postgres') THEN
-            CREATE ROLE postgres WITH LOGIN SUPERUSER PASSWORD '${POSTGRES_PASSWORD:-defaultpass}';
-        END IF;
-    END
-    \$\$;
-    " 2>/dev/null || true
-    
-    ((ISSUES_FIXED++))
-}
-
-fix_database_migrations() {
-    # Fix common migration issues
-    echo "Checking for stuck migrations..."
-    
-    # Dashboard migrations
-    if docker exec homelab-dashboard ls /app/migrations 2>/dev/null; then
-        docker exec homelab-dashboard flask db upgrade 2>/dev/null || {
-            echo "Fixing dashboard migrations..."
-            docker exec homelab-dashboard flask db stamp head 2>/dev/null || true
-            docker exec homelab-dashboard flask db migrate 2>/dev/null || true
-            docker exec homelab-dashboard flask db upgrade 2>/dev/null || true
-            ((ISSUES_FIXED++))
-        }
-    fi
-    
-    # Stream bot migrations
-    if docker exec homelab-postgres psql -U postgres -d streambot -c "\dt" 2>/dev/null | grep -q "bot_instances"; then
-        echo -e "${GREEN}✓ Stream bot tables exist${NC}"
-    else
-        echo "Creating stream bot tables..."
-        docker exec homelab-postgres psql -U postgres -d streambot -c "
-        CREATE TABLE IF NOT EXISTS bot_instances (
-            id SERIAL PRIMARY KEY,
-            user_id VARCHAR(255),
-            platform VARCHAR(50),
-            created_at TIMESTAMP DEFAULT NOW()
-        );" 2>/dev/null || true
-        ((ISSUES_FIXED++))
-    fi
-}
-
-# ============================================
-# DEPLOYMENT
-# ============================================
-
-deploy_all_services() {
-    echo "Building all services..."
-    docker compose build --parallel
-    
-    echo -e "\nStarting services in dependency order..."
-    
-    # Core infrastructure (must be first)
-    echo "1. Core infrastructure..."
-    docker compose up -d homelab-postgres homelab-redis homelab-minio
-    sleep 5
-    
-    # Application tier
-    echo "2. Application services..."
-    docker compose up -d homelab-dashboard homelab-celery-worker
-    sleep 3
-    
-    # Bot services
-    echo "3. Bot services..."
-    docker compose up -d discord-bot stream-bot
-    sleep 2
-    
-    # Web services
-    echo "4. Web services..."
-    docker compose up -d rig-city-site scarletredjoker-web
-    
-    # Additional services
-    echo "5. Additional services..."
-    docker compose up -d plex-server n8n homeassistant vnc-desktop code-server
-    
-    # Reverse proxy (must be last)
-    echo "6. Reverse proxy..."
-    docker compose up -d caddy
-    
-    echo -e "${GREEN}✓ All services deployed${NC}"
-}
-
-# ============================================
-# HEALTH CHECKS & AUTO-FIX
-# ============================================
-
-perform_health_checks() {
-    echo "Performing health checks on all services..."
-    
-    local all_services=(
-        "homelab-postgres"
-        "homelab-redis"
-        "homelab-minio"
-        "homelab-dashboard"
-        "homelab-celery-worker"
-        "discord-bot"
-        "stream-bot"
-        "caddy"
-        "vnc-desktop"
-        "code-server"
-        "plex-server"
-        "n8n"
-        "homeassistant"
-        "rig-city-site"
-        "scarletredjoker-web"
+    # Required variables with descriptions
+    declare -A REQUIRED_VARS=(
+        ["OPENAI_API_KEY"]="OpenAI API key for Jarvis AI"
+        ["POSTGRES_PASSWORD"]="PostgreSQL password (will generate if missing)"
+        ["DATABASE_URL"]="Database connection string (will generate if missing)"
     )
     
-    SERVICES_RUNNING=0
-    local failed_services=()
+    declare -A OPTIONAL_VARS=(
+        ["DISCORD_BOT_TOKEN"]="Discord bot token"
+        ["TWITCH_CLIENT_ID"]="Twitch integration"
+        ["YOUTUBE_API_KEY"]="YouTube integration"
+    )
     
-    for service in "${all_services[@]}"; do
-        if docker ps --format "{{.Names}}" | grep -q "^${service}$"; then
-            local status=$(docker inspect --format='{{.State.Running}}' $service 2>/dev/null)
-            if [ "$status" = "true" ]; then
-                echo -e "  $service: ${GREEN}✓ Running${NC}"
-                ((SERVICES_RUNNING++))
-            else
-                echo -e "  $service: ${RED}✗ Not Running${NC}"
-                failed_services+=($service)
-                ((ISSUES_FOUND++))
-            fi
-        else
-            echo -e "  $service: ${RED}✗ Not Found${NC}"
-            failed_services+=($service)
-            ((ISSUES_FOUND++))
-        fi
-    done
+    echo -e "${CYAN}Checking environment configuration...${NC}"
     
-    echo -e "\n${BOLD}Status: $SERVICES_RUNNING/$SERVICES_EXPECTED services running${NC}"
-    
-    # Specific service tests
-    test_jarvis_ai
-    test_database_connectivity
-    
-    return ${#failed_services[@]}
-}
-
-test_jarvis_ai() {
-    echo -n "Testing Jarvis AI: "
-    if docker exec homelab-dashboard python -c "
-import os, requests
-api_key = os.environ.get('OPENAI_API_KEY', '')
-if api_key:
-    resp = requests.post('https://api.openai.com/v1/chat/completions',
-        headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
-        json={'model': 'gpt-3.5-turbo', 'messages': [{'role': 'user', 'content': 'test'}], 'max_tokens': 5},
-        timeout=5)
-    exit(0 if resp.status_code == 200 else 1)
-else:
-    exit(1)
-" 2>/dev/null; then
-        echo -e "${GREEN}✓ Working${NC}"
-    else
-        echo -e "${RED}✗ Failed${NC}"
-        ((ISSUES_FOUND++))
-        # Auto-fix
-        echo "  Fixing Jarvis AI model..."
-        docker exec homelab-dashboard sed -i "s/'gpt-5'/'gpt-3.5-turbo'/g" /app/services/ai_service.py 2>/dev/null || true
-        docker exec homelab-dashboard sed -i "s/'gpt-5'/'gpt-3.5-turbo'/g" /app/routes/ai_chat_api.py 2>/dev/null || true
-        docker compose restart homelab-dashboard
-        ((ISSUES_FIXED++))
-    fi
-}
-
-test_database_connectivity() {
-    echo -n "Testing database connectivity: "
-    if docker exec homelab-postgres psql -U postgres -c "SELECT 1" >/dev/null 2>&1; then
-        echo -e "${GREEN}✓ Connected${NC}"
-    else
-        echo -e "${RED}✗ Failed${NC}"
-        ((ISSUES_FOUND++))
-    fi
-}
-
-auto_fix_issues() {
-    if [ $ISSUES_FOUND -gt 0 ]; then
-        echo -e "\n${YELLOW}Found $ISSUES_FOUND issues. Attempting auto-fix...${NC}"
+    # If .env exists, back it up and check what's missing
+    if [ -f "$ENV_FILE" ]; then
+        cp "$ENV_FILE" "$ENV_BACKUP"
+        source "$ENV_FILE"
         
-        # Restart failed services
-        echo "Restarting failed services..."
-        for service in $(docker compose ps --services); do
-            if ! docker ps --format "{{.Names}}" | grep -q "^${service}$"; then
-                echo "  Starting $service..."
-                docker compose up -d $service
-                ((ISSUES_FIXED++))
+        local missing_critical=()
+        local missing_optional=()
+        
+        # Check critical vars
+        for var in "${!REQUIRED_VARS[@]}"; do
+            if [ -z "${!var:-}" ]; then
+                # Special case: if POSTGRES_PASSWORD missing but DATABASE_URL exists, that's OK
+                if [[ "$var" == "POSTGRES_PASSWORD" && -n "${DATABASE_URL:-}" ]]; then
+                    continue
+                fi
+                missing_critical+=("$var")
             fi
         done
         
-        # Fix VNC password if needed
-        if ! docker exec vnc-desktop test -f /home/ubuntu/.vnc/passwd 2>/dev/null; then
-            echo "Fixing VNC password..."
-            docker exec vnc-desktop bash -c "echo 'password' | vncpasswd -f > /home/ubuntu/.vnc/passwd" 2>/dev/null || true
-            docker compose restart vnc-desktop
-            ((ISSUES_FIXED++))
+        # Check optional vars
+        for var in "${!OPTIONAL_VARS[@]}"; do
+            if [ -z "${!var:-}" ]; then
+                missing_optional+=("$var")
+            fi
+        done
+        
+        # Only prompt for truly missing critical vars
+        if [ ${#missing_critical[@]} -gt 0 ]; then
+            echo -e "${YELLOW}Missing critical variables: ${missing_critical[*]}${NC}"
+            for var in "${missing_critical[@]}"; do
+                if [[ "$var" == "POSTGRES_PASSWORD" || "$var" == "DATABASE_URL" ]]; then
+                    # Auto-generate database config
+                    local pass=$(openssl rand -base64 32 2>/dev/null || echo "homelab-$(date +%s)")
+                    echo "POSTGRES_PASSWORD=$pass" >> "$ENV_FILE"
+                    echo "DATABASE_URL=postgresql://postgres:$pass@homelab-postgres:5432/homelab" >> "$ENV_FILE"
+                    echo -e "${GREEN}✓ Generated database configuration${NC}"
+                else
+                    echo -n "Enter $var (${REQUIRED_VARS[$var]}): "
+                    read -r value
+                    echo "$var=$value" >> "$ENV_FILE"
+                fi
+            done
+        else
+            echo -e "${GREEN}✓ All critical variables present${NC}"
         fi
         
-        # Fix permissions
-        echo "Fixing Docker permissions..."
-        sudo chmod 666 /var/run/docker.sock 2>/dev/null || true
+        if [ ${#missing_optional[@]} -gt 0 ]; then
+            echo -e "${CYAN}Optional variables missing: ${missing_optional[*]} (services will work without them)${NC}"
+        fi
+    else
+        # No .env exists - create minimal working config
+        echo -e "${YELLOW}Creating new .env file...${NC}"
         
-        sleep 10
+        # Copy template if exists
+        [ -f ".env.example" ] && cp .env.example "$ENV_FILE"
+        
+        # Get OpenAI key
+        echo -n "Enter OpenAI API Key (required for Jarvis): "
+        read -r openai_key
+        echo "OPENAI_API_KEY=$openai_key" >> "$ENV_FILE"
+        
+        # Generate database config
+        local pass=$(openssl rand -base64 32 2>/dev/null || echo "homelab-$(date +%s)")
+        echo "POSTGRES_PASSWORD=$pass" >> "$ENV_FILE"
+        echo "DATABASE_URL=postgresql://postgres:$pass@homelab-postgres:5432/homelab" >> "$ENV_FILE"
+        
+        echo -e "${GREEN}✓ Environment configured${NC}"
+    fi
+    
+    # Always reload environment after changes
+    set -a
+    source "$ENV_FILE"
+    set +a
+}
+
+# ============================================
+# IDEMPOTENT DATABASE MANAGER
+# ============================================
+ensure_database() {
+    local db_name="$1"
+    
+    # Check if database exists using catalog query
+    if docker exec homelab-postgres psql -U postgres -tAc "SELECT 1 FROM pg_database WHERE datname='$db_name'" 2>/dev/null | grep -q 1; then
+        echo -e "${GREEN}✓ Database '$db_name' exists${NC}"
+        return 0
+    fi
+    
+    # Create database
+    echo -e "${CYAN}Creating database '$db_name'...${NC}"
+    if docker exec homelab-postgres psql -U postgres -c "CREATE DATABASE $db_name;" 2>/dev/null; then
+        echo -e "${GREEN}✓ Database '$db_name' created${NC}"
+        return 0
+    else
+        echo -e "${RED}Failed to create database '$db_name'${NC}"
+        return 1
     fi
 }
 
-final_verification() {
-    echo "Running final verification..."
+ensure_all_databases() {
+    echo -e "${CYAN}Ensuring databases exist...${NC}"
     
-    # Count running services again
-    SERVICES_RUNNING=0
-    for service in $(docker compose ps --services); do
+    # Wait for PostgreSQL to be ready
+    local retries=30
+    while ! docker exec homelab-postgres pg_isready -U postgres &>/dev/null; do
+        ((retries--))
+        if [ $retries -le 0 ]; then
+            echo -e "${RED}PostgreSQL not responding${NC}"
+            return 1
+        fi
+        sleep 1
+    done
+    
+    # Create required databases
+    ensure_database "ticketbot"
+    ensure_database "streambot"
+    ensure_database "homelab_jarvis"
+    
+    # Fix missing tables
+    docker exec homelab-postgres psql -U postgres -d streambot -c "
+    CREATE TABLE IF NOT EXISTS bot_instances (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255),
+        platform VARCHAR(50),
+        created_at TIMESTAMP DEFAULT NOW()
+    );" 2>/dev/null || true
+    
+    echo -e "${GREEN}✓ All databases ready${NC}"
+}
+
+# ============================================
+# GRANULAR HEALTH CHECKER
+# ============================================
+check_service_health() {
+    local service="$1"
+    
+    # Check if container exists and is running
+    if ! docker ps --format "{{.Names}}" | grep -q "^${service}$"; then
+        return 1
+    fi
+    
+    # Get health check command from config
+    local config="${SERVICE_CONFIG[$service]}"
+    local health_cmd=$(echo "$config" | grep -oP 'health:\K[^|]+' || echo "none")
+    
+    if [ "$health_cmd" != "none" ]; then
+        if docker exec "$service" sh -c "$health_cmd" &>/dev/null; then
+            return 0
+        else
+            return 1
+        fi
+    fi
+    
+    # No health check defined - just check if running
+    return 0
+}
+
+get_service_status() {
+    local running=0
+    local stopped=0
+    local unhealthy=0
+    
+    for service in "${ALL_SERVICES[@]}"; do
         if docker ps --format "{{.Names}}" | grep -q "^${service}$"; then
-            ((SERVICES_RUNNING++))
+            if check_service_health "$service"; then
+                ((running++))
+            else
+                ((unhealthy++))
+            fi
+        else
+            ((stopped++))
         fi
     done
     
-    # Check for remaining issues
+    echo "$running:$stopped:$unhealthy"
+}
+
+# ============================================
+# TARGETED REMEDIATION (NO UNNECESSARY RESTARTS)
+# ============================================
+fix_unhealthy_services() {
+    echo -e "${CYAN}Checking service health...${NC}"
+    
+    local fixed=0
+    local failed=0
+    
+    for service in "${ALL_SERVICES[@]}"; do
+        if docker ps --format "{{.Names}}" | grep -q "^${service}$"; then
+            # Service is running - check health
+            if ! check_service_health "$service"; then
+                echo -e "${YELLOW}$service is unhealthy, attempting fix...${NC}"
+                
+                # Service-specific fixes
+                case "$service" in
+                    "homelab-dashboard")
+                        fix_jarvis_model
+                        docker compose restart "$service"
+                        ;;
+                    "vnc-desktop")
+                        fix_vnc_password
+                        docker compose restart "$service"
+                        ;;
+                    *)
+                        docker compose restart "$service"
+                        ;;
+                esac
+                ((fixed++))
+            fi
+        else
+            # Service not running - start it
+            echo -e "${YELLOW}Starting $service...${NC}"
+            docker compose up -d "$service" 2>/dev/null && ((fixed++)) || ((failed++))
+        fi
+    done
+    
+    # Clean dangling images WITHOUT stopping services
     local dangling=$(docker images -f "dangling=true" -q | wc -l)
     if [ "$dangling" -gt 0 ]; then
-        echo -e "${YELLOW}⚠ Found $dangling dangling images${NC}"
-        ((ISSUES_FOUND++))
+        echo -e "${CYAN}Removing $dangling dangling images...${NC}"
+        docker rmi $(docker images -f "dangling=true" -q) 2>/dev/null || true
+        ((fixed++))
     fi
     
-    # Database check
-    if ! docker exec homelab-postgres pg_isready -U postgres 2>/dev/null; then
-        echo -e "${YELLOW}⚠ Database not available${NC}"
-        ((ISSUES_FOUND++))
-    fi
-    
-    if [ $SERVICES_RUNNING -eq $SERVICES_EXPECTED ]; then
-        echo -e "${GREEN}✓ All $SERVICES_EXPECTED services running successfully!${NC}"
-    else
-        echo -e "${YELLOW}⚠ Only $SERVICES_RUNNING/$SERVICES_EXPECTED services running${NC}"
-    fi
+    echo -e "${GREEN}✓ Fixed $fixed issues${NC}"
+    [ "$failed" -gt 0 ] && echo -e "${YELLOW}⚠ $failed fixes failed${NC}"
 }
 
-show_summary() {
-    echo -e "\n${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║                     DEPLOYMENT SUMMARY                        ║${NC}"
-    echo -e "${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
-    echo ""
-    
-    if [ $SERVICES_RUNNING -eq $SERVICES_EXPECTED ] && [ $ISSUES_FOUND -eq $ISSUES_FIXED ]; then
-        echo -e "  Status: ${GREEN}✅ FULLY OPERATIONAL${NC}"
-    elif [ $SERVICES_RUNNING -ge $((SERVICES_EXPECTED - 1)) ]; then
-        echo -e "  Status: ${YELLOW}⚠ Most services running (check logs for issues)${NC}"
-    else
-        echo -e "  Status: ${RED}❌ Issues detected - manual intervention may be needed${NC}"
-    fi
-    
-    echo ""
-    echo "  Services: $SERVICES_RUNNING/$SERVICES_EXPECTED running"
-    echo "  Issues Found: $ISSUES_FOUND"
-    echo "  Issues Fixed: $ISSUES_FIXED"
-    
-    if [ $((ISSUES_FOUND - ISSUES_FIXED)) -gt 0 ]; then
-        echo -e "  ${YELLOW}⚠ $(($ISSUES_FOUND - $ISSUES_FIXED)) issues could not be auto-fixed${NC}"
-    fi
-    
-    echo ""
-    echo -e "${BOLD}Service URLs:${NC}"
-    echo "  🌐 Dashboard: https://host.evindrake.net"
-    echo "  🤖 Discord Bot: https://bot.rig-city.com"
-    echo "  📺 Stream Bot: https://stream.rig-city.com"
-    echo "  🖥️ VNC Desktop: https://vnc.evindrake.net"
-    echo "  💻 Code Server: https://code.evindrake.net"
-    echo "  🎬 Plex: https://plex.evindrake.net"
-    echo "  🔄 N8N: https://n8n.evindrake.net"
-    echo "  🏠 Home Assistant: https://home.evindrake.net"
-    echo ""
-    
-    if [ $ISSUES_FOUND -gt $ISSUES_FIXED ]; then
-        echo -e "${YELLOW}Run './homelab logs' to check service logs for remaining issues.${NC}"
-    fi
+# Service-specific fix functions
+fix_jarvis_model() {
+    docker exec homelab-dashboard find /app -type f -name "*.py" -exec sed -i "s/'gpt-5'/'gpt-3.5-turbo'/g" {} \; 2>/dev/null || true
+}
+
+fix_vnc_password() {
+    docker exec vnc-desktop bash -c "echo 'password' | vncpasswd -f > /home/ubuntu/.vnc/passwd" 2>/dev/null || true
 }
 
 # ============================================
-# QUICK COMMANDS
+# SMART DEPLOYMENT
 # ============================================
-
-quick_deploy() {
-    echo -e "${CYAN}Quick Deployment (using cache)${NC}"
-    docker compose up -d --build
-    perform_health_checks
-}
-
-quick_stop() {
-    echo -e "${CYAN}Stopping all services...${NC}"
-    docker compose down
-    echo -e "${GREEN}✓ All services stopped${NC}"
-}
-
-quick_restart() {
-    echo -e "${CYAN}Restarting all services...${NC}"
-    docker compose restart
-    echo -e "${GREEN}✓ All services restarted${NC}"
-}
-
-view_logs() {
-    local service=${1:-all}
-    if [ "$service" = "all" ]; then
-        docker compose logs -f --tail=100
-    else
-        docker compose logs -f --tail=100 $service
+deploy_services() {
+    echo -e "${CYAN}═══ Deploying Services ═══${NC}\n"
+    
+    # Build if requested
+    if [ "${1:-}" == "--build" ]; then
+        echo -e "${CYAN}Building services...${NC}"
+        docker compose build
     fi
-}
-
-show_status() {
-    docker compose ps --format "table {{.Service}}\t{{.Status}}\t{{.State}}"
-}
-
-# ============================================
-# INTERACTIVE MENU
-# ============================================
-
-interactive_menu() {
-    while true; do
-        clear
-        echo -e "${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
-        echo -e "${CYAN}║           HOMELAB UNIFIED PLATFORM v3.0                       ║${NC}"
-        echo -e "${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
-        echo ""
-        
-        # Quick status check
-        local running=$(docker ps --format "{{.Names}}" | wc -l)
-        if [ $running -eq $SERVICES_EXPECTED ]; then
-            echo -e "  Status: ${GREEN}✅ All services running${NC}"
-        else
-            echo -e "  Status: ${YELLOW}⚠ $running/$SERVICES_EXPECTED services running${NC}"
+    
+    # Deploy in dependency order
+    echo -e "${CYAN}Starting core infrastructure...${NC}"
+    docker compose up -d homelab-postgres homelab-redis homelab-minio
+    
+    # Wait for PostgreSQL
+    echo -n "Waiting for PostgreSQL"
+    local retries=30
+    while ! docker exec homelab-postgres pg_isready -U postgres &>/dev/null; do
+        ((retries--))
+        if [ $retries -le 0 ]; then
+            echo -e " ${RED}Failed${NC}"
+            return 1
         fi
-        echo ""
-        
-        echo "${BOLD}Options:${NC}"
-        echo ""
-        echo "  ${GREEN}[1]${NC} 🚀 Full Startup (Setup + Deploy + Fix)"
-        echo "  ${GREEN}[2]${NC} ⚡ Quick Deploy (cached)"
-        echo "  ${GREEN}[3]${NC} 🔄 Restart All Services"
-        echo "  ${GREEN}[4]${NC} 🛑 Stop All Services"
-        echo "  ${GREEN}[5]${NC} 📊 Show Status"
-        echo "  ${GREEN}[6]${NC} 📋 View Logs"
-        echo "  ${GREEN}[7]${NC} 🔧 Fix Issues"
-        echo "  ${GREEN}[8]${NC} 🧹 Clean System"
-        echo "  ${GREEN}[9]${NC} ⚙️  Configure Environment"
-        echo "  ${GREEN}[0]${NC} 🚪 Exit"
-        echo ""
-        echo -n "Select option: "
-        read -r choice
-        
-        case $choice in
-            1) auto_startup ;;
-            2) quick_deploy ;;
-            3) quick_restart ;;
-            4) quick_stop ;;
-            5) show_status; read -p "Press Enter to continue..." ;;
-            6) 
-                echo -n "Service name (or 'all'): "
-                read -r service
-                view_logs $service
-                ;;
-            7) 
-                cleanup_system
-                auto_fix_issues
-                perform_health_checks
-                ;;
-            8) cleanup_system ;;
-            9) interactive_env_setup ;;
-            0) exit 0 ;;
-            *) echo -e "${RED}Invalid option${NC}"; sleep 1 ;;
-        esac
-        
-        if [ "$choice" != "6" ]; then
-            echo ""
-            read -p "Press Enter to continue..."
+        echo -n "."
+        sleep 1
+    done
+    echo -e " ${GREEN}Ready${NC}"
+    
+    # Setup databases
+    ensure_all_databases
+    
+    # Start remaining services
+    echo -e "${CYAN}Starting all services...${NC}"
+    docker compose up -d
+    
+    # Wait for stabilization
+    sleep 5
+    
+    # Show final status
+    local status=$(get_service_status)
+    IFS=':' read -r running stopped unhealthy <<< "$status"
+    
+    if [ "$running" -eq "${#ALL_SERVICES[@]}" ]; then
+        echo -e "${GREEN}✅ All ${#ALL_SERVICES[@]} services running!${NC}"
+    else
+        echo -e "${YELLOW}⚠ $running/${#ALL_SERVICES[@]} services running${NC}"
+        [ "$stopped" -gt 0 ] && echo -e "${YELLOW}   $stopped stopped${NC}"
+        [ "$unhealthy" -gt 0 ] && echo -e "${YELLOW}   $unhealthy unhealthy${NC}"
+    fi
+}
+
+# ============================================
+# STATUS DISPLAY
+# ============================================
+show_status() {
+    echo -e "\n${CYAN}═══ Service Status ═══${NC}\n"
+    
+    for service in "${ALL_SERVICES[@]}"; do
+        if docker ps --format "{{.Names}}" | grep -q "^${service}$"; then
+            if check_service_health "$service"; then
+                printf "%-25s ${GREEN}● Running${NC}\n" "$service"
+            else
+                printf "%-25s ${YELLOW}● Unhealthy${NC}\n" "$service"
+            fi
+        else
+            printf "%-25s ${RED}○ Stopped${NC}\n" "$service"
         fi
     done
+    
+    # Summary
+    local status=$(get_service_status)
+    IFS=':' read -r running stopped unhealthy <<< "$status"
+    
+    echo -e "\n${BOLD}Summary:${NC}"
+    echo "  Running: $running/${#ALL_SERVICES[@]}"
+    [ "$stopped" -gt 0 ] && echo "  Stopped: $stopped"
+    [ "$unhealthy" -gt 0 ] && echo "  Unhealthy: $unhealthy"
+    
+    # Check for issues
+    local dangling=$(docker images -f "dangling=true" -q 2>/dev/null | wc -l)
+    [ "$dangling" -gt 0 ] && echo -e "  ${YELLOW}⚠ $dangling dangling images${NC}"
 }
 
 # ============================================
-# MAIN EXECUTION
+# MAIN COMMAND HANDLER
 # ============================================
-
 main() {
-    # Check Docker
-    if ! command -v docker &> /dev/null; then
-        echo -e "${RED}❌ Docker is not installed!${NC}"
-        echo "Install Docker first: https://docs.docker.com/get-docker/"
+    # Ensure Docker is available
+    if ! command -v docker &>/dev/null; then
+        echo -e "${RED}Docker is not installed!${NC}"
         exit 1
     fi
     
-    # Parse arguments
-    case "${1:-}" in
-        start|up|deploy)
-            auto_startup
-            ;;
-        stop|down)
-            quick_stop
-            ;;
-        restart)
-            quick_restart
-            ;;
-        status|ps)
-            show_status
-            ;;
-        logs|log)
-            view_logs "${2:-all}"
+    # Load environment if exists (don't force creation yet)
+    [ -f ".env" ] && source .env
+    
+    case "${1:-help}" in
+        start|deploy)
+            manage_environment
+            deploy_services --build
             ;;
         fix)
-            cleanup_system
-            auto_fix_issues
-            perform_health_checks
+            # Just fix what's broken, don't stop anything
+            ensure_all_databases
+            fix_unhealthy_services
+            ;;
+        status)
+            show_status
+            ;;
+        logs)
+            shift
+            docker compose logs -f --tail=100 "$@"
+            ;;
+        restart)
+            shift
+            if [ $# -eq 0 ]; then
+                docker compose restart
+            else
+                docker compose restart "$@"
+            fi
+            ;;
+        stop)
+            docker compose down
+            echo -e "${GREEN}✓ All services stopped${NC}"
             ;;
         clean)
-            cleanup_system
+            docker image prune -f
+            docker volume prune -f
+            echo -e "${GREEN}✓ Cleanup complete${NC}"
             ;;
-        setup)
-            interactive_env_setup
+        env)
+            manage_environment
             ;;
-        help|--help|-h)
-            echo "Usage: $0 [command]"
-            echo ""
-            echo "Commands:"
-            echo "  start    - Full startup with fixes"
-            echo "  stop     - Stop all services"
-            echo "  restart  - Restart all services"
-            echo "  status   - Show service status"
-            echo "  logs     - View logs"
-            echo "  fix      - Fix issues"
-            echo "  clean    - Clean system"
-            echo "  setup    - Configure environment"
-            echo ""
-            echo "Or run without arguments for interactive mode"
-            ;;
-        "")
-            interactive_menu
+        help)
+            cat << EOF
+${CYAN}HomeLabHub Unified Control${NC}
+
+Usage: $0 [command] [options]
+
+Commands:
+  ${GREEN}start${NC}    - Deploy all services with environment setup
+  ${GREEN}fix${NC}      - Fix issues WITHOUT stopping healthy services  
+  ${GREEN}status${NC}   - Show service status
+  ${GREEN}logs${NC}     - View logs (add service name for specific)
+  ${GREEN}restart${NC}  - Restart services
+  ${GREEN}stop${NC}     - Stop all services
+  ${GREEN}clean${NC}    - Clean Docker resources
+  ${GREEN}env${NC}      - Manage environment configuration
+
+Examples:
+  $0 start          # Full deployment
+  $0 fix            # Fix issues without downtime
+  $0 logs dashboard # View dashboard logs
+  $0 status         # Check what's running
+
+Service URLs:
+  Dashboard: https://host.evindrake.net
+  Discord Bot: https://bot.rig-city.com
+  Stream Bot: https://stream.rig-city.com
+  VNC: https://vnc.evindrake.net
+EOF
             ;;
         *)
             echo -e "${RED}Unknown command: $1${NC}"
@@ -675,5 +480,5 @@ main() {
     esac
 }
 
-# Run main function
+# Run main with all arguments
 main "$@"
