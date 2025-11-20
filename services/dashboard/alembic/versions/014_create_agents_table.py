@@ -47,11 +47,9 @@ def upgrade():
                 op.execute("DROP TABLE IF EXISTS agents CASCADE")
                 
                 logger.info("✓ All legacy agent tables dropped, will recreate with correct UUID types")
-                # Reset existing_tables so tables get recreated below
-                existing_tables = []
-                
-                #  Also refresh inspector to see current state
+                # Refresh inspector and existing_tables to see current state
                 inspector = sa.inspect(conn)
+                existing_tables = inspector.get_table_names()
     
     # CREATE or VERIFY agents table
     if 'agents' not in existing_tables:
