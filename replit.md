@@ -6,9 +6,11 @@ The Nebula Command Dashboard is a web-based interface for managing a Ubuntu 25.1
 ## User Preferences
 - User: Evin
 - Ubuntu 25.10 desktop with Twingate VPN and dynamic DNS (ZoneEdit)
+- **Note:** Also supports Ubuntu 20.10 with proper Docker Compose plugin installation (see UBUNTU_STARTUP_GUIDE.md)
 - Manages domains: rig-city.com, evindrake.net, scarletredjoker.com
 - All projects stored in: `/home/evin/contain/` (production) and Replit (development)
 - Development workflow: **Edit on Replit → Agent makes changes → Auto-sync to Ubuntu every 5 minutes**
+- **Docker Compose:** All scripts use the Docker Compose plugin (`docker compose` with space), requiring docker-compose-plugin installation
 - **Authentication:** Code-Server and VNC Desktop require password authentication (see FIX_CODE_SERVER_AND_VNC.md)
 - **ZoneEdit DNS:** Dynamic DNS updates are now fully integrated into the .env generator (`deployment/generate-unified-env.sh`) - prompts for ZONEEDIT_USERNAME (email) and ZONEEDIT_API_TOKEN during setup (see `docs/ZONEEDIT_SETUP.md`)
 - Services to manage:
