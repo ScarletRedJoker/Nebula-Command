@@ -35,9 +35,10 @@ show_menu() {
     
     echo -e "${BOLD}${BLUE}━━━ What would you like to do? ━━━${NC}"
     echo ""
-    echo -e "  ${BOLD}Deployment:${NC}"
+      echo -e "  ${BOLD}Deployment:${NC}"
     echo -e "    ${GREEN}1)${NC} 🚀 Auto-Deploy (Smart deployment with auto-healing)"
     echo -e "    ${GREEN}1a)${NC} 📦 Full Deploy (build and start all services)"
+    echo -e "    ${GREEN}1b)${NC} ☢️  Nuclear Reset (WIPE database and fresh start)"
     echo -e "    ${GREEN}2)${NC} 🔄 Quick Restart (restart without rebuilding)"
     echo -e "    ${GREEN}3)${NC} ⚡ Rebuild & Deploy (force rebuild + restart)"
     echo -e "    ${GREEN}3a)${NC} 🛑 Graceful Shutdown & Cleanup"
@@ -154,6 +155,27 @@ full_deploy() {
         docker-compose -f docker-compose.unified.yml build --no-cache
         docker-compose -f docker-compose.unified.yml up -d --remove-orphans
     fi
+    
+    pause
+}
+
+# Nuclear Reset (Database Wipe)
+nuclear_reset() {
+    echo ""
+    echo -e "${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BOLD}${RED}  ☢️  NUCLEAR RESET (DATABASE WIPE)${NC}"
+    echo -e "${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    
+    if [ ! -f "./deployment/nuclear-reset.sh" ]; then
+        echo -e "${RED}✗ Error: nuclear-reset.sh not found${NC}"
+        echo -e "${YELLOW}Expected location: ./deployment/nuclear-reset.sh${NC}"
+        pause
+        return
+    fi
+    
+    chmod +x ./deployment/nuclear-reset.sh
+    ./deployment/nuclear-reset.sh
     
     pause
 }
@@ -2138,6 +2160,7 @@ main() {
         case $choice in
             1) auto_deploy ;;
             1a) full_deploy ;;
+            1b) nuclear_reset ;;
             2) quick_restart ;;
             3) rebuild_deploy ;;
             3a) graceful_shutdown ;;
