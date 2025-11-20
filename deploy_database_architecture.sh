@@ -103,8 +103,14 @@ create_full_backup() {
     local timestamp=$(date +%s)
     local backup_file="${BACKUP_DIR}/backup_all_databases_${description}_${timestamp}.sql"
     
+    # Determine superuser based on container
+    local superuser="postgres"
+    if [ "$POSTGRES_CONTAINER" = "discord-bot-db" ]; then
+        superuser="ticketbot"
+    fi
+    
     echo "Creating full database backup: $backup_file"
-    if docker exec "$POSTGRES_CONTAINER" pg_dumpall -U postgres > "$backup_file" 2>/dev/null; then
+    if docker exec "$POSTGRES_CONTAINER" pg_dumpall -U "$superuser" > "$backup_file" 2>/dev/null; then
         echo -e "${GREEN}✓ Full backup created: $backup_file${NC}"
         LATEST_BACKUP="$backup_file"
         return 0
