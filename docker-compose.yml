@@ -101,8 +101,8 @@ services:
       - ./docker-compose.yml:/app/docker-compose.yml:ro
       - ./Caddyfile:/app/Caddyfile:ro
       - ./.env:/app/.env:ro
-    env_file: /home/evin/contain/HomeLabHub/.env
-      - .env
+    env_file: 
+      - /home/evin/contain/HomeLabHub/.env
     environment:
       - FLASK_ENV=production
       - PYTHONUNBUFFERED=1
