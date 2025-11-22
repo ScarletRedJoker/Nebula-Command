@@ -98,7 +98,7 @@ services:
       - ./services/dashboard/logs:/app/logs
       - /home/${SERVICE_USER:-evin}/contain:/home/${SERVICE_USER:-evin}/contain:ro
       - /var/www:/var/www
-      - ./docker-compose.unified.yml:/app/docker-compose.unified.yml:ro
+      - ./docker-compose.yml:/app/docker-compose.yml:ro
       - ./Caddyfile:/app/Caddyfile:ro
       - ./.env:/app/.env:ro
     env_file:
@@ -143,7 +143,7 @@ services:
       - HOME_ASSISTANT_URL=${HOME_ASSISTANT_URL:-http://homeassistant:8123}
       - HOME_ASSISTANT_TOKEN=${HOME_ASSISTANT_TOKEN:-}
       - HOME_ASSISTANT_VERIFY_SSL=${HOME_ASSISTANT_VERIFY_SSL:-False}
-      - COMPOSE_FILE=/docker-compose.unified.yml
+      - COMPOSE_FILE=/docker-compose.yml
       - CADDYFILE_PATH=/Caddyfile
       - ENV_FILE=/.env
       - AI_PROVIDER=openai
@@ -154,7 +154,7 @@ services:
       - ./services/dashboard:/app
       - /var/run/docker.sock:/var/run/docker.sock
       - ./services/dashboard/logs:/app/logs
-      - ./docker-compose.unified.yml:/docker-compose.unified.yml:ro
+      - ./docker-compose.yml:/docker-compose.yml:ro
       - ./Caddyfile:/Caddyfile:ro
       - ./.env:/.env:ro
 
