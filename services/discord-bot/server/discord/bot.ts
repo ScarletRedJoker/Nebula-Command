@@ -59,10 +59,10 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
     return;
   }
 
-  // Validate that the token matches the expected format
-  const tokenRegex = /^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+$/;
-  if (!tokenRegex.test(process.env.DISCORD_BOT_TOKEN)) {
-    console.warn('DISCORD_BOT_TOKEN appears to be in an invalid format.');
+  // Basic token validation (Discord v2 tokens can contain periods and special chars)
+  // Just check it's not empty and looks vaguely like a token
+  if (process.env.DISCORD_BOT_TOKEN.length < 50) {
+    console.warn('DISCORD_BOT_TOKEN appears to be too short or invalid.');
     return;
   }
 

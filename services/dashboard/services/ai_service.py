@@ -1,9 +1,12 @@
-import os
 from openai import OpenAI
-from typing import List, Dict, Generator, Optional
+from typing import List, Dict, Generator, Optional, Any, cast
 import logging
 import json
+<<<<<<< HEAD
 from env_config.environment import get_openai_config, is_replit
+=======
+from services.env_config.environment import get_openai_config, is_replit
+>>>>>>> f5386ca4e80d2b786c733e492a26ce216b324824
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +106,7 @@ Provide specific troubleshooting steps and potential solutions."""
             logger.error(f"Error getting troubleshooting advice: {e}")
             return f"Error: {str(e)}"
     
-    def chat(self, message: str, conversation_history: List[Dict] = None, model: str = "gpt-3.5-turbo") -> str:
+    def chat(self, message: str, conversation_history: Optional[List[Dict[str, Any]]] = None, model: str = "gpt-3.5-turbo") -> str:
         # Validate and default model parameter
         if not model or not isinstance(model, str):
             model = "gpt-3.5-turbo"
@@ -175,7 +178,7 @@ Format your responses using Markdown for better readability:
             logger.error(f"Error in AI chat: {e}")
             return f"Error: {str(e)}"
     
-    def _build_chat_messages(self, conversation_history: Optional[List[Dict]], message: str) -> List[Dict]:
+    def _build_chat_messages(self, conversation_history: Optional[List[Dict[str, Any]]], message: str) -> List[Dict[str, Any]]:
         """Build chat messages array for Ollama/OpenAI"""
         messages = [
             {"role": "system", "content": """You are Jarvis, an AI-first homelab copilot assistant. You help with:
@@ -201,7 +204,7 @@ Format your responses using Markdown for better readability:
         messages.append({"role": "user", "content": message})
         return messages
     
-    def chat_stream(self, message: str, conversation_history: List[Dict] = None, model: str = "gpt-3.5-turbo") -> Generator[str, None, None]:
+    def chat_stream(self, message: str, conversation_history: Optional[List[Dict[str, Any]]] = None, model: str = "gpt-3.5-turbo") -> Generator[str, None, None]:
         """
         Stream chat responses using Server-Sent Events (SSE)
         Supports both OpenAI and Ollama models
