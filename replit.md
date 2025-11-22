@@ -94,39 +94,45 @@ Each service connects with individual user credentials but all to the same Postg
 
 ## Recent Major Fixes
 
-1. **Docker Compose Mount Fix (Nov 22, 2025)** ✅ RESOLVED
+1. **Git Merge Conflict in Dashboard (Nov 22, 2025)** ✅ RESOLVED
+   - Problem: Dashboard and Celery worker stuck in restart loop with `SyntaxError: invalid syntax`
+   - Root cause: Unresolved git merge conflict markers in `ai_service.py`
+   - Solution: Removed merge conflict markers, kept simple `import os`
+   - Fix script: `fix-dashboard.sh` pulls fix and rebuilds dashboard
+
+2. **Docker Compose Mount Fix (Nov 22, 2025)** ✅ RESOLVED
    - Problem: After cleanup, services failed with mount error for deleted `docker-compose.unified.yml`
    - Root cause: docker-compose.yml referenced unified.yml in 3 volume mounts
    - Solution: Updated all references to `docker-compose.yml` instead
    - Additional: Dashboard/Celery worker needed `--no-cache` rebuild to fix Config import and password auth
    - Fix script: `fix-ubuntu-services.sh` automates full rebuild process
 
-2. **Code Quality Cleanup (Nov 22, 2025)** ✅ RESOLVED
+3. **Code Quality Cleanup (Nov 22, 2025)** ✅ RESOLVED
    - Fixed 6 LSP typing errors in AI service (proper Optional typing, imports)
    - Relaxed Discord bot token validation (was rejecting valid v2 tokens)
    - Removed 40+ duplicate documentation files and legacy scripts
    - Created comprehensive .env.example template for deployments
    - **Security**: Verified .env was never committed to git (secrets safe!)
 
-3. **Database Password Caching Issue (Nov 22, 2025)** ✅ RESOLVED
+4. **Database Password Caching Issue (Nov 22, 2025)** ✅ RESOLVED
    - Problem: Running `./homelab fix` caused password authentication failures
    - Root cause: Docker cached image layers with old passwords, `--force-recreate` only recreates containers, doesn't rebuild images
    - Solution: Updated `./homelab fix` to rebuild bots with `--no-cache` before recreating
    - All database passwords now standardized to: `qS4R8Wrl-Spz7-YEmyllIA`
 
-4. **Background Cleanup Task Fixes (Nov 22, 2025)** ✅ RESOLVED
+5. **Background Cleanup Task Fixes (Nov 22, 2025)** ✅ RESOLVED
    - Discord bot: Added missing `interaction_locks` table to prevent duplicate ticket creation
    - Stream bot: Fixed OAuth stats display error (proper query result handling)
 
-4. **Environment Loading Issue (Nov 2025)** ✅ RESOLVED
+6. **Environment Loading Issue (Nov 2025)** ✅ RESOLVED
    - Problem: Services crashed with "Missing environment variables" despite .env having all values
    - Root cause: Docker Compose using relative paths, couldn't find .env
    - Solution: Use absolute paths with `--project-directory` and `--env-file` flags
 
-5. **Jarvis AI Model Error** ✅ RESOLVED
+7. **Jarvis AI Model Error** ✅ RESOLVED
    - Fixed deprecated `gpt-5` → `gpt-3.5-turbo`
 
-6. **Script Consolidation** ✅ RESOLVED
+8. **Script Consolidation** ✅ RESOLVED
    - Removed 84+ duplicate scripts
    - Single `homelab` script handles all operations
 
