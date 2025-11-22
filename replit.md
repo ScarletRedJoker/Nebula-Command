@@ -101,29 +101,39 @@ Each service connects with individual user credentials but all to the same Postg
 
 ## Recent Major Fixes
 
-1. **OpenAI Models Fixed (Nov 22, 2025)** ✅ RESOLVED
+1. **Jarvis AI Fixed (Nov 22, 2025)** ✅ RESOLVED
+   - Problem: Dashboard container not receiving OPENAI_API_KEY from .env, Jarvis AI disabled with "not configured" message
+   - Root cause: docker-compose.yml missing `env_file` directive on homelab-dashboard service
+   - Solution: Added `env_file: /home/evin/contain/HomeLabHub/.env` to dashboard service
+   - Result: Dashboard now initializes AI service successfully with OpenAI credentials
+   - Files: `docker-compose.yml` (homelab-dashboard section)
+
+2. **Stream-Bot Fact Generation Fixed (Nov 22, 2025)** ✅ RESOLVED
+   - Problem: Fact generation endpoint and OpenAI function existed, but no scheduler ran them—no facts generated
+   - Solution: Added hourly scheduler in server startup that:
+     - Calls `generateSnappleFact()` every 3,600 seconds (1 hour)
+     - POSTs fact to `http://homelab-dashboard:5000/api/stream/facts`
+     - Logs status (✓ success, ✗ error) for debugging
+   - Result: Stream-bot now generates one fact per hour and sends to dashboard
+   - File: `services/stream-bot/server/index.ts` (lines 246-280)
+
+3. **OpenAI Models Fixed (Nov 22, 2025)** ✅ RESOLVED
    - Problem: Stream-bot using non-existent models `gpt-4.1-mini` and `gpt-5-mini`, generating empty facts
    - Solution: Changed to real models `gpt-4-mini` (primary) and `gpt-3.5-turbo` (fallback)
    - Result: Stream-bot now successfully generates facts with working OpenAI API calls
    - File: `services/stream-bot/server/openai.ts`
 
-2. **Facts Endpoint Created (Nov 22, 2025)** ✅ RESOLVED
+4. **Facts Endpoint Created (Nov 22, 2025)** ✅ RESOLVED
    - Added `/api/stream/facts` POST endpoint to dashboard
    - Stream-bot can now POST generated facts to: `http://homelab-dashboard:5000/api/stream/facts`
    - Facts stored in artifacts table with metadata
    - File: `services/dashboard/routes/api.py` (lines 1221-1278)
 
-3. **Dashboard Startup Fixed (Nov 22, 2025)** ✅ RESOLVED
+5. **Dashboard Startup Fixed (Nov 22, 2025)** ✅ RESOLVED
    - Agent initialization now checks table existence before querying (prevents crashes)
    - Uses SQLAlchemy inspector to gracefully skip initialization if tables don't exist yet
    - Allows dashboard to start successfully during migrations
    - File: `services/dashboard/services/agent_orchestrator.py`
-
-4. **Git Merge Conflict in Dashboard (Nov 22, 2025)** ✅ RESOLVED
-   - Problem: Dashboard and Celery worker stuck in restart loop with `SyntaxError: invalid syntax`
-   - Root cause: Unresolved git merge conflict markers in `ai_service.py`
-   - Solution: Removed merge conflict markers, kept simple `import os`
-   - Fix script: `fix-dashboard.sh` pulls fix and rebuilds dashboard
 
 2. **Docker Compose Mount Fix (Nov 22, 2025)** ✅ RESOLVED
    - Problem: After cleanup, services failed with mount error for deleted `docker-compose.unified.yml`
