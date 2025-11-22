@@ -3,6 +3,7 @@ import logging
 from typing import List, Dict, Optional
 from datetime import datetime
 import json
+from psycopg2.errors import UndefinedTable
 
 from services.ai_service import AIService
 from services.db_service import db_service
@@ -155,17 +156,21 @@ When analyzing security:
         
         try:
             with db_service.get_session() as session:
-                for agent_data in default_agents:
-                    existing = session.execute(
-                        select(Agent).where(Agent.agent_type == agent_data['agent_type'])
-                    ).scalars().first()
+                try:
+                    for agent_data in default_agents:
+                        existing = session.execute(
+                            select(Agent).where(Agent.agent_type == agent_data['agent_type'])
+                        ).scalars().first()
+                        
+                        if not existing:
+                            agent = Agent(**agent_data)
+                            session.add(agent)
                     
-                    if not existing:
-                        agent = Agent(**agent_data)
-                        session.add(agent)
-                
-                session.commit()
-                logger.info("Agent swarm initialized successfully")
+                    session.commit()
+                    logger.info("Agent swarm initialized successfully")
+                except UndefinedTable:
+                    logger.warning("⚠ Agents table not yet created (migrations still running) - agent initialization deferred")
+                    return
         except Exception as e:
             logger.error(f"Failed to initialize agents: {e}")
     
