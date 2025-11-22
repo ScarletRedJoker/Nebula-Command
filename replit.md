@@ -101,7 +101,25 @@ Each service connects with individual user credentials but all to the same Postg
 
 ## Recent Major Fixes
 
-1. **Git Merge Conflict in Dashboard (Nov 22, 2025)** ✅ RESOLVED
+1. **OpenAI Models Fixed (Nov 22, 2025)** ✅ RESOLVED
+   - Problem: Stream-bot using non-existent models `gpt-4.1-mini` and `gpt-5-mini`, generating empty facts
+   - Solution: Changed to real models `gpt-4-mini` (primary) and `gpt-3.5-turbo` (fallback)
+   - Result: Stream-bot now successfully generates facts with working OpenAI API calls
+   - File: `services/stream-bot/server/openai.ts`
+
+2. **Facts Endpoint Created (Nov 22, 2025)** ✅ RESOLVED
+   - Added `/api/stream/facts` POST endpoint to dashboard
+   - Stream-bot can now POST generated facts to: `http://homelab-dashboard:5000/api/stream/facts`
+   - Facts stored in artifacts table with metadata
+   - File: `services/dashboard/routes/api.py` (lines 1221-1278)
+
+3. **Dashboard Startup Fixed (Nov 22, 2025)** ✅ RESOLVED
+   - Agent initialization now checks table existence before querying (prevents crashes)
+   - Uses SQLAlchemy inspector to gracefully skip initialization if tables don't exist yet
+   - Allows dashboard to start successfully during migrations
+   - File: `services/dashboard/services/agent_orchestrator.py`
+
+4. **Git Merge Conflict in Dashboard (Nov 22, 2025)** ✅ RESOLVED
    - Problem: Dashboard and Celery worker stuck in restart loop with `SyntaxError: invalid syntax`
    - Root cause: Unresolved git merge conflict markers in `ai_service.py`
    - Solution: Removed merge conflict markers, kept simple `import os`
@@ -183,6 +201,22 @@ Each service connects with individual user credentials but all to the same Postg
 **Expected status:** All 15/15 services running with proper database tables
 
 **See SETUP.md for complete troubleshooting guide**
+
+## API Endpoints (Nov 22, 2025)
+
+**Stream-Bot Facts Integration:**
+```bash
+POST /api/stream/facts
+Content-Type: application/json
+{
+  "fact": "Octopuses have three hearts...",
+  "source": "stream-bot"
+}
+```
+
+Response: `{"success": true, "message": "Fact received and processed successfully"}`
+
+Stream-bot automatically POSTs facts every 60 seconds with generated content.
 
 ## Future Growth
 
