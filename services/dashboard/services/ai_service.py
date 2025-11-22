@@ -3,7 +3,7 @@ from openai import OpenAI
 from typing import List, Dict, Generator, Optional
 import logging
 import json
-from config.environment import get_openai_config, is_replit
+from env_config.environment import get_openai_config, is_replit
 
 logger = logging.getLogger(__name__)
 
