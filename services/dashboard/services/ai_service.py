@@ -2,24 +2,29 @@ from openai import OpenAI
 from typing import List, Dict, Generator, Optional, Any, cast
 import logging
 import json
-from services.env_config.environment import get_openai_config, is_replit
+import os
 
 logger = logging.getLogger(__name__)
 
 class AIService:
     def __init__(self):
-        # Use environment-aware configuration
+        # Initialize OpenAI client with environment-based configuration
         try:
-            config = get_openai_config()
+            # Check for Replit AI Integrations first, then fallback to manual config
+            api_key = os.getenv('AI_INTEGRATIONS_OPENAI_API_KEY') or os.getenv('OPENAI_API_KEY')
+            base_url = os.getenv('AI_INTEGRATIONS_OPENAI_BASE_URL') or os.getenv('OPENAI_BASE_URL', 'https://api.openai.com/v1')
+            
+            if not api_key:
+                raise ValueError("No OpenAI API key found in environment")
+            
             self.client = OpenAI(
-                api_key=config.api_key,
-                base_url=config.base_url
+                api_key=api_key,
+                base_url=base_url
             )
             self.enabled = True
-            env_type = "Replit" if is_replit() else "Production"
+            env_type = "Replit" if os.getenv('REPL_ID') else "Production"
             logger.info(f"AI Service initialized with {env_type} OpenAI credentials")
-            logger.info(f"  Base URL: {config.base_url}")
-            logger.info(f"  Model: {config.model}")
+            logger.info(f"  Base URL: {base_url}")
         except ValueError as e:
             self.client = None
             self.enabled = False

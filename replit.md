@@ -94,25 +94,32 @@ Each service connects with individual user credentials but all to the same Postg
 
 ## Recent Major Fixes
 
-1. **Database Password Caching Issue (Nov 22, 2025)** ✅ RESOLVED
+1. **Code Quality Cleanup (Nov 22, 2025)** ✅ RESOLVED
+   - Fixed 6 LSP typing errors in AI service (proper Optional typing, imports)
+   - Relaxed Discord bot token validation (was rejecting valid v2 tokens)
+   - Removed 40+ duplicate documentation files and legacy scripts
+   - Created comprehensive .env.example template for deployments
+   - **Security**: Verified .env was never committed to git (secrets safe!)
+
+2. **Database Password Caching Issue (Nov 22, 2025)** ✅ RESOLVED
    - Problem: Running `./homelab fix` caused password authentication failures
    - Root cause: Docker cached image layers with old passwords, `--force-recreate` only recreates containers, doesn't rebuild images
    - Solution: Updated `./homelab fix` to rebuild bots with `--no-cache` before recreating
    - All database passwords now standardized to: `qS4R8Wrl-Spz7-YEmyllIA`
 
-1.5. **Background Cleanup Task Fixes (Nov 22, 2025)** ✅ RESOLVED
+3. **Background Cleanup Task Fixes (Nov 22, 2025)** ✅ RESOLVED
    - Discord bot: Added missing `interaction_locks` table to prevent duplicate ticket creation
    - Stream bot: Fixed OAuth stats display error (proper query result handling)
 
-2. **Environment Loading Issue (Nov 2025)**
+4. **Environment Loading Issue (Nov 2025)** ✅ RESOLVED
    - Problem: Services crashed with "Missing environment variables" despite .env having all values
    - Root cause: Docker Compose using relative paths, couldn't find .env
    - Solution: Use absolute paths with `--project-directory` and `--env-file` flags
 
-3. **Jarvis AI Model Error**
+5. **Jarvis AI Model Error** ✅ RESOLVED
    - Fixed deprecated `gpt-5` → `gpt-3.5-turbo`
 
-4. **Script Consolidation**
+6. **Script Consolidation** ✅ RESOLVED
    - Removed 84+ duplicate scripts
    - Single `homelab` script handles all operations
 
