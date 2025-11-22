@@ -84,8 +84,11 @@ done
 # ============================================================================
 echo -e "\n${CYAN}[4/7] Creating Databases & Users${NC}"
 
-# Load passwords from .env
-source .env
+# Load passwords from .env safely (without sourcing the whole file)
+POSTGRES_PASSWORD=$(grep "^POSTGRES_PASSWORD=" "$PROJECT_ROOT/.env" | cut -d'=' -f2)
+DISCORD_DB_PASSWORD=$(grep "^DISCORD_DB_PASSWORD=" "$PROJECT_ROOT/.env" | cut -d'=' -f2)
+STREAMBOT_DB_PASSWORD=$(grep "^STREAMBOT_DB_PASSWORD=" "$PROJECT_ROOT/.env" | cut -d'=' -f2)
+JARVIS_DB_PASSWORD=$(grep "^JARVIS_DB_PASSWORD=" "$PROJECT_ROOT/.env" | cut -d'=' -f2)
 
 # Create databases if they don't exist
 for db in ticketbot streambot homelab_jarvis; do
