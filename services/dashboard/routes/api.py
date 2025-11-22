@@ -1211,3 +1211,65 @@ def get_ai_models():
     except Exception as e:
         logger.error(f"Error getting AI models: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# ==================== STREAM-BOT FACTS ENDPOINT ====================
+
+@api_bp.route('/stream/facts', methods=['POST'])
+def receive_stream_facts():
+    """
+    Receive and store facts from stream-bot
+    
+    Request body:
+        {
+            "fact": str,
+            "source": str (optional, default: "stream-bot"),
+            "timestamp": str (optional)
+        }
+    
+    Returns:
+        JSON with success status
+    """
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': 'No JSON data provided'}), 400
+        
+        fact = data.get('fact', '').strip()
+        if not fact:
+            return jsonify({'success': False, 'message': 'Fact is required'}), 400
+        
+        source = data.get('source', 'stream-bot')
+        
+        # Log the fact received
+        logger.info(f"✓ Received fact from {source}: {fact[:80]}...")
+        
+        # Store in artifacts table as fact type
+        try:
+            from models.artifact import Artifact
+            with database_service.get_session() as session:
+                artifact = Artifact(
+                    name=f"Fact: {fact[:50]}",
+                    content=fact,
+                    artifact_type='fact',
+                    source=source,
+                    tags=['stream-bot', 'fact'],
+                    metadata={
+                        'generated_at': datetime.utcnow().isoformat(),
+                        'source': source
+                    }
+                )
+                session.add(artifact)
+                session.commit()
+                logger.info(f"✓ Fact stored in database (ID: {artifact.id})")
+        except Exception as db_e:
+            logger.warning(f"Could not store fact in database: {db_e} - but fact received OK")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Fact received and processed successfully'
+        })
+    
+    except Exception as e:
+        logger.error(f"Error receiving fact from stream-bot: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
