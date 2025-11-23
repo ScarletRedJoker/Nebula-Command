@@ -62,6 +62,13 @@ The core system relies on Docker Compose for orchestrating 15 services. A `boots
 - 50+ features across 7 categories
 - 31 HTML templates, 16 database migrations, 15 services cataloged
 
+### Database Configuration Fix (Critical)
+- Fixed database URL resolver to auto-build connection strings from password components
+- Prevents common configuration error where JARVIS_DATABASE_URL contains placeholder text "JARVIS_DB_PASSWORD"
+- Now auto-detects placeholders and builds correct URL from JARVIS_DB_PASSWORD
+- Created `DATABASE_CONFIG_FIX.md` documenting the issue and solution
+- Updated diagnostic script to detect this specific configuration mistake
+
 ## External Dependencies
 
 - **PostgreSQL 16 Alpine:** Shared database for all services.

@@ -61,6 +61,33 @@ check_var "JARVIS_DB_PASSWORD" || ((failed++))
 # OpenAI (critical for AI features)
 check_var "OPENAI_API_KEY" || ((failed++))
 
+# Check for common database URL configuration mistake
+echo -e "\n${BLUE}Checking Database URL Configuration:${NC}"
+JARVIS_URL=$(grep "^JARVIS_DATABASE_URL=" .env 2>/dev/null | cut -d'=' -f2)
+JARVIS_PASS=$(grep "^JARVIS_DB_PASSWORD=" .env 2>/dev/null | cut -d'=' -f2)
+
+if [[ "$JARVIS_URL" == *"JARVIS_DB_PASSWORD"* ]] || [[ "$JARVIS_URL" == *"YOUR_"* ]]; then
+    echo -e "${RED}✗ JARVIS_DATABASE_URL contains placeholder text!${NC}"
+    echo -e "${YELLOW}  Found: $JARVIS_URL${NC}"
+    echo -e "${YELLOW}  This will cause database connection failures.${NC}"
+    if [[ ! -z "$JARVIS_PASS" ]] && [[ "$JARVIS_PASS" != *"YOUR_"* ]]; then
+        echo -e "${GREEN}  Good news: JARVIS_DB_PASSWORD is set${NC}"
+        echo -e "${GREEN}  The dashboard will auto-fix this on startup!${NC}"
+    else
+        echo -e "${RED}  Fix: Set JARVIS_DB_PASSWORD in .env${NC}"
+        ((failed++))
+    fi
+elif [[ ! -z "$JARVIS_URL" ]]; then
+    echo -e "${GREEN}✓ JARVIS_DATABASE_URL looks valid${NC}"
+else
+    if [[ ! -z "$JARVIS_PASS" ]] && [[ "$JARVIS_PASS" != *"YOUR_"* ]]; then
+        echo -e "${GREEN}✓ JARVIS_DB_PASSWORD is set (URL will auto-build)${NC}"
+    else
+        echo -e "${RED}✗ No database connection configured${NC}"
+        ((failed++))
+    fi
+fi
+
 echo ""
 echo "════════════════════════════════════════════════════════════════"
 
