@@ -119,6 +119,9 @@ services:
       - AI_PROVIDER=openai
       - AI_MODEL=gpt-3.5-turbo
       - SERVICE_AUTH_TOKEN=${SERVICE_AUTH_TOKEN}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - WEB_USERNAME=${WEB_USERNAME}
+      - WEB_PASSWORD=${WEB_PASSWORD}
 
   # ============================================
   # Celery Worker - Background Task Processing
