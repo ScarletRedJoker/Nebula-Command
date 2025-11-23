@@ -20,7 +20,7 @@ def login_required(f):
     """Decorator to require login for routes"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if 'logged_in' not in session:
+        if not session.get('authenticated'):
             return jsonify({'error': 'Authentication required'}), 401
         return f(*args, **kwargs)
     return decorated_function
@@ -275,7 +275,7 @@ def init_websocket(app):
             "level": "ERROR"
         }
         """
-        if 'logged_in' not in session:
+        if not session.get('authenticated'):
             ws.close(reason='Authentication required')
             return
         
