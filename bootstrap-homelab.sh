@@ -413,9 +413,9 @@ docker compose --project-directory "$PROJECT_ROOT" \
     --env-file "$PROJECT_ROOT/.env" \
     up -d
 
-echo "Waiting for services to stabilize (45 seconds)..."
-for i in {1..45}; do
-    printf "\r  Progress: [%-45s] %d%%" $(printf '#%.0s' $(seq 1 $i)) $((i*100/45))
+echo "Waiting for services to stabilize (75 seconds - Gunicorn workers need time)..."
+for i in {1..75}; do
+    printf "\r  Progress: [%-30s] %d%%" $(printf '#%.0s' $(seq 1 $((i/3+1)))) $((i*100/75))
     sleep 1
 done
 echo ""
