@@ -69,6 +69,14 @@ The core system relies on Docker Compose for orchestrating 15 services. A `boots
 - Created `DATABASE_CONFIG_FIX.md` documenting the issue and solution
 - Updated diagnostic script to detect this specific configuration mistake
 
+### Jarvis AI OpenAI Integration Fix (Critical - November 23, 2025)
+- **Problem:** Jarvis AI was returning 400 errors because OPENAI_API_KEY was not available in the dashboard container
+- **Root Cause:** Docker Compose's `env_file` directive loads variables but doesn't automatically expose them to the container
+- **Solution:** Explicitly added `OPENAI_API_KEY`, `WEB_USERNAME`, and `WEB_PASSWORD` to the `environment` section of the `homelab-dashboard` service in `docker-compose.yml`
+- **Result:** Jarvis AI Assistant now fully functional with GPT-3.5-turbo integration
+- Created `DEPLOYMENT_STATUS.md` with comprehensive deployment and verification steps
+- Created `quick-fix-jarvis.sh` for rapid deployment and testing on production server
+
 ## External Dependencies
 
 - **PostgreSQL 16 Alpine:** Shared database for all services.
