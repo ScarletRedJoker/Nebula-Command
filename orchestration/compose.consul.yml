@@ -1,0 +1,83 @@
+# ============================================
+# CONSUL SERVICE DISCOVERY
+# Phase 3: Service Discovery & Networking
+# ============================================
+# Single-node Consul server for MVP (can scale to 3-node cluster later)
+# Provides service registry, health checking, and KV store
+
+networks:
+  homelab:
+    external: true
+
+volumes:
+  consul_data:
+
+services:
+  # ============================================
+  # Consul Server - Service Registry & Discovery
+  # ============================================
+  consul-server:
+    image: hashicorp/consul:1.17
+    container_name: consul-server
+    restart: unless-stopped
+    networks:
+      homelab:
+        aliases:
+          - consul
+    ports:
+      - "8500:8500"   # HTTP API & Web UI
+      - "8600:8600"   # DNS
+      - "8600:8600/udp"
+    command: >
+      agent -server
+      -ui
+      -bootstrap-expect=1
+      -node=consul-server-1
+      -client=0.0.0.0
+      -bind=0.0.0.0
+      -data-dir=/consul/data
+      -config-dir=/consul/config
+    environment:
+      - CONSUL_BIND_INTERFACE=eth0
+      - CONSUL_CLIENT_INTERFACE=eth0
+      - CONSUL_LOCAL_CONFIG=${CONSUL_LOCAL_CONFIG:-{"datacenter":"homelab","server":true,"ui_config":{"enabled":true},"log_level":"INFO"}}
+    volumes:
+      - consul_data:/consul/data
+      - ./config/consul:/consul/config:ro
+    healthcheck:
+      test: ["CMD", "consul", "members"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ============================================
+  # Consul Agent - Service Registration Helper
+  # ============================================
+  # This agent runs on the same host as services and registers them
+  # For multi-host deployments, run one agent per host
+  consul-agent:
+    image: hashicorp/consul:1.17
+    container_name: consul-agent
+    restart: unless-stopped
+    networks:
+      - homelab
+    command: >
+      agent
+      -node=consul-agent-1
+      -join=consul-server
+      -data-dir=/consul/data
+      -config-dir=/consul/config
+    environment:
+      - CONSUL_BIND_INTERFACE=eth0
+      - CONSUL_LOCAL_CONFIG=${CONSUL_LOCAL_CONFIG:-{"datacenter":"homelab","server":false,"retry_join":["consul-server"],"log_level":"INFO"}}
+    volumes:
+      - ./config/consul:/consul/config:ro
+    depends_on:
+      consul-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "consul", "info"]
+      interval: 15s
+      timeout: 5s
+      retries: 3

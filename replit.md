@@ -50,20 +50,28 @@ The core system relies on Docker Compose for orchestrating 15 services. A `boots
 - Multi-environment support (dev/staging/prod)
 - Command: `./homelab config generate prod evindrake.net`
 
-**Phase 2: Modular Service Packaging - 🚧 IN PROGRESS**
+**Phase 2: Modular Service Packaging - ✅ IMPLEMENTED**
 - Created orchestration/ directory with service catalog
-- Split docker-compose.yml into modular bundles
+- Split docker-compose.yml into modular bundles (base, dashboard, discord, stream, web, automation)
 - Service catalog with 15 services across 5 groups
 - Commands: `./homelab deploy <service|group>`
-- **Known Issues:** Env file integration needs refinement, some compose bundles missing service-specific env files
+- Dynamic service catalog parser (service_catalog.py)
 
-**Phase 3-8: PENDING**
-- Phase 3: Service Discovery & Networking (Traefik/Consul)
-- Phase 4: Database Platform Upgrade (backups, pooling)
-- Phase 5: Observability & Auto-Recovery (Prometheus, Grafana)
-- Phase 6: Deployment & Rollback Automation (CI/CD)
-- Phase 7: API Gateway & Auth
-- Phase 8: DNS Automation
+**Phase 3: Service Discovery & Networking - ✅ IMPLEMENTED**
+- Consul service registry with health monitoring
+- Traefik reverse proxy with automatic HTTPS (Let's Encrypt + Cloudflare)
+- Service discovery metadata in services.yaml v2.0.0
+- CLI commands: services discover, routes list, network status
+- Tailscale integration documented
+
+**Integration Status:** Phases 1-3 implemented. Known integration gaps (network config, env file wiring) to be resolved during final integration testing.
+
+**Phase 4-8: IN PROGRESS**
+- Phase 4: Database Platform Upgrade (backups, pooling) - STARTING
+- Phase 5: Observability & Auto-Recovery (Prometheus, Grafana) - PENDING
+- Phase 6: Deployment & Rollback Automation (CI/CD) - PENDING
+- Phase 7: API Gateway & Auth - PENDING
+- Phase 8: DNS Automation - PENDING
 
 ## Recent Changes (November 2025)
 

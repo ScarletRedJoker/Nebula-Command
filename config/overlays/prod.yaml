@@ -97,3 +97,47 @@ db_config:
   jarvis:
     user: jarvis
     db: homelab_jarvis
+
+# ============================================
+# PHASE 4: Database Platform Configuration
+# ============================================
+
+# Connection Pooling (pgBouncer)
+database:
+  # Connection pool settings
+  pool_mode: transaction
+  max_client_conn: 1000
+  default_pool_size: 25
+  min_pool_size: 10
+  reserve_pool_size: 5
+  max_db_connections: 100
+  server_lifetime: 3600
+  server_idle_timeout: 600
+  query_timeout: 0
+  query_wait_timeout: 120
+  log_connections: 1
+  log_disconnections: 1
+  log_pooler_errors: 1
+  
+  # Backup Configuration (pgBackRest)
+  backup_bucket: homelab-backups
+  backup_region: us-east-1
+  backup_retention_full: 7
+  backup_retention_diff: 4
+  backup_retention_archive: 7
+  backup_process_max: 4
+  backup_compress_type: lz4
+  backup_compress_level: 3
+  archive_queue_max: 1GB
+  
+  # Backup Schedules (cron format)
+  backup_schedule_full: "0 2 * * *"      # Daily at 2 AM
+  backup_schedule_incr: "0 */1 * * *"    # Hourly
+  backup_schedule_diff: "0 12 * * 0"     # Weekly differential (Sunday noon)
+  
+  # Database features
+  use_pooler: true
+  pooler_host: pgbouncer
+  pooler_port: 6432
+  enable_wal_archiving: true
+  enable_backups: true

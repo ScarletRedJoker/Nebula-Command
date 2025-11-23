@@ -8,6 +8,7 @@
 
 include:
   - compose.base.yml
+  - compose.database.yml
   - compose.dashboard.yml
   - compose.discord.yml
   - compose.stream.yml

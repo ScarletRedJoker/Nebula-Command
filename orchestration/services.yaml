@@ -1,12 +1,12 @@
 # ============================================
 # HOMELAB SERVICE CATALOG
-# Phase 2: Modular Service Architecture
+# Phase 3: Service Discovery & Networking
 # ============================================
 
 metadata:
-  version: "1.0.0"
+  version: "2.0.0"
   generated: "2025-11-23"
-  description: "Service catalog for modular HomeLabHub deployment"
+  description: "Service catalog with discovery metadata for Traefik and Consul"
 
 # Service Groups
 groups:
@@ -52,6 +52,64 @@ services:
     health_check_type: command
     startup_order: 1
     required_for: [dashboard, discord-bot, stream-bot, celery-worker]
+    # Phase 4: Database Platform Metadata
+    database:
+      role: primary
+      pooler: pgbouncer
+      pooler_port: 6432
+      backup_service: pgbackrest
+      backup_schedule: "0 2 * * *"
+      backup_retention: "7 days"
+      wal_archiving: enabled
+      connection_pooling: enabled
+      features:
+        - connection_pooling
+        - automated_backups
+        - wal_archiving
+        - point_in_time_recovery
+      
+  pgbouncer:
+    name: pgbouncer
+    description: "Connection pooler for PostgreSQL - reduces connection overhead"
+    container_name: homelab-pgbouncer
+    group: core
+    dependencies: [postgres]
+    env_files: [.env, .env.pgbouncer]
+    interfaces:
+      - port: 6432
+        protocol: tcp
+        internal: true
+    placement: local_or_remote
+    health_endpoint: "psql -h localhost -p 6432 -U postgres -d postgres -c 'SELECT 1'"
+    health_check_type: command
+    startup_order: 2
+    required_for: []
+    
+  pgbackrest:
+    name: pgbackrest
+    description: "Automated backup service for PostgreSQL with S3 storage"
+    container_name: homelab-pgbackrest
+    group: core
+    dependencies: [postgres, minio]
+    env_files: [.env, .env.pgbackrest]
+    interfaces: []
+    placement: local_only
+    health_endpoint: "pgbackrest info --stanza=homelab"
+    health_check_type: command
+    startup_order: 2
+    required_for: []
+    backup:
+      type: pgbackrest
+      destination: s3
+      s3_bucket: homelab-backups
+      schedule:
+        full: "0 2 * * *"
+        incremental: "0 */1 * * *"
+        differential: "0 12 * * 0"
+      retention:
+        full: 7
+        differential: 4
+        incremental: 7
     
   redis:
     name: redis
@@ -131,6 +189,22 @@ services:
     health_endpoint: http://localhost:4000/health
     health_check_type: http
     startup_order: 3
+    discovery:
+      traefik_labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.discord-bot.rule=Host(`bot.rig-city.com`)"
+        - "traefik.http.routers.discord-bot.entrypoints=websecure"
+        - "traefik.http.routers.discord-bot.tls=true"
+        - "traefik.http.routers.discord-bot.tls.certresolver=cloudflare"
+        - "traefik.http.services.discord-bot.loadbalancer.server.port=4000"
+      consul_tags:
+        - "bot"
+        - "discord"
+        - "web"
+      health_check:
+        http: "http://localhost:4000/health"
+        interval: "30s"
+        timeout: "10s"
     
   stream-bot:
     name: stream-bot
@@ -149,6 +223,23 @@ services:
     health_endpoint: http://localhost:5000/health
     health_check_type: http
     startup_order: 3
+    discovery:
+      traefik_labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.stream-bot.rule=Host(`stream.rig-city.com`)"
+        - "traefik.http.routers.stream-bot.entrypoints=websecure"
+        - "traefik.http.routers.stream-bot.tls=true"
+        - "traefik.http.routers.stream-bot.tls.certresolver=cloudflare"
+        - "traefik.http.services.stream-bot.loadbalancer.server.port=5000"
+      consul_tags:
+        - "bot"
+        - "streaming"
+        - "web"
+        - "ai"
+      health_check:
+        http: "http://localhost:5000/health"
+        interval: "30s"
+        timeout: "10s"
     
   # ============================================
   # WEB APPLICATIONS
@@ -168,6 +259,7 @@ services:
     domains:
       - evindrake.net
       - dashboard.evindrake.net
+      - host.evindrake.net
     placement: local_or_remote
     health_endpoint: http://localhost:8080/
     health_check_type: http
@@ -175,6 +267,24 @@ services:
     volumes:
       - /var/run/docker.sock (required for container management)
       - /var/www (web serving)
+    discovery:
+      traefik_labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.dashboard.rule=Host(`host.evindrake.net`) || Host(`dashboard.evindrake.net`)"
+        - "traefik.http.routers.dashboard.entrypoints=websecure"
+        - "traefik.http.routers.dashboard.tls=true"
+        - "traefik.http.routers.dashboard.tls.certresolver=cloudflare"
+        - "traefik.http.services.dashboard.loadbalancer.server.port=8080"
+        - "traefik.http.middlewares.dashboard-nocache.headers.customresponseheaders.Cache-Control=no-cache, no-store, must-revalidate"
+        - "traefik.http.routers.dashboard.middlewares=dashboard-nocache"
+      consul_tags:
+        - "web"
+        - "dashboard"
+        - "admin"
+      health_check:
+        http: "http://localhost:8080/"
+        interval: "30s"
+        timeout: "10s"
     
   n8n:
     name: n8n
@@ -193,6 +303,22 @@ services:
     health_endpoint: http://localhost:5678/
     health_check_type: http
     startup_order: 3
+    discovery:
+      traefik_labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.n8n.rule=Host(`n8n.evindrake.net`)"
+        - "traefik.http.routers.n8n.entrypoints=websecure"
+        - "traefik.http.routers.n8n.tls=true"
+        - "traefik.http.routers.n8n.tls.certresolver=cloudflare"
+        - "traefik.http.services.n8n.loadbalancer.server.port=5678"
+      consul_tags:
+        - "web"
+        - "automation"
+        - "admin"
+      health_check:
+        http: "http://localhost:5678/"
+        interval: "30s"
+        timeout: "10s"
     
   homeassistant:
     name: homeassistant
@@ -311,6 +437,22 @@ services:
     health_endpoint: http://localhost:6079/
     health_check_type: http
     startup_order: 3
+    discovery:
+      traefik_labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.vnc.rule=Host(`vnc.evindrake.net`)"
+        - "traefik.http.routers.vnc.entrypoints=websecure"
+        - "traefik.http.routers.vnc.tls=true"
+        - "traefik.http.routers.vnc.tls.certresolver=cloudflare"
+        - "traefik.http.services.vnc.loadbalancer.server.port=6079"
+      consul_tags:
+        - "development"
+        - "vnc"
+        - "remote-desktop"
+      health_check:
+        http: "http://localhost:6079/"
+        interval: "30s"
+        timeout: "10s"
     
   code-server:
     name: code-server
@@ -329,6 +471,23 @@ services:
     health_endpoint: https://localhost:8443/healthz
     health_check_type: http
     startup_order: 3
+    discovery:
+      traefik_labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.code-server.rule=Host(`code.evindrake.net`)"
+        - "traefik.http.routers.code-server.entrypoints=websecure"
+        - "traefik.http.routers.code-server.tls=true"
+        - "traefik.http.routers.code-server.tls.certresolver=cloudflare"
+        - "traefik.http.services.code-server.loadbalancer.server.port=8443"
+        - "traefik.http.services.code-server.loadbalancer.server.scheme=https"
+      consul_tags:
+        - "development"
+        - "ide"
+        - "vscode"
+      health_check:
+        http: "https://localhost:8443/healthz"
+        interval: "30s"
+        timeout: "10s"
 
 # Deployment Patterns
 deployment_patterns:

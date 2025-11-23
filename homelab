@@ -1305,9 +1305,335 @@ services_cmd() {
                 echo -e "${RED}Service catalog not found${NC}"
             fi
             ;;
+        discover)
+            echo -e "\n${CYAN}═══ Discovered Services (Consul) ═══${NC}\n"
+            
+            if docker ps --format "{{.Names}}" | grep -q "^consul-server$"; then
+                if command -v jq &> /dev/null; then
+                    curl -s http://localhost:8500/v1/catalog/services 2>/dev/null | jq -r 'to_entries[] | "\(.key) (tags: \(.value | join(", ")))"' || echo "No services registered"
+                else
+                    curl -s http://localhost:8500/v1/catalog/services 2>/dev/null || echo "No services registered"
+                fi
+            else
+                echo -e "${YELLOW}⚠ Consul not running${NC}"
+                echo "Start Consul: docker compose -f orchestration/compose.consul.yml up -d"
+            fi
+            ;;
         *)
             echo -e "${RED}Unknown subcommand: $subcmd${NC}"
-            echo "Usage: ./homelab services [list|deps|catalog]"
+            echo "Usage: ./homelab services [list|deps|catalog|discover]"
+            return 1
+            ;;
+    esac
+}
+
+# ============================================
+# ROUTES COMMAND - Show Traefik Routes
+# ============================================
+routes_cmd() {
+    local subcmd="${1:-list}"
+    
+    case "$subcmd" in
+        list)
+            echo -e "\n${CYAN}═══ Traefik Routes ═══${NC}\n"
+            
+            if docker ps --format "{{.Names}}" | grep -q "^traefik$"; then
+                echo "Fetching routes from Traefik API..."
+                echo ""
+                
+                if command -v jq &> /dev/null; then
+                    echo -e "${CYAN}HTTP Routers:${NC}"
+                    curl -s http://localhost:8080/api/http/routers 2>/dev/null | jq -r '.[] | "  \(.name): \(.rule) -> \(.service)"' || echo "  No HTTP routers"
+                    
+                    echo ""
+                    echo -e "${CYAN}Services:${NC}"
+                    curl -s http://localhost:8080/api/http/services 2>/dev/null | jq -r '.[] | "  \(.name): \(.loadBalancer.servers[0].url // "no backend")"' || echo "  No services"
+                else
+                    echo "Install jq for formatted output: sudo apt install jq"
+                    curl -s http://localhost:8080/api/http/routers 2>/dev/null || echo "No routes"
+                fi
+            else
+                echo -e "${YELLOW}⚠ Traefik not running${NC}"
+                echo "Start Traefik: docker compose -f orchestration/compose.traefik.yml up -d"
+            fi
+            ;;
+        *)
+            echo -e "${RED}Unknown subcommand: $subcmd${NC}"
+            echo "Usage: ./homelab routes [list]"
+            return 1
+            ;;
+    esac
+}
+
+# ============================================
+# DATABASE COMMAND - Phase 4 Database Management
+# ============================================
+db_cmd() {
+    local subcmd="${1:-status}"
+    
+    case "$subcmd" in
+        status)
+            echo -e "\n${CYAN}═══ Database Platform Status ═══${NC}\n"
+            
+            # PostgreSQL Status
+            echo -e "${CYAN}[1/4] PostgreSQL Database${NC}"
+            if is_running "homelab-postgres"; then
+                if docker exec homelab-postgres pg_isready -U postgres &>/dev/null; then
+                    echo -e "  ${GREEN}✓${NC} PostgreSQL responding"
+                    
+                    # List databases
+                    echo -e "\n  ${CYAN}Databases:${NC}"
+                    docker exec homelab-postgres psql -U postgres -lqt 2>/dev/null | cut -d \| -f 1 | grep -v "^$" | grep -v "template" | while read db; do
+                        echo "    - $db"
+                    done
+                else
+                    echo -e "  ${RED}✗${NC} PostgreSQL not responding"
+                fi
+            else
+                echo -e "  ${RED}✗${NC} PostgreSQL container not running"
+            fi
+            
+            # pgBouncer Status
+            echo -e "\n${CYAN}[2/4] pgBouncer Connection Pooler${NC}"
+            if is_running "homelab-pgbouncer"; then
+                echo -e "  ${GREEN}✓${NC} pgBouncer running on port 6432"
+                echo -e "  ${CYAN}Pool Stats:${NC}"
+                docker exec homelab-pgbouncer psql -h localhost -p 6432 -U postgres -d pgbouncer -c "SHOW POOLS;" 2>/dev/null || echo "    Unable to fetch stats"
+            else
+                echo -e "  ${YELLOW}⚠${NC} pgBouncer not running (optional)"
+            fi
+            
+            # pgBackRest Status
+            echo -e "\n${CYAN}[3/4] pgBackRest Backup Service${NC}"
+            if is_running "homelab-pgbackrest"; then
+                echo -e "  ${GREEN}✓${NC} pgBackRest running"
+                echo -e "  ${CYAN}Backup Info:${NC}"
+                docker exec homelab-pgbackrest pgbackrest --stanza=homelab info 2>/dev/null || echo "    No backups yet"
+            else
+                echo -e "  ${YELLOW}⚠${NC} pgBackRest not running (optional)"
+            fi
+            
+            # Backup Scheduler Status
+            echo -e "\n${CYAN}[4/4] Backup Scheduler${NC}"
+            if is_running "homelab-backup-scheduler"; then
+                echo -e "  ${GREEN}✓${NC} Backup scheduler running"
+                echo -e "  ${CYAN}Schedule:${NC}"
+                echo "    Full backup: Daily at 2 AM"
+                echo "    Incremental: Every hour"
+            else
+                echo -e "  ${YELLOW}⚠${NC} Backup scheduler not running (optional)"
+            fi
+            ;;
+            
+        backup)
+            echo -e "\n${CYAN}═══ Manual Database Backup ═══${NC}\n"
+            
+            if ! is_running "homelab-pgbackrest"; then
+                echo -e "${RED}✗ pgBackRest not running${NC}"
+                echo "Start with: ./homelab deploy database"
+                return 1
+            fi
+            
+            local backup_type="${2:-full}"
+            echo "Starting $backup_type backup..."
+            docker exec homelab-pgbackrest pgbackrest --stanza=homelab --type=$backup_type backup
+            
+            if [ $? -eq 0 ]; then
+                echo -e "\n${GREEN}✓ Backup completed successfully${NC}"
+                echo ""
+                ./homelab db list-backups
+            else
+                echo -e "\n${RED}✗ Backup failed${NC}"
+                return 1
+            fi
+            ;;
+            
+        restore)
+            local backup_id="$2"
+            
+            if [ -z "$backup_id" ]; then
+                echo -e "${RED}Error: Backup ID required${NC}"
+                echo "Usage: ./homelab db restore <backup-id>"
+                echo ""
+                echo "Available backups:"
+                ./homelab db list-backups
+                return 1
+            fi
+            
+            echo -e "\n${RED}⚠ WARNING: This will restore the database!${NC}"
+            echo "This will stop all services and restore from backup."
+            read -p "Are you sure? (yes/no): " confirm
+            
+            if [ "$confirm" != "yes" ]; then
+                echo "Restore cancelled"
+                return 0
+            fi
+            
+            echo -e "\n${CYAN}Stopping services...${NC}"
+            compose down
+            
+            echo -e "${CYAN}Restoring database from $backup_id...${NC}"
+            docker exec homelab-pgbackrest pgbackrest --stanza=homelab --set=$backup_id restore
+            
+            if [ $? -eq 0 ]; then
+                echo -e "\n${GREEN}✓ Restore completed${NC}"
+                echo "Restarting services..."
+                ./homelab fix
+            else
+                echo -e "\n${RED}✗ Restore failed${NC}"
+                return 1
+            fi
+            ;;
+            
+        list-backups)
+            echo -e "\n${CYAN}═══ Available Backups ═══${NC}\n"
+            
+            if ! is_running "homelab-pgbackrest"; then
+                echo -e "${YELLOW}⚠ pgBackRest not running${NC}"
+                echo "No backups available"
+                return 0
+            fi
+            
+            docker exec homelab-pgbackrest pgbackrest --stanza=homelab info
+            ;;
+            
+        migrate)
+            local service="$2"
+            
+            if [ -z "$service" ]; then
+                echo -e "${RED}Error: Service name required${NC}"
+                echo "Usage: ./homelab db migrate <service>"
+                echo ""
+                echo "Available services:"
+                echo "  - dashboard (Alembic migrations)"
+                echo "  - discord-bot (Drizzle migrations)"
+                echo "  - stream-bot (Drizzle migrations)"
+                return 1
+            fi
+            
+            echo -e "\n${CYAN}═══ Running Migrations for $service ═══${NC}\n"
+            
+            case "$service" in
+                dashboard)
+                    if is_running "homelab-dashboard"; then
+                        docker exec homelab-dashboard alembic upgrade head
+                    else
+                        echo -e "${RED}✗ Dashboard not running${NC}"
+                        return 1
+                    fi
+                    ;;
+                discord-bot)
+                    if is_running "discord-bot"; then
+                        docker exec discord-bot npm run db:push
+                    else
+                        echo -e "${RED}✗ Discord bot not running${NC}"
+                        return 1
+                    fi
+                    ;;
+                stream-bot)
+                    if is_running "stream-bot"; then
+                        docker exec stream-bot npm run db:push
+                    else
+                        echo -e "${RED}✗ Stream bot not running${NC}"
+                        return 1
+                    fi
+                    ;;
+                *)
+                    echo -e "${RED}Unknown service: $service${NC}"
+                    return 1
+                    ;;
+            esac
+            
+            if [ $? -eq 0 ]; then
+                echo -e "\n${GREEN}✓ Migrations completed${NC}"
+            else
+                echo -e "\n${RED}✗ Migrations failed${NC}"
+                return 1
+            fi
+            ;;
+            
+        help|*)
+            cat << 'EOF'
+╔════════════════════════════════════════════════════════╗
+║          DATABASE MANAGEMENT (Phase 4)                 ║
+╚════════════════════════════════════════════════════════╝
+
+COMMANDS:
+  ./homelab db status                - Show database platform status
+  ./homelab db backup [type]         - Trigger manual backup (full|incr|diff)
+  ./homelab db restore <backup-id>   - Restore from backup
+  ./homelab db list-backups          - List available backups
+  ./homelab db migrate <service>     - Run migrations for service
+
+EXAMPLES:
+  ./homelab db status                      # Show database health
+  ./homelab db backup full                 # Full backup now
+  ./homelab db backup incr                 # Incremental backup
+  ./homelab db list-backups                # List backups
+  ./homelab db restore 20251123-120000F    # Restore from backup
+  ./homelab db migrate dashboard           # Run dashboard migrations
+  ./homelab db migrate discord-bot         # Run Discord bot migrations
+
+FEATURES:
+  - pgBouncer: Connection pooling on port 6432
+  - pgBackRest: Automated backups to MinIO
+  - WAL Archiving: Point-in-time recovery
+  - Automated Schedules: Daily full + hourly incremental
+
+See orchestration/PHASE4_DATABASE_UPGRADE.md for details.
+EOF
+            ;;
+    esac
+}
+
+# ============================================
+# NETWORK COMMAND - Tailscale Network Info
+# ============================================
+network_cmd() {
+    local subcmd="${1:-status}"
+    
+    case "$subcmd" in
+        status)
+            echo -e "\n${CYAN}═══ Network Status ═══${NC}\n"
+            
+            if command -v tailscale &> /dev/null; then
+                echo -e "${CYAN}Tailscale Status:${NC}"
+                tailscale status 2>/dev/null || echo "Not connected"
+            elif docker ps --format "{{.Names}}" | grep -q "^tailscale$"; then
+                echo -e "${CYAN}Tailscale Status (Container):${NC}"
+                docker exec tailscale tailscale status 2>/dev/null || echo "Not connected"
+            else
+                echo -e "${YELLOW}⚠ Tailscale not installed${NC}"
+                echo "Install: curl -fsSL https://tailscale.com/install.sh | sh"
+                echo "Or see: orchestration/TAILSCALE_SETUP.md"
+            fi
+            ;;
+        peers)
+            echo -e "\n${CYAN}═══ Tailscale Network Peers ═══${NC}\n"
+            
+            if command -v tailscale &> /dev/null; then
+                tailscale status 2>/dev/null | grep -v "^#" || echo "No peers"
+            elif docker ps --format "{{.Names}}" | grep -q "^tailscale$"; then
+                docker exec tailscale tailscale status 2>/dev/null | grep -v "^#" || echo "No peers"
+            else
+                echo -e "${YELLOW}⚠ Tailscale not installed${NC}"
+            fi
+            ;;
+        routes)
+            echo -e "\n${CYAN}═══ Tailscale Routes ═══${NC}\n"
+            
+            if command -v tailscale &> /dev/null; then
+                echo -e "${CYAN}Advertised Routes:${NC}"
+                tailscale status --json 2>/dev/null | grep -o '"AdvertiseRoutes":\[.*\]' || echo "No routes advertised"
+            elif docker ps --format "{{.Names}}" | grep -q "^tailscale$"; then
+                docker exec tailscale tailscale status --json 2>/dev/null | grep -o '"AdvertiseRoutes":\[.*\]' || echo "No routes advertised"
+            else
+                echo -e "${YELLOW}⚠ Tailscale not installed${NC}"
+            fi
+            ;;
+        *)
+            echo -e "${RED}Unknown subcommand: $subcmd${NC}"
+            echo "Usage: ./homelab network [status|peers|routes]"
             return 1
             ;;
     esac
@@ -1407,6 +1733,18 @@ case "${1:-help}" in
         shift
         services_cmd "$@"
         ;;
+    routes)
+        shift
+        routes_cmd "$@"
+        ;;
+    network)
+        shift
+        network_cmd "$@"
+        ;;
+    db)
+        shift
+        db_cmd "$@"
+        ;;
     config)
         shift
         case "${1:-help}" in
@@ -1455,6 +1793,20 @@ MODULAR DEPLOYMENT (Phase 2):
   services list         - List all available services & groups
   services deps <svc>   - Show service dependencies
   services catalog      - View full service catalog
+  services discover     - Show services registered with Consul
+
+SERVICE DISCOVERY (Phase 3):
+  routes list           - Show Traefik routing configuration
+  network status        - Show Tailscale network status
+  network peers         - Show Tailscale network peers
+  network routes        - Show Tailscale advertised routes
+
+DATABASE MANAGEMENT (Phase 4):
+  db status             - Show database platform status (postgres, pgbouncer, backups)
+  db backup [type]      - Trigger manual backup (full, incremental, differential)
+  db restore <id>       - Restore database from backup
+  db list-backups       - List all available backups
+  db migrate <service>  - Run migrations for specific service
 
 HEALTH & DIAGNOSTICS:
   health           - Comprehensive health checks (DB, API, disk, memory)

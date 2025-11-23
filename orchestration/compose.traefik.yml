@@ -1,0 +1,127 @@
+# ============================================
+# TRAEFIK REVERSE PROXY
+# Phase 3: Service Discovery & Networking
+# ============================================
+# Dynamic reverse proxy with:
+# - Docker provider (auto-discovers services via labels)
+# - Consul provider (watches Consul catalog)
+# - Let's Encrypt automatic HTTPS
+# - Cloudflare DNS challenge for wildcard certs
+
+networks:
+  homelab:
+    external: true
+
+volumes:
+  traefik_data:
+
+services:
+  # ============================================
+  # Traefik - Dynamic Reverse Proxy
+  # ============================================
+  traefik:
+    image: traefik:v2.11
+    container_name: traefik
+    restart: unless-stopped
+    networks:
+      - homelab
+    ports:
+      - "80:80"       # HTTP
+      - "443:443"     # HTTPS
+      - "8080:8080"   # Dashboard (should be secured)
+    command:
+      # Global configuration
+      - "--global.checkNewVersion=true"
+      - "--global.sendAnonymousUsage=false"
+      
+      # API and Dashboard
+      - "--api.dashboard=true"
+      - "--api.insecure=false"  # Dashboard secured via router
+      
+      # Entry points
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.traefik.address=:8080"
+      
+      # HTTP to HTTPS redirect
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--entrypoints.web.http.redirections.entrypoint.permanent=true"
+      
+      # Docker provider (watches Docker labels)
+      - "--providers.docker=true"
+      - "--providers.docker.network=homelab"
+      - "--providers.docker.exposedByDefault=false"
+      - "--providers.docker.watch=true"
+      
+      # Consul provider (watches Consul catalog)
+      - "--providers.consulcatalog=true"
+      - "--providers.consulcatalog.endpoint.address=consul-server:8500"
+      - "--providers.consulcatalog.exposedByDefault=false"
+      - "--providers.consulcatalog.prefix=traefik"
+      - "--providers.consulcatalog.watch=true"
+      
+      # Let's Encrypt with Cloudflare DNS challenge
+      - "--certificatesresolvers.cloudflare.acme.email=${LETSENCRYPT_EMAIL}"
+      - "--certificatesresolvers.cloudflare.acme.storage=/data/acme.json"
+      - "--certificatesresolvers.cloudflare.acme.dnschallenge=true"
+      - "--certificatesresolvers.cloudflare.acme.dnschallenge.provider=cloudflare"
+      - "--certificatesresolvers.cloudflare.acme.dnschallenge.resolvers=1.1.1.1:53,8.8.8.8:53"
+      
+      # Logging
+      - "--log.level=INFO"
+      - "--accesslog=true"
+      - "--accesslog.filepath=/data/access.log"
+      - "--accesslog.bufferingsize=100"
+    
+    environment:
+      - CF_API_EMAIL=${CLOUDFLARE_EMAIL}
+      - CF_DNS_API_TOKEN=${CLOUDFLARE_DNS_API_TOKEN}
+      - CF_ZONE_API_TOKEN=${CLOUDFLARE_ZONE_API_TOKEN}
+    
+    labels:
+      # Enable Traefik for its own dashboard
+      - "traefik.enable=true"
+      
+      # Dashboard router
+      - "traefik.http.routers.traefik-dashboard.rule=Host(`traefik.evindrake.net`)"
+      - "traefik.http.routers.traefik-dashboard.entrypoints=websecure"
+      - "traefik.http.routers.traefik-dashboard.tls=true"
+      - "traefik.http.routers.traefik-dashboard.tls.certresolver=cloudflare"
+      - "traefik.http.routers.traefik-dashboard.service=api@internal"
+      
+      # Basic auth for dashboard (generate with: htpasswd -nb user password)
+      - "traefik.http.routers.traefik-dashboard.middlewares=dashboard-auth"
+      - "traefik.http.middlewares.dashboard-auth.basicauth.users=${TRAEFIK_DASHBOARD_AUTH}"
+    
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik_data:/data
+    
+    depends_on:
+      - consul-server
+    
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ============================================
+  # Whoami - Test Service for Traefik
+  # ============================================
+  # Simple test service to verify Traefik routing
+  whoami:
+    image: traefik/whoami:latest
+    container_name: whoami
+    restart: unless-stopped
+    networks:
+      - homelab
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.whoami.rule=Host(`whoami.evindrake.net`)"
+      - "traefik.http.routers.whoami.entrypoints=websecure"
+      - "traefik.http.routers.whoami.tls=true"
+      - "traefik.http.routers.whoami.tls.certresolver=cloudflare"
+      - "traefik.http.services.whoami.loadbalancer.server.port=80"

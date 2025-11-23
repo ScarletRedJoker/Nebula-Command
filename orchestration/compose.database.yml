@@ -1,0 +1,210 @@
+# ============================================
+# DATABASE PLATFORM BUNDLE
+# Phase 4: Connection Pooling + Automated Backups + WAL Archiving
+# ============================================
+# This bundle adds enterprise-grade database features:
+# - pgBouncer: Connection pooling (reduces overhead)
+# - pgBackRest: Automated backups to MinIO
+# - WAL archiving: Point-in-time recovery
+# ============================================
+
+name: homelab
+
+volumes:
+  postgres_data:
+  postgres_wal:
+  pgbackrest_repo:
+
+services:
+  # ============================================
+  # PostgreSQL Database Server (Enhanced)
+  # ============================================
+  homelab-postgres:
+    image: postgres:16-alpine
+    container_name: homelab-postgres
+    restart: unless-stopped
+    networks:
+      homelab:
+        aliases:
+          - postgres
+    env_file:
+      - ${DEPLOYMENT_PATH}/.env
+      - ${DEPLOYMENT_PATH}/.env.postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: postgres
+      DISCORD_DB_PASSWORD: ${DISCORD_DB_PASSWORD}
+      STREAMBOT_DB_PASSWORD: ${STREAMBOT_DB_PASSWORD}
+      JARVIS_DB_PASSWORD: ${JARVIS_DB_PASSWORD}
+      # WAL archiving configuration
+      POSTGRES_INITDB_ARGS: "-c wal_level=replica -c archive_mode=on -c archive_command='pgbackrest --stanza=homelab archive-push %p'"
+      # Performance tuning for connection pooling
+      POSTGRES_MAX_CONNECTIONS: "200"
+      POSTGRES_SHARED_BUFFERS: "256MB"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - postgres_wal:/var/lib/postgresql/wal
+      - ../config/postgres-init:/docker-entrypoint-initdb.d:ro
+      - pgbackrest_repo:/var/lib/pgbackrest
+    command: >
+      postgres
+      -c wal_level=replica
+      -c archive_mode=on
+      -c archive_command='test ! -f /var/lib/pgbackrest/archive/%f && cp %p /var/lib/pgbackrest/archive/%f'
+      -c max_wal_senders=3
+      -c wal_keep_size=128MB
+      -c shared_buffers=256MB
+      -c max_connections=200
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ============================================
+  # pgBouncer - Connection Pooler
+  # ============================================
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    container_name: homelab-pgbouncer
+    restart: unless-stopped
+    networks:
+      homelab:
+        aliases:
+          - pgbouncer
+    depends_on:
+      homelab-postgres:
+        condition: service_healthy
+    env_file:
+      - ${DEPLOYMENT_PATH}/.env
+      - ${DEPLOYMENT_PATH}/.env.pgbouncer
+    environment:
+      # Database connections
+      DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD}@homelab-postgres:5432/postgres"
+      DB_HOST: homelab-postgres
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      # Pooling configuration
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 1000
+      DEFAULT_POOL_SIZE: 25
+      MIN_POOL_SIZE: 10
+      RESERVE_POOL_SIZE: 5
+      MAX_DB_CONNECTIONS: 100
+      # Database list (auto-configured for all databases)
+      DATABASES: |
+        postgres = host=homelab-postgres port=5432 dbname=postgres
+        ticketbot = host=homelab-postgres port=5432 dbname=ticketbot
+        streambot = host=homelab-postgres port=5432 dbname=streambot
+        homelab_jarvis = host=homelab-postgres port=5432 dbname=homelab_jarvis
+      # User authentication (auto-configured)
+      USERLIST: |
+        "postgres" "${POSTGRES_PASSWORD}"
+        "ticketbot" "${DISCORD_DB_PASSWORD}"
+        "streambot" "${STREAMBOT_DB_PASSWORD}"
+        "jarvis" "${JARVIS_DB_PASSWORD}"
+      # Logging
+      LOG_CONNECTIONS: 1
+      LOG_DISCONNECTIONS: 1
+      LOG_POOLER_ERRORS: 1
+    ports:
+      - "6432:6432"
+    healthcheck:
+      test: ["CMD-SHELL", "psql -h localhost -p 6432 -U postgres -d postgres -c 'SELECT 1' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # ============================================
+  # pgBackRest - Backup Service
+  # ============================================
+  pgbackrest:
+    image: pgbackrest/pgbackrest:latest
+    container_name: homelab-pgbackrest
+    restart: unless-stopped
+    networks:
+      - homelab
+    depends_on:
+      homelab-postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    env_file:
+      - ${DEPLOYMENT_PATH}/.env
+      - ${DEPLOYMENT_PATH}/.env.pgbackrest
+    environment:
+      # PostgreSQL connection
+      PGBACKREST_REPO1_S3_ENDPOINT: minio:9000
+      PGBACKREST_REPO1_S3_BUCKET: homelab-backups
+      PGBACKREST_REPO1_S3_REGION: us-east-1
+      PGBACKREST_REPO1_S3_KEY: ${MINIO_ROOT_USER:-admin}
+      PGBACKREST_REPO1_S3_KEY_SECRET: ${MINIO_ROOT_PASSWORD:-minio_admin_password}
+      PGBACKREST_REPO1_S3_VERIFY_TLS: "n"
+      PGBACKREST_REPO1_PATH: /pgbackrest
+      PGBACKREST_REPO1_TYPE: s3
+      # Stanza configuration
+      PGBACKREST_STANZA: homelab
+      PGBACKREST_PG1_HOST: homelab-postgres
+      PGBACKREST_PG1_PORT: 5432
+      PGBACKREST_PG1_USER: postgres
+      PGBACKREST_PG1_DATABASE: postgres
+      PGBACKREST_PG1_PATH: /var/lib/postgresql/data
+      # Backup configuration
+      PGBACKREST_RETENTION_FULL: 7
+      PGBACKREST_RETENTION_DIFF: 4
+      PGBACKREST_LOG_LEVEL_CONSOLE: info
+      PGBACKREST_LOG_LEVEL_FILE: detail
+      PGBACKREST_PROCESS_MAX: 4
+      # Archive configuration
+      PGBACKREST_ARCHIVE_ASYNC: "y"
+      PGBACKREST_ARCHIVE_PUSH_QUEUE_MAX: 1GB
+    volumes:
+      - postgres_data:/var/lib/postgresql/data:ro
+      - pgbackrest_repo:/var/lib/pgbackrest
+      - ../config/pgbackrest:/etc/pgbackrest:ro
+    command: >
+      sh -c "
+      # Initialize stanza if not exists
+      pgbackrest --stanza=homelab stanza-create || true &&
+      # Initial full backup
+      pgbackrest --stanza=homelab --type=full backup || true &&
+      # Keep container running for scheduled backups
+      tail -f /dev/null
+      "
+    healthcheck:
+      test: ["CMD-SHELL", "pgbackrest info --stanza=homelab || exit 1"]
+      interval: 5m
+      timeout: 30s
+      retries: 3
+      start_period: 2m
+
+  # ============================================
+  # Backup Scheduler (Cron)
+  # ============================================
+  backup-scheduler:
+    image: alpine:latest
+    container_name: homelab-backup-scheduler
+    restart: unless-stopped
+    networks:
+      - homelab
+    depends_on:
+      pgbackrest:
+        condition: service_healthy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: >
+      sh -c "
+      apk add --no-cache dcron docker-cli &&
+      echo '0 2 * * * docker exec homelab-pgbackrest pgbackrest --stanza=homelab --type=full backup' > /etc/crontabs/root &&
+      echo '0 */1 * * * docker exec homelab-pgbackrest pgbackrest --stanza=homelab --type=incr backup' >> /etc/crontabs/root &&
+      crond -f -l 2
+      "
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep crond || exit 1"]
+      interval: 1m
+      timeout: 10s
+      retries: 3
