@@ -109,3 +109,4 @@ deployment/*/                   # Generated environment configs
 config/secrets/base.yaml        # Unencrypted secrets template
 config/secrets/dev.yaml         # Unencrypted dev secrets
 config/secrets/prod.yaml        # Unencrypted prod secrets
+.github/workflows/deploy.yml
