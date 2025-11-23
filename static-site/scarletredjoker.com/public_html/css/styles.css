@@ -10784,7 +10784,22 @@ textarea.form-control-lg {
 .terminal {
   background-color: #000;
   color: #39ff14;
-  font-family:monospace;
+  font-family: monospace;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+@media (max-width: 768px) {
+  .terminal h1 {
+    font-size: 1.5rem !important;
+  }
+  .terminal h5 {
+    font-size: 1.1rem !important;
+  }
+  .terminal body {
+    font-size: 1rem !important;
+  }
 }
 input[type=text], select, textarea {
   width: 100%; /* Full width */
