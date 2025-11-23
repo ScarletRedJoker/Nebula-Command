@@ -7,14 +7,14 @@
 # ============================================
 
 include:
-  - compose.base.yml
-  - compose.database.yml
-  - compose.traefik.yml
-  - compose.auth.yml
-  - compose.dashboard.yml
-  - compose.discord.yml
-  - compose.stream.yml
-  - compose.automation.yml
-  - compose.web.yml
-  - compose.dns.yml
-  - compose.observability.yml
+  - orchestration/compose.base.yml
+  - orchestration/compose.database.yml
+  - orchestration/compose.traefik.yml
+  - orchestration/compose.auth.yml
+  - orchestration/compose.dashboard.yml
+  - orchestration/compose.discord.yml
+  - orchestration/compose.stream.yml
+  - orchestration/compose.automation.yml
+  - orchestration/compose.web.yml
+  - orchestration/compose.dns.yml
+  - orchestration/compose.observability.yml
