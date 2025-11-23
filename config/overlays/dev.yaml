@@ -1,0 +1,96 @@
+# Development Environment Configuration
+environment: development
+
+# Network Configuration
+postgres_host: localhost
+redis_host: localhost
+minio_host: localhost
+ports:
+  dashboard: 8080
+  discord_bot: 4000
+  stream_bot: 5000
+  postgres: 5432
+  redis: 6379
+  minio: 9000
+  minio_console: 9001
+
+# Domain Configuration (localhost for dev)
+primary_domain: localhost
+domains:
+  dashboard: localhost:8080
+  discord_bot: localhost:4000
+  stream_bot: localhost:5000
+  n8n: localhost:5678
+  static_site: localhost:8081
+  rig_city: localhost:8082
+  plex: localhost:32400
+  vnc: localhost:6080
+  code_server: localhost:8443
+  homeassistant: localhost:8123
+
+# URLs (HTTP for local dev)
+dashboard_url: http://localhost:8080
+discord_bot_url: http://localhost:4000
+stream_bot_url: http://localhost:5000
+n8n_url: http://localhost:5678
+static_site_url: http://localhost:8081
+plex_url: http://localhost:32400
+
+# OAuth Redirect URIs (localhost)
+redirect_uris:
+  discord: http://localhost:4000/auth/discord/callback
+  twitch: http://localhost:5000/api/auth/twitch/callback
+  youtube: http://localhost:5000/api/auth/youtube/callback
+  spotify: http://localhost:5000/api/auth/spotify/callback
+  kick: http://localhost:5000/api/auth/kick/callback
+
+# Service Configuration
+service_user: ${USER}
+flask_env: development
+flask_debug: true
+node_env: development
+streambot_node_env: development
+
+# AI Configuration
+ai_model: gpt-3.5-turbo
+openai_base_url: https://api.openai.com/v1
+
+# MinIO Configuration
+minio_use_ssl: false
+minio_bucket_name: homelab-uploads-dev
+
+# Home Assistant
+home_assistant_url: http://localhost:8123
+home_assistant_verify_ssl: false
+
+# Google Services
+google_token_cache_ttl: 300
+calendar_poll_interval_minutes: 5
+calendar_lead_time_minutes: 10
+gmail_from_name: Homelab Dashboard (Dev)
+drive_backup_folder_name: Homelab Backups (Dev)
+drive_backup_retention_days: 7
+drive_auto_backup_enabled: false
+
+# Plex Media Paths
+plex_media_path: /home/${USER}/homelab/media
+
+# NAS Configuration
+nas_hostname: zyxel-nas326-dev
+nas_mount_base: /mnt/nas-dev
+
+# WebSocket URLs
+vite_custom_ws_url: ws://localhost:4000/ws
+
+# Database URLs (auto-built in templates)
+# Just define the components here
+db_config:
+  ticketbot:
+    user: ticketbot
+    db: ticketbot
+  streambot:
+    user: streambot
+    db: streambot
+  jarvis:
+    user: jarvis
+    db: homelab_jarvis

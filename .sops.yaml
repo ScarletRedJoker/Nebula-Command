@@ -1,0 +1,10 @@
+# SOPS Configuration - Age Encryption
+# Automatically encrypts files matching these patterns
+creation_rules:
+  # Encrypt all YAML files in config/secrets/
+  - path_regex: config/secrets/.*\.yaml$
+    age: age1waux0xs07gnp50xspsspxksvkxdmxfywtj5699ck4kcvcs56rdesdmgclr
+  
+  # Also support JSON format if needed
+  - path_regex: config/secrets/.*\.json$
+    age: age1waux0xs07gnp50xspsspxksvkxdmxfywtj5699ck4kcvcs56rdesdmgclr

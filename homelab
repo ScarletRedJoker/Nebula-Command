@@ -857,6 +857,82 @@ test_services() {
 }
 
 # ============================================
+# CONFIG MANAGEMENT COMMANDS
+# ============================================
+
+config_generate() {
+    local env=$1
+    local host=$2
+    
+    if [ -z "$env" ] || [ -z "$host" ]; then
+        echo -e "${RED}Usage: ./homelab config generate <env> <host>${NC}"
+        echo "Examples:"
+        echo "  ./homelab config generate dev localhost"
+        echo "  ./homelab config generate prod evindrake.net"
+        exit 1
+    fi
+    
+    echo -e "${CYAN}═══ Generating Configuration ═══${NC}\n"
+    python3 "$PROJECT_ROOT/config/scripts/generate-config.py" --env "$env" --host "$host"
+}
+
+config_validate() {
+    local env=$1
+    local host=$2
+    
+    if [ -z "$env" ] || [ -z "$host" ]; then
+        echo -e "${RED}Usage: ./homelab config validate <env> <host>${NC}"
+        echo "Examples:"
+        echo "  ./homelab config validate dev localhost"
+        echo "  ./homelab config validate prod evindrake.net"
+        exit 1
+    fi
+    
+    echo -e "${CYAN}═══ Validating Configuration ═══${NC}\n"
+    python3 "$PROJECT_ROOT/config/scripts/validate-config.py" --env "$env" --host "$host"
+}
+
+config_encrypt() {
+    echo -e "${CYAN}═══ Encrypting Secrets ═══${NC}\n"
+    "$PROJECT_ROOT/config/scripts/encrypt-secrets.sh"
+}
+
+config_help() {
+    cat << 'EOF'
+╔════════════════════════════════════════════════════════╗
+║         CONFIGURATION MANAGEMENT (SOPS + Age)          ║
+╚════════════════════════════════════════════════════════╝
+
+COMMANDS:
+  ./homelab config generate <env> <host>  - Generate configs
+  ./homelab config validate <env> <host>  - Validate configs
+  ./homelab config encrypt                - Encrypt secrets
+
+EXAMPLES:
+  # Development
+  ./homelab config generate dev localhost
+  ./homelab config validate dev localhost
+
+  # Production
+  ./homelab config generate prod evindrake.net
+  ./homelab config validate prod evindrake.net
+  ./homelab config generate prod rig-city.com
+
+  # Encrypt secrets after editing
+  sops config/secrets/base.enc.yaml  # Edit secrets
+  ./homelab config encrypt           # Re-encrypt
+
+WORKFLOW:
+  1. Edit secrets: sops config/secrets/base.enc.yaml
+  2. Generate config: ./homelab config generate prod evindrake.net
+  3. Validate: ./homelab config validate prod evindrake.net
+  4. Deploy: Copy deployment/prod/evindrake_net/.env to server
+
+See config/README.md for complete documentation.
+EOF
+}
+
+# ============================================
 # MAIN
 # ============================================
 case "${1:-help}" in
@@ -903,6 +979,25 @@ case "${1:-help}" in
     test)
         test_services
         ;;
+    config)
+        shift
+        case "${1:-help}" in
+            generate)
+                shift
+                config_generate "$@"
+                ;;
+            validate)
+                shift
+                config_validate "$@"
+                ;;
+            encrypt)
+                config_encrypt
+                ;;
+            *)
+                config_help
+                ;;
+        esac
+        ;;
     restart)
         echo "Restarting all services..."
         compose restart
@@ -939,6 +1034,12 @@ OPERATIONS:
   rebuild <svc>    - Rebuild and restart specific service
   clean            - Clean old logs, unused containers/images
   db-shell [db]    - Quick PostgreSQL shell access
+
+CONFIGURATION MANAGEMENT:
+  config generate <env> <host>  - Generate encrypted configs
+  config validate <env> <host>  - Validate generated configs
+  config encrypt                - Encrypt secrets with SOPS
+  config help                   - Show config management help
 
 EXAMPLES:
   ./homelab fix                    # Fix all issues

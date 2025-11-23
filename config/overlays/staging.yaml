@@ -1,0 +1,97 @@
+# Staging Environment Configuration
+# Similar to production but with relaxed settings for testing
+
+environment: staging
+
+# Network Configuration
+postgres_host: homelab-postgres
+redis_host: redis
+minio_host: minio
+ports:
+  dashboard: 8080
+  discord_bot: 4000
+  stream_bot: 5000
+  postgres: 5432
+  redis: 6379
+  minio: 9000
+  minio_console: 9001
+
+# Domain Configuration (staging subdomain)
+primary_domain: staging.${HOST}
+domains:
+  dashboard: staging.${HOST}
+  discord_bot: bot-staging.${HOST}
+  stream_bot: stream-staging.${HOST}
+  n8n: n8n-staging.${HOST}
+  static_site: staging.${HOST}
+  rig_city: rig-city.com
+  plex: plex-staging.${HOST}
+  vnc: vnc-staging.${HOST}
+  code_server: code-staging.${HOST}
+  homeassistant: ha-staging.${HOST}
+
+# URLs (HTTPS for staging)
+dashboard_url: https://staging.${HOST}
+discord_bot_url: https://bot-staging.${HOST}
+stream_bot_url: https://stream-staging.${HOST}
+n8n_url: https://n8n-staging.${HOST}
+static_site_url: https://staging.${HOST}
+plex_url: https://plex-staging.${HOST}
+
+# OAuth Redirect URIs (staging domains)
+redirect_uris:
+  discord: https://bot-staging.${HOST}/auth/discord/callback
+  twitch: https://stream-staging.${HOST}/api/auth/twitch/callback
+  youtube: https://stream-staging.${HOST}/api/auth/youtube/callback
+  spotify: https://stream-staging.${HOST}/api/auth/spotify/callback
+  kick: https://stream-staging.${HOST}/api/auth/kick/callback
+
+# Service Configuration
+service_user: evin
+flask_env: staging
+flask_debug: false
+node_env: production
+streambot_node_env: production
+
+# AI Configuration
+ai_model: gpt-3.5-turbo
+openai_base_url: https://api.openai.com/v1
+
+# MinIO Configuration
+minio_use_ssl: false
+minio_bucket_name: homelab-uploads-staging
+
+# Home Assistant
+home_assistant_url: http://homeassistant:8123
+home_assistant_verify_ssl: false
+
+# Google Services
+google_token_cache_ttl: 300
+calendar_poll_interval_minutes: 5
+calendar_lead_time_minutes: 10
+gmail_from_name: Homelab Dashboard (Staging)
+drive_backup_folder_name: Homelab Backups (Staging)
+drive_backup_retention_days: 14
+drive_auto_backup_enabled: false
+
+# Plex Media Paths
+plex_media_path: /home/evin/contain/HomeLabHub/services/plex/media
+
+# NAS Configuration
+nas_hostname: zyxel-nas326-staging
+nas_mount_base: /mnt/nas-staging
+
+# WebSocket URLs
+vite_custom_ws_url: wss://bot-staging.${HOST}/ws
+
+# Database URLs (auto-built in templates)
+db_config:
+  ticketbot:
+    user: ticketbot
+    db: ticketbot
+  streambot:
+    user: streambot
+    db: streambot
+  jarvis:
+    user: jarvis
+    db: homelab_jarvis

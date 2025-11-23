@@ -1,0 +1,99 @@
+# Production Environment Configuration
+# Parameterized by HOST variable for multi-host deployment
+
+environment: production
+
+# Network Configuration (Docker internal networking)
+postgres_host: homelab-postgres
+redis_host: redis
+minio_host: minio
+ports:
+  dashboard: 8080
+  discord_bot: 4000
+  stream_bot: 5000
+  postgres: 5432
+  redis: 6379
+  minio: 9000
+  minio_console: 9001
+
+# Domain Configuration
+# PRIMARY_DOMAIN is passed as argument (e.g., evindrake.net or rig-city.com)
+primary_domain: ${HOST}
+domains:
+  dashboard: ${HOST}
+  discord_bot: bot.${HOST}
+  stream_bot: stream.${HOST}
+  n8n: n8n.${HOST}
+  static_site: ${HOST}
+  rig_city: rig-city.com
+  plex: plex.${HOST}
+  vnc: vnc.${HOST}
+  code_server: code.${HOST}
+  homeassistant: ha.${HOST}
+
+# URLs (HTTPS for production)
+dashboard_url: https://${HOST}
+discord_bot_url: https://bot.${HOST}
+stream_bot_url: https://stream.${HOST}
+n8n_url: https://n8n.${HOST}
+static_site_url: https://${HOST}
+plex_url: https://plex.${HOST}
+
+# OAuth Redirect URIs (production domains)
+redirect_uris:
+  discord: https://bot.${HOST}/auth/discord/callback
+  twitch: https://stream.${HOST}/api/auth/twitch/callback
+  youtube: https://stream.${HOST}/api/auth/youtube/callback
+  spotify: https://stream.${HOST}/api/auth/spotify/callback
+  kick: https://stream.${HOST}/api/auth/kick/callback
+
+# Service Configuration
+service_user: evin
+flask_env: production
+flask_debug: false
+node_env: production
+streambot_node_env: production
+
+# AI Configuration
+ai_model: gpt-4o-mini
+openai_base_url: https://api.openai.com/v1
+
+# MinIO Configuration
+minio_use_ssl: false
+minio_bucket_name: homelab-uploads
+
+# Home Assistant
+home_assistant_url: http://homeassistant:8123
+home_assistant_verify_ssl: false
+
+# Google Services
+google_token_cache_ttl: 300
+calendar_poll_interval_minutes: 5
+calendar_lead_time_minutes: 10
+gmail_from_name: Homelab Dashboard
+drive_backup_folder_name: Homelab Backups
+drive_backup_retention_days: 30
+drive_auto_backup_enabled: false
+drive_auto_backup_schedule: 0 2 * * *
+
+# Plex Media Paths
+plex_media_path: /home/evin/contain/HomeLabHub/services/plex/media
+
+# NAS Configuration
+nas_hostname: zyxel-nas326
+nas_mount_base: /mnt/nas
+
+# WebSocket URLs
+vite_custom_ws_url: wss://bot.${HOST}/ws
+
+# Database URLs (auto-built in templates)
+db_config:
+  ticketbot:
+    user: ticketbot
+    db: ticketbot
+  streambot:
+    user: streambot
+    db: streambot
+  jarvis:
+    user: jarvis
+    db: homelab_jarvis

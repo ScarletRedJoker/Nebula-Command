@@ -102,3 +102,10 @@ caddy_config/
 # Sync script logs and state
 var/log/
 var/state/
+
+# Configuration Management (SOPS + Age)
+config/keys/                    # Private encryption keys - NEVER COMMIT
+deployment/*/                   # Generated environment configs
+config/secrets/base.yaml        # Unencrypted secrets template
+config/secrets/dev.yaml         # Unencrypted dev secrets
+config/secrets/prod.yaml        # Unencrypted prod secrets
