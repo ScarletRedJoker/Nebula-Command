@@ -20,25 +20,56 @@ The Nebula Command Dashboard is a web-based interface for managing a Ubuntu 25.1
 ./bootstrap-homelab.sh
 ```
 
-This comprehensive, idempotent script:
+This comprehensive, idempotent script **(Enhanced Nov 23, 2025)**:
+- ✅ **Pre-flight checks** - Docker installed, 10GB disk, 4GB RAM
 - ✅ Validates environment (.env file, required variables)
+- ✅ **Creates rollback backup** before deployment
 - ✅ Builds all Docker images without cache
 - ✅ Starts infrastructure (PostgreSQL, Redis, MinIO)
 - ✅ Creates databases & users with proper permissions
 - ✅ Runs dashboard migrations (fixes "relation agents does not exist")
 - ✅ Starts all 15 services
 - ✅ Validates everything actually works (not just runs)
+- ✅ **Automatic rollback** if deployment fails
 
 **Time:** 10-15 minutes | **Idempotent:** Safe to run multiple times
 
 ### Day-to-Day Management: `./homelab`
 
+**Production-Ready Management Script** (Enhanced Nov 23, 2025)
+
 ```bash
-./homelab status    # Show which services are running
-./homelab logs      # View logs (saves to logs/ directory)
-./homelab restart   # Restart services
-./homelab stop      # Stop everything
+# Core Operations
+./homelab fix              # Fix everything and start all services
+./homelab status           # Show which services are running
+./homelab logs [service]   # View logs (auto-saved to logs/ directory)
+./homelab restart          # Restart all services
+./homelab stop             # Stop everything
+
+# Health & Diagnostics (NEW)
+./homelab health           # Comprehensive health checks (DB, APIs, disk, memory)
+./homelab validate-env     # Validate .env file has all required variables
+./homelab debug            # Show detailed debugging information
+./homelab test             # Run integration tests on all services
+
+# Database Operations (NEW)
+./homelab backup           # Backup all databases (auto-rotation, keeps last 10)
+./homelab restore <file>   # Restore from backup (with confirmation)
+./homelab db-shell [db]    # Open PostgreSQL shell (defaults to homelab_jarvis)
+
+# Maintenance (NEW)
+./homelab update           # Git pull and automatic redeploy
+./homelab rebuild <service># Rebuild and restart individual service
+./homelab clean            # Clean old logs, unused containers/images
 ```
+
+**Security Features:**
+- ✅ Secure backup/restore (600 permissions, credential protection)
+- ✅ Path validation (prevents command injection)
+- ✅ Service shutdown during restore (prevents data corruption)
+- ✅ All operations validated by automated security test suite
+
+**See `OPERATIONS_GUIDE.md` for complete documentation**
 
 ## Services (15 Total)
 
