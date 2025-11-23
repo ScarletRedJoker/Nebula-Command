@@ -108,6 +108,16 @@ Each service connects with individual user credentials but all to the same Postg
 
 ## Recent Major Fixes
 
+0. **Database Migration Race Condition Fixed (Nov 23, 2025)** ✅ RESOLVED
+   - Problem: Both dashboard and celery-worker were running migrations simultaneously, causing advisory lock contention and race conditions
+   - Root cause: Celery worker command override bypassed docker-entrypoint.sh, so `RUN_MIGRATIONS=false` was never checked
+   - Solution:
+     - Created `MigrationWaiter` service that polls database for migration completion
+     - Added `worker_process_init` signal handler to celery_app that waits for migrations before starting
+     - Dashboard runs migrations first (SKIP_MIGRATION_WAIT=true), celery worker waits for completion
+     - Prevents concurrent migration attempts and ensures clean sequential bootstrap
+   - Files: `services/dashboard/services/migration_waiter.py`, `services/dashboard/celery_app.py`, `docker-compose.yml`
+
 1. **Jarvis AI Fixed (Nov 22, 2025)** ✅ RESOLVED
    - Problem: Dashboard container not receiving OPENAI_API_KEY from .env
    - Root cause: docker-compose.yml missing `env_file` directive on homelab-dashboard service

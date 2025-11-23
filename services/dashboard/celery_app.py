@@ -3,6 +3,8 @@ from celery.schedules import crontab
 from config import Config
 import logging
 import redis
+import sys
+import os
 from datetime import datetime
 from functools import wraps
 
@@ -185,6 +187,35 @@ def task_retry_handler(sender=None, task_id=None, reason=None, einfo=None, **ext
         'task_name': sender.name,
         'reason': str(reason)
     })
+
+@signals.worker_process_init.connect
+def worker_process_init_handler(sender=None, **extra):
+    """
+    Wait for database migrations to complete before worker starts processing tasks.
+    This prevents race conditions where celery worker tries to access tables that don't exist yet.
+    """
+    logger.info("=" * 60)
+    logger.info("Celery Worker Process Initializing")
+    logger.info("=" * 60)
+    
+    try:
+        from services.migration_waiter import MigrationWaiter
+        
+        waiter = MigrationWaiter(timeout_seconds=300, check_interval=2)
+        
+        if not waiter.wait_for_migrations():
+            logger.error("❌ CRITICAL: Failed to wait for migrations!")
+            logger.error("   Worker cannot start without database migrations complete.")
+            logger.error("   Exiting to prevent data corruption...")
+            sys.exit(1)
+        
+        logger.info("✅ Migration check passed - worker can start safely")
+        logger.info("=" * 60)
+        
+    except Exception as e:
+        logger.error(f"❌ Error during migration wait: {e}", exc_info=True)
+        logger.error("   Worker cannot start - exiting for safety")
+        sys.exit(1)
 
 @signals.worker_ready.connect
 def worker_ready_handler(sender=None, **extra):
