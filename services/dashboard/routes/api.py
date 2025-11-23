@@ -1099,7 +1099,7 @@ def ai_chat():
         {
             "message": str,
             "history": List[Dict] (optional),
-            "model": str (optional, defaults to "gpt-5")
+            "model": str (optional, defaults to "gpt-4o-mini")
         }
     
     Returns:
@@ -1112,7 +1112,7 @@ def ai_chat():
         
         message = data.get('message', '').strip()
         history = data.get('history', [])
-        model = data.get('model', 'gpt-3.5-turbo')
+        model = data.get('model', 'gpt-4o-mini')
         
         if not message:
             return jsonify({'success': False, 'message': 'Message is required'}), 400
@@ -1146,7 +1146,7 @@ def ai_chat_stream():
         {
             "message": str,
             "history": List[Dict] (optional),
-            "model": str (optional, defaults to "gpt-5")
+            "model": str (optional, defaults to "gpt-4o-mini")
         }
     
     Returns:
@@ -1164,7 +1164,7 @@ def ai_chat_stream():
         
         message = data.get('message', '').strip()
         history = data.get('history', [])
-        model = data.get('model', 'gpt-3.5-turbo')
+        model = data.get('model', 'gpt-4o-mini')
         
         if not message:
             def error_stream():

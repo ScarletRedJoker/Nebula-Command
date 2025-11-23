@@ -184,7 +184,7 @@ export class BotService {
 
   async generateFact(): Promise<string> {
     const settings = await storage.getBotSettings();
-    const model = settings?.aiModel || "gpt-5-mini";
+    const model = settings?.aiModel || "gpt-4o-mini";
     const customPrompt = settings?.aiPromptTemplate || undefined;
 
     return await generateSnappleFact(customPrompt, model);

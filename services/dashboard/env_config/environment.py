@@ -13,7 +13,7 @@ class OpenAIConfig:
     """OpenAI API configuration"""
     api_key: str
     base_url: str
-    model: str = "gpt-3.5-turbo"
+    model: str = "gpt-4o-mini"
 
 
 @dataclass
@@ -48,15 +48,14 @@ def get_openai_config() -> OpenAIConfig:
                 "Please set up the OpenAI integration."
             )
         
-        # the newest OpenAI model is "gpt-5" which was released August 7, 2025.
-        # do not change this unless explicitly requested by the user
-        model = os.getenv("AI_MODEL", "gpt-5")
+        # Using gpt-4o for Replit environment
+        model = os.getenv("AI_MODEL", "gpt-4o")
         
     else:
         # Production environment - use self-managed API key
         api_key = os.getenv("OPENAI_API_KEY", "")
         base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
-        model = os.getenv("AI_MODEL", "gpt-3.5-turbo")
+        model = os.getenv("AI_MODEL", "gpt-4o-mini")
         
         if not api_key:
             raise ValueError(

@@ -22,9 +22,8 @@ export class GamesService {
 
   async play8Ball(question: string): Promise<GameResult> {
     try {
-      // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
       const completion = await openai.chat.completions.create({
-        model: "gpt-5-mini",
+        model: "gpt-4o-mini",
         messages: [
           {
             role: "system",
@@ -85,9 +84,8 @@ Generate a unique Magic 8-Ball response to this question.`
         hard: "Generate a difficult trivia question that requires specialized knowledge. Topics: advanced science, obscure history, niche topics."
       };
 
-      // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
       const completion = await openai.chat.completions.create({
-        model: "gpt-5-mini",
+        model: "gpt-4o-mini",
         messages: [
           {
             role: "system",

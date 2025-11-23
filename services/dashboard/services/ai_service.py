@@ -64,10 +64,9 @@ Logs:
 
 Provide a clear, actionable response."""
             
-            # the newest OpenAI model is "gpt-5" which was released August 7, 2025.
-            # do not change this unless explicitly requested by the user
+            # Using gpt-4o-mini (replacement for deprecated gpt-3.5-turbo)
             response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model="gpt-4o-mini",
                 messages=[
                     {"role": "system", "content": "You are an expert DevOps engineer helping troubleshoot server and container issues."},
                     {"role": "user", "content": prompt}
@@ -91,10 +90,9 @@ Issue: {issue_description}
 
 Provide specific troubleshooting steps and potential solutions."""
             
-            # the newest OpenAI model is "gpt-5" which was released August 7, 2025.
-            # do not change this unless explicitly requested by the user
+            # Using gpt-4o-mini (replacement for deprecated gpt-3.5-turbo)
             response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model="gpt-4o-mini",
                 messages=[
                     {"role": "system", "content": "You are an expert homelab administrator helping with Docker, networking, and server management."},
                     {"role": "user", "content": prompt}
@@ -107,10 +105,10 @@ Provide specific troubleshooting steps and potential solutions."""
             logger.error(f"Error getting troubleshooting advice: {e}")
             return f"Error: {str(e)}"
     
-    def chat(self, message: str, conversation_history: Optional[List[Dict[str, Any]]] = None, model: str = "gpt-3.5-turbo") -> str:
+    def chat(self, message: str, conversation_history: Optional[List[Dict[str, Any]]] = None, model: str = "gpt-4o-mini") -> str:
         # Validate and default model parameter
         if not model or not isinstance(model, str):
-            model = "gpt-3.5-turbo"
+            model = "gpt-4o-mini"
         
         # Check if using Ollama model
         if model.startswith("ollama/"):
@@ -166,8 +164,6 @@ Format your responses using Markdown for better readability:
             
             messages.append({"role": "user", "content": message})
             
-            # the newest OpenAI model is "gpt-5" which was released August 7, 2025.
-            # do not change this unless explicitly requested by the user
             response = self.client.chat.completions.create(
                 model=model,
                 messages=messages,
@@ -205,7 +201,7 @@ Format your responses using Markdown for better readability:
         messages.append({"role": "user", "content": message})
         return messages
     
-    def chat_stream(self, message: str, conversation_history: Optional[List[Dict[str, Any]]] = None, model: str = "gpt-3.5-turbo") -> Generator[str, None, None]:
+    def chat_stream(self, message: str, conversation_history: Optional[List[Dict[str, Any]]] = None, model: str = "gpt-4o-mini") -> Generator[str, None, None]:
         """
         Stream chat responses using Server-Sent Events (SSE)
         Supports both OpenAI and Ollama models
@@ -214,7 +210,7 @@ Format your responses using Markdown for better readability:
         """
         # Validate and default model parameter
         if not model or not isinstance(model, str):
-            model = "gpt-3.5-turbo"
+            model = "gpt-4o-mini"
         
         # Detect if using Ollama model (starts with "ollama/")
         if model.startswith("ollama/"):
@@ -308,8 +304,6 @@ Format your responses using Markdown for better readability:
             
             messages.append({"role": "user", "content": message})
             
-            # the newest OpenAI model is "gpt-5" which was released August 7, 2025.
-            # do not change this unless explicitly requested by the user
             stream = self.client.chat.completions.create(
                 model=model,
                 messages=messages,
@@ -337,8 +331,8 @@ Format your responses using Markdown for better readability:
         """
         models = [
             {
-                "id": "gpt-3.5-turbo",
-                "name": "GPT-3.5 Turbo (OpenAI)",
+                "id": "gpt-4o-mini",
+                "name": "GPT-4o Mini (OpenAI)",
                 "description": "Latest OpenAI model (August 2025) - Best for complex reasoning",
                 "provider": "openai"
             },

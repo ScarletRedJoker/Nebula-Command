@@ -453,7 +453,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         settings = await storage.createBotSettings(req.user!.id, {
           userId: req.user!.id,
           intervalMode: "manual",
-          aiModel: "gpt-5-mini",
+          aiModel: "gpt-4o-mini",
           enableChatTriggers: true,
           chatKeywords: ["!snapple", "!fact"],
           activePlatforms: [],

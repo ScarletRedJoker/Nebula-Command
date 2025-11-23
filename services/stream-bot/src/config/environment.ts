@@ -46,9 +46,8 @@ export function getOpenAIConfig(): OpenAIConfig {
       );
     }
 
-    // the newest OpenAI model is "gpt-5" which was released August 7, 2025.
-    // do not change this unless explicitly requested by the user
-    const model = process.env.STREAMBOT_FACT_MODEL || "gpt-5";
+    // Using gpt-4o for Replit environment (gpt-5 not available in production)
+    const model = process.env.STREAMBOT_FACT_MODEL || "gpt-4o";
 
     return { apiKey, baseURL, model };
   } else {
@@ -58,7 +57,7 @@ export function getOpenAIConfig(): OpenAIConfig {
       process.env.OPENAI_BASE_URL ||
       process.env.STREAMBOT_OPENAI_BASE_URL ||
       "https://api.openai.com/v1";
-    const model = process.env.STREAMBOT_FACT_MODEL || "gpt-3.5-turbo";
+    const model = process.env.STREAMBOT_FACT_MODEL || "gpt-4o-mini";
 
     if (!apiKey) {
       throw new Error(

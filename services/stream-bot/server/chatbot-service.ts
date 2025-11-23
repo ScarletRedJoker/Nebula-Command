@@ -120,7 +120,7 @@ export class ChatbotService {
     try {
       // Call OpenAI API
       const response = await openai.chat.completions.create({
-        model: "gpt-3.5-turbo",
+        model: "gpt-4o-mini",
         messages,
         max_completion_tokens: 150,
       });
