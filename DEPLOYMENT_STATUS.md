@@ -115,11 +115,13 @@ curl -I http://localhost:8080/api/ai/status
 ```
 
 ### 3. Manual Browser Test
-1. Go to `http://host.evindrake.net:8080`
+1. Go to **`https://host.evindrake.net`** (HTTPS via Caddy with Let's Encrypt SSL)
 2. Login with: `admin` / `Brs=2729`
 3. Navigate to **AI Assistant**
 4. Send a test message: "Hello Jarvis"
 5. Should receive AI response
+
+**Note:** Port 8080 is for internal Docker access only. Always use the domain name with HTTPS.
 
 ### 4. Check Logs
 ```bash

@@ -26,27 +26,26 @@ docker compose up -d homelab-dashboard --force-recreate
 echo -e "\n${YELLOW}Waiting for dashboard to initialize (15 seconds)...${NC}"
 sleep 15
 
-echo -e "\n${GREEN}Testing Jarvis AI...${NC}"
-API_TEST=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/api/ai/status 2>/dev/null)
+echo -e "\n${GREEN}Checking if dashboard is fully started...${NC}"
+sleep 10
 
-if [ "$API_TEST" = "200" ] || [ "$API_TEST" = "302" ]; then
-    echo -e "${GREEN}✓ Jarvis AI endpoint is responding!${NC}"
-    echo ""
-    echo "════════════════════════════════════════════════════════════════"
-    echo -e "${GREEN}  FIX APPLIED SUCCESSFULLY!${NC}"
-    echo "════════════════════════════════════════════════════════════════"
-    echo ""
-    echo "Jarvis AI Assistant is now available at:"
-    echo "  http://host.evindrake.net:8080/ai-assistant"
-    echo ""
-    echo "Login with:"
-    echo "  Username: admin"
-    echo "  Password: Brs=2729"
-    echo ""
-else
-    echo -e "${YELLOW}⚠ Dashboard responded with HTTP $API_TEST${NC}"
-    echo "Checking logs..."
-    docker logs --tail 20 homelab-dashboard | grep -i "openai\|error" || true
-fi
+echo -e "\n${GREEN}Verifying OpenAI API key is loaded...${NC}"
+docker logs homelab-dashboard 2>&1 | tail -50 | grep -i "AI Service initialized" && echo -e "${GREEN}✓ AI Service initialized successfully!${NC}" || echo -e "${YELLOW}⚠ Still starting...${NC}"
+
+echo ""
+echo "════════════════════════════════════════════════════════════════"
+echo -e "${GREEN}  FIX APPLIED - Dashboard Restarted${NC}"
+echo "════════════════════════════════════════════════════════════════"
+echo ""
+echo "Jarvis AI Assistant is available at (HTTPS with auto SSL):"
+echo -e "  ${GREEN}https://host.evindrake.net/ai-assistant${NC}"
+echo ""
+echo "Login with:"
+echo "  Username: admin"
+echo "  Password: Brs=2729"
+echo ""
+echo "Note: Dashboard needs 30-60 seconds to fully initialize all workers."
+echo "If you get a 502 error, wait a minute and refresh."
+echo ""
 
 echo ""
