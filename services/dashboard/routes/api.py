@@ -9,6 +9,7 @@ from services.network_service import NetworkService
 from services.domain_service import DomainService
 from services.security_monitor import security_monitor
 from services.activity_service import activity_service
+from services.notification_service import notification_service
 from utils.auth import require_auth
 from utils.favicon_manager import get_favicon_manager
 from config import Config
@@ -1272,4 +1273,82 @@ def receive_stream_facts():
     
     except Exception as e:
         logger.error(f"Error receiving fact from stream-bot: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@api_bp.route('/notifications/token-expiry', methods=['POST'])
+def token_expiry_notification():
+    """
+    Receive token expiry notification from stream-bot
+    
+    SECURITY: Requires X-Service-Token header matching SERVICE_AUTH_TOKEN env var
+    
+    POST /api/notifications/token-expiry
+    
+    Headers:
+        X-Service-Token: Service authentication token
+    
+    Body:
+        {
+            "platform": str (e.g., "spotify", "twitch", "youtube"),
+            "user_email": str
+        }
+    
+    Returns:
+        JSON with success status
+    """
+    try:
+        # Service-to-service authentication
+        service_token = request.headers.get('X-Service-Token')
+        expected_token = os.environ.get('SERVICE_AUTH_TOKEN')
+        
+        if not expected_token:
+            logger.error("[TokenExpiry] SERVICE_AUTH_TOKEN not configured - endpoint disabled")
+            return jsonify({
+                'success': False,
+                'message': 'Service authentication not configured'
+            }), 503
+        
+        if not service_token or service_token != expected_token:
+            logger.warning(f"[TokenExpiry] Unauthorized access attempt from {request.remote_addr}")
+            return jsonify({
+                'success': False,
+                'message': 'Unauthorized - invalid service token'
+            }), 401
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': 'No JSON data provided'}), 400
+        
+        platform = data.get('platform', '').strip()
+        user_email = data.get('user_email', '').strip()
+        
+        if not platform:
+            return jsonify({'success': False, 'message': 'Platform is required'}), 400
+        
+        if not user_email:
+            return jsonify({'success': False, 'message': 'User email is required'}), 400
+        
+        logger.info(f"[TokenExpiry] Received notification for {platform} - {user_email}")
+        
+        result = notification_service.send_token_expiry_alert(
+            platform=platform.capitalize(),
+            user_email=user_email
+        )
+        
+        if result.get('success'):
+            logger.info(f"[TokenExpiry] Successfully sent notifications for {platform} - {user_email}")
+            return jsonify({
+                'success': True,
+                'message': 'Token expiry notification sent successfully',
+                'results': result.get('results', {})
+            })
+        else:
+            logger.warning(f"[TokenExpiry] Failed to send notifications for {platform} - {user_email}: {result.get('error')}")
+            return jsonify({
+                'success': False,
+                'message': result.get('error', 'Failed to send notifications')
+            }), 500
+    
+    except Exception as e:
+        logger.error(f"Error handling token expiry notification: {e}", exc_info=True)
         return jsonify({'success': False, 'message': str(e)}), 500

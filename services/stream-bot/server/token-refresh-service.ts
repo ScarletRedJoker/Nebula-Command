@@ -362,26 +362,59 @@ export class TokenRefreshService {
     console.log(`[TokenRefresh]    Platform: ${platformName}`);
     console.log(`[TokenRefresh]    Action: User should log into dashboard and reconnect ${platformName}`);
 
-    // TODO: Implement actual email notification using email service
-    // await emailService.send({
-    //   to: user.email,
-    //   subject: `Re-authenticate your ${platformName} connection`,
-    //   template: 'token-revoked',
-    //   data: {
-    //     platform: platformName,
-    //     dashboardUrl: process.env.APP_URL || 'https://stream.rig-city.com',
-    //   },
-    // });
+    // Send notification via dashboard API
+    try {
+      const dashboardUrl = 'http://homelab-dashboard:5000';
+      const notificationPayload = {
+        platform: connection.platform,
+        user_email: user.email
+      };
 
-    // TODO: Create in-app notification
-    // await db.insert(notifications).values({
-    //   userId: connection.userId,
-    //   type: 'token_expired',
-    //   title: `${platformName} connection expired`,
-    //   message: `Your ${platformName} connection has expired. Please reconnect to continue using bot features.`,
-    //   platform: connection.platform,
-    //   isRead: false,
-    // });
+      console.log(`[TokenRefresh] Sending token expiry notification to dashboard API...`);
+      
+      // Get service authentication token
+      const serviceToken = getEnv('SERVICE_AUTH_TOKEN');
+      
+      if (!serviceToken) {
+        console.error('[TokenRefresh] ❌ SERVICE_AUTH_TOKEN not configured - cannot send notifications');
+        return;
+      }
+
+      const response = await axios.post(
+        `${dashboardUrl}/api/notifications/token-expiry`,
+        notificationPayload,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Service-Token': serviceToken,
+          },
+          timeout: 10000,
+        }
+      );
+
+      if (response.data.success) {
+        console.log(`[TokenRefresh] ✓ Successfully sent notification for ${platformName} to ${user.email}`);
+        console.log(`[TokenRefresh]    Channels: ${Object.keys(response.data.results || {}).join(', ')}`);
+      } else {
+        console.warn(`[TokenRefresh] ⚠️ Notification API returned error: ${response.data.message}`);
+      }
+    } catch (notificationError: any) {
+      console.error(`[TokenRefresh] ❌ Failed to send notification (non-fatal):`, notificationError.message);
+      
+      if (notificationError.code === 'ECONNREFUSED') {
+        console.error(`[TokenRefresh]    Dashboard service is not reachable at homelab-dashboard:5000`);
+      } else if (notificationError.response) {
+        const status = notificationError.response.status;
+        const message = notificationError.response.data?.message || 'Unknown error';
+        
+        if (status === 401) {
+          console.error(`[TokenRefresh]    🔒 Authentication failed - SERVICE_AUTH_TOKEN mismatch or missing`);
+          console.error(`[TokenRefresh]    Ensure SERVICE_AUTH_TOKEN is set correctly in both stream-bot and dashboard`);
+        } else {
+          console.error(`[TokenRefresh]    Dashboard API error: ${status} - ${message}`);
+        }
+      }
+    }
   }
 
   /**

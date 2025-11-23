@@ -106,9 +106,25 @@ Each service connects with individual user credentials but all to the same Postg
 ✅ Stream-Bot hourly fact generation active (1-hour intervals)  
 ✅ All database migrations executed - complete schema ready
 
-## Recent Major Fixes
+## Recent Major Features & Fixes
 
-0. **Database Migration Race Condition Fixed (Nov 23, 2025)** ✅ RESOLVED
+0. **Notification System Implemented (Nov 23, 2025)** ✅ NEW FEATURE
+   - Comprehensive multi-channel notification system for storage alerts and OAuth token expiry
+   - **Features:**
+     - Storage threshold alerts (Discord, Email, Webhooks)
+     - OAuth token expiry notifications for stream platforms
+     - Service-to-service authentication with shared secrets
+     - Rich formatting (Discord embeds, HTML emails, JSON webhooks)
+     - Graceful failure handling - monitoring continues even if notifications fail
+   - **Files:**
+     - NEW: `services/dashboard/services/notification_service.py` - Multi-channel notification service
+     - MODIFIED: `services/dashboard/workers/storage_worker.py` - Storage alert integration
+     - MODIFIED: `services/dashboard/routes/api.py` - Token expiry notification endpoint
+     - MODIFIED: `services/stream-bot/server/token-refresh-service.ts` - Token expiry notifications
+   - **Configuration:** Set `SERVICE_AUTH_TOKEN`, `DISCORD_WEBHOOK_URL`, `NOTIFICATION_EMAIL` in `.env`
+   - **Documentation:** See `INTEGRATION_SETUP_GUIDE.md` for complete setup instructions
+
+1. **Database Migration Race Condition Fixed (Nov 23, 2025)** ✅ RESOLVED
    - Problem: Both dashboard and celery-worker were running migrations simultaneously, causing advisory lock contention and race conditions
    - Root cause: Celery worker command override bypassed docker-entrypoint.sh, so `RUN_MIGRATIONS=false` was never checked
    - Solution:
@@ -118,14 +134,14 @@ Each service connects with individual user credentials but all to the same Postg
      - Prevents concurrent migration attempts and ensures clean sequential bootstrap
    - Files: `services/dashboard/services/migration_waiter.py`, `services/dashboard/celery_app.py`, `docker-compose.yml`
 
-1. **Jarvis AI Fixed (Nov 22, 2025)** ✅ RESOLVED
+2. **Jarvis AI Fixed (Nov 22, 2025)** ✅ RESOLVED
    - Problem: Dashboard container not receiving OPENAI_API_KEY from .env
    - Root cause: docker-compose.yml missing `env_file` directive on homelab-dashboard service
    - Solution: Added `env_file: /home/evin/contain/HomeLabHub/.env` to dashboard service
    - Status: **Jarvis AI now fully operational** - dashboard initializes with OpenAI credentials
    - Files: `docker-compose.yml` (homelab-dashboard section)
 
-2. **Stream-Bot Fact Generation Fixed (Nov 22, 2025)** ✅ RESOLVED
+3. **Stream-Bot Fact Generation Fixed (Nov 22, 2025)** ✅ RESOLVED
    - Problem: Fact generation endpoint and OpenAI function existed, but no scheduler ran them—no facts generated
    - Solution: Added hourly scheduler in server startup that:
      - Calls `generateSnappleFact()` every 3,600 seconds (1 hour)
@@ -134,25 +150,25 @@ Each service connects with individual user credentials but all to the same Postg
    - Result: Stream-bot now generates one fact per hour and sends to dashboard
    - File: `services/stream-bot/server/index.ts` (lines 246-280)
 
-3. **OpenAI Models Fixed (Nov 22, 2025)** ✅ RESOLVED
+4. **OpenAI Models Fixed (Nov 22, 2025)** ✅ RESOLVED
    - Problem: Stream-bot using non-existent models `gpt-4.1-mini` and `gpt-5-mini`, generating empty facts
    - Solution: Changed to real models `gpt-4-mini` (primary) and `gpt-3.5-turbo` (fallback)
    - Result: Stream-bot now successfully generates facts with working OpenAI API calls
    - File: `services/stream-bot/server/openai.ts`
 
-4. **Facts Endpoint Created (Nov 22, 2025)** ✅ RESOLVED
+5. **Facts Endpoint Created (Nov 22, 2025)** ✅ RESOLVED
    - Added `/api/stream/facts` POST endpoint to dashboard
    - Stream-bot can now POST generated facts to: `http://homelab-dashboard:5000/api/stream/facts`
    - Facts stored in artifacts table with metadata
    - File: `services/dashboard/routes/api.py` (lines 1221-1278)
 
-5. **Dashboard Startup Fixed (Nov 22, 2025)** ✅ RESOLVED
+6. **Dashboard Startup Fixed (Nov 22, 2025)** ✅ RESOLVED
    - Agent initialization now checks table existence before querying (prevents crashes)
    - Uses SQLAlchemy inspector to gracefully skip initialization if tables don't exist yet
    - Allows dashboard to start successfully during migrations
    - File: `services/dashboard/services/agent_orchestrator.py`
 
-2. **Docker Compose Mount Fix (Nov 22, 2025)** ✅ RESOLVED
+7. **Docker Compose Mount Fix (Nov 22, 2025)** ✅ RESOLVED
    - Problem: After cleanup, services failed with mount error for deleted `docker-compose.unified.yml`
    - Root cause: docker-compose.yml referenced unified.yml in 3 volume mounts
    - Solution: Updated all references to `docker-compose.yml` instead

@@ -7,6 +7,7 @@ from celery import Task
 from celery_app import celery_app
 from services.storage_monitor import storage_monitor
 from services.db_service import db_service
+from services.notification_service import notification_service
 from config import Config
 from datetime import datetime, timedelta
 import logging
@@ -265,15 +266,52 @@ def check_alert_thresholds():
         if triggered_alerts:
             logger.warning(f"⚠️ {len(triggered_alerts)} storage alerts triggered")
             
-            # Log each alert
+            # Log each alert and send notifications
             for alert in triggered_alerts:
                 logger.warning(
                     f"Storage alert: {alert['metric_type']}/{alert['metric_name']} "
                     f"at {alert['current_percent']:.1f}% (threshold: {alert['threshold_percent']:.1f}%)"
                 )
-            
-            # TODO: Send notifications via webhook/email/Discord
-            # This could integrate with the existing notification system
+                
+                # Send notification for this alert
+                # Wrapped in try-except to ensure monitoring continues even if notifications fail
+                try:
+                    # Prepare alert data for notification
+                    alert_data = {
+                        'metric_type': alert.get('metric_type', 'unknown'),
+                        'metric_name': alert.get('metric_name', 'Unknown'),
+                        'mount_point': alert.get('mount_point', alert.get('path', 'N/A')),
+                        'current_percent': alert.get('current_percent', 0),
+                        'threshold_percent': alert.get('threshold_percent', 0),
+                        'size_bytes': alert.get('size_bytes'),
+                        'timestamp': datetime.utcnow().isoformat()
+                    }
+                    
+                    # Send to all configured channels (discord, email, webhook)
+                    notification_result = notification_service.send_storage_alert(
+                        alert_data=alert_data,
+                        channels=None  # None = use all configured channels
+                    )
+                    
+                    if notification_result.get('success'):
+                        logger.info(
+                            f"Notification sent successfully for {alert['metric_name']}: "
+                            f"channels={notification_result.get('channels', [])}"
+                        )
+                    else:
+                        logger.warning(
+                            f"Notification failed for {alert['metric_name']}: "
+                            f"{notification_result.get('error', 'Unknown error')}"
+                        )
+                
+                except Exception as e:
+                    # Log notification errors but don't fail the entire task
+                    logger.error(
+                        f"Failed to send notification for {alert.get('metric_name', 'unknown')}: {e}",
+                        exc_info=True
+                    )
+                    # Continue processing other alerts even if one notification fails
+                    continue
         else:
             logger.info("No storage alerts triggered")
         
