@@ -413,9 +413,9 @@ docker compose --project-directory "$PROJECT_ROOT" \
     --env-file "$PROJECT_ROOT/.env" \
     up -d
 
-echo "Waiting for services to stabilize (30 seconds)..."
-for i in {1..30}; do
-    printf "\r  Progress: [%-30s] %d%%" $(printf '#%.0s' $(seq 1 $i)) $((i*100/30))
+echo "Waiting for services to stabilize (45 seconds)..."
+for i in {1..45}; do
+    printf "\r  Progress: [%-45s] %d%%" $(printf '#%.0s' $(seq 1 $i)) $((i*100/45))
     sleep 1
 done
 echo ""
@@ -428,13 +428,22 @@ echo -e "\n${CYAN}[8/8] Validating Service Functionality${NC}"
 validation_failed=0
 validation_warnings=0
 
-# Test Dashboard
+# Test Dashboard (with retries - Flask workers need time to initialize)
 echo -n "  Testing Dashboard... "
-dashboard_status=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/ 2>/dev/null || echo "000")
+dashboard_status="000"
+for attempt in {1..5}; do
+    dashboard_status=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/ 2>/dev/null || echo "000")
+    if [ "$dashboard_status" = "200" ] || [ "$dashboard_status" = "302" ]; then
+        break
+    fi
+    sleep 3
+done
+
 if [ "$dashboard_status" = "200" ] || [ "$dashboard_status" = "302" ]; then
     echo -e "${GREEN}✓ (HTTP $dashboard_status)${NC}"
 else
     echo -e "${RED}✗ (HTTP $dashboard_status)${NC}"
+    echo -e "${YELLOW}  Note: Dashboard may still be initializing. Check logs: docker logs homelab-dashboard${NC}"
     ((validation_failed++))
 fi
 
