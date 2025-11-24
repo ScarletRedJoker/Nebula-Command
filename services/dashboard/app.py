@@ -63,8 +63,14 @@ app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 
 csrf = CSRFProtect(app)
+
+# Only exempt truly stateless API endpoints (health checks, read-only)
+# Session-authenticated routes MUST keep CSRF protection!
+csrf.exempt(health_bp)  # Read-only health checks
+
 limiter.init_app(app)
 logger.info("✓ CSRF Protection and Rate Limiting initialized")
+logger.info("✓ Health endpoints exempted from CSRF (read-only)")
 
 # Production logging configuration
 if not app.debug and os.environ.get('FLASK_ENV') == 'production':

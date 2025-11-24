@@ -63,9 +63,13 @@ fi
 section "Test 1: Jarvis AI Conversation Flow"
 echo "Sending test message to Jarvis..."
 
+# Get CSRF token for API call (if endpoint exists)
+csrf_api=$(curl -s -b "$COOKIE_JAR" "https://$DOMAIN/api/csrf-token" 2>/dev/null | jq -r '.csrf_token' 2>/dev/null || echo "$csrf_token")
+
 jarvis_test=$(curl -X POST -s --max-time 10 \
     -b "$COOKIE_JAR" -c "$COOKIE_JAR" \
     -H "Content-Type: application/json" \
+    -H "X-CSRFToken: $csrf_api" \
     -d '{"message":"What is 2+2?","conversation_id":"integration-test-001"}' \
     "https://$DOMAIN/api/ai/chat" 2>/dev/null)
 
@@ -281,7 +285,8 @@ fi
 
 # Test actual HTTP connectivity
 echo "Testing HTTP connectivity from stream-bot to dashboard..."
-http_test=$(docker exec stream-bot curl -s --max-time 3 http://homelab-dashboard:5001/health 2>/dev/null)
+# Dashboard binds to port 5000 internally
+http_test=$(docker exec stream-bot curl -s --max-time 3 http://homelab-dashboard:5000/health 2>/dev/null)
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✓${NC} Stream Bot can reach dashboard via HTTP"
     ((PASSED++))

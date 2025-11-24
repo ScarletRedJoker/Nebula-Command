@@ -29,4 +29,7 @@ echo "Starting Gunicorn server..."
 echo "================================================"
 
 # Start gunicorn with provided arguments
-exec gunicorn --bind 0.0.0.0:5000 --workers 3 --timeout 120 --access-logfile - --error-logfile - "main:app"
+# PORT can be overridden via environment variable (default: 5000)
+PORT=${PORT:-5000}
+echo "Binding to 0.0.0.0:$PORT"
+exec gunicorn --bind 0.0.0.0:$PORT --workers 3 --timeout 120 --access-logfile - --error-logfile - "main:app"

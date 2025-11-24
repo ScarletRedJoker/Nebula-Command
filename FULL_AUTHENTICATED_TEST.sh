@@ -162,8 +162,26 @@ test_endpoint "https://$DOMAIN/facts" "Facts Display Page" "200"
 
 # Test Jarvis AI Chat API
 section "Jarvis AI Chat API"
-chat_response=$(test_json_response "https://$DOMAIN/api/ai/chat" "Jarvis Chat Test" "POST" \
-    '{"message":"Hello, are you working?","conversation_id":"test-123"}')
+
+# Get fresh CSRF token for API call
+csrf_token_api=$(curl -s -b "$COOKIE_JAR" -c "$COOKIE_JAR" "https://$DOMAIN/api/csrf-token" 2>/dev/null | jq -r '.csrf_token' 2>/dev/null || echo "$csrf_token")
+
+chat_response=$(curl -X POST -s --max-time 10 \
+    -b "$COOKIE_JAR" -c "$COOKIE_JAR" \
+    -H "Content-Type: application/json" \
+    -H "X-CSRFToken: $csrf_token_api" \
+    -d '{"message":"Hello, are you working?","conversation_id":"test-123"}' \
+    "https://$DOMAIN/api/ai/chat" 2>/dev/null)
+
+if echo "$chat_response" | jq -e '.response' >/dev/null 2>&1; then
+    echo -e "${GREEN}✓${NC} Jarvis Chat Test (valid JSON)"
+    ((PASSED++))
+    chat_response="$chat_response"  # Store for next check
+else
+    echo -e "${RED}✗${NC} Jarvis Chat Test (invalid JSON or error)"
+    echo "Response: $chat_response"
+    ((FAILED++))
+fi
 
 if [ $? -eq 0 ]; then
     if echo "$chat_response" | jq -e '.response' >/dev/null 2>&1; then

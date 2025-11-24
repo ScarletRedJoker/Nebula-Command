@@ -24,6 +24,7 @@ class Artifact(Base):
     __tablename__ = 'artifacts'
     
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    artifact_type: Mapped[Optional[str]] = mapped_column(String(50), default='file')  # 'file', 'fact', 'generated', etc.
     filename: Mapped[str] = mapped_column(String(255))
     original_filename: Mapped[str] = mapped_column(String(255))
     file_type: Mapped[FileType] = mapped_column(SQLEnum(FileType))
@@ -35,6 +36,13 @@ class Artifact(Base):
     detected_service_type: Mapped[Optional[str]] = mapped_column(String(100))
     analysis_complete: Mapped[bool] = mapped_column(Boolean, default=False)
     artifact_metadata: Mapped[Optional[dict]] = mapped_column(JSON, default=dict)
+    
+    # For facts and generated content
+    content: Mapped[Optional[str]] = mapped_column(String)  # Text content for facts
+    source: Mapped[Optional[str]] = mapped_column(String(255))  # Source of the fact
+    tags: Mapped[Optional[list]] = mapped_column(JSON)  # Tags for categorization
+    data: Mapped[Optional[dict]] = mapped_column(JSON)  # Additional data
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=func.now())
     
     analysis_status: Mapped[AnalysisStatus] = mapped_column(SQLEnum(AnalysisStatus), default=AnalysisStatus.pending)
     analysis_result: Mapped[Optional[dict]] = mapped_column(JSON, default=dict)
