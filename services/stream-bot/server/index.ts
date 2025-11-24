@@ -240,15 +240,18 @@ app.use((req, res, next) => {
   startOAuthCleanupJob();
   log('OAuth session cleanup job started');
 
-  // Start Snapple Fact generation service
+  // Prepare Snapple Fact generation service (will start after server is listening)
+  let factGenerationFunction: (() => Promise<void>) | null = null;
+  
   try {
     const openaiModule = await import('./openai');
     const { generateSnappleFact, isOpenAIEnabled } = openaiModule;
     
     if (isOpenAIEnabled) {
-      // Run fact generation every hour
-      setInterval(async () => {
+      // Function to generate and store a fact
+      factGenerationFunction = async () => {
         try {
+          log('[Facts] Generating fact...');
           const fact = await generateSnappleFact();
           if (fact) {
             // Post to stream-bot's own database via localhost
@@ -266,13 +269,18 @@ app.use((req, res, next) => {
               const errorText = await response.text().catch(() => 'Unknown error');
               log(`[Facts] ✗ HTTP ${response.status} storing fact: ${errorText}`);
             }
+          } else {
+            log('[Facts] ✗ No fact generated (empty response from OpenAI)');
           }
         } catch (error) {
           log(`[Facts] ✗ ${error instanceof Error ? error.message : String(error)}`);
         }
-      }, 3600000); // Every hour (3600000ms)
+      };
       
-      log('[Facts] ✓ Snapple Fact generation service started (1 fact/hour)');
+      // Schedule hourly generation
+      setInterval(factGenerationFunction, 3600000); // Every hour (3600000ms)
+      
+      log('[Facts] ✓ Snapple Fact generation service configured (immediate + 1 fact/hour)');
     } else {
       log('[Facts] ⚠ OpenAI not configured - fact generation disabled');
     }
@@ -309,6 +317,13 @@ app.use((req, res, next) => {
     reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
+    
+    // Now that server is listening, run first fact generation immediately
+    if (factGenerationFunction) {
+      setTimeout(() => {
+        factGenerationFunction!();
+      }, 2000); // Wait 2 seconds for server to be fully ready
+    }
   });
 
   // Graceful shutdown handlers
