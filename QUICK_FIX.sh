@@ -11,7 +11,7 @@ docker exec homelab-dashboard curl -s http://localhost:5000/health
 
 echo ""
 echo "=== ISSUE 3: Jarvis API Test ==="
-docker exec homelab-dashboard curl -s -X POST http://localhost:5000/api/jarvis/chat \
+docker exec homelab-dashboard curl -s -X POST http://localhost:5000/api/ai/chat \
   -H "Content-Type: application/json" \
   -d '{"message":"test"}' | head -100
 

@@ -85,8 +85,8 @@ test_http "https://host.evindrake.net/jarvis-voice" "Voice commands page" "200|3
 test_http "https://host.evindrake.net/ollama_models" "AI Models page" "200|302"
 test_http "https://host.evindrake.net/facts" "AI Facts page" "200|302"
 
-# Test Jarvis API
-if curl -s -X POST https://host.evindrake.net/api/jarvis/chat \
+# Test Jarvis API (correct endpoint is /api/ai/chat)
+if curl -s --max-time 10 -X POST https://host.evindrake.net/api/ai/chat \
     -u "${WEB_USERNAME:-admin}:${WEB_PASSWORD:-Brs=2729}" \
     -H "Content-Type: application/json" \
     -d '{"message":"Hello","conversation_history":[]}' 2>/dev/null | grep -q "response"; then
