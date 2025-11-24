@@ -251,27 +251,20 @@ app.use((req, res, next) => {
         try {
           const fact = await generateSnappleFact();
           if (fact) {
-            const dashboardUrl = 'http://homelab-dashboard:5000';
-            const serviceToken = process.env.SERVICE_AUTH_TOKEN || '';
-            
-            if (!serviceToken) {
-              log('[Facts] ⚠ SERVICE_AUTH_TOKEN not set - dashboard may reject request');
-            }
-            
-            const response = await fetch(`${dashboardUrl}/api/stream/facts`, {
+            // Post to stream-bot's own database via localhost
+            const response = await fetch('http://localhost:5000/api/facts', {
               method: 'POST',
               headers: { 
-                'Content-Type': 'application/json',
-                'X-API-Key': serviceToken
+                'Content-Type': 'application/json'
               },
               body: JSON.stringify({ fact, source: 'stream-bot' })
             });
             
             if (response.ok) {
-              log('[Facts] ✓ Posted fact to dashboard');
+              log('[Facts] ✓ Stored fact in stream-bot database');
             } else {
               const errorText = await response.text().catch(() => 'Unknown error');
-              log(`[Facts] ✗ HTTP ${response.status} posting fact to dashboard: ${errorText}`);
+              log(`[Facts] ✗ HTTP ${response.status} storing fact: ${errorText}`);
             }
           }
         } catch (error) {

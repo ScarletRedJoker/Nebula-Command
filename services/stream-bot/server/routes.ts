@@ -241,6 +241,100 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Facts API - Store and retrieve AI-generated facts
+  // POST /api/facts - Store a new fact
+  app.post("/api/facts", async (req, res) => {
+    try {
+      const { db } = await import('./db');
+      const { facts } = await import('@shared/schema');
+      const { insertFactSchema } = await import('@shared/schema');
+      
+      // Validate request body
+      const validationResult = insertFactSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({ 
+          error: "Invalid fact data",
+          details: validationResult.error.errors 
+        });
+      }
+      
+      const factData = validationResult.data;
+      
+      // Insert fact into database
+      const [newFact] = await db.insert(facts).values(factData).returning();
+      
+      res.status(201).json({ 
+        success: true,
+        fact: newFact 
+      });
+    } catch (error: any) {
+      console.error('[Facts API] Error storing fact:', error);
+      res.status(500).json({ 
+        error: "Failed to store fact",
+        message: error.message 
+      });
+    }
+  });
+
+  // GET /api/facts/latest - Get the most recent fact
+  app.get("/api/facts/latest", async (req, res) => {
+    try {
+      const { db } = await import('./db');
+      const { facts } = await import('@shared/schema');
+      const { desc } = await import('drizzle-orm');
+      
+      const [latestFact] = await db
+        .select()
+        .from(facts)
+        .orderBy(desc(facts.createdAt))
+        .limit(1);
+      
+      if (!latestFact) {
+        return res.status(404).json({ 
+          error: "No facts found" 
+        });
+      }
+      
+      res.json(latestFact);
+    } catch (error: any) {
+      console.error('[Facts API] Error fetching latest fact:', error);
+      res.status(500).json({ 
+        error: "Failed to fetch latest fact",
+        message: error.message 
+      });
+    }
+  });
+
+  // GET /api/facts/random - Get a random fact
+  app.get("/api/facts/random", async (req, res) => {
+    try {
+      const { db } = await import('./db');
+      const { facts } = await import('@shared/schema');
+      const { sql } = await import('drizzle-orm');
+      
+      // Use PostgreSQL's RANDOM() function to get a random fact
+      const [randomFact] = await db
+        .select()
+        .from(facts)
+        .orderBy(sql`RANDOM()`)
+        .limit(1);
+      
+      if (!randomFact) {
+        return res.status(404).json({ 
+          error: "No facts found" 
+        });
+      }
+      
+      res.json(randomFact);
+    } catch (error: any) {
+      console.error('[Facts API] Error fetching random fact:', error);
+      res.status(500).json({ 
+        error: "Failed to fetch random fact",
+        message: error.message 
+      });
+    }
+  });
+
   // Enhanced Health Check - Detailed bot health for homelabhub integration
   // Returns bot status, platform connections, and user counts
   app.get("/api/health", async (req, res) => {

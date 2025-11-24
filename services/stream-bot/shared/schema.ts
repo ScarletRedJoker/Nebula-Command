@@ -747,6 +747,18 @@ export const obsAutomations = pgTable("obs_automations", {
   userNameIdx: uniqueIndex("obs_automations_user_id_name_unique").on(table.userId, table.name),
 }));
 
+// Facts - AI-generated Snapple facts stored by stream-bot
+export const facts = pgTable("facts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  fact: text("fact").notNull(),
+  source: text("source").default("stream-bot").notNull(), // 'stream-bot', 'openai', 'manual'
+  tags: jsonb("tags").default(sql`'[]'::jsonb`).notNull(), // Array of tag strings for categorization
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  createdAtIdx: index("facts_created_at_idx").on(table.createdAt),
+  sourceIdx: index("facts_source_idx").on(table.source),
+}));
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users, {
   email: z.string().email("Invalid email address"),
@@ -1189,6 +1201,15 @@ export const insertOBSAutomationSchema = createInsertSchema(obsAutomations, {
   updatedAt: true,
 });
 
+export const insertFactSchema = createInsertSchema(facts, {
+  fact: z.string().min(1, "Fact is required").max(1000, "Fact too long"),
+  source: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+}).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Update schemas for partial updates
 export const updateUserSchema = insertUserSchema.partial();
 export const updateBotConfigSchema = insertBotConfigSchema.partial();
@@ -1279,6 +1300,7 @@ export type AnalyticsSnapshot = typeof analyticsSnapshots.$inferSelect;
 export type SentimentAnalysis = typeof sentimentAnalysis.$inferSelect;
 export type OBSConnection = typeof obsConnections.$inferSelect;
 export type OBSAutomation = typeof obsAutomations.$inferSelect;
+export type Fact = typeof facts.$inferSelect;
 
 // Insert types
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -1326,6 +1348,7 @@ export type InsertAnalyticsSnapshot = z.infer<typeof insertAnalyticsSnapshotSche
 export type InsertSentimentAnalysis = z.infer<typeof insertSentimentAnalysisSchema>;
 export type InsertOBSConnection = z.infer<typeof insertOBSConnectionSchema>;
 export type InsertOBSAutomation = z.infer<typeof insertOBSAutomationSchema>;
+export type InsertFact = z.infer<typeof insertFactSchema>;
 
 // Update types
 export type UpdateUser = z.infer<typeof updateUserSchema>;
