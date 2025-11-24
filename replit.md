@@ -42,6 +42,26 @@ The core system relies on Docker Compose for orchestrating 15 services. A `boots
 
 ## Recent Changes (November 2025)
 
+### AI Model Standardization (November 24, 2025) - ✅ COMPLETE
+- **Problem**: Mixed AI model configuration causing fact generation failures
+- **Root Cause**: Stream-bot using non-existent models (gpt-5-mini from old migration, gpt-4o-mini in various files)
+- **Solution**: Standardized all services to use correct OpenAI models
+- **Implementation**:
+  - **Stream-Bot Facts**: Now uses `gpt-4o` (most capable model for fact generation)
+  - **Dashboard Jarvis**: Uses `gpt-4o-mini` (cost-effective for chatbot)
+  - Updated 15 files across stream-bot codebase to default to gpt-4o
+  - Fixed migration 0000_broad_speedball.sql DEFAULT value
+  - Created data migration fix-ai-model-config.sql to update existing records
+  - Updated docker-compose.yml: STREAMBOT_FACT_MODEL=gpt-4o
+  - Updated .env.example with correct model defaults
+- **Service Separation Verification**: Each service owns its own data completely
+  - Stream-bot: owns facts (database, API, UI, generation logic)
+  - Dashboard: owns Jarvis AI sessions (read-only proxy to stream-bot for facts)
+  - Discord-bot: owns tickets and Discord data
+- **Status**: ✅ Verified working in development (gpt-4o generates facts successfully)
+- **Deployment**: Automated script created (deploy-fix.sh) for production deployment
+- **Documentation**: COMPLETE_SERVICE_SEPARATION_FIX.md, SERVICE_OWNERSHIP.md, DEPLOYMENT_VERIFICATION.md
+
 ### Facts Feature Architecture Fix (November 24, 2025) - ✅ COMPLETE
 - **Problem**: Facts were incorrectly implemented in dashboard service (service mixing violation)
 - **Root Cause**: AI assistant initially stored stream-bot facts in dashboard's Artifact table
@@ -57,7 +77,7 @@ The core system relies on Docker Compose for orchestrating 15 services. A `boots
 - **Dashboard Changes**: Reverted to read-only proxy pattern (dashboard/routes/facts_routes.py)
 - **Service Separation**: Each service (stream-bot, dashboard, discord-bot) owns its own data, UI, and API completely
 - **Status**: ✅ Tested and verified working in development (facts generate on startup and store successfully)
-- **Deployment**: Migration 0006 applied to production, ready for deployment
+- **Deployment**: Migration 0006 applied to production, container rebuild needed
 - **Files**: services/stream-bot/shared/schema.ts, migrations/0006_add_facts_table.sql, server/routes.ts, server/index.ts
 
 ### Complete Homelab Transformation (8-Phase Roadmap - In Progress)
