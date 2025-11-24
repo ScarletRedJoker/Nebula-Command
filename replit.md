@@ -21,14 +21,16 @@ The dashboard is a Flask-based management UI using Bootstrap 5 and Chart.js for 
 The core system relies on Docker Compose for orchestrating 15 services. A `bootstrap-homelab.sh` script provides idempotent fresh installations with pre-flight checks, rollback capabilities, and comprehensive validation. A `./homelab` script offers day-to-day management, including fixing issues, checking status, viewing logs, restarting services, health checks, database operations (backup/restore), and updates.
 
 ### Feature Specifications
-- **Dashboard & AI:** Flask UI with Jarvis AI assistant (GPT-3.5-turbo), Agent Swarm (5 specialized AI agents), Voice Interface, Docker/system monitoring.
-- **Storage & Data:** NAS Management (Zyxel NAS326), Storage Monitor (Plex/DB/Docker/MinIO analytics), Database Admin (PostgreSQL management), File Manager, Plex Media Import (drag-and-drop).
+- **Dashboard & AI:** Flask UI with Jarvis AI assistant (GPT-4o-mini), Agent Swarm (5 specialized AI agents), Voice Interface, Docker/system monitoring, JWT token management UI.
+- **Storage & Data:** NAS Management (Zyxel NAS326), Storage Monitor (Plex/DB/Docker/MinIO analytics), Database Admin (PostgreSQL management), File Manager, Plex Media Import (drag-and-drop), Automated backup system with cron scheduling.
 - **Bots:** Discord ticket bot (TypeScript, React, Drizzle ORM) and multi-platform stream bot (SnappleBotAI for Twitch/Kick/YouTube).
 - **Services:** Remote Ubuntu desktop (VNC), VS Code in browser (code-server), Plex media server, n8n workflow automation, Home Assistant.
-- **App Marketplace:** One-click deployment of pre-configured Docker applications.
-- **Static Sites:** Hosting for rig-city.com and scarletredjoker.com.
-- **Notification System:** Multi-channel alerts for storage thresholds and OAuth token expiry.
-- **Security:** Automatic SSL via Caddy/Let's Encrypt, environment-based secrets, isolated database credentials per service, password-protected VNC/Code Server, rate limiting, and CSRF protection.
+- **App Marketplace:** One-click deployment of 5 pre-configured applications (WordPress, Nextcloud, Gitea, Uptime Kuma, Portainer).
+- **Static Sites:** Hosting for rig-city.com and scarletredjoker.com with mobile-optimized contact pages.
+- **Notification System:** Multi-channel alerts (Discord, Email) for service health, storage thresholds, backup failures, and OAuth token expiry.
+- **Monitoring & Alerts:** Prometheus with 15+ alert rules, Grafana dashboards, Loki log aggregation, automated alerting.
+- **DNS Automation:** Auto-sync DNS records to Cloudflare when services change, Traefik route watching.
+- **Security:** Automatic SSL via Caddy/Let's Encrypt, environment-based secrets, isolated database credentials per service, password-protected VNC/Code Server, rate limiting, CSRF protection, JWT authentication.
 
 ### System Design Choices
 - **Containerization:** All services are Dockerized and managed by Docker Compose.
