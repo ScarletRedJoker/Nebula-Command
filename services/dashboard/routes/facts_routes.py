@@ -2,6 +2,7 @@
 import logging
 import os
 from flask import Blueprint, render_template, jsonify, request
+from flask_wtf.csrf import CSRFProtect
 from utils.auth import require_web_auth
 from services.db_service import db_service
 from models.artifact import Artifact
@@ -11,6 +12,7 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 facts_bp = Blueprint('facts', __name__)
+csrf = CSRFProtect()
 
 
 @facts_bp.route('/facts')
@@ -122,6 +124,7 @@ def get_random_fact():
 
 
 @facts_bp.route('/api/stream/facts', methods=['POST'])
+@csrf.exempt
 def create_fact():
     """Accept fact from stream-bot service and save to database
     
