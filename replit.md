@@ -42,6 +42,13 @@ The core system relies on Docker Compose for orchestrating 15 services. A `boots
 
 ## Recent Changes (November 2025)
 
+### Facts API Integration Fix (November 24, 2025)
+- **Problem**: Stream-bot generating facts with OpenAI but couldn't save to dashboard (404 errors)
+- **Solution**: Added POST /api/stream/facts endpoint with SERVICE_AUTH_TOKEN authentication
+- **Result**: Stream-bot now successfully stores generated facts as Artifact records
+- **Access**: Facts visible at /facts page and via /api/facts/latest, /api/facts/random APIs
+- **Files**: services/dashboard/routes/facts_routes.py, services/stream-bot/server/index.ts
+
 ### Complete Homelab Transformation (8-Phase Roadmap - In Progress)
 **Goal:** Transform system into truly modular, portable, production-grade "end all be all" homelab
 
