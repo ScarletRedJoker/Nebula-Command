@@ -11,8 +11,8 @@
 
 BEGIN;
 
--- Update bot_configs table: Change gpt-5-mini and gpt-4o-mini to gpt-4o
-UPDATE bot_configs 
+-- Update bot_config table: Change gpt-5-mini and gpt-4o-mini to gpt-4o
+UPDATE bot_config 
 SET ai_model = 'gpt-4o' 
 WHERE ai_model IN ('gpt-5-mini', 'gpt-4o-mini');
 
@@ -22,7 +22,7 @@ DECLARE
     invalid_count INTEGER;
 BEGIN
     SELECT COUNT(*) INTO invalid_count
-    FROM bot_configs
+    FROM bot_config
     WHERE ai_model IN ('gpt-5-mini', 'gpt-4o-mini');
     
     IF invalid_count > 0 THEN
@@ -36,6 +36,6 @@ COMMIT;
 
 -- Optional: Display summary of current AI model usage
 SELECT ai_model, COUNT(*) as count
-FROM bot_configs
+FROM bot_config
 GROUP BY ai_model
 ORDER BY count DESC;
