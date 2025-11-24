@@ -8,11 +8,6 @@
 # - WAL archiving: Point-in-time recovery
 # ============================================
 
-name: homelab
-
-networks:
-  homelab:
-    name: homelab
 
 volumes:
   postgres_data:

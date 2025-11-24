@@ -3,10 +3,6 @@
 # Web applications and media services
 # ============================================
 
-name: homelab
-
-networks:
-  homelab:
 
 volumes:
   n8n_data:

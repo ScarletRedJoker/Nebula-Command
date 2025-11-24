@@ -3,10 +3,6 @@
 # Homelab management dashboard with Jarvis AI
 # ============================================
 
-name: homelab
-
-networks:
-  homelab:
 
 services:
   # ============================================

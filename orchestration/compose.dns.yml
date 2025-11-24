@@ -5,10 +5,6 @@
 # Monitors services and automatically creates/updates DNS records
 # in Cloudflare for new deployments and Traefik routes
 
-networks:
-  homelab:
-    name: homelab
-
 volumes:
   dns_manager_data:
 

@@ -3,7 +3,6 @@
 # Shared services required by all deployments
 # ============================================
 
-name: homelab
 
 networks:
   homelab:

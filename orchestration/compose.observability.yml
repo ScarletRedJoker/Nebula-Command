@@ -3,11 +3,6 @@
 # Phase 5: Prometheus, Grafana, Loki, Watchtower
 # ============================================
 
-name: homelab
-
-networks:
-  homelab:
-    name: homelab
 
 volumes:
   prometheus_data:

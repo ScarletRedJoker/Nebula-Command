@@ -3,10 +3,6 @@
 # Twitch/YouTube streaming bot with AI
 # ============================================
 
-name: homelab
-
-networks:
-  homelab:
 
 services:
   # ============================================

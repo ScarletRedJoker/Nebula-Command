@@ -3,10 +3,6 @@
 # Discord ticket management bot
 # ============================================
 
-name: homelab
-
-networks:
-  homelab:
 
 services:
   # ============================================

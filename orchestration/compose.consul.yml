@@ -5,10 +5,6 @@
 # Single-node Consul server for MVP (can scale to 3-node cluster later)
 # Provides service registry, health checking, and KV store
 
-networks:
-  homelab:
-    name: homelab
-
 volumes:
   consul_data:
 

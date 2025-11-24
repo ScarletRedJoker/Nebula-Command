@@ -7,10 +7,6 @@
 # - Service-to-service authentication
 # - Integration with Traefik ForwardAuth middleware
 
-networks:
-  homelab:
-    name: homelab
-
 services:
   # ============================================
   # Auth Service - JWT Authentication

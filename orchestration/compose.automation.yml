@@ -3,10 +3,6 @@
 # Background workers and scheduled tasks
 # ============================================
 
-name: homelab
-
-networks:
-  homelab:
 
 services:
   # ============================================

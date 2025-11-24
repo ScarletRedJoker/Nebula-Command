@@ -13,10 +13,6 @@
 # - CORS handling
 # - Service-to-service authentication
 
-networks:
-  homelab:
-    name: homelab
-
 volumes:
   traefik_data:
 
