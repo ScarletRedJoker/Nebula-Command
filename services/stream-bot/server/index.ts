@@ -202,19 +202,29 @@ app.use((req, res, next) => {
         name: 'Spotify',
         vars: ['SPOTIFY_CLIENT_ID', 'SPOTIFY_CLIENT_SECRET', 'SPOTIFY_REDIRECT_URI'],
       },
+      {
+        name: 'Kick',
+        vars: ['KICK_CLIENT_ID', 'KICK_CLIENT_SECRET'],
+        optional: true,
+      },
     ];
 
     let hasWarnings = false;
 
     for (const platform of platforms) {
       const missing = platform.vars.filter(varName => !getEnv(varName));
+      const isOptional = (platform as any).optional === true;
       
       if (missing.length > 0) {
-        hasWarnings = true;
-        console.warn(`\n⚠️  ${platform.name} OAuth NOT configured`);
-        console.warn(`   Missing environment variables: ${missing.join(', ')}`);
-        console.warn(`   Users will NOT be able to connect ${platform.name} accounts.`);
-        console.warn(`   Set these variables or use STREAMBOT_ prefix variants.`);
+        if (isOptional) {
+          console.log(`○ ${platform.name} OAuth not configured (optional)`);
+        } else {
+          hasWarnings = true;
+          console.warn(`\n⚠️  ${platform.name} OAuth NOT configured`);
+          console.warn(`   Missing environment variables: ${missing.join(', ')}`);
+          console.warn(`   Users will NOT be able to connect ${platform.name} accounts.`);
+          console.warn(`   Set these variables or use STREAMBOT_ prefix variants.`);
+        }
       } else {
         console.log(`✓ ${platform.name} OAuth configured`);
       }
