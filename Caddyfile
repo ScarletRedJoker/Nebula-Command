@@ -123,38 +123,37 @@ host.evindrake.net, dashboard.evindrake.net {
 }
 
 # ============================================
-# VNC Remote Desktop - PUBLIC ACCESS (VPN restriction removed per user request)
+# VNC Remote Desktop - HOST-BASED (Not Docker Container)
 # ============================================
+# Uses TigerVNC + noVNC running directly on the Ubuntu host
+# Much faster and provides access to the real desktop environment
 vnc.evindrake.net {
-    # SECURITY: VNC is protected by built-in VNC password + Ubuntu host Fail2Ban
-    # This provides acceptable security for homelab/private network use
-    #
-    # For additional security (recommended for internet-facing), enable VPN access:
-    # Uncomment the @vpn_only block below and comment out the reverse_proxy outside it
+    # SECURITY: VNC is protected by:
+    # - VNC password (set via vncpasswd)
+    # - Ubuntu host Fail2Ban
+    # - Optional: Uncomment VPN block below for IP restriction
     
     # @vpn_only {
     #     remote_ip 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 100.64.0.0/10
     # }
     # handle @vpn_only {
-    #     reverse_proxy vnc-desktop:80 {
-    #         header_up Host {host}
-    #         header_up X-Real-IP {remote_host}
-    #     }
+    #     reverse_proxy 172.17.0.1:6080 { ... }
     # }
     # handle {
-    #     respond "⛔ VPN Access Required - Connect to VPN to access VNC" 403
+    #     respond "⛔ VPN Access Required" 403
     # }
     
-    reverse_proxy vnc-desktop:6080 {
+    # Route to host noVNC (172.17.0.1 = Docker bridge gateway = host)
+    reverse_proxy 172.17.0.1:6080 {
         header_up Host {host}
         header_up X-Real-IP {remote_host}
         
-        # WebSocket support for NoVNC - CRITICAL for VNC connection
+        # WebSocket support for noVNC - CRITICAL for VNC connection
         header_up Upgrade {http.request.header.Upgrade}
         header_up Connection {http.request.header.Connection}
     }
     
-    # Enhanced security headers
+    # Security headers
     header {
         X-Content-Type-Options "nosniff"
         X-Frame-Options "DENY"

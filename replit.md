@@ -24,7 +24,7 @@ The core system relies on Docker Compose for orchestrating 15 services. A `boots
 - **Dashboard & AI:** Flask UI with Jarvis AI assistant (GPT-4o), Agent Swarm (5 specialized AI agents), Voice Interface, Docker/system monitoring, JWT token management UI.
 - **Storage & Data:** NAS Management, Storage Monitor, Database Admin (PostgreSQL management), File Manager, Plex Media Import (drag-and-drop), Automated backup system.
 - **Bots:** Discord ticket bot and multi-platform stream bot (SnappleBotAI for Twitch/Kick/YouTube).
-- **Services:** Remote Ubuntu desktop (VNC), VS Code in browser (code-server), Plex media server, n8n workflow automation, Home Assistant.
+- **Services:** Remote Ubuntu desktop (Host VNC - TigerVNC + noVNC, not containerized), VS Code in browser (code-server), Plex media server, n8n workflow automation, Home Assistant.
 - **App Marketplace:** One-click deployment of 5 pre-configured applications (WordPress, Nextcloud, Gitea, Uptime Kuma, Portainer).
 - **Static Sites:** Hosting for rig-city.com and scarletredjoker.com.
 - **Notification System:** Multi-channel alerts (Discord, Email) for service health, storage thresholds, backup failures, and OAuth token expiry.

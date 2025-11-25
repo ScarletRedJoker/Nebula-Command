@@ -7,7 +7,7 @@ volumes:
   n8n_data:
   caddy_data:
   caddy_config:
-  vnc_home:
+  # vnc_home: # Removed - using host VNC instead of container
   code_server_data:
   redis_data:
   minio_data:
@@ -373,38 +373,26 @@ services:
       - ./services/rig-city-site:/usr/share/nginx/html:ro
 
   # ============================================
-  # VNC Remote Desktop (Enhanced Ubuntu Desktop)
+  # VNC Remote Desktop - DISABLED (Using Host VNC)
   # ============================================
-  vnc-desktop:
-    build:
-      context: ./services/vnc-desktop
-      dockerfile: Dockerfile
-    container_name: vnc-desktop
-    restart: unless-stopped
-    networks:
-      - homelab
-    environment:
-      - VNC_PASSWORD=${VNC_PASSWORD}
-      - VNC_USER=evin
-      - USER_UID=1000
-      - USER_GID=1000
-      # Removed PASSWORD env var to disable noVNC HTTP Basic Auth
-      # Only VNC_PASSWORD is needed for authentication
-      - RESOLUTION=1920x1080
-      - TZ=America/New_York
-      - NOVNC_ENABLE=true
-      - ENABLE_WEB_CLIENT=true
-    volumes:
-      - vnc_home:/home/evin
-      - /home/${SERVICE_USER:-evin}/contain:/home/evin/host-projects:ro
-      - /home/${SERVICE_USER:-evin}/Downloads:/home/evin/host-downloads
-    shm_size: '2gb'
-    healthcheck:
-      test: ["CMD-SHELL", "wget --spider -q http://localhost:6079 || curl -f http://localhost:6079 || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+  # The VNC container has been replaced with host-based TigerVNC + noVNC
+  # This is faster, more resource-efficient, and provides access to the real desktop
+  # 
+  # Host VNC Setup (already configured):
+  #   - TigerVNC server runs on host at :5901
+  #   - noVNC web client runs on host at :6080
+  #   - Caddy proxies vnc.evindrake.net -> host:6080
+  #
+  # To start VNC on host:
+  #   systemctl --user start vncserver@:1
+  #   /opt/novnc/utils/novnc_proxy --vnc localhost:5901 --listen 6080
+  #
+  # vnc-desktop:
+  #   build:
+  #     context: ./services/vnc-desktop
+  #     dockerfile: Dockerfile
+  #   container_name: vnc-desktop
+  #   ... (container disabled)
 
   # ============================================
   # Code-Server (VS Code in Browser)
