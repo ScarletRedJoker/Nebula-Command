@@ -102,6 +102,7 @@ WantedBy=multi-user.target
 EOF
 
 # Create noVNC systemd service
+# IMPORTANT: Bind to 0.0.0.0 so Docker containers (Caddy) can access it
 cat > /etc/systemd/system/novnc.service << EOF
 [Unit]
 Description=noVNC Web Client
@@ -111,7 +112,7 @@ Requires=vncserver@1.service
 [Service]
 Type=simple
 User=$VNC_USER
-ExecStart=/usr/bin/websockify --web=/usr/share/novnc ${NOVNC_PORT} localhost:${VNC_PORT}
+ExecStart=/usr/bin/websockify --web=/usr/share/novnc 0.0.0.0:${NOVNC_PORT} localhost:${VNC_PORT}
 Restart=on-failure
 RestartSec=5
 

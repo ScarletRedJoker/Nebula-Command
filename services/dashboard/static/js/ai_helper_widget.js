@@ -8,7 +8,115 @@ class AIHelperWidget {
         this.widgetOpen = false;
         this.conversationHistory = [];
         this.currentPage = this.detectPage();
+        this.isListening = false;
+        this.recognition = null;
+        this.synthesis = window.speechSynthesis;
+        this.voiceEnabled = true;
+        this.initVoice();
         this.initWidget();
+    }
+    
+    initVoice() {
+        if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+            console.log('Voice recognition not supported');
+            this.voiceEnabled = false;
+            return;
+        }
+        
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        this.recognition = new SpeechRecognition();
+        this.recognition.continuous = false;
+        this.recognition.interimResults = true;
+        this.recognition.lang = 'en-US';
+        
+        this.recognition.onstart = () => {
+            this.isListening = true;
+            this.updateMicButton();
+        };
+        
+        this.recognition.onresult = (event) => {
+            let finalTranscript = '';
+            let interimTranscript = '';
+            
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+                const transcript = event.results[i][0].transcript;
+                if (event.results[i].isFinal) {
+                    finalTranscript += transcript;
+                } else {
+                    interimTranscript += transcript;
+                }
+            }
+            
+            const input = document.getElementById('aiHelperInput');
+            if (finalTranscript) {
+                input.value = finalTranscript;
+                this.sendMessage();
+            } else if (interimTranscript) {
+                input.value = interimTranscript;
+            }
+        };
+        
+        this.recognition.onerror = (event) => {
+            console.log('Voice recognition error:', event.error);
+            this.isListening = false;
+            this.updateMicButton();
+        };
+        
+        this.recognition.onend = () => {
+            this.isListening = false;
+            this.updateMicButton();
+        };
+    }
+    
+    updateMicButton() {
+        const micBtn = document.getElementById('aiHelperMic');
+        if (micBtn) {
+            if (this.isListening) {
+                micBtn.classList.add('listening');
+                micBtn.innerHTML = '<i class="bi bi-mic-fill"></i>';
+            } else {
+                micBtn.classList.remove('listening');
+                micBtn.innerHTML = '<i class="bi bi-mic"></i>';
+            }
+        }
+    }
+    
+    toggleVoice() {
+        if (!this.voiceEnabled || !this.recognition) {
+            this.addMessage('error', 'Voice recognition not supported in your browser');
+            return;
+        }
+        
+        if (this.isListening) {
+            this.recognition.stop();
+        } else {
+            try {
+                this.recognition.start();
+            } catch (error) {
+                console.error('Voice start error:', error);
+            }
+        }
+    }
+    
+    speak(text) {
+        if (!this.synthesis) return;
+        
+        this.synthesis.cancel();
+        
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 1.0;
+        utterance.pitch = 1.0;
+        utterance.volume = 1.0;
+        
+        const voices = this.synthesis.getVoices();
+        const preferredVoice = voices.find(v => 
+            v.name.includes('Google') || v.name.includes('Microsoft') || v.name.includes('Samantha')
+        );
+        if (preferredVoice) {
+            utterance.voice = preferredVoice;
+        }
+        
+        this.synthesis.speak(utterance);
     }
 
     detectPage() {
@@ -72,11 +180,16 @@ class AIHelperWidget {
                                 id="aiHelperInput" 
                                 class="form-control form-control-sm" 
                                 rows="2" 
-                                placeholder="Ask me anything..."
+                                placeholder="Ask me anything or click the mic to speak..."
                             ></textarea>
-                            <button class="btn btn-primary btn-sm mt-2 w-100" id="aiHelperSend">
-                                <i class="bi bi-send me-1"></i>Send
-                            </button>
+                            <div class="ai-helper-buttons mt-2">
+                                <button class="btn btn-outline-secondary btn-sm ai-helper-mic-btn" id="aiHelperMic" title="Voice Input">
+                                    <i class="bi bi-mic"></i>
+                                </button>
+                                <button class="btn btn-primary btn-sm flex-grow-1" id="aiHelperSend">
+                                    <i class="bi bi-send me-1"></i>Send
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -164,15 +277,28 @@ class AIHelperWidget {
         const close = document.getElementById('aiHelperClose');
         const send = document.getElementById('aiHelperSend');
         const input = document.getElementById('aiHelperInput');
+        const mic = document.getElementById('aiHelperMic');
 
         toggle.addEventListener('click', () => this.toggleWidget());
         close.addEventListener('click', () => this.closeWidget());
         send.addEventListener('click', () => this.sendMessage());
         
+        if (mic) {
+            mic.addEventListener('click', () => this.toggleVoice());
+        }
+        
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && e.ctrlKey) {
                 e.preventDefault();
                 this.sendMessage();
+            }
+        });
+        
+        // Keyboard shortcut: Press 'J' to toggle voice (when widget is open)
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'j' && e.altKey && this.widgetOpen) {
+                e.preventDefault();
+                this.toggleVoice();
             }
         });
     }
@@ -240,6 +366,8 @@ class AIHelperWidget {
                     role: 'assistant',
                     content: data.response
                 });
+                // Speak the response (TTS)
+                this.speak(data.response.replace(/[#*`_]/g, '').slice(0, 500));
             } else {
                 this.addMessage('error', data.error || 'Failed to get response');
             }
@@ -523,6 +651,41 @@ class AIHelperWidget {
 
                 .ai-helper-input textarea::placeholder {
                     color: rgba(255, 255, 255, 0.5);
+                }
+                
+                .ai-helper-buttons {
+                    display: flex;
+                    gap: 8px;
+                }
+                
+                .ai-helper-mic-btn {
+                    width: 40px;
+                    height: 38px;
+                    padding: 0;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    border-color: rgba(255, 255, 255, 0.2);
+                    color: rgba(255, 255, 255, 0.7);
+                    transition: all 0.3s ease;
+                }
+                
+                .ai-helper-mic-btn:hover {
+                    background: rgba(102, 126, 234, 0.2);
+                    border-color: #667eea;
+                    color: #667eea;
+                }
+                
+                .ai-helper-mic-btn.listening {
+                    background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+                    border-color: #34d399;
+                    color: white;
+                    animation: pulse-mic 1.5s ease-in-out infinite;
+                }
+                
+                @keyframes pulse-mic {
+                    0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.5); }
+                    50% { transform: scale(1.05); box-shadow: 0 0 0 8px rgba(52, 211, 153, 0); }
                 }
 
                 @media (max-width: 576px) {
