@@ -1,7 +1,7 @@
 # Nebula Command Dashboard Project
 
 ## Overview
-The Nebula Command Dashboard is a web-based interface for managing a Ubuntu 25.10 server hosting 15 Docker-based services. These services are accessible via custom evindrake.net subdomains and include homelab management, Discord/Twitch bots, media streaming, remote desktop access, and home automation. The project aims to provide a centralized, robust, and secure platform for managing a comprehensive homelab environment, integrating various functionalities for personal and community use.
+The Nebula Command Dashboard is a web-based interface for managing a Ubuntu 25.10 server hosting 15 Docker-based services. These services are accessible via custom subdomains and include homelab management, Discord/Twitch bots, media streaming, remote desktop access, and home automation. The project aims to provide a centralized, robust, and secure platform for managing a comprehensive homelab environment, integrating various functionalities for personal and community use.
 
 ## User Preferences
 - User: Evin
@@ -21,164 +21,25 @@ The dashboard is a Flask-based management UI using Bootstrap 5 and Chart.js for 
 The core system relies on Docker Compose for orchestrating 15 services. A `bootstrap-homelab.sh` script provides idempotent fresh installations with pre-flight checks, rollback capabilities, and comprehensive validation. A `./homelab` script offers day-to-day management, including fixing issues, checking status, viewing logs, restarting services, health checks, database operations (backup/restore), and updates.
 
 ### Feature Specifications
-- **Dashboard & AI:** Flask UI with Jarvis AI assistant (GPT-4o-mini), Agent Swarm (5 specialized AI agents), Voice Interface, Docker/system monitoring, JWT token management UI.
-- **Storage & Data:** NAS Management (Zyxel NAS326), Storage Monitor (Plex/DB/Docker/MinIO analytics), Database Admin (PostgreSQL management), File Manager, Plex Media Import (drag-and-drop), Automated backup system with cron scheduling.
-- **Bots:** Discord ticket bot (TypeScript, React, Drizzle ORM) and multi-platform stream bot (SnappleBotAI for Twitch/Kick/YouTube).
+- **Dashboard & AI:** Flask UI with Jarvis AI assistant (GPT-4o), Agent Swarm (5 specialized AI agents), Voice Interface, Docker/system monitoring, JWT token management UI.
+- **Storage & Data:** NAS Management, Storage Monitor, Database Admin (PostgreSQL management), File Manager, Plex Media Import (drag-and-drop), Automated backup system.
+- **Bots:** Discord ticket bot and multi-platform stream bot (SnappleBotAI for Twitch/Kick/YouTube).
 - **Services:** Remote Ubuntu desktop (VNC), VS Code in browser (code-server), Plex media server, n8n workflow automation, Home Assistant.
 - **App Marketplace:** One-click deployment of 5 pre-configured applications (WordPress, Nextcloud, Gitea, Uptime Kuma, Portainer).
-- **Static Sites:** Hosting for rig-city.com and scarletredjoker.com with mobile-optimized contact pages.
+- **Static Sites:** Hosting for rig-city.com and scarletredjoker.com.
 - **Notification System:** Multi-channel alerts (Discord, Email) for service health, storage thresholds, backup failures, and OAuth token expiry.
 - **Monitoring & Alerts:** Prometheus with 15+ alert rules, Grafana dashboards, Loki log aggregation, automated alerting.
 - **DNS Automation:** Auto-sync DNS records to Cloudflare when services change, Traefik route watching.
-- **Security:** Automatic SSL via Caddy/Let's Encrypt, environment-based secrets, isolated database credentials per service, password-protected VNC/Code Server, rate limiting, CSRF protection, JWT authentication.
+- **Security:** Automatic SSL via Caddy/Let's Encrypt, environment-based secrets, isolated database credentials, password-protected VNC/Code Server, rate limiting, CSRF protection, JWT authentication.
 
 ### System Design Choices
 - **Containerization:** All services are Dockerized and managed by Docker Compose.
-- **Centralized Database:** A single PostgreSQL container (`homelab-postgres`) serves as the shared database for all services, with individual databases and user credentials for each.
-- **Reverse Proxy:** Caddy handles reverse proxying and automatic SSL for all services.
-- **Environment Management:** All configuration is managed via a single `.env` file at the project root, loaded by Docker via absolute paths.
-- **Modular Architecture:** Designed for easy addition of new services by modifying `docker-compose.yml` and Caddy configuration.
-- **Authentication:** Centralized session-based authentication using `session['authenticated']` across all routes and blueprints.
-
-## Recent Changes (November 2025)
-
-### AI Model Standardization (November 24, 2025) - ✅ COMPLETE
-- **Problem**: Mixed AI model configuration causing fact generation failures
-- **Root Cause**: Stream-bot using non-existent models (gpt-5-mini from old migration, gpt-4o-mini in various files)
-- **Solution**: Standardized all services to use correct OpenAI models
-- **Implementation**:
-  - **Stream-Bot Facts**: Now uses `gpt-4o` (most capable model for fact generation)
-  - **Dashboard Jarvis**: Uses `gpt-4o-mini` (cost-effective for chatbot)
-  - Updated 15 files across stream-bot codebase to default to gpt-4o
-  - Fixed migration 0000_broad_speedball.sql DEFAULT value
-  - Created data migration fix-ai-model-config.sql to update existing records
-  - Updated docker-compose.yml: STREAMBOT_FACT_MODEL=gpt-4o
-  - Updated .env.example with correct model defaults
-- **Service Separation Verification**: Each service owns its own data completely
-  - Stream-bot: owns facts (database, API, UI, generation logic)
-  - Dashboard: owns Jarvis AI sessions (read-only proxy to stream-bot for facts)
-  - Discord-bot: owns tickets and Discord data
-- **Status**: ✅ Verified working in development (gpt-4o generates facts successfully)
-- **Deployment**: Automated script created (deploy-fix.sh) for production deployment
-- **Documentation**: COMPLETE_SERVICE_SEPARATION_FIX.md, SERVICE_OWNERSHIP.md, DEPLOYMENT_VERIFICATION.md
-
-### Facts Feature Architecture Fix (November 24, 2025) - ✅ COMPLETE
-- **Problem**: Facts were incorrectly implemented in dashboard service (service mixing violation)
-- **Root Cause**: AI assistant initially stored stream-bot facts in dashboard's Artifact table
-- **Solution**: Complete architectural refactor - stream-bot now owns facts end-to-end
-- **Implementation**:
-  - Added `facts` table to stream-bot database schema (shared/schema.ts)
-  - Created migration 0006_add_facts_table.sql in stream-bot
-  - Added POST /api/facts endpoint to stream-bot Express API
-  - Added GET /api/facts/latest and GET /api/facts/random endpoints with wrapped responses
-  - Stream-bot generates facts IMMEDIATELY on startup + hourly (OpenAI GPT-4o)
-  - Stream-bot POSTs to itself (localhost:5000), not to dashboard
-  - Fixed timing issue: Server listens before fact generation starts
-- **Dashboard Changes**: Reverted to read-only proxy pattern (dashboard/routes/facts_routes.py)
-- **Service Separation**: Each service (stream-bot, dashboard, discord-bot) owns its own data, UI, and API completely
-- **Status**: ✅ Tested and verified working in development (facts generate on startup and store successfully)
-- **Deployment**: Migration 0006 applied to production, container rebuild needed
-- **Files**: services/stream-bot/shared/schema.ts, migrations/0006_add_facts_table.sql, server/routes.ts, server/index.ts
-
-### Complete Homelab Transformation (8-Phase Roadmap - In Progress)
-**Goal:** Transform system into truly modular, portable, production-grade "end all be all" homelab
-
-**Phase 1: Configuration Foundation - ✅ COMPLETE**
-- Implemented SOPS + age encryption for secrets management
-- Created config generator with Jinja2 templates
-- Per-service environment files (.env, .env.dashboard, .env.discord-bot, etc.)
-- Multi-environment support (dev/staging/prod)
-- Command: `./homelab config generate prod evindrake.net`
-
-**Phase 2: Modular Service Packaging - ✅ IMPLEMENTED**
-- Created orchestration/ directory with service catalog
-- Split docker-compose.yml into modular bundles (base, dashboard, discord, stream, web, automation)
-- Service catalog with 15 services across 5 groups
-- Commands: `./homelab deploy <service|group>`
-- Dynamic service catalog parser (service_catalog.py)
-
-**Phase 3: Service Discovery & Networking - ✅ IMPLEMENTED**
-- Consul service registry with health monitoring
-- Traefik reverse proxy with automatic HTTPS (Let's Encrypt + Cloudflare)
-- Service discovery metadata in services.yaml v2.0.0
-- CLI commands: services discover, routes list, network status
-- Tailscale integration documented
-
-**Phase 4: Database Platform Upgrade - ✅ IMPLEMENTED**
-- pgBouncer connection pooling (transaction mode, 1000 clients → 100 backend)
-- pgBackRest automated backups to MinIO (daily full, hourly incremental)
-- WAL archiving for point-in-time recovery
-- CLI commands: `./homelab db backup/restore/migrate/status/list-backups`
-
-**Phase 5: Observability & Auto-Recovery - ✅ IMPLEMENTED**
-- Prometheus metrics collection (8+ scrape targets)
-- Grafana dashboards (Homelab Overview, Database Dashboard)
-- Loki log aggregation with Promtail
-- Watchtower auto-restart for failed containers
-- CLI commands: `./homelab metrics/alerts`
-
-**Phase 6: Deployment & Rollback Automation - ✅ IMPLEMENTED**
-- GitHub Actions CI/CD pipeline
-- Automated deployments with health checks
-- Deployment history tracking (last 10)
-- Rollback system with backup restoration
-- CLI commands: `./homelab deploy-prod/rollback/deployment`
-
-**Phase 7: API Gateway & Auth - ✅ IMPLEMENTED**
-- Traefik as unified API gateway
-- JWT authentication service
-- Service-to-service token auth
-- Rate limiting middleware (100 req/min default)
-- CORS, security headers
-- CLI commands: `./homelab gateway status/tokens/generate-token`
-
-**Phase 8: DNS Automation - ✅ IMPLEMENTED**
-- Cloudflare API integration
-- Automatic DNS record creation from services.yaml
-- Multi-zone support (evindrake.net, rig-city.com, scarletredjoker.com)
-- Traefik route watching and auto-DNS
-- CLI commands: `./homelab dns list/sync/status`
-
-**Integration Status:** All 8 phases implemented. Known integration gaps (network config, env file wiring between phases) to be resolved during final integration testing
-
-## Recent Changes (November 2025)
-
-### Navigation Expansion
-- Added 5 missing features to sidebar navigation: NAS Management, Storage Monitor, Database Admin, File Manager, and App Marketplace
-- All features were fully implemented but not previously exposed in UI
-
-### Authentication Standardization
-- Fixed authentication mismatches across 9 route files (storage, db_admin, plex, artifact, unified_logs, upload, analysis, game_streaming, storage_optimization)
-- All custom `login_required` decorators now check `session.get('authenticated')` instead of `session['logged_in']`
-- Aligns with centralized auth system in `utils/auth.py` and `web.py`
-
-### NAS Integration
-- Documented NAS configuration in `.env.example` (NAS_IP, NAS_HOSTNAME, NAS_USER, NAS_PASSWORD, NAS_MOUNT_BASE)
-- Supports Zyxel NAS326 with SMB/CIFS mounting, auto-discovery, and backup scheduling
-
-### Homepage Enhancement
-- Added AI & Media Control card with responsive layout (col-lg-4 col-md-6 col-12)
-- Quick access buttons for Plex Import, Jarvis AI, Agent Swarm, and Voice Interface
-
-### Documentation
-- Created `COMPLETE_FEATURE_LIST.md` with comprehensive feature inventory
-- 50+ features across 7 categories
-- 31 HTML templates, 16 database migrations, 15 services cataloged
-
-### Database Configuration Fix (Critical)
-- Fixed database URL resolver to auto-build connection strings from password components
-- Prevents common configuration error where JARVIS_DATABASE_URL contains placeholder text "JARVIS_DB_PASSWORD"
-- Now auto-detects placeholders and builds correct URL from JARVIS_DB_PASSWORD
-- Created `DATABASE_CONFIG_FIX.md` documenting the issue and solution
-- Updated diagnostic script to detect this specific configuration mistake
-
-### Jarvis AI OpenAI Integration Fix (Critical - November 23, 2025)
-- **Problem:** Jarvis AI was returning 400 errors because OPENAI_API_KEY was not available in the dashboard container
-- **Root Cause:** Docker Compose's `env_file` directive loads variables but doesn't automatically expose them to the container
-- **Solution:** Explicitly added `OPENAI_API_KEY`, `WEB_USERNAME`, and `WEB_PASSWORD` to the `environment` section of the `homelab-dashboard` service in `docker-compose.yml`
-- **Result:** Jarvis AI Assistant now fully functional with GPT-3.5-turbo integration
-- Created `DEPLOYMENT_STATUS.md` with comprehensive deployment and verification steps
-- Created `quick-fix-jarvis.sh` for rapid deployment and testing on production server
+- **Centralized Database:** A single PostgreSQL container (`homelab-postgres`) serves as the shared database for all services.
+- **Reverse Proxy:** Caddy handles reverse proxying and automatic SSL.
+- **Environment Management:** All configuration is managed via a single `.env` file at the project root.
+- **Modular Architecture:** Designed for easy addition of new services.
+- **Authentication:** Centralized session-based authentication using `session['authenticated']`.
+- **Homelab Transformation:** Implemented an 8-phase roadmap covering configuration foundation (SOPS, Jinja2 templates), modular service packaging, service discovery & networking (Consul, Traefik), database platform upgrade (pgBouncer, pgBackRest), observability & auto-recovery (Prometheus, Grafana, Loki), deployment & rollback automation (GitHub Actions), API Gateway & Auth (Traefik, JWT), and DNS Automation (Cloudflare API integration). Each service is designed to own its data, UI, and API.
 
 ## External Dependencies
 
@@ -186,9 +47,16 @@ The core system relies on Docker Compose for orchestrating 15 services. A `boots
 - **Redis:** Used for caching.
 - **MinIO:** S3-compatible object storage.
 - **Caddy:** Reverse proxy with automatic SSL via Let's Encrypt.
-- **GPT-3.5-turbo (OpenAI API):** Powers the Jarvis AI assistant and stream bot's fact generation.
+- **GPT-4o (OpenAI API):** Powers the Jarvis AI assistant and stream bot's fact generation.
 - **Discord API:** For the Discord ticket bot.
 - **Twitch/Kick/YouTube APIs:** For the multi-platform stream bot.
 - **Plex Media Server:** Integrated for media streaming.
 - **n8n:** Workflow automation tool.
 - **Home Assistant:** Smart home hub integration.
+- **Cloudflare API:** For DNS automation.
+- **Consul:** Service registry.
+- **Traefik:** Unified API gateway and reverse proxy.
+- **Prometheus:** Metrics collection.
+- **Grafana:** Dashboards for monitoring.
+- **Loki:** Log aggregation.
+- **Tailscale:** VPN integration.

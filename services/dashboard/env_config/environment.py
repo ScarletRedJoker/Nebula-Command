@@ -13,7 +13,7 @@ class OpenAIConfig:
     """OpenAI API configuration"""
     api_key: str
     base_url: str
-    model: str = "gpt-4o-mini"
+    model: str = "gpt-4o"
 
 
 @dataclass
@@ -55,7 +55,7 @@ def get_openai_config() -> OpenAIConfig:
         # Production environment - use self-managed API key
         api_key = os.getenv("OPENAI_API_KEY", "")
         base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
-        model = os.getenv("AI_MODEL", "gpt-4o-mini")
+        model = os.getenv("AI_MODEL", "gpt-4o")
         
         if not api_key:
             raise ValueError(

@@ -71,7 +71,7 @@ Provide a clear, actionable response."""
                     {"role": "system", "content": "You are an expert DevOps engineer helping troubleshoot server and container issues."},
                     {"role": "user", "content": prompt}
                 ],
-                max_completion_tokens=2048
+                max_tokens=2048
             )
             
             return response.choices[0].message.content or "No response generated"
@@ -97,7 +97,7 @@ Provide specific troubleshooting steps and potential solutions."""
                     {"role": "system", "content": "You are an expert homelab administrator helping with Docker, networking, and server management."},
                     {"role": "user", "content": prompt}
                 ],
-                max_completion_tokens=2048
+                max_tokens=2048
             )
             
             return response.choices[0].message.content or "No response generated"
@@ -167,7 +167,7 @@ Format your responses using Markdown for better readability:
             response = self.client.chat.completions.create(
                 model=model,
                 messages=messages,
-                max_completion_tokens=2048
+                max_tokens=2048
             )
             
             return response.choices[0].message.content or "No response generated"
@@ -201,7 +201,7 @@ Format your responses using Markdown for better readability:
         messages.append({"role": "user", "content": message})
         return messages
     
-    def chat_stream(self, message: str, conversation_history: Optional[List[Dict[str, Any]]] = None, model: str = "gpt-4o-mini") -> Generator[str, None, None]:
+    def chat_stream(self, message: str, conversation_history: Optional[List[Dict[str, Any]]] = None, model: str = "gpt-4o") -> Generator[str, None, None]:
         """
         Stream chat responses using Server-Sent Events (SSE)
         Supports both OpenAI and Ollama models
@@ -210,7 +210,7 @@ Format your responses using Markdown for better readability:
         """
         # Validate and default model parameter
         if not model or not isinstance(model, str):
-            model = "gpt-4o-mini"
+            model = "gpt-4o"
         
         # Detect if using Ollama model (starts with "ollama/")
         if model.startswith("ollama/"):
@@ -307,7 +307,7 @@ Format your responses using Markdown for better readability:
             stream = self.client.chat.completions.create(
                 model=model,
                 messages=messages,
-                max_completion_tokens=2048,
+                max_tokens=2048,
                 stream=True
             )
             

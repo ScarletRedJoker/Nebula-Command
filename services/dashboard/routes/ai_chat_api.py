@@ -26,7 +26,7 @@ def status():
             "openai_available": ai_service.client is not None,
             "ollama_available": ai_service.ollama.enabled if ai_service.ollama else False,
             "models": {
-                "openai": ["gpt-4o-mini", "gpt-4o", "gpt-4-turbo"] if ai_service.enabled else [],
+                "openai": ["gpt-4o", "gpt-4", "gpt-4-turbo"] if ai_service.enabled else [],
                 "ollama": ai_service.ollama.list_models() if ai_service.ollama and ai_service.ollama.enabled else []
             }
         })
