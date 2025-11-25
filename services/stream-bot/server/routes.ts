@@ -41,6 +41,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/auth", oauthSpotifyRoutes);
   app.use("/auth", oauthYoutubeRoutes);
   app.use("/auth", oauthTwitchRoutes);
+  // Mount YouTube OAuth at /api/auth as well for backward compatibility with redirect URIs
+  app.use("/api/auth", oauthYoutubeRoutes);
   app.use("/api/spotify", spotifyRoutes);
   app.use("/api/overlay", overlayRoutes);
   app.use("/api/obs", obsRoutes);
