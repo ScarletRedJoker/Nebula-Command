@@ -1,4 +1,5 @@
 from openai import OpenAI
+from openai.types.chat import ChatCompletionMessageParam
 from typing import List, Dict, Generator, Optional, Any, cast
 import logging
 import json
