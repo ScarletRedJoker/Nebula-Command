@@ -19,14 +19,12 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 REQUIRED_TABLES = [
-    'marketplace_apps',
+    'workflows',
     'deployments', 
-    'conversation_messages',
-    'conversation_history',
-    'activity_logs',
-    'storage_stats',
-    'backup_jobs',
+    'marketplace_apps',
     'agents',
+    'chat_history',
+    'unified_logs',
 ]
 
 def get_env(key: str, default: str = "") -> str:
