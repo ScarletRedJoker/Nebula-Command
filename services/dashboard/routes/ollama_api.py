@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request, Response
 from services.ollama_service import OllamaService
-from utils.auth import require_web_auth
+from utils.auth import require_auth
 import json
 import logging
 
@@ -11,14 +11,14 @@ ollama_bp = Blueprint('ollama_api', __name__, url_prefix='/api/ollama')
 ollama_service = OllamaService()
 
 @ollama_bp.route('/models', methods=['GET'])
-@require_web_auth
+@require_auth
 def list_models():
     """List all installed Ollama models"""
     models = ollama_service.list_models()
     return jsonify({"success": True, "models": models})
 
 @ollama_bp.route('/models/pull', methods=['POST'])
-@require_web_auth
+@require_auth
 def pull_model():
     """Pull a model with streaming progress"""
     data = request.json
@@ -35,14 +35,14 @@ def pull_model():
     return Response(generate(), mimetype='text/event-stream')
 
 @ollama_bp.route('/models/<path:model_name>', methods=['DELETE'])
-@require_web_auth
+@require_auth
 def delete_model(model_name):
     """Delete a model"""
     success = ollama_service.delete_model(model_name)
     return jsonify({"success": success})
 
 @ollama_bp.route('/status', methods=['GET'])
-@require_web_auth
+@require_auth
 def status():
     """Get Ollama service status"""
     return jsonify({

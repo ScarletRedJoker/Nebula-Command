@@ -1,7 +1,7 @@
 """Stream-Bot Facts Display Routes - READ-ONLY proxy to stream-bot"""
 import logging
 from flask import Blueprint, render_template, jsonify
-from utils.auth import require_web_auth
+from utils.auth import require_auth, require_web_auth
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +16,7 @@ def facts_page():
 
 
 @facts_bp.route('/api/facts/latest', methods=['GET'])
-@require_web_auth
+@require_auth
 def get_latest_facts():
     """Proxy to stream-bot facts API
     
@@ -47,7 +47,7 @@ def get_latest_facts():
 
 
 @facts_bp.route('/api/facts/random', methods=['GET'])
-@require_web_auth
+@require_auth
 def get_random_fact():
     """Proxy to stream-bot random fact API
     

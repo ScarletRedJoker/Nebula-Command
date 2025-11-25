@@ -281,8 +281,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Check database connectivity
       try {
-        const { db } = await import('./db');
-        await db.execute({ sql: 'SELECT 1' });
+        const { pool } = await import('./db');
+        await pool.query('SELECT 1');
         checks.database = "healthy";
       } catch (error) {
         checks.database = "unhealthy";
@@ -334,7 +334,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/ready', async (req: Request, res: Response) => {
     try {
       // Check database connection
-      await db.execute({ sql: 'SELECT 1' });
+      const { pool } = await import('./db');
+      await pool.query('SELECT 1');
       res.json({ status: 'ready' });
     } catch (error: any) {
       res.status(503).json({ 

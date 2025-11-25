@@ -17,23 +17,11 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "stream-bot"
+args = "discord-bot"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "discord-bot"
-
-[[workflows.workflow]]
-name = "stream-bot"
-author = "agent"
-
-[workflows.workflow.metadata]
-outputType = "webview"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd services/stream-bot && APP_URL=\"https://${REPLIT_DEV_DOMAIN}\" TWITCH_REDIRECT_URI=\"https://${REPLIT_DEV_DOMAIN}/api/auth/twitch/callback\" YOUTUBE_REDIRECT_URI=\"https://${REPLIT_DEV_DOMAIN}/api/auth/youtube/callback\" SPOTIFY_REDIRECT_URI=\"https://${REPLIT_DEV_DOMAIN}/api/auth/spotify/callback\" PORT=5000 npm run dev"
-waitForPort = 5000
+args = "dashboard"
 
 [[workflows.workflow]]
 name = "discord-bot"
@@ -46,6 +34,18 @@ outputType = "console"
 task = "shell.exec"
 args = "cd services/discord-bot && NODE_ENV=development npm run dev"
 
+[[workflows.workflow]]
+name = "dashboard"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd services/dashboard && python main.py"
+waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
 [[ports]]
 localPort = 3000
 externalPort = 3000
@@ -57,10 +57,6 @@ externalPort = 3001
 [[ports]]
 localPort = 5000
 externalPort = 80
-
-[[ports]]
-localPort = 24678
-externalPort = 5000
 
 [[ports]]
 localPort = 36179
@@ -77,3 +73,13 @@ externalPort = 4200
 [[ports]]
 localPort = 46877
 externalPort = 3000
+
+[userenv]
+
+[userenv.shared]
+JARVIS_DATABASE_URL = "postgresql://neondb_owner:npg_zB8JH4rsFIAq@ep-divine-rain-aeqzxqlv.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require"
+WEB_USERNAME = "admin"
+WEB_PASSWORD = "admin123"
+DASHBOARD_API_KEY = "test-api-key-for-dashboard"
+REDIS_URL = "redis://localhost:6379/0"
+FLASK_ENV = "development"

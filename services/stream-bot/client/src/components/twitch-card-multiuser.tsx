@@ -75,7 +75,7 @@ export function TwitchCardMultiUser() {
   // Disconnect mutation
   const disconnect = useMutation({
     mutationFn: async () => {
-      await apiRequest('DELETE', '/auth/twitch/disconnect');
+      await apiRequest('DELETE', '/api/auth/twitch/disconnect');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/platforms"] });

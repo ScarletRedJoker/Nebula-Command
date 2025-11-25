@@ -389,24 +389,31 @@ def get_services_status():
     try:
         services_status = []
         for service_id, service_info in Config.SERVICES.items():
+            # Support both 'url' and 'domain' keys for backwards compatibility
+            domain = service_info.get('domain') or service_info.get('url', '')
+            service_type = service_info.get('type', 'container')  # Default to container type
+            
             status_data = {
                 'id': service_id,
                 'name': service_info['name'],
-                'domain': service_info['domain'],
-                'type': service_info['type'],
+                'domain': domain,
+                'type': service_type,
                 'status': 'unknown',
-                'container_status': None
+                'container_status': None,
+                'description': service_info.get('description', '')
             }
             
-            if service_info['type'] == 'container' and service_info['container']:
-                container_status = docker_service.get_container_status(service_info['container'])
+            container_name = service_info.get('container')
+            if service_type == 'container' and container_name:
+                container_status = docker_service.get_container_status(container_name)
                 if container_status:
                     status_data['status'] = container_status['status']
                     status_data['container_status'] = container_status
                 else:
                     status_data['status'] = 'not_found'
-            elif service_info['type'] == 'static':
-                if os.path.exists(service_info['path']):
+            elif service_type == 'static':
+                path = service_info.get('path', '')
+                if path and os.path.exists(path):
                     status_data['status'] = 'active'
                 else:
                     status_data['status'] = 'not_found'

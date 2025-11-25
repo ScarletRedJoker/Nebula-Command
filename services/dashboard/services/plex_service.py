@@ -339,8 +339,8 @@ class PlexService:
         # Upload to MinIO directly (bypassing standard file validator)
         upload_service._ensure_initialized()
         
-        object_name = f"plex-staging/{job_id}/{safe_filename}"
-        bucket = 'artifacts'
+        object_name = f"staging/{job_id}/{safe_filename}"
+        bucket = 'plex-media'
         
         try:
             upload_service.minio_client.fput_object(

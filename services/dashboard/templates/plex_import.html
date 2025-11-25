@@ -55,7 +55,12 @@
 
                     <!-- Progress Bar -->
                     <div id="uploadProgress" class="mb-3" style="display: none;">
-                        <label class="form-label">Upload Progress</label>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label class="form-label mb-0">Upload Progress</label>
+                            <button id="cancelUploadBtn" class="btn btn-sm btn-outline-danger" onclick="cancelCurrentUpload()" style="display: none;">
+                                <i class="bi bi-x-circle"></i> Cancel
+                            </button>
+                        </div>
                         <div class="progress" style="height: 25px;">
                             <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-success" 
                                  role="progressbar" style="width: 0%">
@@ -383,6 +388,10 @@ function removeFile(index) {
 async function uploadFileChunked(file, mediaType) {
     const chunkSize = uploadConfig?.chunk_size || 10 * 1024 * 1024;
     const totalChunks = Math.ceil(file.size / chunkSize);
+    const MAX_RETRIES = 3;
+    const RETRY_DELAY = 1000;
+    
+    updateProgress(0, `Initializing upload for ${file.name}...`);
     
     const initResponse = await fetch('/api/plex/upload/init', {
         method: 'POST',
@@ -400,40 +409,76 @@ async function uploadFileChunked(file, mediaType) {
     }
     
     const uploadId = initData.upload_id;
-    currentUpload = { uploadId, cancelled: false };
+    currentUpload = { uploadId, cancelled: false, failedChunks: [] };
     
-    for (let i = 0; i < totalChunks; i++) {
+    async function uploadChunkWithRetry(chunkIndex, retryCount = 0) {
         if (currentUpload?.cancelled) {
-            await fetch('/api/plex/upload/cancel', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ upload_id: uploadId })
-            });
             throw new Error('Upload cancelled by user');
         }
         
-        const start = i * chunkSize;
+        const start = chunkIndex * chunkSize;
         const end = Math.min(start + chunkSize, file.size);
         const chunk = file.slice(start, end);
         
         const formData = new FormData();
         formData.append('upload_id', uploadId);
-        formData.append('chunk_index', i);
+        formData.append('chunk_index', chunkIndex);
         formData.append('chunk', chunk);
         
-        const chunkResponse = await fetch('/api/plex/upload/chunk', {
-            method: 'POST',
-            body: formData
-        });
-        
-        const chunkData = await chunkResponse.json();
-        if (!chunkData.success) {
-            throw new Error(chunkData.error || 'Chunk upload failed');
+        try {
+            const chunkResponse = await fetch('/api/plex/upload/chunk', {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (!chunkResponse.ok) {
+                throw new Error(`HTTP ${chunkResponse.status}`);
+            }
+            
+            const chunkData = await chunkResponse.json();
+            if (!chunkData.success) {
+                throw new Error(chunkData.error || 'Chunk upload failed');
+            }
+            
+            return chunkData;
+            
+        } catch (error) {
+            if (retryCount < MAX_RETRIES) {
+                console.warn(`Chunk ${chunkIndex} failed, retrying (${retryCount + 1}/${MAX_RETRIES})...`);
+                updateProgress(null, `Retrying chunk ${chunkIndex + 1}/${totalChunks}...`);
+                await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * (retryCount + 1)));
+                return uploadChunkWithRetry(chunkIndex, retryCount + 1);
+            }
+            throw new Error(`Chunk ${chunkIndex} failed after ${MAX_RETRIES} retries: ${error.message}`);
+        }
+    }
+    
+    let completedChunks = 0;
+    const failedChunks = [];
+    
+    for (let i = 0; i < totalChunks; i++) {
+        if (currentUpload?.cancelled) {
+            await cancelUpload(uploadId);
+            throw new Error('Upload cancelled by user');
         }
         
-        const progress = ((i + 1) / totalChunks) * 100;
-        updateProgress(progress, `Uploading ${file.name}: ${i + 1}/${totalChunks} chunks`);
+        try {
+            await uploadChunkWithRetry(i);
+            completedChunks++;
+            const progress = (completedChunks / totalChunks) * 100;
+            updateProgress(progress, `Uploading ${file.name}: ${completedChunks}/${totalChunks} chunks`);
+        } catch (error) {
+            console.error(`Failed to upload chunk ${i}:`, error);
+            failedChunks.push(i);
+        }
     }
+    
+    if (failedChunks.length > 0) {
+        currentUpload.failedChunks = failedChunks;
+        throw new Error(`${failedChunks.length} chunk(s) failed to upload: ${failedChunks.join(', ')}`);
+    }
+    
+    updateProgress(99, `Finalizing upload for ${file.name}...`);
     
     const completeResponse = await fetch('/api/plex/upload/complete', {
         method: 'POST',
@@ -442,12 +487,29 @@ async function uploadFileChunked(file, mediaType) {
     });
     
     const completeData = await completeResponse.json();
+    
     if (!completeData.success) {
+        if (completeData.missing_chunks && completeData.missing_chunks.length > 0) {
+            throw new Error(`Missing chunks: ${completeData.missing_chunks.join(', ')}. Please retry the upload.`);
+        }
         throw new Error(completeData.error || 'Failed to complete upload');
     }
     
+    updateProgress(100, `Upload complete: ${file.name}`);
     currentUpload = null;
     return completeData;
+}
+
+async function cancelUpload(uploadId) {
+    try {
+        await fetch('/api/plex/upload/cancel', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ upload_id: uploadId })
+        });
+    } catch (e) {
+        console.warn('Failed to cancel upload:', e);
+    }
 }
 
 async function uploadFileStandard(file, mediaType) {
@@ -537,8 +599,10 @@ function updateProgress(percent, statusText) {
     const progressText = document.getElementById('progressText');
     const uploadStatus = document.getElementById('uploadStatus');
     
-    progressBar.style.width = `${percent}%`;
-    progressText.textContent = `${Math.round(percent)}%`;
+    if (percent !== null && percent !== undefined) {
+        progressBar.style.width = `${percent}%`;
+        progressText.textContent = `${Math.round(percent)}%`;
+    }
     if (statusText) {
         uploadStatus.textContent = statusText;
     }
@@ -547,13 +611,23 @@ function updateProgress(percent, statusText) {
 function showProgress() {
     document.getElementById('uploadProgress').style.display = 'block';
     document.getElementById('uploadBtn').disabled = true;
+    document.getElementById('cancelUploadBtn').style.display = 'inline-block';
     updateProgress(0, 'Preparing upload...');
 }
 
 function hideProgress() {
     document.getElementById('uploadProgress').style.display = 'none';
     document.getElementById('uploadBtn').disabled = selectedFiles.length === 0;
+    document.getElementById('cancelUploadBtn').style.display = 'none';
     currentUpload = null;
+}
+
+function cancelCurrentUpload() {
+    if (currentUpload && !currentUpload.cancelled) {
+        currentUpload.cancelled = true;
+        updateProgress(null, 'Cancelling upload...');
+        showToast('error', 'Upload cancelled');
+    }
 }
 
 // Load jobs

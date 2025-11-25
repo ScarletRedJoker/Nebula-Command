@@ -65,13 +65,27 @@ app.config['SESSION_COOKIE_HTTPONLY'] = True
 
 csrf = CSRFProtect(app)
 
-# Only exempt truly stateless API endpoints (health checks, read-only)
-# Session-authenticated routes MUST keep CSRF protection!
+# Exempt API endpoints that support API key authentication (X-API-Key header)
+# These are stateless JSON APIs that don't use session-based CSRF tokens
 csrf.exempt(health_bp)  # Read-only health checks
+csrf.exempt(ai_chat_bp)  # AI chat API (supports API key auth)
+csrf.exempt(api_bp)  # Main API routes (supports API key auth)
+csrf.exempt(service_ops_bp)  # Service operations API
+csrf.exempt(jarvis_voice_bp)  # Jarvis voice commands API
+csrf.exempt(jarvis_control_bp)  # Jarvis control plane API
+csrf.exempt(agent_bp)  # Agent swarm API
+csrf.exempt(plex_bp)  # Plex media management API
+csrf.exempt(storage_bp)  # Storage monitoring API
+csrf.exempt(ollama_bp)  # Ollama LLM API
+csrf.exempt(deployment_bp)  # Deployment API
+csrf.exempt(jarvis_deployment_bp)  # Jarvis deployment API
+csrf.exempt(artifact_bp)  # Artifact builder API
+csrf.exempt(database_bp)  # Database management API
+csrf.exempt(health_monitoring_bp)  # Health monitoring API
 
 limiter.init_app(app)
 logger.info("✓ CSRF Protection and Rate Limiting initialized")
-logger.info("✓ Health endpoints exempted from CSRF (read-only)")
+logger.info("✓ API endpoints exempted from CSRF (use API key for auth)")
 
 # Production logging configuration
 if not app.debug and os.environ.get('FLASK_ENV') == 'production':

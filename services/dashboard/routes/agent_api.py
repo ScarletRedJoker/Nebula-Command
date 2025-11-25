@@ -2,7 +2,7 @@
 from flask import Blueprint, jsonify, request
 from services.agent_orchestrator import AgentOrchestrator
 from services.cache_service import cache_service
-from utils.auth import require_web_auth
+from utils.auth import require_auth
 import logging
 
 logger = logging.getLogger(__name__)
@@ -12,7 +12,7 @@ agent_bp = Blueprint('agent_api', __name__, url_prefix='/api/agents')
 orchestrator = AgentOrchestrator()
 
 @agent_bp.route('/list', methods=['GET'])
-@require_web_auth
+@require_auth
 def list_agents():
     """List all agents in the swarm"""
     try:
@@ -23,7 +23,7 @@ def list_agents():
         return jsonify({"success": False, "error": str(e)}), 500
 
 @agent_bp.route('/tasks', methods=['GET'])
-@require_web_auth
+@require_auth
 def list_tasks():
     """List all agent tasks"""
     try:
@@ -51,7 +51,7 @@ def list_tasks():
         return jsonify({"success": False, "error": str(e)}), 500
 
 @agent_bp.route('/tasks/create', methods=['POST'])
-@require_web_auth
+@require_auth
 def create_task():
     """Create a new task for the agent swarm"""
     try:
@@ -85,7 +85,7 @@ def create_task():
         return jsonify({"success": False, "error": str(e)}), 500
 
 @agent_bp.route('/tasks/<int:task_id>/execute', methods=['POST'])
-@require_web_auth
+@require_auth
 def execute_task(task_id):
     """Execute a task with agent collaboration"""
     try:
@@ -96,7 +96,7 @@ def execute_task(task_id):
         return jsonify({"success": False, "error": str(e)}), 500
 
 @agent_bp.route('/tasks/<int:task_id>', methods=['GET'])
-@require_web_auth
+@require_auth
 def get_task(task_id):
     """Get task details including agent conversations"""
     try:
@@ -114,7 +114,7 @@ def get_task(task_id):
         return jsonify({"success": False, "error": str(e)}), 500
 
 @agent_bp.route('/tasks/pending', methods=['GET'])
-@require_web_auth
+@require_auth
 def get_pending_tasks():
     """Get all tasks requiring approval"""
     try:
@@ -153,7 +153,7 @@ def get_pending_tasks():
         return jsonify({"success": False, "error": str(e)}), 500
 
 @agent_bp.route('/tasks/<int:task_id>/approve', methods=['POST'])
-@require_web_auth
+@require_auth
 def approve_task(task_id):
     """Approve a task for execution"""
     try:
@@ -219,7 +219,7 @@ def approve_task(task_id):
         return jsonify({"success": False, "error": str(e)}), 500
 
 @agent_bp.route('/tasks/<int:task_id>/reject', methods=['POST'])
-@require_web_auth
+@require_auth
 def reject_task(task_id):
     """Reject a task and prevent execution"""
     try:
@@ -289,7 +289,7 @@ def reject_task(task_id):
         return jsonify({"success": False, "error": str(e)}), 500
 
 @agent_bp.route('/tasks/<int:task_id>/status', methods=['GET'])
-@require_web_auth
+@require_auth
 def get_task_status(task_id):
     """Get task status and full execution log"""
     try:

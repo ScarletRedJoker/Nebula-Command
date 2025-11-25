@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class UploadService:
     """Handles file uploads to MinIO object storage with lazy initialization"""
     
-    BUCKETS = ['artifacts', 'deployments', 'backups']
+    BUCKETS = ['artifacts', 'deployments', 'backups', 'plex-media']
     MAX_RETRIES = 5
     INITIAL_RETRY_DELAY = 1
     MAX_RETRY_DELAY = 30

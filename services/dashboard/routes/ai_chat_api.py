@@ -3,7 +3,7 @@ from flask import Blueprint, jsonify, request, Response, stream_with_context
 from services.ai_service import AIService
 from services.db_service import db_service
 from models.jarvis import AISession
-from utils.auth import require_web_auth
+from utils.auth import require_auth
 from datetime import datetime
 import logging
 import json
@@ -16,7 +16,7 @@ ai_chat_bp = Blueprint('ai_chat', __name__, url_prefix='/api/ai')
 ai_service = AIService()
 
 @ai_chat_bp.route('/status', methods=['GET'])
-@require_web_auth
+@require_auth
 def status():
     """Get AI service status"""
     try:
@@ -35,7 +35,7 @@ def status():
         return jsonify({"success": False, "error": str(e)}), 500
 
 @ai_chat_bp.route('/chat', methods=['POST'])
-@require_web_auth
+@require_auth
 def chat():
     """Non-streaming chat endpoint"""
     try:
@@ -110,7 +110,7 @@ def chat():
         return jsonify({"success": False, "error": str(e)}), 500
 
 @ai_chat_bp.route('/chat/stream', methods=['POST'])
-@require_web_auth
+@require_auth
 def chat_stream():
     """Streaming chat endpoint using Server-Sent Events (SSE)"""
     try:
@@ -208,7 +208,7 @@ def chat_stream():
         return Response(error_stream(), mimetype='text/event-stream')
 
 @ai_chat_bp.route('/chat/history', methods=['GET'])
-@require_web_auth
+@require_auth
 def chat_history():
     """Get chat history for a session"""
     try:
@@ -238,7 +238,7 @@ def chat_history():
         return jsonify({"success": False, "error": str(e)}), 500
 
 @ai_chat_bp.route('/chat/sessions', methods=['GET'])
-@require_web_auth
+@require_auth
 def list_sessions():
     """List all chat sessions"""
     try:
@@ -273,7 +273,7 @@ def list_sessions():
         return jsonify({"success": False, "error": str(e)}), 500
 
 @ai_chat_bp.route('/chat/clear', methods=['POST'])
-@require_web_auth
+@require_auth
 def clear_session():
     """Clear a chat session"""
     try:

@@ -7,6 +7,7 @@ import time
 import redis
 import docker
 from datetime import datetime
+from sqlalchemy import text
 from models import get_engine
 import logging
 
@@ -30,7 +31,7 @@ def health_check():
         try:
             engine = get_engine()
             with engine.connect() as conn:
-                conn.execute("SELECT 1")
+                conn.execute(text("SELECT 1"))
             checks['database'] = 'healthy'
         except Exception as e:
             logger.error(f"Database health check failed: {e}")

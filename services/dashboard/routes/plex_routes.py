@@ -11,6 +11,7 @@ from functools import wraps
 from config import Config
 from services.plex_service import plex_service
 from workers.plex_worker import process_import_job, cleanup_old_imports
+from utils.auth import require_auth, require_web_auth
 
 logger = logging.getLogger(__name__)
 
@@ -20,13 +21,8 @@ CHUNKED_UPLOADS = {}
 
 
 def login_required(f):
-    """Decorator to require login for routes"""
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not session.get('authenticated'):
-            return jsonify({'error': 'Authentication required'}), 401
-        return f(*args, **kwargs)
-    return decorated_function
+    """Decorator for API routes - supports both session and API key auth"""
+    return require_auth(f)
 
 
 @plex_bp.route('/plex')
@@ -238,7 +234,7 @@ def init_chunked_upload():
 @login_required
 def upload_chunk():
     """
-    Upload a single chunk
+    Upload a single chunk with proper file handling for random-access writes
     
     Form data:
         upload_id: Upload session ID
@@ -258,7 +254,10 @@ def upload_chunk():
         if chunk_index is None:
             return jsonify({'error': 'chunk_index is required'}), 400
         
-        chunk_index = int(chunk_index)
+        try:
+            chunk_index = int(chunk_index)
+        except ValueError:
+            return jsonify({'error': 'chunk_index must be an integer'}), 400
         
         if 'chunk' not in request.files:
             return jsonify({'error': 'No chunk data provided'}), 400
@@ -267,7 +266,7 @@ def upload_chunk():
         
         # Verify chunk index is valid
         if chunk_index < 0 or chunk_index >= upload_info['total_chunks']:
-            return jsonify({'error': f'Invalid chunk index: {chunk_index}'}), 400
+            return jsonify({'error': f'Invalid chunk index: {chunk_index}. Expected 0-{upload_info["total_chunks"]-1}'}), 400
         
         # Skip if chunk already received
         if chunk_index in upload_info['received_chunks']:
@@ -282,9 +281,26 @@ def upload_chunk():
         chunk_file = request.files['chunk']
         chunk_data = chunk_file.read()
         
-        # Write chunk to temp file at correct offset
-        with open(upload_info['temp_path'], 'ab' if chunk_index > 0 and os.path.exists(upload_info['temp_path']) else 'wb') as f:
-            offset = chunk_index * upload_info['chunk_size']
+        # Validate chunk size (except last chunk)
+        expected_chunk_size = upload_info['chunk_size']
+        is_last_chunk = chunk_index == upload_info['total_chunks'] - 1
+        
+        if not is_last_chunk and len(chunk_data) != expected_chunk_size:
+            logger.warning(f"Chunk {chunk_index} has unexpected size: {len(chunk_data)} (expected {expected_chunk_size})")
+        
+        temp_path = upload_info['temp_path']
+        offset = chunk_index * upload_info['chunk_size']
+        
+        # Pre-allocate file if this is the first chunk being written
+        if not os.path.exists(temp_path):
+            # Create sparse file with final size
+            with open(temp_path, 'wb') as f:
+                f.seek(upload_info['file_size'] - 1)
+                f.write(b'\0')
+            logger.debug(f"Pre-allocated file {temp_path} with size {upload_info['file_size']}")
+        
+        # Write chunk at specific offset using r+b mode (read+write binary)
+        with open(temp_path, 'r+b') as f:
             f.seek(offset)
             f.write(chunk_data)
         
@@ -292,14 +308,14 @@ def upload_chunk():
         
         progress = len(upload_info['received_chunks']) / upload_info['total_chunks'] * 100
         
-        logger.debug(f"Received chunk {chunk_index + 1}/{upload_info['total_chunks']} for upload {upload_id}")
+        logger.debug(f"Received chunk {chunk_index + 1}/{upload_info['total_chunks']} for upload {upload_id} ({len(chunk_data)} bytes at offset {offset})")
         
         return jsonify({
             'success': True,
             'chunk_index': chunk_index,
             'received_chunks': len(upload_info['received_chunks']),
             'total_chunks': upload_info['total_chunks'],
-            'progress': progress
+            'progress': round(progress, 2)
         }), 200
         
     except Exception as e:
@@ -311,10 +327,11 @@ def upload_chunk():
 @login_required
 def complete_chunked_upload():
     """
-    Complete a chunked upload and trigger processing
+    Complete a chunked upload with file integrity verification and trigger processing
     
     JSON body:
         upload_id: Upload session ID
+        checksum: Optional client-computed file checksum for verification
     
     Returns:
         JSON with completion status
@@ -325,6 +342,7 @@ def complete_chunked_upload():
             return jsonify({'error': 'JSON body required'}), 400
         
         upload_id = data.get('upload_id')
+        client_checksum = data.get('checksum')  # Optional
         
         if not upload_id or upload_id not in CHUNKED_UPLOADS:
             return jsonify({'error': 'Invalid or expired upload_id'}), 400
@@ -334,21 +352,61 @@ def complete_chunked_upload():
         # Verify all chunks received
         missing_chunks = set(range(upload_info['total_chunks'])) - upload_info['received_chunks']
         if missing_chunks:
+            # Return sorted list of missing chunks for easier retry
+            sorted_missing = sorted(list(missing_chunks))
             return jsonify({
-                'error': 'Not all chunks received',
-                'missing_chunks': list(missing_chunks)
+                'success': False,
+                'error': f'Missing {len(sorted_missing)} chunk(s)',
+                'missing_chunks': sorted_missing,
+                'received_chunks': len(upload_info['received_chunks']),
+                'total_chunks': upload_info['total_chunks']
             }), 400
         
+        temp_path = upload_info['temp_path']
+        
+        # Verify temp file exists
+        if not os.path.exists(temp_path):
+            return jsonify({
+                'success': False,
+                'error': 'Assembled file not found. Upload may have been corrupted.'
+            }), 500
+        
         # Verify file size
-        if os.path.exists(upload_info['temp_path']):
-            actual_size = os.path.getsize(upload_info['temp_path'])
-            if actual_size != upload_info['file_size']:
-                logger.warning(f"File size mismatch: expected {upload_info['file_size']}, got {actual_size}")
+        actual_size = os.path.getsize(temp_path)
+        expected_size = upload_info['file_size']
+        
+        if actual_size != expected_size:
+            logger.error(f"File size mismatch for upload {upload_id}: expected {expected_size}, got {actual_size}")
+            return jsonify({
+                'success': False,
+                'error': f'File size mismatch: expected {expected_size} bytes, got {actual_size} bytes. Some chunks may be corrupted.',
+                'expected_size': expected_size,
+                'actual_size': actual_size
+            }), 400
+        
+        # Compute server-side checksum and verify if client provided one
+        if client_checksum:
+            server_checksum = hashlib.sha256()
+            with open(temp_path, 'rb') as f:
+                for block in iter(lambda: f.read(65536), b''):
+                    server_checksum.update(block)
+            server_checksum = server_checksum.hexdigest()
+            
+            if client_checksum != server_checksum:
+                logger.error(f"Checksum mismatch for upload {upload_id}: client={client_checksum}, server={server_checksum}")
+                return jsonify({
+                    'success': False,
+                    'error': 'File checksum mismatch. File may be corrupted during transfer.',
+                    'client_checksum': client_checksum,
+                    'server_checksum': server_checksum
+                }), 400
+            
+            logger.info(f"Checksum verified for upload {upload_id}: {server_checksum}")
         
         try:
             # Upload the assembled file to MinIO
             upload_result = plex_service.upload_media_file(
-                upload_info['temp_path'],
+                temp_path,
                 upload_info['filename'],
                 upload_info['job_id'],
                 media_type=upload_info['media_type']
@@ -357,27 +415,39 @@ def complete_chunked_upload():
             # Trigger async processing
             process_import_job.delay(upload_info['job_id'])
             
-            logger.info(f"Completed chunked upload {upload_id}, job {upload_info['job_id']}")
+            logger.info(f"Completed chunked upload {upload_id}, job {upload_info['job_id']}, file size {actual_size} bytes")
             
             return jsonify({
                 'success': True,
                 'message': 'Upload completed and processing started',
                 'job_id': upload_info['job_id'],
                 'item_id': upload_result['item_id'],
-                'metadata': upload_result['metadata']
+                'metadata': upload_result['metadata'],
+                'file_size': actual_size
             }), 200
+            
+        except Exception as e:
+            logger.error(f"Failed to upload assembled file to MinIO: {e}", exc_info=True)
+            return jsonify({
+                'success': False,
+                'error': f'Failed to save file to storage: {str(e)}'
+            }), 500
             
         finally:
             # Cleanup temp file
-            if os.path.exists(upload_info['temp_path']):
-                os.remove(upload_info['temp_path'])
+            if os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except Exception as e:
+                    logger.warning(f"Failed to cleanup temp file {temp_path}: {e}")
             
             # Remove upload session
-            del CHUNKED_UPLOADS[upload_id]
+            if upload_id in CHUNKED_UPLOADS:
+                del CHUNKED_UPLOADS[upload_id]
         
     except Exception as e:
         logger.error(f"Error completing chunked upload: {e}", exc_info=True)
-        return jsonify({'error': f'Failed to complete upload: {str(e)}'}), 500
+        return jsonify({'success': False, 'error': f'Failed to complete upload: {str(e)}'}), 500
 
 
 @plex_bp.route('/api/plex/upload/cancel', methods=['POST'])

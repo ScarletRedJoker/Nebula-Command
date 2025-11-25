@@ -13,6 +13,7 @@ from workers.storage_worker import (
     check_database_sizes,
     check_alert_thresholds
 )
+from utils.auth import require_auth, require_web_auth
 
 logger = logging.getLogger(__name__)
 
@@ -20,13 +21,8 @@ storage_bp = Blueprint('storage', __name__)
 
 
 def login_required(f):
-    """Decorator to require login for routes"""
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not session.get('authenticated'):
-            return jsonify({'error': 'Authentication required'}), 401
-        return f(*args, **kwargs)
-    return decorated_function
+    """Decorator for API routes - supports both session and API key auth"""
+    return require_auth(f)
 
 
 @storage_bp.route('/storage')
