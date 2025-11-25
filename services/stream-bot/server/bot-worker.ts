@@ -146,6 +146,8 @@ export class BotWorker {
   async startForManualPosting(): Promise<void> {
     if (this.isRunning) return;
 
+    console.log(`[BotWorker] Starting for manual posting (user ${this.userId})`);
+
     try {
       // Get or create a minimal config
       let config = await this.storage.getBotConfig();
@@ -159,37 +161,64 @@ export class BotWorker {
         } as BotConfig;
       }
       this.config = config;
-      this.isRunning = true;
 
-      console.log(`[BotWorker] Starting for manual posting (user ${this.userId})`);
+      // Track which platforms successfully connected
+      const connectedPlatforms: string[] = [];
 
       // Connect Twitch client for posting
       const twitchConnection = await this.storage.getPlatformConnectionByPlatform("twitch");
       if (twitchConnection?.isConnected) {
         console.log(`[BotWorker] Connecting Twitch for manual posting...`);
-        await this.startTwitchClient(twitchConnection, [], false); // No chat triggers needed
+        try {
+          await this.startTwitchClient(twitchConnection, [], false);
+          connectedPlatforms.push("twitch");
+          this.activePlatforms.add("twitch");
+        } catch (error) {
+          console.error(`[BotWorker] Failed to connect Twitch:`, error);
+          // Continue - we may have other platforms
+        }
       }
 
       // Connect YouTube client for posting
       const youtubeConnection = await this.storage.getPlatformConnectionByPlatform("youtube");
       if (youtubeConnection?.isConnected) {
-        await this.startYouTubeClient(youtubeConnection, []);
+        try {
+          await this.startYouTubeClient(youtubeConnection, []);
+          connectedPlatforms.push("youtube");
+          this.activePlatforms.add("youtube");
+        } catch (error) {
+          console.error(`[BotWorker] Failed to connect YouTube:`, error);
+        }
       }
 
       // Connect Kick client for posting
       const kickConnection = await this.storage.getPlatformConnectionByPlatform("kick");
       if (kickConnection?.isConnected) {
-        await this.startKickClient(kickConnection, []);
+        try {
+          await this.startKickClient(kickConnection, []);
+          connectedPlatforms.push("kick");
+          this.activePlatforms.add("kick");
+        } catch (error) {
+          console.error(`[BotWorker] Failed to connect Kick:`, error);
+        }
       }
 
-      // Track active platforms
-      if (twitchConnection?.isConnected) this.activePlatforms.add("twitch");
-      if (youtubeConnection?.isConnected) this.activePlatforms.add("youtube");
-      if (kickConnection?.isConnected) this.activePlatforms.add("kick");
+      // Only mark as running if at least one platform connected
+      if (connectedPlatforms.length === 0) {
+        this.activePlatforms.clear();
+        throw new Error("No platforms connected - please connect at least one platform (Twitch, YouTube, or Kick)");
+      }
 
-      console.log(`[BotWorker] Ready for manual posting on platforms: ${Array.from(this.activePlatforms).join(", ")}`);
+      // Now safe to mark as running since we have at least one connected platform
+      this.isRunning = true;
+      console.log(`[BotWorker] Ready for manual posting on platforms: ${connectedPlatforms.join(", ")}`);
     } catch (error) {
+      // Clean up on failure
       this.isRunning = false;
+      this.activePlatforms.clear();
+      this.twitchClient = null;
+      this.youtubeActiveLiveChatId = null;
+      this.kickClient = null;
       console.error(`[BotWorker] Failed to start for manual posting:`, error);
       throw error;
     }
@@ -1022,10 +1051,15 @@ export class BotWorker {
     }
   }
 
-  private async startTwitchClient(connection: PlatformConnection, keywords: string[], enableChatTriggers: boolean = true) {
+  private async startTwitchClient(connection: PlatformConnection, keywords: string[], enableChatTriggers: boolean = true): Promise<boolean> {
     if (!connection.platformUsername) {
       console.error(`[BotWorker] Cannot start Twitch client - no platform username`);
-      return;
+      throw new Error("No Twitch username found - please reconnect Twitch");
+    }
+
+    if (!connection.accessToken) {
+      console.error(`[BotWorker] Cannot start Twitch client - no access token`);
+      throw new Error("No Twitch access token - please reconnect Twitch");
     }
 
     try {
@@ -1322,11 +1356,32 @@ export class BotWorker {
         }
       });
 
-      await this.twitchClient.connect();
+      // Wait for connection with timeout
+      await Promise.race([
+        this.twitchClient.connect(),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error("Twitch connection timeout (10s)")), 10000)
+        )
+      ]);
+      
+      // Verify the client is actually connected
+      if (!this.twitchClient.readyState() || this.twitchClient.readyState() === "CLOSED") {
+        throw new Error("Twitch connection failed - client not ready");
+      }
+      
       console.log(`[BotWorker] Twitch bot connected for user ${this.userId} (${connection.platformUsername})`);
-    } catch (error) {
-      console.error(`[BotWorker] Failed to start Twitch client for user ${this.userId}:`, error);
+      return true;
+    } catch (error: any) {
+      console.error(`[BotWorker] Failed to start Twitch client for user ${this.userId}:`, error?.message || error);
+      if (this.twitchClient) {
+        try {
+          await this.twitchClient.disconnect();
+        } catch (e) {
+          // Ignore disconnect errors
+        }
+      }
       this.twitchClient = null;
+      throw new Error(`Twitch connection failed: ${error?.message || String(error)}`);
     }
   }
 

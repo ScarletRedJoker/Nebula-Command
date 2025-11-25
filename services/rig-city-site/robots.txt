@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://rig-city.com/sitemap.xml
