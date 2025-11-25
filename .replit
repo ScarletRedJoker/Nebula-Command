@@ -23,6 +23,10 @@ args = "discord-bot"
 task = "workflow.run"
 args = "dashboard"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "stream-bot"
+
 [[workflows.workflow]]
 name = "discord-bot"
 author = "agent"
@@ -46,20 +50,28 @@ waitForPort = 5000
 [workflows.workflow.metadata]
 outputType = "webview"
 
+[[workflows.workflow]]
+name = "stream-bot"
+author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd services/stream-bot && PORT=3000 NODE_ENV=development npm run dev"
+waitForPort = 3000
+
 [[ports]]
 localPort = 3000
 externalPort = 3000
-
-[[ports]]
-localPort = 4000
-externalPort = 3001
 
 [[ports]]
 localPort = 5000
 externalPort = 80
 
 [[ports]]
-localPort = 36179
+localPort = 24678
 externalPort = 3003
 
 [[ports]]
@@ -69,6 +81,10 @@ externalPort = 3002
 [[ports]]
 localPort = 41711
 externalPort = 4200
+
+[[ports]]
+localPort = 46831
+externalPort = 3001
 
 [[ports]]
 localPort = 46877
@@ -83,3 +99,9 @@ WEB_PASSWORD = "admin123"
 DASHBOARD_API_KEY = "test-api-key-for-dashboard"
 REDIS_URL = "redis://localhost:6379/0"
 FLASK_ENV = "development"
+
+[userenv.development]
+TWITCH_REDIRECT_URI = "https://3acc42cf-91e9-40f1-90e8-761e2c391cdf-00-17v3bbf5unhyf.picard.replit.dev/api/auth/twitch/callback"
+YOUTUBE_REDIRECT_URI = "https://3acc42cf-91e9-40f1-90e8-761e2c391cdf-00-17v3bbf5unhyf.picard.replit.dev/api/auth/youtube/callback"
+SPOTIFY_REDIRECT_URI = "https://3acc42cf-91e9-40f1-90e8-761e2c391cdf-00-17v3bbf5unhyf.picard.replit.dev/api/auth/spotify/callback"
+KICK_REDIRECT_URI = "https://3acc42cf-91e9-40f1-90e8-761e2c391cdf-00-17v3bbf5unhyf.picard.replit.dev/api/auth/kick/callback"

@@ -26,13 +26,20 @@ const INITIAL_RETRY_DELAY = 1000; // 1 second
  */
 export class TokenRefreshService {
   private intervalId: NodeJS.Timeout | null = null;
-  private isRunning = false;
+  private running = false;
+
+  /**
+   * Check if the service is running
+   */
+  isRunning(): boolean {
+    return this.running;
+  }
 
   /**
    * Start the token refresh service
    */
   start(): void {
-    if (this.isRunning) {
+    if (this.running) {
       console.log('[TokenRefresh] Service already running');
       return;
     }
@@ -41,7 +48,7 @@ export class TokenRefreshService {
     console.log(`[TokenRefresh] Checking tokens every ${REFRESH_INTERVAL / 60000} minutes`);
     console.log(`[TokenRefresh] Refreshing tokens that expire within ${REFRESH_THRESHOLD / 3600000} hours`);
 
-    this.isRunning = true;
+    this.running = true;
 
     // Run immediately on start
     this.refreshExpiredTokens().catch(error => {
@@ -60,7 +67,7 @@ export class TokenRefreshService {
    * Stop the token refresh service
    */
   stop(): void {
-    if (!this.isRunning) {
+    if (!this.running) {
       console.log('[TokenRefresh] Service not running');
       return;
     }
@@ -72,7 +79,7 @@ export class TokenRefreshService {
       this.intervalId = null;
     }
 
-    this.isRunning = false;
+    this.running = false;
   }
 
   /**
