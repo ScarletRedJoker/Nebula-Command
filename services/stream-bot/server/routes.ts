@@ -984,15 +984,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Platforms array required" });
       }
 
+      console.log(`[trigger] Manual trigger for user ${req.user!.id} to platforms:`, platforms);
+      
       const fact = await botManager.postManualFact(req.user!.id, platforms);
       
       if (!fact) {
+        console.error(`[trigger] No fact returned for user ${req.user!.id}`);
         return res.status(500).json({ error: "Failed to generate fact" });
       }
 
+      console.log(`[trigger] Successfully posted fact for user ${req.user!.id}:`, fact.substring(0, 50));
       res.json({ success: true, fact });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to trigger fact posting" });
+    } catch (error: any) {
+      console.error(`[trigger] Error posting fact:`, error?.message || error);
+      res.status(500).json({ 
+        error: "Failed to trigger fact posting",
+        details: error?.message || String(error)
+      });
     }
   });
 

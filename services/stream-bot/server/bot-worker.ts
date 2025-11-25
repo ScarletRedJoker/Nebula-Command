@@ -16,6 +16,7 @@ import { PollsService } from "./polls-service";
 import { AlertsService } from "./alerts-service";
 import { ChatbotService } from "./chatbot-service";
 import { shoutoutService } from "./shoutout-service";
+import { refreshTwitchToken } from "./oauth-twitch";
 import type { BotConfig, PlatformConnection, CustomCommand, ModerationRule, LinkWhitelist } from "@shared/schema";
 
 type BotEvent = {
@@ -166,13 +167,23 @@ export class BotWorker {
       const connectedPlatforms: string[] = [];
 
       // Connect Twitch client for posting
-      const twitchConnection = await this.storage.getPlatformConnectionByPlatform("twitch");
+      let twitchConnection = await this.storage.getPlatformConnectionByPlatform("twitch");
       if (twitchConnection?.isConnected) {
         console.log(`[BotWorker] Connecting Twitch for manual posting...`);
         try {
-          await this.startTwitchClient(twitchConnection, [], false);
-          connectedPlatforms.push("twitch");
-          this.activePlatforms.add("twitch");
+          // Refresh token before connecting to ensure it's valid
+          console.log(`[BotWorker] Refreshing Twitch token before connecting...`);
+          const newToken = await refreshTwitchToken(this.userId);
+          if (newToken) {
+            // Re-fetch connection with fresh token
+            twitchConnection = await this.storage.getPlatformConnectionByPlatform("twitch");
+          }
+          
+          if (twitchConnection?.isConnected) {
+            await this.startTwitchClient(twitchConnection, [], false);
+            connectedPlatforms.push("twitch");
+            this.activePlatforms.add("twitch");
+          }
         } catch (error) {
           console.error(`[BotWorker] Failed to connect Twitch:`, error);
           // Continue - we may have other platforms
