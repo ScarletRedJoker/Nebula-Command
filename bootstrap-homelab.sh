@@ -455,27 +455,37 @@ elif [ "$dashboard_status" = "100" ]; then
 else
     echo -e "${RED}✗ Container not responding${NC}"
     echo -e "${YELLOW}  Check logs: docker logs homelab-dashboard${NC}"
-    ((validation_failed++))
+    validation_failed=$((validation_failed + 1))
 fi
 
-# Test Discord Bot
+# Test Discord Bot (runs in container, check via docker exec)
 echo -n "  Testing Discord Bot... "
-discord_status=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:4000/ 2>/dev/null || echo "000")
-if [ "$discord_status" = "200" ] || [ "$discord_status" = "302" ]; then
-    echo -e "${GREEN}✓ (HTTP $discord_status)${NC}"
+if docker ps --filter name=discord-bot --filter status=running | grep -q discord-bot; then
+    # Container is running - check if the server process exists
+    if docker exec discord-bot pgrep -f "node" >/dev/null 2>&1; then
+        echo -e "${GREEN}✓ Container running with Node process${NC}"
+    else
+        echo -e "${YELLOW}⚠ Container running (Node may still be initializing)${NC}"
+        validation_warnings=$((validation_warnings + 1))
+    fi
 else
-    echo -e "${YELLOW}⚠ (HTTP $discord_status)${NC}"
-    ((validation_warnings++))
+    echo -e "${RED}✗ Container not running${NC}"
+    validation_failed=$((validation_failed + 1))
 fi
 
-# Test Stream Bot
+# Test Stream Bot (runs in container, check via docker exec)
 echo -n "  Testing Stream Bot... "
-stream_status=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5000/ 2>/dev/null || echo "000")
-if [ "$stream_status" = "200" ] || [ "$stream_status" = "302" ]; then
-    echo -e "${GREEN}✓ (HTTP $stream_status)${NC}"
+if docker ps --filter name=stream-bot --filter status=running | grep -q stream-bot; then
+    # Container is running - check if the server process exists
+    if docker exec stream-bot pgrep -f "node" >/dev/null 2>&1; then
+        echo -e "${GREEN}✓ Container running with Node process${NC}"
+    else
+        echo -e "${YELLOW}⚠ Container running (Node may still be initializing)${NC}"
+        validation_warnings=$((validation_warnings + 1))
+    fi
 else
-    echo -e "${YELLOW}⚠ (HTTP $stream_status)${NC}"
-    ((validation_warnings++))
+    echo -e "${RED}✗ Container not running${NC}"
+    validation_failed=$((validation_failed + 1))
 fi
 
 # Check database tables
@@ -486,13 +496,14 @@ for db in ticketbot streambot homelab_jarvis; do
         echo -e "    ${GREEN}✓${NC} $db: $count tables"
     else
         echo -e "    ${YELLOW}⚠${NC} $db: No tables (may be normal for first run)"
-        ((validation_warnings++))
+        validation_warnings=$((validation_warnings + 1))
     fi
 done
 
-# Container status
-running=$(docker ps --filter "name=homelab" --format "{{.Names}}" | wc -l)
-echo -e "  Container status: ${CYAN}$running/15${NC} running"
+# Container status - count all project containers
+running=$(docker compose --project-directory "$PROJECT_ROOT" ps --status running --format "{{.Name}}" 2>/dev/null | wc -l || echo "0")
+total=$(docker compose --project-directory "$PROJECT_ROOT" ps --format "{{.Name}}" 2>/dev/null | wc -l || echo "0")
+echo -e "  Container status: ${CYAN}$running/$total${NC} running"
 
 # ============================================================================
 # Summary
