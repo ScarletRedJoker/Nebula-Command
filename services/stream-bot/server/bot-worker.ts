@@ -73,10 +73,11 @@ export class BotWorker {
       // Set stream start time for uptime tracking
       this.streamStartTime = new Date();
 
-      // Start Twitch client if connected and chat triggers enabled
+      // Start Twitch client if connected (needed for posting facts)
+      // Chat triggers are handled separately within the client
       const twitchConnection = await this.storage.getPlatformConnectionByPlatform("twitch");
-      if (twitchConnection?.isConnected && this.config.enableChatTriggers) {
-        await this.startTwitchClient(twitchConnection, this.config.chatKeywords || []);
+      if (twitchConnection?.isConnected) {
+        await this.startTwitchClient(twitchConnection, this.config.chatKeywords || [], this.config.enableChatTriggers);
       }
 
       // Start YouTube client if connected
@@ -968,10 +969,15 @@ export class BotWorker {
     }
   }
 
-  private async startTwitchClient(connection: PlatformConnection, keywords: string[]) {
-    if (!connection.platformUsername) return;
+  private async startTwitchClient(connection: PlatformConnection, keywords: string[], enableChatTriggers: boolean = true) {
+    if (!connection.platformUsername) {
+      console.error(`[BotWorker] Cannot start Twitch client - no platform username`);
+      return;
+    }
 
     try {
+      console.log(`[BotWorker] Starting Twitch client for ${connection.platformUsername} (chat triggers: ${enableChatTriggers})`);
+      
       this.twitchClient = new tmi.Client({
         identity: {
           username: connection.platformUsername,
@@ -1066,8 +1072,21 @@ export class BotWorker {
       // Requires setting up a webhook endpoint and subscribing to the channel.follow event type
       // See: https://dev.twitch.tv/docs/eventsub/eventsub-subscription-types#channelfollow
 
+      // Only set up message handler if chat triggers are enabled
+      if (!enableChatTriggers) {
+        console.log(`[BotWorker] Chat triggers disabled for user ${this.userId} - skipping message handler`);
+      }
+
       this.twitchClient.on("message", async (channel, tags, message, self) => {
+        // Always skip own messages
         if (self) return;
+
+        // If chat triggers disabled, still track stats but skip command processing
+        if (!enableChatTriggers) {
+          const username = tags.username || "unknown";
+          await statsService.trackChatMessage(this.userId, "twitch", username);
+          return;
+        }
 
         const trimmedMessage = message.trim();
         const username = tags.username || "unknown";
@@ -1515,9 +1534,17 @@ export class BotWorker {
 
     switch (platform) {
       case "twitch":
-        if (this.twitchClient && connection.platformUsername) {
-          await this.twitchClient.say(connection.platformUsername, message);
+        if (!this.twitchClient) {
+          console.error(`[BotWorker] Twitch client not initialized for user ${this.userId}`);
+          throw new Error("Twitch client not initialized - try reconnecting Twitch");
         }
+        if (!connection.platformUsername) {
+          console.error(`[BotWorker] No Twitch username for user ${this.userId}`);
+          throw new Error("Twitch username not found in connection");
+        }
+        console.log(`[BotWorker] Posting to Twitch channel ${connection.platformUsername}: ${message.substring(0, 50)}...`);
+        await this.twitchClient.say(connection.platformUsername, message);
+        console.log(`[BotWorker] Successfully posted to Twitch for user ${this.userId}`);
         break;
 
       case "youtube":
