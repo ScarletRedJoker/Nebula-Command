@@ -106,7 +106,7 @@ services:
     environment:
       - FLASK_ENV=production
       - PYTHONUNBUFFERED=1
-      - SKIP_MIGRATION_WAIT=true
+      - RUN_MIGRATIONS=true
       - COMPOSE_PROJECT_DIR=/home/${SERVICE_USER:-evin}/contain/HomeLabHub
       - JARVIS_DATABASE_URL=postgresql://jarvis:${JARVIS_DB_PASSWORD}@homelab-postgres:5432/homelab_jarvis
       - REDIS_URL=redis://redis:6379/0
@@ -345,6 +345,9 @@ services:
       - N8N_GIT_NODE_DISABLE_BARE_REPOS=true
       - N8N_METRICS=true
       - N8N_DIAGNOSTICS_ENABLED=false
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER:-admin}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD:-}
     volumes:
       - n8n_data:/home/node/.n8n
 

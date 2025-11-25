@@ -3,6 +3,13 @@
 ## Overview
 The Nebula Command Dashboard is a web-based interface for managing a Ubuntu 25.10 server hosting 15 Docker-based services. These services are accessible via custom subdomains and include homelab management, Discord/Twitch bots, media streaming, remote desktop access, and home automation. The project aims to provide a centralized, robust, and secure platform for managing a comprehensive homelab environment, integrating various functionalities for personal and community use.
 
+## Recent Changes (November 2024)
+- **Database Orchestration Engine:** Implemented proper database startup sequencing with wait-for-schema utilities, migration locking, and health checks
+- **PostgreSQL Init Scripts Consolidated:** Unified to single `00-init-all-databases.sh` that creates all 3 databases (streambot, homelab_jarvis, ticketbot)
+- **YouTube OAuth Fixed:** Resolved "missing code verifier" PKCE issue by removing conflicting passport routes
+- **n8n Security:** Added basic auth requirement for production
+- **Integration Status Document:** Created `INTEGRATION_STATUS.md` with full feasibility assessment
+
 ## User Preferences
 - User: Evin
 - Ubuntu 25.10 server at host.evindrake.net
@@ -11,6 +18,15 @@ The Nebula Command Dashboard is a web-based interface for managing a Ubuntu 25.1
 - All services use shared PostgreSQL (homelab-postgres) with individual databases
 - Main password: `Brs=2729` (used for most services)
 - Managed domains: rig-city.com, evindrake.net, scarletredjoker.com
+
+## Database Architecture
+- **PostgreSQL 16 Alpine** - Centralized database server (`homelab-postgres`)
+- **Databases:**
+  - `streambot` (user: streambot) - Stream Bot service
+  - `homelab_jarvis` (user: jarvis) - Dashboard & Jarvis AI
+  - `ticketbot` (user: ticketbot) - Discord Bot
+- **Orchestration:** `services/dashboard/services/database_orchestrator.py` handles migrations, health checks, and schema verification
+- **Init Scripts:** `config/postgres-init/00-init-all-databases.sh` provisions all databases on first startup
 
 ## System Architecture
 
