@@ -23,15 +23,23 @@ export default function Trigger() {
   const generatePreviewMutation = useMutation({
     mutationFn: async () => {
       const response = await apiRequest("POST", "/api/generate-fact", {});
-      return response;
+      const data = await response.json();
+      return data;
     },
     onSuccess: (data: any) => {
-      setPreviewFact(data.fact);
+      if (data?.fact) {
+        setPreviewFact(data.fact);
+        toast({
+          title: "Preview Generated",
+          description: "Click 'Post Now' to send this fact to your channels",
+        });
+      }
     },
-    onError: () => {
+    onError: (error: any) => {
+      console.error("Generate preview error:", error);
       toast({
         title: "Error",
-        description: "Failed to generate preview fact",
+        description: error?.message || "Failed to generate preview fact",
         variant: "destructive",
       });
     },
@@ -39,23 +47,28 @@ export default function Trigger() {
 
   const triggerMutation = useMutation({
     mutationFn: async () => {
-      return await apiRequest("POST", "/api/trigger", {
+      const response = await apiRequest("POST", "/api/trigger", {
         platforms: selectedPlatforms,
       });
+      const data = await response.json();
+      return data;
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/messages"] });
       queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
       toast({
         title: "Fact Posted!",
-        description: `Successfully posted to ${selectedPlatforms.length} platform(s)`,
+        description: data?.fact 
+          ? `Posted: "${data.fact.substring(0, 50)}..."` 
+          : `Successfully posted to ${selectedPlatforms.length} platform(s)`,
       });
       setPreviewFact("");
     },
-    onError: () => {
+    onError: (error: any) => {
+      console.error("Trigger error:", error);
       toast({
         title: "Error",
-        description: "Failed to post fact. Please try again.",
+        description: error?.message || "Failed to post fact. Please try again.",
         variant: "destructive",
       });
     },
