@@ -5,6 +5,12 @@ let isStreaming = false;
 let useStreaming = true;
 let currentModel = 'gpt-4o';
 
+// Get CSRF token from meta tag
+function getCsrfToken() {
+    const token = document.querySelector('meta[name="csrf-token"]');
+    return token ? token.content : '';
+}
+
 // Load settings from localStorage
 function loadSettings() {
     const savedHistory = localStorage.getItem('jarvis_conversation');
@@ -174,7 +180,8 @@ async function sendMessageStream(message, model) {
         const response = await fetch('/api/ai/chat/stream', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
             },
             body: JSON.stringify({
                 message: message,
@@ -283,7 +290,8 @@ async function sendMessageNonStream(message, model) {
         const response = await fetch('/api/ai/chat', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
             },
             body: JSON.stringify({
                 message: message,
