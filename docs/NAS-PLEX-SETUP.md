@@ -173,17 +173,35 @@ docker compose restart plex
    smbclient //NAS326.local/nfs/networkshare -U admin
    ```
 
-### Plex Can't See NAS Files
+### Plex Can't See NAS Files / Playback Error After Reboot
 
-1. Verify mount inside Plex container:
+The Zyxel NAS326 requires `cache=none` mount option to show files correctly.
+
+1. Check if mount shows real file sizes (not 0):
    ```bash
-   docker exec -it plex-server ls -la /nas/
+   ls -la /mnt/nas/nfs/networkshare/music/ | head -5
    ```
 
-2. Check Plex has read access:
+2. If directories show size 0 or are empty, remount with cache=none:
    ```bash
-   docker exec -it plex-server cat /nas/networkshare/video/somefile.mp4 | head -c 100
+   sudo umount /mnt/nas/nfs
+   sudo mount -t cifs //192.168.1.198/nfs /mnt/nas/nfs -o credentials=/root/.nas-credentials,uid=1000,gid=1000,vers=3.0,cache=none
    ```
+
+3. Restart Plex after remounting:
+   ```bash
+   docker compose restart plex
+   ```
+
+4. Verify Plex can see files:
+   ```bash
+   docker exec -it plex-server ls -la /nas/nfs/networkshare/music/ | head -10
+   ```
+
+**Important:** The fstab entry must include `cache=none`:
+```
+//192.168.1.198/nfs /mnt/nas/nfs cifs credentials=/root/.nas-credentials,uid=1000,gid=1000,iocharset=utf8,_netdev,vers=3.0,cache=none 0 0
+```
 
 3. Ensure mount exists before Plex starts (use automount)
 

@@ -124,7 +124,7 @@ mount_share() {
     log_info "Mounting //$nas_address/$share_name to $mount_point..."
     
     if mount -t cifs "//$nas_address/$share_name" "$mount_point" \
-        -o "credentials=$creds_file,uid=1000,gid=1000,iocharset=utf8,$options,vers=3.0"; then
+        -o "credentials=$creds_file,uid=1000,gid=1000,iocharset=utf8,$options,vers=3.0,cache=none"; then
         log_info "Successfully mounted $share_name"
         return 0
     else
@@ -240,7 +240,7 @@ setup_automount() {
     
     # Add to /etc/fstab if not already present
     # Mount the 'nfs' share which contains networkshare folder
-    local fstab_entry="//$nas_address/nfs $MOUNT_BASE/nfs cifs credentials=$creds_file,uid=1000,gid=1000,iocharset=utf8,_netdev,vers=3.0 0 0"
+    local fstab_entry="//$nas_address/nfs $MOUNT_BASE/nfs cifs credentials=$creds_file,uid=1000,gid=1000,iocharset=utf8,_netdev,vers=3.0,cache=none 0 0"
     
     if ! grep -q "$MOUNT_BASE/nfs" /etc/fstab; then
         echo "$fstab_entry" >> /etc/fstab
