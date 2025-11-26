@@ -72,6 +72,7 @@ export default {
           bg: "hsl(var(--discord-bg))",
           dark: "hsl(var(--discord-dark))",
           highlight: "hsl(var(--discord-highlight))",
+          blue: "hsl(var(--discord-blue))",
         },
       },
       keyframes: {

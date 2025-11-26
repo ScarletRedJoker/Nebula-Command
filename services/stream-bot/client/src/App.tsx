@@ -8,6 +8,8 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { OnboardingWizard } from "@/components/OnboardingWizard";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ConnectionQualityIndicator } from "@/components/ConnectionQualityIndicator";
+import { BottomNavigation } from "@/components/BottomNavigation";
 import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import UserMenu from "@/components/UserMenu";
@@ -31,6 +33,7 @@ import Polls from "@/pages/polls";
 import Alerts from "@/pages/alerts";
 import Chatbot from "@/pages/chatbot";
 import OBSControl from "@/pages/obs-control";
+import OverlayEditor from "@/pages/overlay-editor";
 import NotFound from "@/pages/not-found";
 import SpotifyOverlay from "@/pages/spotify-overlay";
 import YouTubeOverlay from "@/pages/youtube-overlay";
@@ -65,17 +68,23 @@ function ProtectedRouter() {
   return (
     <SidebarProvider style={style as React.CSSProperties}>
       <OnboardingWizard />
-      <div className="flex h-screen w-full">
+      <div className="flex h-screen w-full overflow-hidden">
         <AppSidebar />
         <div className="flex flex-col flex-1 min-w-0">
-          <header className="flex items-center justify-between gap-4 p-4 border-b bg-background sticky top-0 z-10">
-            <SidebarTrigger data-testid="button-sidebar-toggle" />
+          <header className="flex items-center justify-between gap-2 sm:gap-4 px-3 py-2 sm:p-4 border-b bg-background/95 backdrop-blur-sm sticky top-0 z-10">
             <div className="flex items-center gap-2">
+              <SidebarTrigger data-testid="button-sidebar-toggle" className="h-8 w-8 sm:h-7 sm:w-7" />
+              <div className="hidden sm:block">
+                <h1 className="text-sm font-semibold candy-gradient-text">StreamBot</h1>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <ConnectionQualityIndicator compact />
               <ThemeToggle />
               <UserMenu />
             </div>
           </header>
-          <main className="flex-1 overflow-y-auto">
+          <main className="flex-1 overflow-y-auto pb-16 md:pb-0">
             <Switch>
               <Route path="/" component={Dashboard} />
               <Route path="/trigger" component={Trigger} />
@@ -94,11 +103,13 @@ function ProtectedRouter() {
               <Route path="/alerts" component={Alerts} />
               <Route path="/chatbot" component={Chatbot} />
               <Route path="/obs-control" component={OBSControl} />
+              <Route path="/overlay-editor" component={OverlayEditor} />
               <Route path="/settings" component={Settings} />
               <Route path="/profile" component={Profile} />
               <Route component={NotFound} />
             </Switch>
           </main>
+          <BottomNavigation />
         </div>
       </div>
     </SidebarProvider>

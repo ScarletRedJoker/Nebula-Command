@@ -1,4 +1,4 @@
-import { Home, Settings, Activity, Zap, History, MessageSquare, Shield, Trophy, Megaphone, BarChart3, Gamepad2, Coins, Music, Vote, Bell, Bot, Sparkles, Video } from "lucide-react";
+import { Home, Settings, Activity, Zap, History, MessageSquare, Shield, Trophy, Megaphone, BarChart3, Gamepad2, Coins, Music, Vote, Bell, Bot, Sparkles, Video, Layers } from "lucide-react";
 import { SiTwitch, SiYoutube, SiKick } from "react-icons/si";
 import {
   Sidebar,
@@ -59,6 +59,12 @@ const featureItems = [
     title: "OBS Control",
     url: "/obs-control",
     icon: Video,
+    badge: "New",
+  },
+  {
+    title: "Overlay Editor",
+    url: "/overlay-editor",
+    icon: Layers,
     badge: "New",
   },
   {

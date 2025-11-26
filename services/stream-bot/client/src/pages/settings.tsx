@@ -129,33 +129,33 @@ export default function Settings() {
   }
 
   return (
-    <div className="p-6 space-y-8 max-w-4xl">
+    <div className="p-3 sm:p-6 space-y-4 sm:space-y-8 max-w-4xl">
       <div>
-        <h1 className="text-3xl font-bold">Settings</h1>
-        <p className="text-muted-foreground mt-1">
-          Configure your bot behavior and preferences
+        <h1 className="text-2xl sm:text-3xl font-bold candy-gradient-text">Settings</h1>
+        <p className="text-sm sm:text-base text-muted-foreground mt-0.5 sm:mt-1">
+          Configure your bot behavior
         </p>
       </div>
 
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 sm:space-y-6">
           {/* Bot Status */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Bot Status</CardTitle>
-              <CardDescription>
+          <Card className="candy-glass-card">
+            <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-4">
+              <CardTitle className="text-base sm:text-lg">Bot Status</CardTitle>
+              <CardDescription className="text-xs sm:text-sm">
                 Control whether the bot is actively posting
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-4 sm:p-6 pt-0">
               <FormField
                 control={form.control}
                 name="isActive"
                 render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                    <div className="space-y-0.5">
-                      <FormLabel className="text-base">Enable Bot</FormLabel>
-                      <FormDescription>
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 sm:p-4 gap-3">
+                    <div className="space-y-0.5 flex-1">
+                      <FormLabel className="text-sm sm:text-base">Enable Bot</FormLabel>
+                      <FormDescription className="text-xs sm:text-sm">
                         Turn on automated fact posting
                       </FormDescription>
                     </div>
@@ -164,6 +164,7 @@ export default function Settings() {
                         checked={field.value}
                         onCheckedChange={field.onChange}
                         data-testid="switch-bot-active"
+                        className="candy-touch-target"
                       />
                     </FormControl>
                   </FormItem>
@@ -173,48 +174,51 @@ export default function Settings() {
           </Card>
 
           {/* Interval Configuration */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Posting Interval</CardTitle>
-              <CardDescription>
-                Choose how often the bot posts Snapple facts
+          <Card className="candy-glass-card">
+            <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-4">
+              <CardTitle className="text-base sm:text-lg">Posting Interval</CardTitle>
+              <CardDescription className="text-xs sm:text-sm">
+                Choose how often the bot posts facts
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="space-y-4 sm:space-y-6 p-4 sm:p-6 pt-0">
               <FormField
                 control={form.control}
                 name="intervalMode"
                 render={({ field }) => (
                   <FormItem className="space-y-3">
-                    <FormLabel>Interval Mode</FormLabel>
+                    <FormLabel className="text-sm">Interval Mode</FormLabel>
                     <FormControl>
                       <RadioGroup
                         onValueChange={field.onChange}
                         defaultValue={field.value}
                         className="flex flex-col space-y-2"
                       >
-                        <FormItem className="flex items-center space-x-3 space-y-0">
+                        <FormItem className="flex items-center space-x-3 space-y-0 p-2 rounded-lg hover:bg-muted/50 transition-colors">
                           <FormControl>
-                            <RadioGroupItem value="manual" data-testid="radio-manual" />
+                            <RadioGroupItem value="manual" data-testid="radio-manual" className="candy-touch-target" />
                           </FormControl>
-                          <FormLabel className="font-normal cursor-pointer">
-                            Manual Only - Post on demand only
+                          <FormLabel className="font-normal cursor-pointer text-xs sm:text-sm flex-1">
+                            <span className="font-medium">Manual</span>
+                            <span className="hidden sm:inline"> - Post on demand only</span>
                           </FormLabel>
                         </FormItem>
-                        <FormItem className="flex items-center space-x-3 space-y-0">
+                        <FormItem className="flex items-center space-x-3 space-y-0 p-2 rounded-lg hover:bg-muted/50 transition-colors">
                           <FormControl>
-                            <RadioGroupItem value="fixed" data-testid="radio-fixed" />
+                            <RadioGroupItem value="fixed" data-testid="radio-fixed" className="candy-touch-target" />
                           </FormControl>
-                          <FormLabel className="font-normal cursor-pointer">
-                            Fixed Interval - Post at regular intervals
+                          <FormLabel className="font-normal cursor-pointer text-xs sm:text-sm flex-1">
+                            <span className="font-medium">Fixed</span>
+                            <span className="hidden sm:inline"> - Post at regular intervals</span>
                           </FormLabel>
                         </FormItem>
-                        <FormItem className="flex items-center space-x-3 space-y-0">
+                        <FormItem className="flex items-center space-x-3 space-y-0 p-2 rounded-lg hover:bg-muted/50 transition-colors">
                           <FormControl>
-                            <RadioGroupItem value="random" data-testid="radio-random" />
+                            <RadioGroupItem value="random" data-testid="radio-random" className="candy-touch-target" />
                           </FormControl>
-                          <FormLabel className="font-normal cursor-pointer">
-                            Random Range - Post at random intervals within a range
+                          <FormLabel className="font-normal cursor-pointer text-xs sm:text-sm flex-1">
+                            <span className="font-medium">Random</span>
+                            <span className="hidden sm:inline"> - Random intervals within range</span>
                           </FormLabel>
                         </FormItem>
                       </RadioGroup>
@@ -229,7 +233,7 @@ export default function Settings() {
                   name="fixedIntervalMinutes"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Fixed Interval (minutes)</FormLabel>
+                      <FormLabel className="text-sm">Fixed Interval (minutes)</FormLabel>
                       <FormControl>
                         <Input
                           type="number"
@@ -238,10 +242,11 @@ export default function Settings() {
                           {...field}
                           onChange={(e) => field.onChange(parseInt(e.target.value))}
                           data-testid="input-fixed-interval"
+                          className="h-10 sm:h-9"
                         />
                       </FormControl>
-                      <FormDescription>
-                        Post a fact every X minutes (1-1440)
+                      <FormDescription className="text-xs">
+                        Post every X minutes (1-1440)
                       </FormDescription>
                     </FormItem>
                   )}
@@ -249,13 +254,13 @@ export default function Settings() {
               )}
 
               {intervalMode === "random" && (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3 sm:gap-4">
                   <FormField
                     control={form.control}
                     name="randomMinMinutes"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Min Minutes</FormLabel>
+                        <FormLabel className="text-xs sm:text-sm">Min (min)</FormLabel>
                         <FormControl>
                           <Input
                             type="number"
@@ -264,6 +269,7 @@ export default function Settings() {
                             {...field}
                             onChange={(e) => field.onChange(parseInt(e.target.value))}
                             data-testid="input-random-min"
+                            className="h-10 sm:h-9"
                           />
                         </FormControl>
                       </FormItem>
@@ -274,7 +280,7 @@ export default function Settings() {
                     name="randomMaxMinutes"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Max Minutes</FormLabel>
+                        <FormLabel className="text-xs sm:text-sm">Max (min)</FormLabel>
                         <FormControl>
                           <Input
                             type="number"
@@ -283,6 +289,7 @@ export default function Settings() {
                             {...field}
                             onChange={(e) => field.onChange(parseInt(e.target.value))}
                             data-testid="input-random-max"
+                            className="h-10 sm:h-9"
                           />
                         </FormControl>
                       </FormItem>
@@ -294,34 +301,34 @@ export default function Settings() {
           </Card>
 
           {/* AI Configuration */}
-          <Card>
-            <CardHeader>
-              <CardTitle>AI Configuration</CardTitle>
-              <CardDescription>
-                Customize how AI generates Snapple facts
+          <Card className="candy-glass-card">
+            <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-4">
+              <CardTitle className="text-base sm:text-lg">AI Configuration</CardTitle>
+              <CardDescription className="text-xs sm:text-sm">
+                Customize AI fact generation
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 p-4 sm:p-6 pt-0">
               <FormField
                 control={form.control}
                 name="aiModel"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>AI Model</FormLabel>
+                    <FormLabel className="text-sm">AI Model</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
-                        <SelectTrigger data-testid="select-ai-model">
+                        <SelectTrigger data-testid="select-ai-model" className="h-10 sm:h-9">
                           <SelectValue placeholder="Select AI model" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
                         <SelectItem value="gpt-4o">GPT-4o (Recommended)</SelectItem>
-                        <SelectItem value="gpt-4o-mini">GPT-4o Mini (Faster & Cheaper)</SelectItem>
+                        <SelectItem value="gpt-4o-mini">GPT-4o Mini (Faster)</SelectItem>
                         <SelectItem value="gpt-4-turbo">GPT-4 Turbo</SelectItem>
                       </SelectContent>
                     </Select>
-                    <FormDescription>
-                      Choose the AI model for generating facts
+                    <FormDescription className="text-xs">
+                      Choose the AI model for facts
                     </FormDescription>
                   </FormItem>
                 )}
@@ -332,17 +339,17 @@ export default function Settings() {
                 name="aiPromptTemplate"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Custom Prompt Template (Optional)</FormLabel>
+                    <FormLabel className="text-sm">Custom Prompt (Optional)</FormLabel>
                     <FormControl>
                       <Textarea
-                        placeholder="Leave empty for default Snapple-style facts, or customize the prompt..."
-                        className="min-h-24"
+                        placeholder="Leave empty for default facts..."
+                        className="min-h-20 sm:min-h-24 text-sm"
                         {...field}
                         data-testid="textarea-prompt-template"
                       />
                     </FormControl>
-                    <FormDescription>
-                      Customize how facts are generated. Leave empty for default.
+                    <FormDescription className="text-xs">
+                      Customize how facts are generated
                     </FormDescription>
                   </FormItem>
                 )}
@@ -351,23 +358,23 @@ export default function Settings() {
           </Card>
 
           {/* Chat Triggers */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Chat Triggers</CardTitle>
-              <CardDescription>
-                Allow viewers to trigger facts with chat commands
+          <Card className="candy-glass-card">
+            <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-4">
+              <CardTitle className="text-base sm:text-lg">Chat Triggers</CardTitle>
+              <CardDescription className="text-xs sm:text-sm">
+                Viewer-triggered fact commands
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 p-4 sm:p-6 pt-0">
               <FormField
                 control={form.control}
                 name="enableChatTriggers"
                 render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                    <div className="space-y-0.5">
-                      <FormLabel className="text-base">Enable Chat Commands</FormLabel>
-                      <FormDescription>
-                        Let viewers trigger facts with keywords
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 sm:p-4 gap-3">
+                    <div className="space-y-0.5 flex-1">
+                      <FormLabel className="text-sm sm:text-base">Chat Commands</FormLabel>
+                      <FormDescription className="text-xs sm:text-sm">
+                        Trigger facts via keywords
                       </FormDescription>
                     </div>
                     <FormControl>
@@ -375,6 +382,7 @@ export default function Settings() {
                         checked={field.value}
                         onCheckedChange={field.onChange}
                         data-testid="switch-chat-triggers"
+                        className="candy-touch-target"
                       />
                     </FormControl>
                   </FormItem>
@@ -386,7 +394,7 @@ export default function Settings() {
                 name="chatKeywords"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Trigger Keywords</FormLabel>
+                    <FormLabel className="text-sm">Trigger Keywords</FormLabel>
                     <FormControl>
                       <Input
                         placeholder="!snapple, !fact"
@@ -400,10 +408,11 @@ export default function Settings() {
                           field.onChange(keywords);
                         }}
                         data-testid="input-chat-keywords"
+                        className="h-10 sm:h-9"
                       />
                     </FormControl>
-                    <FormDescription>
-                      Comma-separated list of trigger keywords (e.g., !snapple, !fact)
+                    <FormDescription className="text-xs">
+                      Comma-separated (e.g., !snapple, !fact)
                     </FormDescription>
                   </FormItem>
                 )}
@@ -412,27 +421,27 @@ export default function Settings() {
           </Card>
 
           {/* Active Platforms */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Active Platforms</CardTitle>
-              <CardDescription>
-                Select which platforms should receive automated posts
+          <Card className="candy-glass-card">
+            <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-4">
+              <CardTitle className="text-base sm:text-lg">Active Platforms</CardTitle>
+              <CardDescription className="text-xs sm:text-sm">
+                Select platforms for auto-posts
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-4 sm:p-6 pt-0">
               <FormField
                 control={form.control}
                 name="activePlatforms"
                 render={() => (
                   <FormItem>
-                    <div className="space-y-3">
+                    <div className="grid grid-cols-3 gap-2 sm:gap-3">
                       {["twitch", "youtube", "kick"].map((platform) => (
                         <FormField
                           key={platform}
                           control={form.control}
                           name="activePlatforms"
                           render={({ field }) => (
-                            <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                            <FormItem className="flex flex-row items-center space-x-2 sm:space-x-3 space-y-0 p-2 sm:p-3 rounded-lg border hover:bg-muted/50 transition-colors">
                               <FormControl>
                                 <Checkbox
                                   checked={field.value?.includes(platform)}
@@ -444,9 +453,10 @@ export default function Settings() {
                                     field.onChange(updated);
                                   }}
                                   data-testid={`checkbox-platform-${platform}`}
+                                  className="candy-touch-target"
                                 />
                               </FormControl>
-                              <FormLabel className="font-normal capitalize cursor-pointer">
+                              <FormLabel className="font-normal capitalize cursor-pointer text-xs sm:text-sm">
                                 {platform}
                               </FormLabel>
                             </FormItem>
@@ -460,11 +470,12 @@ export default function Settings() {
             </CardContent>
           </Card>
 
-          <div className="flex justify-end">
+          <div className="flex justify-end sticky bottom-4 sm:static">
             <Button
               type="submit"
               disabled={updateMutation.isPending}
               data-testid="button-save-settings"
+              className="candy-button border-0 h-10 sm:h-9 w-full sm:w-auto candy-touch-target shadow-lg sm:shadow-none"
             >
               {updateMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -477,12 +488,12 @@ export default function Settings() {
         </form>
       </Form>
 
-      {/* Platform Connections - Outside the form since they're managed separately */}
-      <div className="space-y-6">
+      {/* Platform Connections */}
+      <div className="space-y-4 sm:space-y-6">
         <div>
-          <h2 className="text-xl font-semibold mb-2">Platform Connections</h2>
-          <p className="text-sm text-muted-foreground mb-4">
-            Connect your streaming platforms for automated posting and overlay features
+          <h2 className="text-lg sm:text-xl font-semibold mb-1 sm:mb-2">Platform Connections</h2>
+          <p className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4">
+            Connect streaming platforms for posting and overlays
           </p>
         </div>
         <TwitchCardMultiUser />

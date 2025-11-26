@@ -36,6 +36,11 @@
     --discord-bg: 0 0% 100%;
     --discord-dark: 210 10% 90%;
     --discord-highlight: 235 86% 94%;
+    --discord-blue: 235 86% 65%;
+
+    /* Safe area insets for mobile */
+    --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-area-inset-top: env(safe-area-inset-top, 0px);
   }
  
   .dark {
@@ -70,13 +75,135 @@
     --discord-bg: 220 7% 18%;
     --discord-dark: 220 6% 13%;
     --discord-highlight: 235 86% 75%;
+    --discord-blue: 235 86% 65%;
   }
 
   * {
     @apply border-border;
   }
 
+  html {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+  }
+
   body {
     @apply font-sans antialiased bg-background text-foreground;
+    overscroll-behavior-y: contain;
+  }
+}
+
+@layer utilities {
+  /* Touch-friendly utilities */
+  .touch-action-pan-y {
+    touch-action: pan-y;
+  }
+  
+  .touch-action-manipulation {
+    touch-action: manipulation;
+  }
+
+  /* Hide scrollbar but allow scrolling */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Safe area padding for mobile */
+  .pb-safe {
+    padding-bottom: max(1rem, var(--safe-area-inset-bottom));
+  }
+
+  .pt-safe {
+    padding-top: max(0.5rem, var(--safe-area-inset-top));
+  }
+
+  /* Bottom navigation spacer */
+  .mb-bottom-nav {
+    margin-bottom: 4.5rem;
+  }
+
+  @media (min-width: 768px) {
+    .mb-bottom-nav {
+      margin-bottom: 0;
+    }
+  }
+
+  /* Pull-to-refresh animation */
+  .pull-indicator {
+    transition: transform 0.2s ease-out, opacity 0.2s ease-out;
+  }
+
+  /* Swipe gesture support */
+  .swipe-container {
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Connection status pulse animation */
+  @keyframes connection-pulse {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+
+  .animate-connection-pulse {
+    animation: connection-pulse 2s ease-in-out infinite;
+  }
+
+  /* Skeleton loading animation */
+  @keyframes skeleton-loading {
+    0% {
+      background-position: -200% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
+  }
+
+  .skeleton-loading {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--discord-dark)) 0%,
+      hsl(var(--discord-sidebar)) 50%,
+      hsl(var(--discord-dark)) 100%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-loading 1.5s ease-in-out infinite;
+  }
+
+  /* Slide-up animation for mobile bottom sheet */
+  @keyframes slide-up {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+
+  .animate-slide-up {
+    animation: slide-up 0.3s ease-out;
+  }
+
+  /* Fade-in animation */
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  .animate-fade-in {
+    animation: fade-in 0.2s ease-out;
   }
 }

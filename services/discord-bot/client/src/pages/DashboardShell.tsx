@@ -9,16 +9,17 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import ServerSelector from "@/components/ServerSelector";
 import BotInviteCard from "@/components/BotInviteCard";
 import SettingsPage from "@/pages/SettingsPage";
+import ConnectionStatus from "@/components/ConnectionStatus";
 import { 
   LayoutDashboard, 
   Settings, 
   LogOut, 
   LayoutTemplate,
   Bot,
-  Radio
+  Radio,
+  User
 } from "lucide-react";
 
-// Tab Components
 import OverviewTab from "@/components/tabs/OverviewTab";
 import PanelsTab from "@/components/tabs/PanelsTab";
 import StreamNotificationsTab from "@/components/tabs/StreamNotificationsTab";
@@ -106,7 +107,8 @@ export default function DashboardShell() {
 
             {/* Right Actions - Desktop Only */}
             <div className="hidden sm:flex items-center gap-2">
-              {/* Invite Bot Button - Only for admins */}
+              <ConnectionStatus />
+              
               {isAdmin && (
                 <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
                   <DialogTrigger asChild>
@@ -151,7 +153,6 @@ export default function DashboardShell() {
                 <LogOut className="h-5 w-5" />
               </Button>
 
-              {/* User Avatar */}
               <div className="flex items-center gap-2 pl-2 border-l border-discord-dark">
                 <div className="w-9 h-9 rounded-full bg-discord-blue flex items-center justify-center">
                   <span className="text-white text-sm font-bold">
@@ -176,7 +177,7 @@ export default function DashboardShell() {
       </header>
 
       {/* Main Content with Tabs */}
-      <main className="container mx-auto px-3 sm:px-4 py-4 sm:py-6">
+      <main className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 mb-bottom-nav">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 sm:space-y-6">
           {/* Tab Navigation */}
           <Card className="bg-discord-sidebar border-discord-dark">
@@ -273,6 +274,82 @@ export default function DashboardShell() {
 
       {/* Settings Sheet (Sliding Panel) */}
       <SettingsPage isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
+
+      {/* Mobile Bottom Navigation */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-discord-sidebar border-t border-discord-dark pb-safe">
+        <div className="flex items-center justify-around h-16">
+          <button
+            onClick={() => setActiveTab("overview")}
+            className={`flex flex-col items-center justify-center flex-1 h-full touch-action-manipulation transition-colors ${
+              activeTab === "overview" 
+                ? "text-discord-blue" 
+                : "text-discord-muted hover:text-discord-text"
+            }`}
+            data-testid="nav-overview"
+          >
+            <LayoutDashboard className="h-5 w-5" />
+            <span className="text-[10px] mt-1 font-medium">Overview</span>
+          </button>
+          
+          {isAdmin && (
+            <>
+              <button
+                onClick={() => setActiveTab("panels")}
+                className={`flex flex-col items-center justify-center flex-1 h-full touch-action-manipulation transition-colors ${
+                  activeTab === "panels" 
+                    ? "text-discord-blue" 
+                    : "text-discord-muted hover:text-discord-text"
+                }`}
+                data-testid="nav-panels"
+              >
+                <LayoutTemplate className="h-5 w-5" />
+                <span className="text-[10px] mt-1 font-medium">Panels</span>
+              </button>
+              
+              <button
+                onClick={() => setActiveTab("stream-notifications")}
+                className={`flex flex-col items-center justify-center flex-1 h-full touch-action-manipulation transition-colors ${
+                  activeTab === "stream-notifications" 
+                    ? "text-discord-blue" 
+                    : "text-discord-muted hover:text-discord-text"
+                }`}
+                data-testid="nav-streams"
+              >
+                <Radio className="h-5 w-5" />
+                <span className="text-[10px] mt-1 font-medium">Streams</span>
+              </button>
+            </>
+          )}
+          
+          <button
+            onClick={() => setSettingsOpen(true)}
+            className="flex flex-col items-center justify-center flex-1 h-full touch-action-manipulation transition-colors text-discord-muted hover:text-discord-text"
+            data-testid="nav-settings"
+          >
+            <Settings className="h-5 w-5" />
+            <span className="text-[10px] mt-1 font-medium">Settings</span>
+          </button>
+          
+          <button
+            className="flex flex-col items-center justify-center flex-1 h-full touch-action-manipulation"
+            data-testid="nav-profile"
+          >
+            <div className="w-6 h-6 rounded-full bg-discord-blue flex items-center justify-center">
+              <span className="text-white text-[10px] font-bold">
+                {user?.username?.charAt(0).toUpperCase() || 'U'}
+              </span>
+            </div>
+            <span className="text-[10px] mt-1 font-medium text-discord-muted">
+              {user?.username?.slice(0, 6) || 'User'}
+            </span>
+          </button>
+        </div>
+        
+        {/* Connection status indicator for mobile */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2">
+          <ConnectionStatus compact />
+        </div>
+      </nav>
     </div>
   );
 }

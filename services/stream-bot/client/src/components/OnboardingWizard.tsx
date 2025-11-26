@@ -181,30 +181,30 @@ export function OnboardingWizard() {
   return (
     <>
       <Dialog open={true} onOpenChange={() => {}}>
-        <DialogContent className="sm:max-w-2xl" onPointerDownOutside={(e) => e.preventDefault()}>
-          <DialogHeader>
-            <DialogTitle className="text-2xl">Welcome to StreamBot! 🎉</DialogTitle>
-            <DialogDescription>
-              Let's get you set up in just a few steps. This will only take a minute!
+        <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6" onPointerDownOutside={(e) => e.preventDefault()}>
+          <DialogHeader className="space-y-1 sm:space-y-2">
+            <DialogTitle className="text-xl sm:text-2xl candy-gradient-text">Welcome to StreamBot! 🎉</DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm">
+              Let's get you set up in just a few steps!
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-6 py-4">
+          <div className="space-y-4 sm:space-y-6 py-2 sm:py-4">
             {/* Progress Bar */}
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Step {currentStep} of {steps.length}</span>
-                <span className="font-medium">{Math.round(progress)}% Complete</span>
+            <div className="space-y-1.5 sm:space-y-2">
+              <div className="flex justify-between text-xs sm:text-sm">
+                <span className="text-muted-foreground">Step {currentStep}/{steps.length}</span>
+                <span className="font-medium">{Math.round(progress)}%</span>
               </div>
-              <Progress value={progress} className="h-2" />
+              <Progress value={progress} className="h-1.5 sm:h-2" />
             </div>
 
             {/* Step Indicators */}
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
               {steps.map((step) => (
                 <div
                   key={step.id}
-                  className={`flex flex-col items-center text-center gap-2 p-3 rounded-lg transition-colors ${
+                  className={`flex flex-col items-center text-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg transition-colors ${
                     step.id === currentStep
                       ? "bg-primary/10 border border-primary/20"
                       : step.id < currentStep
@@ -213,7 +213,7 @@ export function OnboardingWizard() {
                   }`}
                 >
                   <div
-                    className={`flex items-center justify-center h-8 w-8 rounded-full ${
+                    className={`flex items-center justify-center h-6 w-6 sm:h-8 sm:w-8 rounded-full ${
                       step.id === currentStep
                         ? "bg-primary text-primary-foreground"
                         : step.id < currentStep
@@ -222,76 +222,78 @@ export function OnboardingWizard() {
                     }`}
                   >
                     {step.id < currentStep ? (
-                      <Check className="h-4 w-4" />
+                      <Check className="h-3 w-3 sm:h-4 sm:w-4" />
                     ) : (
-                      <step.icon className="h-4 w-4" />
+                      <step.icon className="h-3 w-3 sm:h-4 sm:w-4" />
                     )}
                   </div>
-                  <div className="text-xs font-medium hidden sm:block">{step.title}</div>
+                  <div className="text-[10px] sm:text-xs font-medium hidden xs:block truncate max-w-full">{step.title}</div>
                 </div>
               ))}
             </div>
 
             {/* Step Content */}
-            <Card>
-              <CardContent className="p-6 space-y-4">
-                <div className="space-y-2">
-                  <h3 className="text-lg font-semibold flex items-center gap-2">
+            <Card className="candy-glass-card">
+              <CardContent className="p-4 sm:p-6 space-y-3 sm:space-y-4">
+                <div className="space-y-1 sm:space-y-2">
+                  <h3 className="text-base sm:text-lg font-semibold flex items-center gap-2">
                     {(() => {
                       const StepIcon = steps[currentStep - 1].icon;
-                      return StepIcon ? <StepIcon className="h-5 w-5 text-primary" /> : null;
+                      return StepIcon ? <StepIcon className="h-4 w-4 sm:h-5 sm:w-5 text-primary" /> : null;
                     })()}
                     {steps[currentStep - 1].title}
                   </h3>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-xs sm:text-sm text-muted-foreground">
                     {steps[currentStep - 1].description}
                   </p>
                 </div>
 
                 {/* Step 1: Connect Platform */}
                 {currentStep === 1 && (
-                  <div className="space-y-3 pt-2">
+                  <div className="space-y-3 pt-1 sm:pt-2">
                     {connectedPlatforms.length > 0 ? (
                       <div className="space-y-2">
-                        <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
-                          <Check className="h-4 w-4" />
-                          <span>Platform connected! You can add more or continue.</span>
+                        <div className="flex items-center gap-2 text-xs sm:text-sm text-green-600 dark:text-green-400">
+                          <Check className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                          <span>Connected! Add more or continue.</span>
                         </div>
-                        {connectedPlatforms.map((platform) => (
-                          <Badge key={platform.id} variant="outline" className="text-sm">
-                            {platform.platform}: @{platform.platformUsername}
-                          </Badge>
-                        ))}
+                        <div className="flex flex-wrap gap-1.5">
+                          {connectedPlatforms.map((platform) => (
+                            <Badge key={platform.id} variant="outline" className="text-xs">
+                              {platform.platform}: @{platform.platformUsername}
+                            </Badge>
+                          ))}
+                        </div>
                       </div>
                     ) : (
-                      <p className="text-sm text-muted-foreground mb-3">
-                        Choose a platform to get started:
+                      <p className="text-xs sm:text-sm text-muted-foreground mb-2">
+                        Choose a platform:
                       </p>
                     )}
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-3 gap-2 sm:gap-3">
                       <Button
                         variant="outline"
-                        className="h-auto flex-col gap-2 py-4"
+                        className="h-auto flex-col gap-1.5 sm:gap-2 py-3 sm:py-4 candy-touch-target"
                         onClick={() => handleConnectPlatform("twitch")}
                       >
-                        <SiTwitch className="h-8 w-8 text-purple-500" />
-                        <span>Twitch</span>
+                        <SiTwitch className="h-6 w-6 sm:h-8 sm:w-8 text-purple-500" />
+                        <span className="text-xs sm:text-sm">Twitch</span>
                       </Button>
                       <Button
                         variant="outline"
-                        className="h-auto flex-col gap-2 py-4"
+                        className="h-auto flex-col gap-1.5 sm:gap-2 py-3 sm:py-4 candy-touch-target"
                         onClick={() => handleConnectPlatform("youtube")}
                       >
-                        <SiYoutube className="h-8 w-8 text-red-500" />
-                        <span>YouTube</span>
+                        <SiYoutube className="h-6 w-6 sm:h-8 sm:w-8 text-red-500" />
+                        <span className="text-xs sm:text-sm">YouTube</span>
                       </Button>
                       <Button
                         variant="outline"
-                        className="h-auto flex-col gap-2 py-4"
+                        className="h-auto flex-col gap-1.5 sm:gap-2 py-3 sm:py-4 candy-touch-target"
                         onClick={() => handleConnectPlatform("kick")}
                       >
-                        <SiKick className="h-8 w-8 text-green-500" />
-                        <span>Kick</span>
+                        <SiKick className="h-6 w-6 sm:h-8 sm:w-8 text-green-500" />
+                        <span className="text-xs sm:text-sm">Kick</span>
                       </Button>
                     </div>
                   </div>
@@ -299,18 +301,17 @@ export function OnboardingWizard() {
 
                 {/* Step 2: Configure Settings */}
                 {currentStep === 2 && (
-                  <div className="space-y-4 pt-2">
-                    <p className="text-sm">
-                      For now, we'll set your bot to <strong>Manual Mode</strong>. This means
-                      you control when facts are posted. You can change this in Settings later!
+                  <div className="space-y-3 sm:space-y-4 pt-1 sm:pt-2">
+                    <p className="text-xs sm:text-sm">
+                      We'll set your bot to <strong>Manual Mode</strong>. You control when facts post!
                     </p>
-                    <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+                    <div className="bg-muted/50 rounded-lg p-3 sm:p-4 space-y-1.5 sm:space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium">Bot Mode</span>
-                        <Badge>Manual</Badge>
+                        <span className="text-xs sm:text-sm font-medium">Bot Mode</span>
+                        <Badge className="text-xs">Manual</Badge>
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        Post facts on demand with the Quick Trigger button
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">
+                        Use Quick Trigger to post facts
                       </p>
                     </div>
                   </div>
@@ -318,25 +319,25 @@ export function OnboardingWizard() {
 
                 {/* Step 3: Test Command */}
                 {currentStep === 3 && (
-                  <div className="space-y-4 pt-2">
-                    <p className="text-sm">
-                      Ready to post your first AI-generated Snapple fact? Click the button below!
+                  <div className="space-y-3 sm:space-y-4 pt-1 sm:pt-2">
+                    <p className="text-xs sm:text-sm">
+                      Ready to post your first AI-generated fact?
                     </p>
                     <Button
                       onClick={() => postFirstFactMutation.mutate()}
                       disabled={postFirstFactMutation.isPending}
-                      className="w-full"
+                      className="w-full candy-button border-0 h-10 sm:h-11"
                       size="lg"
                     >
                       {postFirstFactMutation.isPending ? (
                         <>
                           <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
-                          Generating & Posting...
+                          <span className="text-sm">Generating...</span>
                         </>
                       ) : (
                         <>
                           <Zap className="h-4 w-4 mr-2" />
-                          Post My First Fact!
+                          <span className="text-sm">Post My First Fact!</span>
                         </>
                       )}
                     </Button>
@@ -345,34 +346,33 @@ export function OnboardingWizard() {
 
                 {/* Step 4: Enable Features */}
                 {currentStep === 4 && (
-                  <div className="space-y-4 pt-2">
-                    <p className="text-sm">
-                      You're all set! StreamBot offers many powerful features. You can explore and
-                      enable them anytime from the sidebar.
+                  <div className="space-y-3 sm:space-y-4 pt-1 sm:pt-2">
+                    <p className="text-xs sm:text-sm">
+                      You're all set! Explore more features from the sidebar.
                     </p>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="bg-muted/50 rounded-lg p-3 space-y-1">
-                        <div className="text-sm font-medium">Commands</div>
-                        <div className="text-xs text-muted-foreground">
+                    <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                      <div className="bg-muted/50 rounded-lg p-2.5 sm:p-3 space-y-0.5 sm:space-y-1">
+                        <div className="text-xs sm:text-sm font-medium">Commands</div>
+                        <div className="text-[10px] sm:text-xs text-muted-foreground">
                           Custom chat commands
                         </div>
                       </div>
-                      <div className="bg-muted/50 rounded-lg p-3 space-y-1">
-                        <div className="text-sm font-medium">Giveaways</div>
-                        <div className="text-xs text-muted-foreground">
+                      <div className="bg-muted/50 rounded-lg p-2.5 sm:p-3 space-y-0.5 sm:space-y-1">
+                        <div className="text-xs sm:text-sm font-medium">Giveaways</div>
+                        <div className="text-[10px] sm:text-xs text-muted-foreground">
                           Run viewer raffles
                         </div>
                       </div>
-                      <div className="bg-muted/50 rounded-lg p-3 space-y-1">
-                        <div className="text-sm font-medium">Currency</div>
-                        <div className="text-xs text-muted-foreground">
-                          Viewer points system
+                      <div className="bg-muted/50 rounded-lg p-2.5 sm:p-3 space-y-0.5 sm:space-y-1">
+                        <div className="text-xs sm:text-sm font-medium">Currency</div>
+                        <div className="text-[10px] sm:text-xs text-muted-foreground">
+                          Points system
                         </div>
                       </div>
-                      <div className="bg-muted/50 rounded-lg p-3 space-y-1">
-                        <div className="text-sm font-medium">AI Chatbot</div>
-                        <div className="text-xs text-muted-foreground">
-                          Interactive AI responses
+                      <div className="bg-muted/50 rounded-lg p-2.5 sm:p-3 space-y-0.5 sm:space-y-1">
+                        <div className="text-xs sm:text-sm font-medium">AI Chatbot</div>
+                        <div className="text-[10px] sm:text-xs text-muted-foreground">
+                          AI responses
                         </div>
                       </div>
                     </div>
@@ -382,32 +382,32 @@ export function OnboardingWizard() {
             </Card>
 
             {/* Action Buttons */}
-            <div className="flex items-center justify-between pt-2">
-              <Button variant="ghost" onClick={handleSkip}>
-                Skip Setup
+            <div className="flex items-center justify-between pt-1 sm:pt-2">
+              <Button variant="ghost" onClick={handleSkip} className="text-xs sm:text-sm h-9 sm:h-10">
+                Skip
               </Button>
               <div className="flex gap-2">
                 {currentStep > 1 && currentStep < 4 && (
-                  <Button variant="outline" onClick={() => setCurrentStep(currentStep - 1)}>
+                  <Button variant="outline" onClick={() => setCurrentStep(currentStep - 1)} className="h-9 sm:h-10 text-xs sm:text-sm">
                     Back
                   </Button>
                 )}
                 {currentStep === 1 && connectedPlatforms.length > 0 && (
-                  <Button onClick={() => setCurrentStep(2)}>
+                  <Button onClick={() => setCurrentStep(2)} className="h-9 sm:h-10 text-xs sm:text-sm candy-button border-0">
                     Continue
-                    <ChevronRight className="h-4 w-4 ml-2" />
+                    <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4 ml-1" />
                   </Button>
                 )}
                 {currentStep === 2 && (
-                  <Button onClick={() => enableBotMutation.mutate()}>
+                  <Button onClick={() => enableBotMutation.mutate()} className="h-9 sm:h-10 text-xs sm:text-sm candy-button border-0">
                     Continue
-                    <ChevronRight className="h-4 w-4 ml-2" />
+                    <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4 ml-1" />
                   </Button>
                 )}
                 {currentStep === 4 && (
-                  <Button onClick={handleComplete}>
-                    Complete Setup
-                    <Check className="h-4 w-4 ml-2" />
+                  <Button onClick={handleComplete} className="h-9 sm:h-10 text-xs sm:text-sm candy-button border-0">
+                    Complete
+                    <Check className="h-3.5 w-3.5 sm:h-4 sm:w-4 ml-1" />
                   </Button>
                 )}
               </div>

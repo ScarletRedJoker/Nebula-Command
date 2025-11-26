@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ticket, TicketMessage } from "@shared/schema";
 import { connectWebSocket } from "@/lib/ticketUtils";
@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import TicketCard from "@/components/TicketCard";
 import NewTicketModal from "@/components/NewTicketModal";
 import TicketDetailView from "@/components/TicketDetailView";
-import { Plus, MessageSquare, Clock, CheckCircle, Search, Users, AlertCircle } from "lucide-react";
+import { Plus, MessageSquare, Clock, CheckCircle, Search, Users, AlertCircle, RefreshCw, Loader2 } from "lucide-react";
 
 /**
  * OverviewTab Component
@@ -20,23 +20,68 @@ import { Plus, MessageSquare, Clock, CheckCircle, Search, Users, AlertCircle } f
  * Displays ticket statistics and a filterable list of tickets.
  */
 export default function OverviewTab() {
-  // State Management
   const [isNewTicketModalOpen, setIsNewTicketModalOpen] = useState(false);
   const [isTicketDetailOpen, setIsTicketDetailOpen] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [pullDistance, setPullDistance] = useState(0);
   
-  // Hooks
   const queryClient = useQueryClient();
   const { user, isAdmin } = useAuthContext();
   const { selectedServerId, selectedServerName } = useServerContext();
   const socketRef = useRef<WebSocket | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const pullStartY = useRef(0);
+  const isPulling = useRef(false);
 
-  // Data Fetching
-  const { data: tickets = [], isLoading, error } = useQuery<Ticket[]>({
+  const { data: tickets = [], isLoading, error, refetch } = useQuery<Ticket[]>({
     queryKey: ['/api/tickets'],
   });
+
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await refetch();
+      await queryClient.invalidateQueries({ queryKey: ['/api/admin/stats'] });
+    } finally {
+      setIsRefreshing(false);
+      setPullDistance(0);
+    }
+  }, [refetch, queryClient]);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (containerRef.current?.scrollTop === 0) {
+      pullStartY.current = e.touches[0].clientY;
+      isPulling.current = true;
+    }
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!isPulling.current) return;
+    
+    const currentY = e.touches[0].clientY;
+    const diff = currentY - pullStartY.current;
+    
+    if (diff > 0 && containerRef.current?.scrollTop === 0) {
+      const dampedDistance = Math.min(diff * 0.5, 100);
+      setPullDistance(dampedDistance);
+      
+      if (dampedDistance > 60) {
+        e.preventDefault();
+      }
+    }
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    if (pullDistance > 60) {
+      handleRefresh();
+    } else {
+      setPullDistance(0);
+    }
+    isPulling.current = false;
+  }, [pullDistance, handleRefresh]);
 
   interface AdminStats {
     totalUsers?: number;
@@ -147,17 +192,107 @@ export default function OverviewTab() {
     setSelectedTicket(null);
   };
 
-  // Loading State
+  const StatCardSkeleton = () => (
+    <Card className="bg-discord-sidebar border-discord-dark">
+      <CardContent className="p-4 sm:p-5">
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <div className="h-4 w-20 skeleton-loading rounded" />
+            <div className="h-8 w-16 skeleton-loading rounded" />
+          </div>
+          <div className="w-12 h-12 skeleton-loading rounded-xl" />
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const TicketCardSkeleton = () => (
+    <Card className="bg-discord-sidebar border-discord-dark">
+      <CardContent className="p-3 sm:p-5">
+        <div className="space-y-3">
+          <div className="flex justify-between">
+            <div className="space-y-2 flex-1">
+              <div className="h-5 w-3/4 skeleton-loading rounded" />
+              <div className="h-3 w-1/4 skeleton-loading rounded" />
+            </div>
+            <div className="h-6 w-16 skeleton-loading rounded-full" />
+          </div>
+          <div className="h-4 w-full skeleton-loading rounded" />
+          <div className="h-4 w-2/3 skeleton-loading rounded" />
+          <div className="flex justify-between pt-3 border-t border-discord-dark">
+            <div className="flex gap-3">
+              <div className="h-5 w-20 skeleton-loading rounded" />
+              <div className="h-5 w-16 skeleton-loading rounded" />
+            </div>
+            <div className="flex gap-2">
+              <div className="h-7 w-12 skeleton-loading rounded" />
+              <div className="h-7 w-12 skeleton-loading rounded" />
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center h-96">
-        <div className="text-discord-text">Loading your dashboard...</div>
+      <div className="space-y-4 sm:space-y-6 animate-fade-in">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+          {[...Array(5)].map((_, i) => (
+            <StatCardSkeleton key={i} />
+          ))}
+        </div>
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+          <div className="h-11 w-full sm:w-40 skeleton-loading rounded-lg" />
+          <div className="h-11 flex-1 skeleton-loading rounded-lg" />
+          <div className="h-11 w-full sm:w-48 skeleton-loading rounded-lg" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+          {[...Array(6)].map((_, i) => (
+            <TicketCardSkeleton key={i} />
+          ))}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div 
+      ref={containerRef}
+      className="space-y-4 sm:space-y-6 touch-action-pan-y relative"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* Pull-to-refresh indicator */}
+      {(pullDistance > 0 || isRefreshing) && (
+        <div 
+          className="absolute left-1/2 -translate-x-1/2 -top-12 flex items-center justify-center z-10 pull-indicator"
+          style={{ 
+            transform: `translateX(-50%) translateY(${Math.min(pullDistance, 60)}px)`,
+            opacity: Math.min(pullDistance / 60, 1)
+          }}
+        >
+          <div className={`p-2 rounded-full bg-discord-sidebar border border-discord-dark shadow-lg ${isRefreshing ? 'animate-spin' : ''}`}>
+            <RefreshCw className={`w-5 h-5 text-discord-blue ${pullDistance > 60 ? 'text-green-400' : ''}`} />
+          </div>
+        </div>
+      )}
+
+      {/* Manual refresh button for desktop */}
+      <div className="hidden sm:flex justify-end">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleRefresh}
+          disabled={isRefreshing}
+          className="text-discord-muted hover:text-white h-8"
+        >
+          <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+          {isRefreshing ? 'Refreshing...' : 'Refresh'}
+        </Button>
+      </div>
+
       {/* Server Context Indicator */}
       {selectedServerId && (
         <div className="bg-discord-sidebar border border-discord-dark rounded-lg px-3 sm:px-4 py-3 sm:py-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
@@ -175,8 +310,8 @@ export default function OverviewTab() {
         </div>
       )}
       
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+      {/* Statistics Cards - 2 columns on mobile, 5 on desktop */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3 lg:gap-4">
         <Card className="bg-gradient-to-br from-discord-sidebar to-discord-bg border-discord-dark hover:border-discord-blue hover:shadow-lg hover:shadow-discord-blue/20 transition-all duration-300" data-testid="card-total-tickets">
           <CardContent className="p-4 sm:p-5">
             <div className="flex items-center justify-between">

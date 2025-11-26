@@ -4,18 +4,18 @@
 {% block page_title %}Nebula Command Mission Control{% endblock %}
 
 {% block content %}
-<div class="control-panel-card cosmic-glass-card cosmic-slide-in mb-4">
-    <div style="text-align: center; padding: 20px 0;">
-        <h1 style="font-size: 2.2rem; margin-bottom: 12px; font-weight: 700; background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
+<div class="control-panel-card cosmic-glass-card cosmic-slide-in mb-3">
+    <div style="text-align: center; padding: 12px 0;">
+        <h1 style="font-size: clamp(1.4rem, 4vw, 2.2rem); margin-bottom: 8px; font-weight: 700; background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
             <i class="bi bi-hdd-rack"></i> MISSION CONTROL CENTER
         </h1>
-        <p style="font-size: 1rem; color: var(--text-secondary); margin: 0;">
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0;">
             <span class="data-readout">SYSTEM STATUS: OPERATIONAL</span>
         </p>
     </div>
 </div>
 
-<div class="led-panel mb-4">
+<div class="led-panel mb-3">
     <div class="led-group">
         <div class="led-label">POWER</div>
         <span class="status-led online blink"></span>
@@ -50,229 +50,277 @@
     </div>
 </div>
 
-<div class="row mb-4">
-    <div class="col-md-3 mb-3">
-        <div class="metric-display glow-border">
-            <div class="metric-icon" style="color: var(--accent-blue);">
-                <i class="bi bi-box-seam"></i>
+<!-- Stats Grid - Clickable Cards -->
+<div class="stats-grid mb-3">
+    <a href="/containers" class="metric-display glow-border status-card" style="text-decoration: none;">
+        <div class="metric-icon" style="color: var(--accent-blue);">
+            <i class="bi bi-box-seam"></i>
+        </div>
+        <div style="flex: 1;">
+            <div class="metric-value" id="container-count">
+                <span class="skeleton skeleton-text" style="width: 40px; height: 1.8rem; display: inline-block;"></span>
             </div>
-            <div style="flex: 1;">
-                <div class="metric-value" id="container-count">-</div>
-                <div class="metric-label">CONTAINERS</div>
+            <div class="metric-label">CONTAINERS</div>
+        </div>
+        <span class="status-led active blink"></span>
+    </a>
+    <a href="/containers?status=running" class="metric-display glow-border status-card" style="text-decoration: none;">
+        <div class="metric-icon" style="color: var(--accent-green);">
+            <i class="bi bi-play-circle-fill"></i>
+        </div>
+        <div style="flex: 1;">
+            <div class="metric-value" id="running-count">
+                <span class="skeleton skeleton-text" style="width: 40px; height: 1.8rem; display: inline-block;"></span>
             </div>
+            <div class="metric-label">RUNNING</div>
+        </div>
+        <span class="status-led online"></span>
+    </a>
+    <a href="/domains" class="metric-display glow-border status-card" style="text-decoration: none;">
+        <div class="metric-icon" style="color: var(--accent-purple);">
+            <i class="bi bi-globe"></i>
+        </div>
+        <div style="flex: 1;">
+            <div class="metric-value">3</div>
+            <div class="metric-label">DOMAINS</div>
+        </div>
+        <span class="status-led online"></span>
+    </a>
+    <a href="/service-actions" class="metric-display glow-border status-card" style="text-decoration: none;">
+        <div class="metric-icon" style="color: var(--accent-green);">
+            <i class="bi bi-check2-circle"></i>
+        </div>
+        <div style="flex: 1;">
+            <div class="metric-value" id="services-online">6</div>
+            <div class="metric-label">SERVICES</div>
+        </div>
+        <span class="status-led online blink"></span>
+    </a>
+</div>
+
+<!-- Main Cards Grid -->
+<div class="cards-grid">
+    <!-- Quick Access Terminal -->
+    <div class="control-panel-card cosmic-glass-card cosmic-slide-in">
+        <div class="diagnostic-header">
             <span class="status-led active blink"></span>
+            <h5 style="margin: 0; font-weight: 600; font-size: clamp(0.9rem, 2.5vw, 1rem);">QUICK ACCESS TERMINAL</h5>
+        </div>
+        <div style="display: grid; gap: 8px;">
+            <a href="/dashboard" class="control-btn" style="text-decoration: none; text-align: center;">
+                <i class="bi bi-speedometer2"></i> MISSION CONTROL
+            </a>
+            <a href="/containers" class="control-btn" style="text-decoration: none; text-align: center;">
+                <i class="bi bi-box-seam"></i> CONTAINERS
+            </a>
+            <a href="/system" class="control-btn" style="text-decoration: none; text-align: center;">
+                <i class="bi bi-cpu"></i> SYSTEM MONITOR
+            </a>
+            <a href="/network" class="control-btn" style="text-decoration: none; text-align: center;">
+                <i class="bi bi-diagram-3"></i> NETWORK
+            </a>
+            <a href="/domains" class="control-btn" style="text-decoration: none; text-align: center;">
+                <i class="bi bi-globe"></i> DOMAINS
+            </a>
+            <a href="/logs" class="control-btn" style="text-decoration: none; text-align: center;">
+                <i class="bi bi-file-text"></i> LOGS
+            </a>
         </div>
     </div>
-    <div class="col-md-3 mb-3">
-        <div class="metric-display glow-border">
-            <div class="metric-icon" style="color: var(--accent-green);">
-                <i class="bi bi-play-circle-fill"></i>
-            </div>
-            <div style="flex: 1;">
-                <div class="metric-value" id="running-count">-</div>
-                <div class="metric-label">RUNNING</div>
-            </div>
-            <span class="status-led online"></span>
+
+    <!-- AI & Media Control -->
+    <div class="control-panel-card cosmic-glass-card cosmic-slide-in" style="animation-delay: 0.1s;">
+        <div class="diagnostic-header">
+            <span class="hex-led" style="--glow-color: #a78bfa;"></span>
+            <h5 style="margin: 0; font-weight: 600; font-size: clamp(0.9rem, 2.5vw, 1rem);">AI & MEDIA CONTROL</h5>
+        </div>
+        <div style="display: grid; gap: 8px;">
+            <a href="/plex" class="control-btn" style="text-decoration: none; text-align: center; background: linear-gradient(135deg, rgba(167, 139, 250, 0.1) 0%, rgba(167, 139, 250, 0.05) 100%); border-left: 3px solid var(--accent-purple);">
+                <i class="bi bi-film"></i> PLEX MEDIA
+            </a>
+            <a href="/ai-assistant" class="control-btn" style="text-decoration: none; text-align: center; background: linear-gradient(135deg, rgba(96, 165, 250, 0.1) 0%, rgba(96, 165, 250, 0.05) 100%); border-left: 3px solid var(--accent-blue);">
+                <i class="bi bi-robot"></i> JARVIS AI
+            </a>
+            <a href="/agent-swarm" class="control-btn" style="text-decoration: none; text-align: center; background: linear-gradient(135deg, rgba(52, 211, 153, 0.1) 0%, rgba(52, 211, 153, 0.05) 100%); border-left: 3px solid var(--accent-green);">
+                <i class="bi bi-diagram-3"></i> AGENT SWARM
+            </a>
+            <a href="/jarvis-voice" class="control-btn" style="text-decoration: none; text-align: center;">
+                <i class="bi bi-mic"></i> VOICE INTERFACE
+            </a>
         </div>
     </div>
-    <div class="col-md-3 mb-3">
-        <div class="metric-display glow-border">
-            <div class="metric-icon" style="color: var(--accent-purple);">
-                <i class="bi bi-globe"></i>
-            </div>
-            <div style="flex: 1;">
-                <div class="metric-value">3</div>
-                <div class="metric-label">DOMAINS</div>
-            </div>
-            <span class="status-led online"></span>
+
+    <!-- Service Status Array -->
+    <div class="control-panel-card cosmic-glass-card cosmic-slide-in">
+        <div class="diagnostic-header">
+            <span class="hex-led"></span>
+            <h5 style="margin: 0; font-weight: 600; font-size: clamp(0.9rem, 2.5vw, 1rem);">SERVICE STATUS</h5>
         </div>
-    </div>
-    <div class="col-md-3 mb-3">
-        <div class="metric-display glow-border">
-            <div class="metric-icon" style="color: var(--accent-green);">
-                <i class="bi bi-check2-circle"></i>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+            <!-- Discord Bot -->
+            <div class="status-indicator-box" data-expandable="true" tabindex="0" role="button" aria-expanded="false">
+                <span class="status-led online blink" id="status-discord-led"></span>
+                <div style="flex: 1; min-width: 0;">
+                    <div style="font-weight: 600; font-size: 0.9rem;">Discord Bot</div>
+                    <a href="https://bot.rig-city.com" target="_blank" rel="noopener noreferrer" class="data-readout" style="font-size: 0.75rem; text-decoration: none;" onclick="event.stopPropagation();">bot.rig-city.com <i class="bi bi-box-arrow-up-right"></i></a>
+                </div>
+                <span class="badge badge-success">ONLINE</span>
+                <div class="status-details">
+                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 8px;">
+                        <div><strong>Response Time:</strong> 45ms</div>
+                        <div><strong>Uptime:</strong> 99.9%</div>
+                        <div><strong>Last Check:</strong> Just now</div>
+                    </div>
+                    <div class="status-actions">
+                        <a href="https://bot.rig-city.com" target="_blank" class="btn btn-sm btn-primary" onclick="event.stopPropagation();"><i class="bi bi-box-arrow-up-right"></i> Open</a>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation();"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+                    </div>
+                </div>
             </div>
-            <div style="flex: 1;">
-                <div class="metric-value" id="services-online">6</div>
-                <div class="metric-label">SERVICES</div>
+            
+            <!-- Stream Bot -->
+            <div class="status-indicator-box" data-expandable="true" tabindex="0" role="button" aria-expanded="false">
+                <span class="status-led online blink" id="status-stream-led"></span>
+                <div style="flex: 1; min-width: 0;">
+                    <div style="font-weight: 600; font-size: 0.9rem;">Stream Bot</div>
+                    <a href="https://stream.rig-city.com" target="_blank" rel="noopener noreferrer" class="data-readout" style="font-size: 0.75rem; text-decoration: none;" onclick="event.stopPropagation();">stream.rig-city.com <i class="bi bi-box-arrow-up-right"></i></a>
+                </div>
+                <span class="badge badge-success">ONLINE</span>
+                <div class="status-details">
+                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 8px;">
+                        <div><strong>Response Time:</strong> 52ms</div>
+                        <div><strong>Uptime:</strong> 99.8%</div>
+                        <div><strong>Last Check:</strong> Just now</div>
+                    </div>
+                    <div class="status-actions">
+                        <a href="https://stream.rig-city.com" target="_blank" class="btn btn-sm btn-primary" onclick="event.stopPropagation();"><i class="bi bi-box-arrow-up-right"></i> Open</a>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation();"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+                    </div>
+                </div>
             </div>
-            <span class="status-led online blink"></span>
+            
+            <!-- Plex -->
+            <div class="status-indicator-box" data-expandable="true" tabindex="0" role="button" aria-expanded="false">
+                <span class="status-led online" id="status-plex-led"></span>
+                <div style="flex: 1; min-width: 0;">
+                    <div style="font-weight: 600; font-size: 0.9rem;">Plex Server</div>
+                    <a href="https://plex.evindrake.net" target="_blank" rel="noopener noreferrer" class="data-readout" style="font-size: 0.75rem; text-decoration: none;" onclick="event.stopPropagation();">plex.evindrake.net <i class="bi bi-box-arrow-up-right"></i></a>
+                </div>
+                <span class="badge badge-success">ONLINE</span>
+                <div class="status-details">
+                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 8px;">
+                        <div><strong>Active Streams:</strong> 0</div>
+                        <div><strong>Library Size:</strong> 2.4TB</div>
+                        <div><strong>Last Check:</strong> Just now</div>
+                    </div>
+                    <div class="status-actions">
+                        <a href="https://plex.evindrake.net" target="_blank" class="btn btn-sm btn-primary" onclick="event.stopPropagation();"><i class="bi bi-box-arrow-up-right"></i> Open</a>
+                        <a href="/plex" class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation();"><i class="bi bi-upload"></i> Import</a>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- n8n -->
+            <div class="status-indicator-box" data-expandable="true" tabindex="0" role="button" aria-expanded="false">
+                <span class="status-led online" id="status-n8n-led"></span>
+                <div style="flex: 1; min-width: 0;">
+                    <div style="font-weight: 600; font-size: 0.9rem;">n8n Automation</div>
+                    <a href="https://n8n.evindrake.net" target="_blank" rel="noopener noreferrer" class="data-readout" style="font-size: 0.75rem; text-decoration: none;" onclick="event.stopPropagation();">n8n.evindrake.net <i class="bi bi-box-arrow-up-right"></i></a>
+                </div>
+                <span class="badge badge-success">ONLINE</span>
+                <div class="status-details">
+                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 8px;">
+                        <div><strong>Active Workflows:</strong> 12</div>
+                        <div><strong>Executions Today:</strong> 847</div>
+                        <div><strong>Last Check:</strong> Just now</div>
+                    </div>
+                    <div class="status-actions">
+                        <a href="https://n8n.evindrake.net" target="_blank" class="btn btn-sm btn-primary" onclick="event.stopPropagation();"><i class="bi bi-box-arrow-up-right"></i> Open</a>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- VNC -->
+            <div class="status-indicator-box" data-expandable="true" tabindex="0" role="button" aria-expanded="false">
+                <span class="status-led warning" id="status-vnc-led"></span>
+                <div style="flex: 1; min-width: 0;">
+                    <div style="font-weight: 600; font-size: 0.9rem;">VNC Desktop</div>
+                    <a href="https://vnc.evindrake.net" target="_blank" rel="noopener noreferrer" class="data-readout" style="font-size: 0.75rem; text-decoration: none;" onclick="event.stopPropagation();">vnc.evindrake.net <i class="bi bi-box-arrow-up-right"></i></a>
+                </div>
+                <span class="badge badge-warning">CHECK</span>
+                <div class="status-details">
+                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 8px;">
+                        <div><strong>Status:</strong> High latency detected</div>
+                        <div><strong>Response Time:</strong> 450ms</div>
+                        <div><strong>Last Check:</strong> Just now</div>
+                    </div>
+                    <div class="status-actions">
+                        <a href="https://vnc.evindrake.net" target="_blank" class="btn btn-sm btn-primary" onclick="event.stopPropagation();"><i class="bi bi-box-arrow-up-right"></i> Open</a>
+                        <button class="btn btn-sm btn-warning" onclick="event.stopPropagation();"><i class="bi bi-arrow-clockwise"></i> Restart</button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
-<div class="row">
-    <div class="col-lg-4 col-md-6 col-12 mb-4">
-        <div class="control-panel-card cosmic-glass-card cosmic-slide-in">
-            <div class="diagnostic-header">
-                <span class="status-led active blink"></span>
-                <h5 style="margin: 0; font-weight: 600;">QUICK ACCESS TERMINAL</h5>
-            </div>
-            <div style="display: grid; gap: 12px;">
-                <a href="/dashboard" class="control-btn" style="text-decoration: none; text-align: center;">
-                    <i class="bi bi-speedometer2"></i> MISSION CONTROL DASHBOARD
-                </a>
-                <a href="/containers" class="control-btn" style="text-decoration: none; text-align: center;">
-                    <i class="bi bi-box-seam"></i> CONTAINER MANAGEMENT
-                </a>
-                <a href="/system" class="control-btn" style="text-decoration: none; text-align: center;">
-                    <i class="bi bi-cpu"></i> SYSTEM DIAGNOSTICS
-                </a>
-                <a href="/network" class="control-btn" style="text-decoration: none; text-align: center;">
-                    <i class="bi bi-diagram-3"></i> NETWORK MONITOR
-                </a>
-                <a href="/domains" class="control-btn" style="text-decoration: none; text-align: center;">
-                    <i class="bi bi-globe"></i> DOMAIN HEALTH CHECK
-                </a>
-                <a href="/logs" class="control-btn" style="text-decoration: none; text-align: center;">
-                    <i class="bi bi-file-text"></i> SYSTEM LOGS
-                </a>
+<!-- System Diagnostics -->
+<div class="diagnostic-panel cosmic-glass-card cosmic-fade-in mt-3">
+    <div class="diagnostic-header">
+        <span class="hex-led"></span>
+        <h5 style="margin: 0; font-weight: 600; font-size: clamp(0.9rem, 2.5vw, 1rem);">SYSTEM DIAGNOSTICS</h5>
+        <div style="margin-left: auto;">
+            <div class="activity-indicator">
+                <span class="activity-dot"></span>
+                <span>LIVE</span>
             </div>
         </div>
     </div>
-
-    <div class="col-lg-4 col-md-6 col-12 mb-4">
-        <div class="control-panel-card cosmic-glass-card cosmic-slide-in" style="animation-delay: 0.1s;">
-            <div class="diagnostic-header">
-                <span class="hex-led" style="--glow-color: #a78bfa;"></span>
-                <h5 style="margin: 0; font-weight: 600;">AI & MEDIA CONTROL</h5>
-            </div>
-            <div style="display: grid; gap: 12px;">
-                <a href="/plex" class="control-btn" style="text-decoration: none; text-align: center; background: linear-gradient(135deg, rgba(167, 139, 250, 0.1) 0%, rgba(167, 139, 250, 0.05) 100%); border-left: 3px solid var(--accent-purple);">
-                    <i class="bi bi-film"></i> PLEX MEDIA IMPORT
-                    <small style="display: block; font-size: 0.7rem; opacity: 0.7; margin-top: 4px;">Drag & drop media upload</small>
-                </a>
-                <a href="/ai-assistant" class="control-btn" style="text-decoration: none; text-align: center; background: linear-gradient(135deg, rgba(96, 165, 250, 0.1) 0%, rgba(96, 165, 250, 0.05) 100%); border-left: 3px solid var(--accent-blue);">
-                    <i class="bi bi-robot"></i> JARVIS AI ASSISTANT
-                    <small style="display: block; font-size: 0.7rem; opacity: 0.7; margin-top: 4px;">GPT-powered troubleshooting</small>
-                </a>
-                <a href="/agent-swarm" class="control-btn" style="text-decoration: none; text-align: center; background: linear-gradient(135deg, rgba(52, 211, 153, 0.1) 0%, rgba(52, 211, 153, 0.05) 100%); border-left: 3px solid var(--accent-green);">
-                    <i class="bi bi-diagram-3"></i> AI AGENT SWARM
-                    <small style="display: block; font-size: 0.7rem; opacity: 0.7; margin-top: 4px;">5 specialist agents ready</small>
-                </a>
-                <a href="/jarvis-voice" class="control-btn" style="text-decoration: none; text-align: center;">
-                    <i class="bi bi-mic"></i> VOICE INTERFACE
-                    <small style="display: block; font-size: 0.7rem; opacity: 0.7; margin-top: 4px;">Hands-free control</small>
-                </a>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-lg-4 col-md-6 col-12 mb-4">
-        <div class="control-panel-card cosmic-glass-card cosmic-slide-in">
-            <div class="diagnostic-header">
-                <span class="hex-led"></span>
-                <h5 style="margin: 0; font-weight: 600;">SERVICE STATUS ARRAY</h5>
-            </div>
-            <div style="display: flex; flex-direction: column; gap: 12px;">
-                <div class="status-indicator-box">
-                    <span class="status-led online blink" id="status-discord-led"></span>
-                    <div style="flex: 1;">
-                        <div style="font-weight: 600; font-size: 0.95rem;">Discord Ticket Bot</div>
-                        <a href="https://bot.rig-city.com" target="_blank" rel="noopener noreferrer" class="data-readout" style="font-size: 0.8rem; text-decoration: none;">bot.rig-city.com <i class="bi bi-box-arrow-up-right"></i></a>
-                    </div>
-                    <span class="badge badge-success">ONLINE</span>
-                </div>
-                
-                <div class="status-indicator-box">
-                    <span class="status-led online blink" id="status-stream-led"></span>
-                    <div style="flex: 1;">
-                        <div style="font-weight: 600; font-size: 0.95rem;">Stream Bot AI</div>
-                        <a href="https://stream.rig-city.com" target="_blank" rel="noopener noreferrer" class="data-readout" style="font-size: 0.8rem; text-decoration: none;">stream.rig-city.com <i class="bi bi-box-arrow-up-right"></i></a>
-                    </div>
-                    <span class="badge badge-success">ONLINE</span>
-                </div>
-                
-                <div class="status-indicator-box">
-                    <span class="status-led online" id="status-plex-led"></span>
-                    <div style="flex: 1;">
-                        <div style="font-weight: 600; font-size: 0.95rem;">Plex Media Server</div>
-                        <a href="https://plex.evindrake.net" target="_blank" rel="noopener noreferrer" class="data-readout" style="font-size: 0.8rem; text-decoration: none;">plex.evindrake.net <i class="bi bi-box-arrow-up-right"></i></a>
-                    </div>
-                    <span class="badge badge-success">ONLINE</span>
-                </div>
-                
-                <div class="status-indicator-box">
-                    <span class="status-led online" id="status-n8n-led"></span>
-                    <div style="flex: 1;">
-                        <div style="font-weight: 600; font-size: 0.95rem;">n8n Automation Platform</div>
-                        <a href="https://n8n.evindrake.net" target="_blank" rel="noopener noreferrer" class="data-readout" style="font-size: 0.8rem; text-decoration: none;">n8n.evindrake.net <i class="bi bi-box-arrow-up-right"></i></a>
-                    </div>
-                    <span class="badge badge-success">ONLINE</span>
-                </div>
-                
-                <div class="status-indicator-box">
-                    <span class="status-led online" id="status-static-led"></span>
-                    <div style="flex: 1;">
-                        <div style="font-weight: 600; font-size: 0.95rem;">Static Website</div>
-                        <a href="https://scarletredjoker.com" target="_blank" rel="noopener noreferrer" class="data-readout" style="font-size: 0.8rem; text-decoration: none;">scarletredjoker.com <i class="bi bi-box-arrow-up-right"></i></a>
-                    </div>
-                    <span class="badge badge-success">ONLINE</span>
-                </div>
-                
-                <div class="status-indicator-box">
-                    <span class="status-led warning" id="status-vnc-led"></span>
-                    <div style="flex: 1;">
-                        <div style="font-weight: 600; font-size: 0.95rem;">VNC Desktop</div>
-                        <a href="https://vnc.evindrake.net" target="_blank" rel="noopener noreferrer" class="data-readout" style="font-size: 0.8rem; text-decoration: none;">vnc.evindrake.net <i class="bi bi-box-arrow-up-right"></i></a>
-                    </div>
-                    <span class="badge badge-warning">CHECK</span>
+    <div class="system-status">
+        <div class="status-indicator-box">
+            <div>
+                <div style="font-size: 0.7rem; color: var(--text-secondary); margin-bottom: 2px;">HOSTNAME</div>
+                <div class="data-readout" id="hostname" style="font-size: 0.8rem;">
+                    <span class="skeleton skeleton-text" style="width: 80px;"></span>
                 </div>
             </div>
         </div>
-    </div>
-</div>
-
-<div class="row">
-    <div class="col-12">
-        <div class="diagnostic-panel cosmic-glass-card cosmic-fade-in">
-            <div class="diagnostic-header">
-                <span class="hex-led"></span>
-                <h5 style="margin: 0; font-weight: 600;">SYSTEM DIAGNOSTICS</h5>
-                <div style="margin-left: auto;">
-                    <div class="activity-indicator">
-                        <span class="activity-dot"></span>
-                        <span>LIVE</span>
-                    </div>
+        <div class="status-indicator-box">
+            <div>
+                <div style="font-size: 0.7rem; color: var(--text-secondary); margin-bottom: 2px;">UPTIME</div>
+                <div class="data-readout" id="uptime" style="font-size: 0.8rem;">
+                    <span class="skeleton skeleton-text" style="width: 70px;"></span>
                 </div>
             </div>
-            <div class="system-status">
-                <div class="status-indicator-box">
-                    <div>
-                        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 4px;">HOSTNAME</div>
-                        <div class="data-readout" id="hostname">Loading...</div>
-                    </div>
+        </div>
+        <div class="status-indicator-box">
+            <div>
+                <div style="font-size: 0.7rem; color: var(--text-secondary); margin-bottom: 2px;">PLATFORM</div>
+                <div class="data-readout" id="platform" style="font-size: 0.8rem;">
+                    <span class="skeleton skeleton-text" style="width: 60px;"></span>
                 </div>
-                <div class="status-indicator-box">
-                    <div>
-                        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 4px;">UPTIME</div>
-                        <div class="data-readout" id="uptime">Loading...</div>
-                    </div>
+            </div>
+        </div>
+        <div class="status-indicator-box">
+            <div>
+                <div style="font-size: 0.7rem; color: var(--text-secondary); margin-bottom: 2px;">ARCH</div>
+                <div class="data-readout" id="arch" style="font-size: 0.8rem;">
+                    <span class="skeleton skeleton-text" style="width: 50px;"></span>
                 </div>
-                <div class="status-indicator-box">
-                    <div>
-                        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 4px;">PLATFORM</div>
-                        <div class="data-readout" id="platform">Loading...</div>
-                    </div>
+            </div>
+        </div>
+        <div class="status-indicator-box">
+            <div>
+                <div style="font-size: 0.7rem; color: var(--text-secondary); margin-bottom: 2px;">DOCKER</div>
+                <div class="data-readout" id="docker-version" style="font-size: 0.8rem;">
+                    <span class="skeleton skeleton-text" style="width: 90px;"></span>
                 </div>
-                <div class="status-indicator-box">
-                    <div>
-                        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 4px;">ARCHITECTURE</div>
-                        <div class="data-readout" id="arch">Loading...</div>
-                    </div>
-                </div>
-                <div class="status-indicator-box">
-                    <div>
-                        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 4px;">DOCKER</div>
-                        <div class="data-readout" id="docker-version">Loading...</div>
-                    </div>
-                </div>
-                <div class="status-indicator-box">
-                    <div>
-                        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 4px;">LAST UPDATE</div>
-                        <div class="data-readout" id="last-update">Just now</div>
-                    </div>
-                </div>
+            </div>
+        </div>
+        <div class="status-indicator-box">
+            <div>
+                <div style="font-size: 0.7rem; color: var(--text-secondary); margin-bottom: 2px;">UPDATED</div>
+                <div class="data-readout" id="last-update" style="font-size: 0.8rem;">Just now</div>
             </div>
         </div>
     </div>
@@ -318,6 +366,8 @@ async function loadSystemData() {
         
     } catch (error) {
         console.error('Failed to load system data:', error);
+        document.getElementById('container-count').textContent = '-';
+        document.getElementById('running-count').textContent = '-';
     }
 }
 

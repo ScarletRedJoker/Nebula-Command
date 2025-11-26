@@ -26,24 +26,24 @@ export function FeatureCard({
   iconColor = "text-primary",
 }: FeatureCardProps) {
   return (
-    <Card className="hover-elevate">
-      <CardHeader>
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-muted">
-              <Icon className={`h-5 w-5 ${iconColor}`} />
+    <Card className="candy-glass-card candy-hover-elevate">
+      <CardHeader className="p-3 sm:p-4">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div className="p-1.5 sm:p-2 rounded-lg bg-muted flex-shrink-0">
+              <Icon className={`h-4 w-4 sm:h-5 sm:w-5 ${iconColor}`} />
             </div>
-            <CardTitle className="text-base">{title}</CardTitle>
+            <CardTitle className="text-xs sm:text-base truncate">{title}</CardTitle>
           </div>
-          {badge && <Badge variant={badgeVariant}>{badge}</Badge>}
+          {badge && <Badge variant={badgeVariant} className="text-[10px] sm:text-xs flex-shrink-0">{badge}</Badge>}
         </div>
-        <CardDescription className="text-sm">
+        <CardDescription className="text-[10px] sm:text-sm line-clamp-2 mt-1.5 sm:mt-2">
           {description}
         </CardDescription>
       </CardHeader>
       {action && (
-        <CardContent>
-          <Button variant="outline" size="sm" onClick={action.onClick} className="w-full">
+        <CardContent className="p-3 sm:p-4 pt-0">
+          <Button variant="outline" size="sm" onClick={action.onClick} className="w-full h-8 sm:h-9 text-xs sm:text-sm candy-touch-target">
             {action.label}
           </Button>
         </CardContent>

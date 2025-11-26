@@ -223,30 +223,33 @@ export default function Dashboard() {
   const hasConnectedPlatforms = platforms?.some(p => p.isConnected) ?? false;
 
   return (
-    <div className="space-y-8 p-4 sm:p-6 max-w-7xl candy-fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="space-y-4 sm:space-y-6 p-3 sm:p-6 max-w-7xl candy-fade-in">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <div>
-          <h1 className="text-3xl font-bold candy-gradient-text">Dashboard</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="text-2xl sm:text-3xl font-bold candy-gradient-text">Dashboard</h1>
+          <p className="text-sm sm:text-base text-muted-foreground mt-0.5 sm:mt-1">
             Manage your multi-platform streaming bot
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           <Button
             variant="outline"
             size="sm"
             onClick={() => toggleBotMutation.mutate()}
             disabled={toggleBotMutation.isPending || !hasConnectedPlatforms}
+            className="flex-1 sm:flex-none h-9 sm:h-8 candy-touch-target"
           >
             {settings?.isActive ? (
               <>
-                <Pause className="h-4 w-4 mr-2" />
-                Pause Bot
+                <Pause className="h-4 w-4 mr-1.5 sm:mr-2" />
+                <span className="hidden xs:inline">Pause Bot</span>
+                <span className="xs:hidden">Pause</span>
               </>
             ) : (
               <>
-                <Play className="h-4 w-4 mr-2" />
-                Start Bot
+                <Play className="h-4 w-4 mr-1.5 sm:mr-2" />
+                <span className="hidden xs:inline">Start Bot</span>
+                <span className="xs:hidden">Start</span>
               </>
             )}
           </Button>
@@ -254,17 +257,18 @@ export default function Dashboard() {
             size="sm"
             onClick={() => quickTriggerMutation.mutate()}
             disabled={quickTriggerMutation.isPending || !hasConnectedPlatforms}
-            className="candy-button border-0 candy-glow"
+            className="flex-1 sm:flex-none candy-button border-0 candy-glow h-9 sm:h-8 candy-touch-target"
           >
             {quickTriggerMutation.isPending ? (
               <>
-                <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
-                Posting...
+                <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-1.5" />
+                <span className="hidden sm:inline">Posting...</span>
               </>
             ) : (
               <>
-                <Zap className="h-4 w-4 mr-2" />
-                Post Fact Now
+                <Zap className="h-4 w-4 mr-1.5 sm:mr-2" />
+                <span className="hidden xs:inline">Post Fact</span>
+                <span className="xs:hidden">Post</span>
               </>
             )}
           </Button>
@@ -275,76 +279,76 @@ export default function Dashboard() {
       <WelcomeCard />
 
       {/* Stats Overview */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 candy-fade-in-delay-1">
+      <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4 candy-fade-in-delay-1">
         <Card className="candy-stat-card-pink candy-hover-elevate border-0">
-          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Bot Status</CardTitle>
-            <Activity className="h-4 w-4 text-candy-pink" />
+          <CardHeader className="flex flex-row items-center justify-between gap-1.5 sm:gap-2 space-y-0 p-3 sm:p-4 pb-1 sm:pb-2">
+            <CardTitle className="text-xs sm:text-sm font-medium">Bot Status</CardTitle>
+            <Activity className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-candy-pink" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
+          <CardContent className="p-3 sm:p-4 pt-0">
+            <div className="text-lg sm:text-2xl font-bold">
               {settings?.isActive ? (
-                <Badge variant="default" className="candy-badge-green">
-                  <div className="h-2 w-2 rounded-full bg-white mr-1.5 animate-pulse" />
+                <Badge variant="default" className="candy-badge-green text-xs sm:text-sm">
+                  <div className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-white mr-1 sm:mr-1.5 animate-pulse" />
                   Active
                 </Badge>
               ) : (
-                <Badge variant="secondary">
-                  <div className="h-2 w-2 rounded-full bg-muted-foreground mr-1.5" />
+                <Badge variant="secondary" className="text-xs sm:text-sm">
+                  <div className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-muted-foreground mr-1 sm:mr-1.5" />
                   Inactive
                 </Badge>
               )}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1 truncate">
               {settings?.intervalMode === "manual"
-                ? "Manual trigger only"
+                ? "Manual only"
                 : settings?.intervalMode === "fixed"
-                ? `Every ${settings.fixedIntervalMinutes} min`
-                : "Random intervals"}
+                ? `Every ${settings.fixedIntervalMinutes}m`
+                : "Random"}
             </p>
           </CardContent>
         </Card>
 
         <Card className="candy-stat-card-blue candy-hover-elevate border-0">
-          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Facts</CardTitle>
-            <Zap className="h-4 w-4 text-candy-blue" />
+          <CardHeader className="flex flex-row items-center justify-between gap-1.5 sm:gap-2 space-y-0 p-3 sm:p-4 pb-1 sm:pb-2">
+            <CardTitle className="text-xs sm:text-sm font-medium">Total Facts</CardTitle>
+            <Zap className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-candy-blue" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold" data-testid="stat-total-messages">
+          <CardContent className="p-3 sm:p-4 pt-0">
+            <div className="text-lg sm:text-2xl font-bold" data-testid="stat-total-messages">
               {stats?.totalMessages ?? 0}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              All time posted
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">
+              All time
             </p>
           </CardContent>
         </Card>
 
         <Card className="candy-stat-card-purple candy-hover-elevate border-0">
-          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">This Week</CardTitle>
-            <TrendingUp className="h-4 w-4 text-candy-purple" />
+          <CardHeader className="flex flex-row items-center justify-between gap-1.5 sm:gap-2 space-y-0 p-3 sm:p-4 pb-1 sm:pb-2">
+            <CardTitle className="text-xs sm:text-sm font-medium">This Week</CardTitle>
+            <TrendingUp className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-candy-purple" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold" data-testid="stat-weekly-messages">
+          <CardContent className="p-3 sm:p-4 pt-0">
+            <div className="text-lg sm:text-2xl font-bold" data-testid="stat-weekly-messages">
               {stats?.messagesThisWeek ?? 0}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Facts posted
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">
+              Posted
             </p>
           </CardContent>
         </Card>
 
         <Card className="candy-stat-card-green candy-hover-elevate border-0">
-          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Platforms</CardTitle>
-            <Clock className="h-4 w-4 text-candy-green" />
+          <CardHeader className="flex flex-row items-center justify-between gap-1.5 sm:gap-2 space-y-0 p-3 sm:p-4 pb-1 sm:pb-2">
+            <CardTitle className="text-xs sm:text-sm font-medium">Platforms</CardTitle>
+            <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-candy-green" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold" data-testid="stat-active-platforms">
+          <CardContent className="p-3 sm:p-4 pt-0">
+            <div className="text-lg sm:text-2xl font-bold" data-testid="stat-active-platforms">
               {stats?.activePlatforms ?? 0}/3
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">
               Connected
             </p>
           </CardContent>
@@ -353,38 +357,38 @@ export default function Dashboard() {
 
       {/* What's New Section */}
       <Card className="candy-glass-card candy-fade-in-delay-2">
-        <CardHeader>
-          <div className="flex items-center justify-between">
+        <CardHeader className="p-3 sm:p-6">
+          <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-candy-yellow candy-bounce" />
-              <CardTitle>What's New</CardTitle>
+              <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-candy-yellow candy-bounce" />
+              <CardTitle className="text-base sm:text-lg">What's New</CardTitle>
             </div>
-            <Badge className="candy-badge-purple">Latest Updates</Badge>
+            <Badge className="candy-badge-purple text-[10px] sm:text-xs">Updates</Badge>
           </div>
-          <CardDescription>
-            Check out the newest features and improvements
+          <CardDescription className="text-xs sm:text-sm mt-1">
+            Latest features and improvements
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          <div className="flex gap-3 p-3 rounded-lg bg-gradient-to-br from-candy-pink/10 to-candy-purple/10">
+        <CardContent className="grid gap-2 sm:gap-4 sm:grid-cols-2 p-3 sm:p-6 pt-0 sm:pt-0">
+          <div className="flex gap-2 sm:gap-3 p-2.5 sm:p-3 rounded-lg bg-gradient-to-br from-candy-pink/10 to-candy-purple/10">
             <div className="flex-shrink-0">
-              <div className="h-2 w-2 rounded-full bg-candy-pink mt-2 animate-pulse" />
+              <div className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-candy-pink mt-1.5 sm:mt-2 animate-pulse" />
             </div>
-            <div className="space-y-1">
-              <div className="text-sm font-medium">Multi-Platform Support</div>
-              <div className="text-xs text-muted-foreground">
-                Now supporting Twitch, YouTube, and Kick simultaneously!
+            <div className="space-y-0.5 sm:space-y-1 min-w-0">
+              <div className="text-xs sm:text-sm font-medium truncate">Multi-Platform</div>
+              <div className="text-[10px] sm:text-xs text-muted-foreground line-clamp-2">
+                Twitch, YouTube, & Kick support
               </div>
             </div>
           </div>
-          <div className="flex gap-3 p-3 rounded-lg bg-gradient-to-br from-candy-blue/10 to-candy-green/10">
+          <div className="flex gap-2 sm:gap-3 p-2.5 sm:p-3 rounded-lg bg-gradient-to-br from-candy-blue/10 to-candy-green/10">
             <div className="flex-shrink-0">
-              <div className="h-2 w-2 rounded-full bg-candy-blue mt-2 animate-pulse" />
+              <div className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-candy-blue mt-1.5 sm:mt-2 animate-pulse" />
             </div>
-            <div className="space-y-1">
-              <div className="text-sm font-medium">AI Chatbot Integration</div>
-              <div className="text-xs text-muted-foreground">
-                Interactive AI chatbot with custom personalities
+            <div className="space-y-0.5 sm:space-y-1 min-w-0">
+              <div className="text-xs sm:text-sm font-medium truncate">AI Chatbot</div>
+              <div className="text-[10px] sm:text-xs text-muted-foreground line-clamp-2">
+                Custom AI personalities
               </div>
             </div>
           </div>
@@ -393,16 +397,16 @@ export default function Dashboard() {
 
       {/* Feature Discovery */}
       <div className="candy-fade-in-delay-3">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-semibold">Explore Features</h2>
+        <div className="flex items-center justify-between mb-3 sm:mb-4">
+          <h2 className="text-lg sm:text-2xl font-semibold">Explore Features</h2>
           <Link href="/settings">
-            <Button variant="ghost" size="sm" className="hover:scale-105 transition-transform">
+            <Button variant="ghost" size="sm" className="hover:scale-105 transition-transform text-xs sm:text-sm h-8 sm:h-9">
               View All
-              <ArrowRight className="h-4 w-4 ml-2" />
+              <ArrowRight className="h-3.5 w-3.5 sm:h-4 sm:w-4 ml-1.5 sm:ml-2" />
             </Button>
           </Link>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4">
           <FeatureCard
             icon={MessageSquare}
             title="Custom Commands"
@@ -452,11 +456,11 @@ export default function Dashboard() {
 
       {/* Platform Connections */}
       <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-semibold">Platform Connections</h2>
+        <div className="flex items-center justify-between mb-3 sm:mb-4">
+          <h2 className="text-lg sm:text-2xl font-semibold">Platforms</h2>
           {hasConnectedPlatforms && (
-            <Badge variant="outline" className="bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20">
-              <div className="h-2 w-2 rounded-full bg-green-500 mr-1.5 animate-pulse" />
+            <Badge variant="outline" className="bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20 text-[10px] sm:text-xs">
+              <div className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-green-500 mr-1 sm:mr-1.5 animate-pulse" />
               {stats?.activePlatforms || 0} Active
             </Badge>
           )}
