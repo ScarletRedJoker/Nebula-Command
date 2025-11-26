@@ -106,7 +106,7 @@ export async function getActiveYouTubeLivestream(): Promise<{ videoId?: string; 
 
     const broadcast = response.data.items?.[0];
     if (broadcast) {
-      const videoId = broadcast.id;
+      const videoId = broadcast.id ?? undefined;
       const liveChatId = await getLiveChatId(videoId || '');
       
       if (!liveChatId) {
@@ -116,7 +116,7 @@ export async function getActiveYouTubeLivestream(): Promise<{ videoId?: string; 
       return {
         videoId,
         liveChatId,
-        title: broadcast.snippet?.title,
+        title: broadcast.snippet?.title ?? undefined,
       };
     }
     

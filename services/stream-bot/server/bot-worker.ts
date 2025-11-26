@@ -153,12 +153,25 @@ export class BotWorker {
       // Get or create a minimal config
       let config = await this.storage.getBotConfig();
       if (!config) {
-        // Create minimal config for manual posting
+        // Create minimal config for manual posting - we only need these fields for manual posting
+        // Other fields will not be accessed during manual posting operations
         config = {
+          id: '',
+          userId: this.userId,
           isActive: false,
           activePlatforms: [],
           chatKeywords: [],
           enableChatTriggers: false,
+          intervalMode: 'manual',
+          fixedIntervalMinutes: null,
+          randomMinMinutes: null,
+          randomMaxMinutes: null,
+          aiModel: 'gpt-4o',
+          customPrompt: null,
+          lastFactPostedAt: null,
+          bannedWords: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
         } as BotConfig;
       }
       this.config = config;
