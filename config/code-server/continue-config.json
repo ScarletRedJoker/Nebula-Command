@@ -4,13 +4,13 @@
       "title": "Jarvis (GPT-4o)",
       "provider": "openai",
       "model": "gpt-4o",
-      "apiKey": "${OPENAI_API_KEY}"
+      "apiKey": "OPENAI_API_KEY"
     },
     {
       "title": "GPT-4o Mini (Fast)",
       "provider": "openai",
       "model": "gpt-4o-mini",
-      "apiKey": "${OPENAI_API_KEY}"
+      "apiKey": "OPENAI_API_KEY"
     },
     {
       "title": "Qwen2.5-Coder (Local)",
@@ -20,15 +20,10 @@
     }
   ],
   "tabAutocompleteModel": {
-    "title": "GPT-4o Mini",
-    "provider": "openai",
-    "model": "gpt-4o-mini",
-    "apiKey": "${OPENAI_API_KEY}"
-  },
-  "embeddingsProvider": {
-    "provider": "openai",
-    "model": "text-embedding-3-small",
-    "apiKey": "${OPENAI_API_KEY}"
+    "title": "Qwen2.5-Coder (Local)",
+    "provider": "ollama",
+    "model": "qwen2.5-coder:14b",
+    "apiBase": "http://172.17.0.1:11434"
   },
   "contextProviders": [
     {
