@@ -88,6 +88,7 @@ csrf.exempt(health_monitoring_bp)  # Health monitoring API
 csrf.exempt(docker_bp)  # Docker management API
 csrf.exempt(audit_bp)  # Audit logs API
 csrf.exempt(jarvis_ai_bp)  # Jarvis AI API (remediation, anomalies, enhanced chat)
+csrf.exempt(nas_bp)  # NAS management API
 
 limiter.init_app(app)
 logger.info("✓ CSRF Protection and Rate Limiting initialized")
