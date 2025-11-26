@@ -293,33 +293,37 @@ services:
   # ============================================
   # Plex Media Server
   # ============================================
-  # DISABLED: Using host Plex installation instead
-  # Uncomment if you want to use Docker Plex (requires stopping host Plex)
-  # plex:
-  #   image: lscr.io/linuxserver/plex:latest
-  #   container_name: plex-server
-  #   restart: unless-stopped
-  #   networks:
-  #     - homelab
-  #   ports:
-  #     - "32400:32400"
-  #     - "3005:3005"
-  #     - "8324:8324"
-  #     - "32469:32469"
-  #   environment:
-  #     - PUID=1000
-  #     - PGID=1000
-  #     - TZ=America/New_York
-  #     - VERSION=docker
-  #     - PLEX_CLAIM=${PLEX_CLAIM}
-  #     - ADVERTISE_IP=https://plex.evindrake.net:443
-  #   volumes:
-  #     - ./services/plex/config:/config
-  #     - ./services/plex/transcode:/transcode
-  #     - ./services/plex/media:/media
-  #     - /mnt/nas:/nas:ro  # NAS mount (read-only for safety)
-  #   devices:
-  #     - /dev/dri:/dev/dri
+  plex:
+    image: lscr.io/linuxserver/plex:latest
+    container_name: plex-server
+    restart: unless-stopped
+    networks:
+      - homelab
+    ports:
+      - "32400:32400"
+      - "3005:3005"
+      - "8324:8324"
+      - "32469:32469"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+      - VERSION=docker
+      - PLEX_CLAIM=${PLEX_CLAIM:-}
+      - ADVERTISE_IP=https://plex.evindrake.net:443
+    volumes:
+      - ./services/plex/config:/config
+      - ./services/plex/transcode:/transcode
+      - ./services/plex/media:/media
+      - /mnt/nas:/nas:ro
+    devices:
+      - /dev/dri:/dev/dri
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:32400/identity || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   # ============================================
   # n8n Automation
