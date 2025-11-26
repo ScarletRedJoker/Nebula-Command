@@ -7,7 +7,7 @@ from flask import Blueprint, jsonify, request
 from datetime import datetime
 import logging
 
-from config import Config
+from config import Config  # type: ignore[import-not-found]
 from services.service_ops import service_ops
 from services.ai_service import AIService
 from utils.auth import require_auth
