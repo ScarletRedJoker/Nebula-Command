@@ -61,17 +61,26 @@ check_requirements() {
 }
 
 resolve_nas_address() {
-    # Try to resolve hostname first, fall back to IP
+    # Prefer IP address for mounting (more reliable), fall back to hostname
     local nas_address=""
     
-    if ping -c 1 -W 2 "$NAS_HOSTNAME" &> /dev/null; then
-        nas_address="$NAS_HOSTNAME"
-        log_info "NAS reachable at hostname: $NAS_HOSTNAME"
-    elif ping -c 1 -W 2 "$NAS_IP" &> /dev/null; then
+    # If IP is provided and reachable, use it (more reliable for CIFS mounts)
+    if [ -n "$NAS_IP" ] && ping -c 1 -W 2 "$NAS_IP" &> /dev/null; then
         nas_address="$NAS_IP"
         log_info "NAS reachable at IP: $NAS_IP"
+    elif ping -c 1 -W 2 "$NAS_HOSTNAME" &> /dev/null; then
+        # Try to resolve hostname to IP for mounting
+        local resolved_ip
+        resolved_ip=$(avahi-resolve -n "$NAS_HOSTNAME" 2>/dev/null | awk '{print $2}')
+        if [ -n "$resolved_ip" ]; then
+            nas_address="$resolved_ip"
+            log_info "NAS hostname $NAS_HOSTNAME resolved to IP: $resolved_ip"
+        else
+            nas_address="$NAS_HOSTNAME"
+            log_warn "Using hostname directly (may fail for CIFS mount): $NAS_HOSTNAME"
+        fi
     else
-        log_error "Cannot reach NAS at $NAS_HOSTNAME or $NAS_IP"
+        log_error "Cannot reach NAS at $NAS_IP or $NAS_HOSTNAME"
         exit 1
     fi
     
