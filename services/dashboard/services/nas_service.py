@@ -268,3 +268,246 @@ class NASService:
                 'success': False,
                 'error': str(e)
             }
+
+    def browse_path(self, path: str = '') -> Dict[str, Any]:
+        """
+        Browse files and folders in mounted NAS path
+        
+        Args:
+            path: Relative path within mount base (e.g., 'networkshare/video')
+            
+        Returns:
+            Dictionary with folders, files, and path info
+        """
+        try:
+            full_path = os.path.join(self.mount_base, path) if path else self.mount_base
+            
+            if not os.path.exists(full_path):
+                return {
+                    'success': False,
+                    'error': f'Path does not exist: {path}',
+                    'mounted': False
+                }
+            
+            if not full_path.startswith(self.mount_base):
+                return {
+                    'success': False,
+                    'error': 'Access denied: path traversal not allowed'
+                }
+            
+            folders = []
+            files = []
+            
+            try:
+                for entry in os.scandir(full_path):
+                    try:
+                        stat_info = entry.stat()
+                        item = {
+                            'name': entry.name,
+                            'path': os.path.relpath(entry.path, self.mount_base),
+                            'size': stat_info.st_size if entry.is_file() else 0,
+                            'modified': datetime.fromtimestamp(stat_info.st_mtime).isoformat(),
+                        }
+                        
+                        if entry.is_dir():
+                            item['type'] = 'folder'
+                            item['plex_path'] = f'/nas/{item["path"]}'
+                            folders.append(item)
+                        else:
+                            item['type'] = 'file'
+                            ext = os.path.splitext(entry.name)[1].lower()
+                            item['extension'] = ext
+                            item['is_media'] = ext in {'.mp4', '.mkv', '.avi', '.mov', '.mp3', '.flac', '.m4a', '.wav'}
+                            files.append(item)
+                    except (PermissionError, OSError) as e:
+                        logger.debug(f"Skipping inaccessible entry {entry.name}: {e}")
+                        continue
+                        
+            except PermissionError:
+                return {
+                    'success': False,
+                    'error': f'Permission denied: {path}'
+                }
+            
+            folders.sort(key=lambda x: x['name'].lower())
+            files.sort(key=lambda x: x['name'].lower())
+            
+            storage_info = self.get_mount_storage_info(self.mount_base)
+            
+            return {
+                'success': True,
+                'path': path,
+                'full_path': full_path,
+                'plex_container_path': f'/nas/{path}' if path else '/nas',
+                'parent': os.path.dirname(path) if path else None,
+                'folders': folders,
+                'files': files,
+                'total_items': len(folders) + len(files),
+                'storage': storage_info
+            }
+            
+        except Exception as e:
+            logger.error(f"Error browsing NAS path {path}: {e}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+
+    def get_media_folders(self) -> Dict[str, Any]:
+        """
+        Get common media folders suitable for Plex libraries
+        
+        Returns:
+            Dictionary with categorized media folders
+        """
+        try:
+            networkshare_path = os.path.join(self.mount_base, 'networkshare')
+            
+            if not os.path.exists(networkshare_path):
+                return {
+                    'success': False,
+                    'error': 'NAS not mounted. Run: sudo ./scripts/mount-nas.sh',
+                    'mounted': False
+                }
+            
+            media_categories = {
+                'movies': ['video', 'movies', 'films', 'media/movies'],
+                'tv_shows': ['tv', 'tv shows', 'series', 'media/tv'],
+                'music': ['music', 'audio', 'media/music'],
+                'photos': ['photo', 'photos', 'pictures'],
+            }
+            
+            found_folders = {
+                'movies': [],
+                'tv_shows': [],
+                'music': [],
+                'photos': [],
+                'other': []
+            }
+            
+            try:
+                for entry in os.scandir(networkshare_path):
+                    if entry.is_dir():
+                        folder_name = entry.name.lower()
+                        folder_path = os.path.relpath(entry.path, self.mount_base)
+                        plex_path = f'/nas/{folder_path}'
+                        
+                        folder_info = {
+                            'name': entry.name,
+                            'path': folder_path,
+                            'plex_path': plex_path,
+                            'host_path': entry.path
+                        }
+                        
+                        categorized = False
+                        for category, keywords in media_categories.items():
+                            if any(kw in folder_name for kw in keywords):
+                                found_folders[category].append(folder_info)
+                                categorized = True
+                                break
+                        
+                        if not categorized:
+                            found_folders['other'].append(folder_info)
+                            
+            except PermissionError:
+                return {
+                    'success': False,
+                    'error': 'Permission denied accessing NAS'
+                }
+            
+            return {
+                'success': True,
+                'mounted': True,
+                'mount_base': self.mount_base,
+                'folders': found_folders,
+                'plex_library_suggestions': [
+                    {
+                        'library_type': 'movie',
+                        'name': 'Movies',
+                        'suggested_paths': [f['plex_path'] for f in found_folders['movies']]
+                    },
+                    {
+                        'library_type': 'show',
+                        'name': 'TV Shows',
+                        'suggested_paths': [f['plex_path'] for f in found_folders['tv_shows']]
+                    },
+                    {
+                        'library_type': 'artist',
+                        'name': 'Music',
+                        'suggested_paths': [f['plex_path'] for f in found_folders['music']]
+                    },
+                    {
+                        'library_type': 'photo',
+                        'name': 'Photos',
+                        'suggested_paths': [f['plex_path'] for f in found_folders['photos']]
+                    }
+                ]
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting media folders: {e}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+
+    def copy_to_nas(self, source_path: str, dest_folder: str, filename: str = None) -> Dict[str, Any]:
+        """
+        Copy a file to NAS storage
+        
+        Args:
+            source_path: Local source file path
+            dest_folder: Destination folder relative to mount base
+            filename: Optional new filename (defaults to source filename)
+            
+        Returns:
+            Copy result dictionary
+        """
+        try:
+            if not os.path.exists(source_path):
+                return {
+                    'success': False,
+                    'error': f'Source file not found: {source_path}'
+                }
+            
+            dest_dir = os.path.join(self.mount_base, dest_folder)
+            
+            if not dest_dir.startswith(self.mount_base):
+                return {
+                    'success': False,
+                    'error': 'Invalid destination path'
+                }
+            
+            if not os.path.exists(dest_dir):
+                os.makedirs(dest_dir, exist_ok=True)
+            
+            if filename is None:
+                filename = os.path.basename(source_path)
+            
+            dest_path = os.path.join(dest_dir, filename)
+            
+            shutil.copy2(source_path, dest_path)
+            
+            file_size = os.path.getsize(dest_path)
+            
+            return {
+                'success': True,
+                'source': source_path,
+                'destination': dest_path,
+                'nas_path': os.path.relpath(dest_path, self.mount_base),
+                'plex_path': f'/nas/{os.path.relpath(dest_path, self.mount_base)}',
+                'file_size': file_size,
+                'message': f'Successfully copied to NAS'
+            }
+            
+        except PermissionError:
+            return {
+                'success': False,
+                'error': 'Permission denied writing to NAS'
+            }
+        except Exception as e:
+            logger.error(f"Error copying to NAS: {e}")
+            return {
+                'success': False,
+                'error': str(e)
+            }

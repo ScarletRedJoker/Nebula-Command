@@ -325,3 +325,126 @@ def list_backups():
             'success': False,
             'error': str(e)
         }), 500
+
+
+@nas_bp.route('/api/browse', methods=['GET'])
+@require_auth
+def browse_nas():
+    """
+    Browse NAS folders and files
+    
+    Query params:
+        path: Relative path to browse (default: root)
+    """
+    try:
+        path = request.args.get('path', '')
+        
+        nas_service = NASService()
+        result = nas_service.browse_path(path)
+        
+        return jsonify(result), 200 if result.get('success') else 404
+
+    except Exception as e:
+        logger.error(f"Error browsing NAS: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@nas_bp.route('/api/media-folders', methods=['GET'])
+@require_auth
+def get_media_folders():
+    """
+    Get categorized media folders for Plex library setup
+    
+    Returns folders organized by media type (movies, tv_shows, music, photos)
+    with suggested Plex library paths
+    """
+    try:
+        nas_service = NASService()
+        result = nas_service.get_media_folders()
+        
+        return jsonify(result), 200 if result.get('success') else 404
+
+    except Exception as e:
+        logger.error(f"Error getting media folders: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@nas_bp.route('/api/copy', methods=['POST'])
+@require_auth
+def copy_to_nas():
+    """
+    Copy a file to NAS storage
+    
+    JSON body:
+        source_path: Local source file path
+        dest_folder: Destination folder on NAS
+        filename: Optional new filename
+    """
+    try:
+        data = request.get_json()
+        source_path = data.get('source_path')
+        dest_folder = data.get('dest_folder')
+        filename = data.get('filename')
+
+        if not source_path or not dest_folder:
+            return jsonify({
+                'success': False,
+                'error': 'Missing required fields: source_path and dest_folder'
+            }), 400
+
+        nas_service = NASService()
+        result = nas_service.copy_to_nas(source_path, dest_folder, filename)
+        
+        return jsonify(result), 200 if result.get('success') else 500
+
+    except Exception as e:
+        logger.error(f"Error copying to NAS: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@nas_bp.route('/api/plex-paths', methods=['GET'])
+@require_auth
+def get_plex_paths():
+    """
+    Get NAS paths formatted for Plex container access
+    
+    Returns paths that can be used when configuring Plex libraries
+    (maps to /nas inside the Plex container)
+    """
+    try:
+        nas_service = NASService()
+        result = nas_service.get_media_folders()
+        
+        if not result.get('success'):
+            return jsonify(result), 404
+        
+        plex_paths = {
+            'mount_info': {
+                'host_mount': result.get('mount_base'),
+                'container_mount': '/nas',
+                'description': 'NAS is mounted at /mnt/nas on host, accessible as /nas inside Plex container'
+            },
+            'library_suggestions': result.get('plex_library_suggestions', []),
+            'all_folders': result.get('folders', {})
+        }
+        
+        return jsonify({
+            'success': True,
+            **plex_paths
+        })
+
+    except Exception as e:
+        logger.error(f"Error getting Plex paths: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
