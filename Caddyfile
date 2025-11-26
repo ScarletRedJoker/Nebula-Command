@@ -198,15 +198,15 @@ code.evindrake.net {
         # WebSocket support for VS Code - CRITICAL for code-server
         header_up Upgrade {http.request.header.Upgrade}
         header_up Connection {http.request.header.Connection}
-        
-        # CRITICAL: Override code-server's restrictive headers
-        # Code-server sends X-Frame-Options: deny which breaks extension host iframes
-        header_down X-Frame-Options "SAMEORIGIN"
-        header_down -Content-Security-Policy
     }
     
-    # Additional security headers
+    # CRITICAL: Strip code-server's restrictive headers and replace them
+    # Code-server sends X-Frame-Options: deny which breaks extension host iframes
+    # The minus (-) prefix removes the header, then we set our own value
     header {
+        -X-Frame-Options
+        -Content-Security-Policy
+        X-Frame-Options "SAMEORIGIN"
         X-Content-Type-Options "nosniff"
         X-XSS-Protection "1; mode=block"
         Referrer-Policy "same-origin"
