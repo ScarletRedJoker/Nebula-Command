@@ -196,20 +196,21 @@ code.evindrake.net {
         header_up X-Real-IP {remote_host}
         
         # WebSocket support for VS Code - CRITICAL for code-server
-        # Using full placeholders to ensure headers are properly forwarded
         header_up Upgrade {http.request.header.Upgrade}
         header_up Connection {http.request.header.Connection}
+        
+        # CRITICAL: Override code-server's restrictive headers
+        # Code-server sends X-Frame-Options: deny which breaks extension host iframes
+        header_down X-Frame-Options "SAMEORIGIN"
+        header_down -Content-Security-Policy
     }
     
-    # Security headers optimized for code-server
-    # Note: X-Frame-Options must be SAMEORIGIN for VS Code extension host iframes to work
+    # Additional security headers
     header {
         X-Content-Type-Options "nosniff"
-        X-Frame-Options "SAMEORIGIN"
         X-XSS-Protection "1; mode=block"
         Referrer-Policy "same-origin"
         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
-        -Content-Security-Policy
     }
 }
 
