@@ -56,7 +56,9 @@
   "chat.experimental.detectParticipant.enabled": false,
   "inlineChat.mode": "disabled",
   "workbench.panel.chat.defaultLocation": "hidden",
+  "workbench.secondarySideBar.defaultLocation": "hidden",
   "workbench.activityBar.visible": true,
   "continue.telemetryEnabled": false,
-  "continue.enableTabAutocomplete": true
+  "continue.enableTabAutocomplete": true,
+  "continue.showInlineTip": true
 }
