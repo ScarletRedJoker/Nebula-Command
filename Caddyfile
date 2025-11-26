@@ -167,21 +167,20 @@ vnc.evindrake.net {
 # Code Server (VS Code in Browser) - VPN ONLY ACCESS
 # ============================================
 code.evindrake.net {
-    route {
-        reverse_proxy http://code-server:8443 {
-            header_up Host {host}
-            header_up X-Real-IP {remote_host}
-            header_up Upgrade {http.request.header.Upgrade}
-            header_up Connection {http.request.header.Connection}
-            
-            # Intercept response and modify headers
-            @allresponses status 1xx 2xx 3xx 4xx 5xx
-            handle_response @allresponses {
-                header -X-Frame-Options
-                header X-Frame-Options "SAMEORIGIN"
-                copy_response
-            }
-        }
+    # Proxy to nginx sidecar which handles X-Frame-Options header removal
+    # Chain: Caddy -> nginx (proxy) -> code-server
+    reverse_proxy http://code-server-proxy:8080 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up Upgrade {http.request.header.Upgrade}
+        header_up Connection {http.request.header.Connection}
+    }
+    
+    # Additional security headers (nginx handles X-Frame-Options)
+    header {
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "same-origin"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
     }
 }
 
