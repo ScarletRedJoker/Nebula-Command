@@ -167,50 +167,21 @@ vnc.evindrake.net {
 # Code Server (VS Code in Browser) - VPN ONLY ACCESS
 # ============================================
 code.evindrake.net {
-    # SECURITY: This service should ONLY be accessible via Twingate VPN
-    # To enable IP whitelist, uncomment and add your VPN IP range:
-    # @vpn_only {
-    #     remote_ip 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16
-    # }
-    # handle @vpn_only {
-    #     reverse_proxy http://code-server:8443 {
-    #         header_up Host {host}
-    #         header_up X-Real-IP {remote_host}
-    #         header_up X-Forwarded-For {remote_host}
-    #         header_up X-Forwarded-Proto {scheme}
-    #         
-    #         # WebSocket support for VS Code - CRITICAL for code-server
-    #         header_up Upgrade {http.request.header.Upgrade}
-    #         header_up Connection {http.request.header.Connection}
-    #     }
-    # }
-    # handle {
-    #     respond "VPN Access Required" 403
-    # }
-    
-    # Code Server already has built-in password authentication
-    # No additional basic auth needed
-    
-    reverse_proxy http://code-server:8443 {
-        header_up Host {host}
-        header_up X-Real-IP {remote_host}
-        
-        # WebSocket support for VS Code - CRITICAL for code-server
-        header_up Upgrade {http.request.header.Upgrade}
-        header_up Connection {http.request.header.Connection}
-    }
-    
-    # CRITICAL: Strip code-server's restrictive headers and replace them
-    # Code-server sends X-Frame-Options: deny which breaks extension host iframes
-    # The minus (-) prefix removes the header, then we set our own value
+    # Apply header modifications FIRST before reverse proxy
     header {
         -X-Frame-Options
         -Content-Security-Policy
         X-Frame-Options "SAMEORIGIN"
         X-Content-Type-Options "nosniff"
-        X-XSS-Protection "1; mode=block"
         Referrer-Policy "same-origin"
         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    }
+    
+    reverse_proxy http://code-server:8443 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up Upgrade {http.request.header.Upgrade}
+        header_up Connection {http.request.header.Connection}
     }
 }
 
