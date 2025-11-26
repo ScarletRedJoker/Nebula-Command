@@ -167,24 +167,25 @@ vnc.evindrake.net {
 # Code Server (VS Code in Browser) - VPN ONLY ACCESS
 # ============================================
 code.evindrake.net {
+    # CRITICAL: Use defer to run AFTER reverse_proxy writes headers
+    header {
+        -X-Frame-Options
+        -x-frame-options
+        -Content-Security-Policy
+        -content-security-policy
+        X-Frame-Options "SAMEORIGIN"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "same-origin"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        defer
+    }
+    
     reverse_proxy http://code-server:8443 {
         header_up Host {host}
         header_up X-Real-IP {remote_host}
         header_up Upgrade {http.request.header.Upgrade}
         header_up Connection {http.request.header.Connection}
-        
-        # Remove ALL restrictive headers from code-server
-        header_down -x-frame-options
-        header_down -X-Frame-Options
-        header_down -content-security-policy
-        header_down -Content-Security-Policy
     }
-    
-    # Use deferred header setting with > prefix
-    header >X-Frame-Options "SAMEORIGIN"
-    header >X-Content-Type-Options "nosniff"
-    header >Referrer-Policy "same-origin"
-    header >Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
 }
 
 # ============================================
