@@ -39,6 +39,10 @@ import { featureToggleService } from "./feature-toggle-service";
 import { circuitBreakerService } from "./circuit-breaker-service";
 import { jobQueueService } from "./job-queue-service";
 import { enhancedTokenService } from "./enhanced-token-service";
+import { intentDetectionService } from "./intent-detection-service";
+import { enhancedModerationService } from "./enhanced-moderation-service";
+import { personalizedFactService } from "./personalized-fact-service";
+import { speechToTextService } from "./speech-to-text-service";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/auth", oauthSignInRoutes);
@@ -3146,6 +3150,425 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("[Token API] Failed to check token expiry:", error);
       res.status(500).json({ error: error.message || "Failed to check token expiry" });
+    }
+  });
+
+  // ============================================================================
+  // ENHANCED AI SERVICES API ROUTES
+  // ============================================================================
+
+  // --- Intent Detection API ---
+  app.post("/api/ai/intent/detect", requireAuth, async (req, res) => {
+    try {
+      const { message, context } = req.body;
+      if (!message) {
+        return res.status(400).json({ error: "message is required" });
+      }
+
+      const result = await intentDetectionService.detectIntent(message, context);
+      res.json(result);
+    } catch (error: any) {
+      console.error("[Intent API] Detection failed:", error);
+      res.status(500).json({ error: error.message || "Failed to detect intent" });
+    }
+  });
+
+  app.post("/api/ai/intent/classify-and-route", requireAuth, async (req, res) => {
+    try {
+      const { platform, username, message, context } = req.body;
+      if (!platform || !username || !message) {
+        return res.status(400).json({ error: "platform, username, and message are required" });
+      }
+
+      const { result, handler } = await intentDetectionService.classifyAndRoute(
+        req.user!.id,
+        platform,
+        username,
+        message,
+        context
+      );
+      res.json({ result, handler });
+    } catch (error: any) {
+      console.error("[Intent API] Classification failed:", error);
+      res.status(500).json({ error: error.message || "Failed to classify intent" });
+    }
+  });
+
+  app.get("/api/ai/intent/stats", requireAuth, async (req, res) => {
+    try {
+      const { days } = req.query;
+      const stats = await intentDetectionService.getIntentStats(
+        req.user!.id,
+        days ? parseInt(days as string) : 7
+      );
+      res.json({ stats });
+    } catch (error: any) {
+      console.error("[Intent API] Stats failed:", error);
+      res.status(500).json({ error: error.message || "Failed to get intent stats" });
+    }
+  });
+
+  app.get("/api/ai/intent/recent", requireAuth, async (req, res) => {
+    try {
+      const { limit } = req.query;
+      const classifications = await intentDetectionService.getRecentClassifications(
+        req.user!.id,
+        limit ? parseInt(limit as string) : 50
+      );
+      res.json({ classifications });
+    } catch (error: any) {
+      console.error("[Intent API] Recent failed:", error);
+      res.status(500).json({ error: error.message || "Failed to get recent classifications" });
+    }
+  });
+
+  // --- Enhanced Moderation API ---
+  app.get("/api/ai/moderation/settings", requireAuth, async (req, res) => {
+    try {
+      const settings = await enhancedModerationService.getSettings(req.user!.id);
+      res.json({ settings });
+    } catch (error: any) {
+      console.error("[Moderation API] Get settings failed:", error);
+      res.status(500).json({ error: error.message || "Failed to get moderation settings" });
+    }
+  });
+
+  app.put("/api/ai/moderation/settings", requireAuth, async (req, res) => {
+    try {
+      const settings = await enhancedModerationService.updateSettings(req.user!.id, req.body);
+      res.json({ settings });
+    } catch (error: any) {
+      console.error("[Moderation API] Update settings failed:", error);
+      res.status(500).json({ error: error.message || "Failed to update moderation settings" });
+    }
+  });
+
+  app.post("/api/ai/moderation/check", requireAuth, async (req, res) => {
+    try {
+      const { platform, username, message } = req.body;
+      if (!platform || !username || !message) {
+        return res.status(400).json({ error: "platform, username, and message are required" });
+      }
+
+      const result = await enhancedModerationService.moderateMessage(
+        req.user!.id,
+        platform,
+        username,
+        message
+      );
+      res.json(result);
+    } catch (error: any) {
+      console.error("[Moderation API] Check failed:", error);
+      res.status(500).json({ error: error.message || "Failed to moderate message" });
+    }
+  });
+
+  app.get("/api/ai/moderation/log", requireAuth, async (req, res) => {
+    try {
+      const { limit, offset, actionType, violationType } = req.query;
+      const log = await enhancedModerationService.getActionLog(req.user!.id, {
+        limit: limit ? parseInt(limit as string) : 50,
+        offset: offset ? parseInt(offset as string) : undefined,
+        actionType: actionType as any,
+        violationType: violationType as any,
+      });
+      res.json({ log });
+    } catch (error: any) {
+      console.error("[Moderation API] Get log failed:", error);
+      res.status(500).json({ error: error.message || "Failed to get moderation log" });
+    }
+  });
+
+  app.get("/api/ai/moderation/stats", requireAuth, async (req, res) => {
+    try {
+      const { days } = req.query;
+      const stats = await enhancedModerationService.getModerationStats(
+        req.user!.id,
+        days ? parseInt(days as string) : 7
+      );
+      res.json({ stats });
+    } catch (error: any) {
+      console.error("[Moderation API] Stats failed:", error);
+      res.status(500).json({ error: error.message || "Failed to get moderation stats" });
+    }
+  });
+
+  app.post("/api/ai/moderation/whitelist", requireAuth, async (req, res) => {
+    try {
+      const { items, type } = req.body;
+      if (!items || !Array.isArray(items)) {
+        return res.status(400).json({ error: "items array is required" });
+      }
+
+      if (type === 'user') {
+        for (const username of items) {
+          await enhancedModerationService.whitelistUser(req.user!.id, username);
+        }
+      } else {
+        await enhancedModerationService.addToWhitelist(req.user!.id, items);
+      }
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Moderation API] Whitelist failed:", error);
+      res.status(500).json({ error: error.message || "Failed to update whitelist" });
+    }
+  });
+
+  app.post("/api/ai/moderation/blacklist", requireAuth, async (req, res) => {
+    try {
+      const { items } = req.body;
+      if (!items || !Array.isArray(items)) {
+        return res.status(400).json({ error: "items array is required" });
+      }
+
+      await enhancedModerationService.addToBlacklist(req.user!.id, items);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Moderation API] Blacklist failed:", error);
+      res.status(500).json({ error: error.message || "Failed to update blacklist" });
+    }
+  });
+
+  app.delete("/api/ai/moderation/whitelist", requireAuth, async (req, res) => {
+    try {
+      const { items, type } = req.body;
+      if (!items || !Array.isArray(items)) {
+        return res.status(400).json({ error: "items array is required" });
+      }
+
+      if (type === 'user') {
+        for (const username of items) {
+          await enhancedModerationService.unwhitelistUser(req.user!.id, username);
+        }
+      } else {
+        await enhancedModerationService.removeFromWhitelist(req.user!.id, items);
+      }
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Moderation API] Whitelist remove failed:", error);
+      res.status(500).json({ error: error.message || "Failed to update whitelist" });
+    }
+  });
+
+  app.delete("/api/ai/moderation/blacklist", requireAuth, async (req, res) => {
+    try {
+      const { items } = req.body;
+      if (!items || !Array.isArray(items)) {
+        return res.status(400).json({ error: "items array is required" });
+      }
+
+      await enhancedModerationService.removeFromBlacklist(req.user!.id, items);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Moderation API] Blacklist remove failed:", error);
+      res.status(500).json({ error: error.message || "Failed to update blacklist" });
+    }
+  });
+
+  // --- Personalized Facts API ---
+  app.post("/api/ai/facts/generate", requireAuth, async (req, res) => {
+    try {
+      const { preferredTopics, excludeTopics, platform, forcePersonalized } = req.body;
+      
+      const result = await personalizedFactService.generateFact(req.user!.id, {
+        preferredTopics,
+        excludeTopics,
+        platform: platform || 'twitch',
+        forcePersonalized,
+      });
+
+      if (platform) {
+        await personalizedFactService.recordFactAnalytics(
+          req.user!.id,
+          result.fact,
+          result.topic,
+          platform,
+          'manual',
+          undefined,
+          result.generationTimeMs,
+          result.wasPersonalized
+        );
+      }
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("[Facts API] Generate failed:", error);
+      res.status(500).json({ error: error.message || "Failed to generate fact" });
+    }
+  });
+
+  app.get("/api/ai/facts/topics", requireAuth, async (req, res) => {
+    try {
+      const topics = personalizedFactService.getAvailableTopics();
+      res.json({ topics });
+    } catch (error: any) {
+      console.error("[Facts API] Topics failed:", error);
+      res.status(500).json({ error: error.message || "Failed to get topics" });
+    }
+  });
+
+  app.get("/api/ai/facts/preferences", requireAuth, async (req, res) => {
+    try {
+      const preferences = await personalizedFactService.getUserTopicPreferences(req.user!.id);
+      res.json({ preferences });
+    } catch (error: any) {
+      console.error("[Facts API] Preferences failed:", error);
+      res.status(500).json({ error: error.message || "Failed to get preferences" });
+    }
+  });
+
+  app.post("/api/ai/facts/reaction", requireAuth, async (req, res) => {
+    try {
+      const { topic, isPositive } = req.body;
+      if (!topic || typeof isPositive !== 'boolean') {
+        return res.status(400).json({ error: "topic and isPositive are required" });
+      }
+
+      await personalizedFactService.recordReaction(req.user!.id, topic, isPositive);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Facts API] Reaction failed:", error);
+      res.status(500).json({ error: error.message || "Failed to record reaction" });
+    }
+  });
+
+  app.get("/api/ai/facts/stats", requireAuth, async (req, res) => {
+    try {
+      const { days } = req.query;
+      const stats = await personalizedFactService.getFactAnalyticsStats(
+        req.user!.id,
+        days ? parseInt(days as string) : 30
+      );
+      res.json({ stats });
+    } catch (error: any) {
+      console.error("[Facts API] Stats failed:", error);
+      res.status(500).json({ error: error.message || "Failed to get fact stats" });
+    }
+  });
+
+  app.post("/api/ai/facts/engagement", requireAuth, async (req, res) => {
+    try {
+      const { analyticsId, reactionType, increment } = req.body;
+      if (!analyticsId || !reactionType) {
+        return res.status(400).json({ error: "analyticsId and reactionType are required" });
+      }
+
+      await personalizedFactService.recordFactEngagement(analyticsId, reactionType, increment || 1);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Facts API] Engagement failed:", error);
+      res.status(500).json({ error: error.message || "Failed to record engagement" });
+    }
+  });
+
+  // --- Speech-to-Text Preparation API ---
+  app.post("/api/ai/stt/queue", requireAuth, async (req, res) => {
+    try {
+      const { platform, audioSource, audioUrl, audioFormat, durationMs, priority } = req.body;
+      if (!platform || !audioSource) {
+        return res.status(400).json({ error: "platform and audioSource are required" });
+      }
+
+      const queueId = await speechToTextService.addToQueue(req.user!.id, platform, audioSource, {
+        audioUrl,
+        audioFormat,
+        durationMs,
+        priority,
+      });
+      res.json({ queueId });
+    } catch (error: any) {
+      console.error("[STT API] Queue add failed:", error);
+      res.status(500).json({ error: error.message || "Failed to add to queue" });
+    }
+  });
+
+  app.get("/api/ai/stt/queue", requireAuth, async (req, res) => {
+    try {
+      const { status, limit } = req.query;
+      const queue = await speechToTextService.getUserQueue(req.user!.id, {
+        status: status as any,
+        limit: limit ? parseInt(limit as string) : 50,
+      });
+      res.json({ queue });
+    } catch (error: any) {
+      console.error("[STT API] Queue get failed:", error);
+      res.status(500).json({ error: error.message || "Failed to get queue" });
+    }
+  });
+
+  app.get("/api/ai/stt/queue/:id", requireAuth, async (req, res) => {
+    try {
+      const item = await speechToTextService.getQueueItem(req.params.id);
+      if (!item) {
+        return res.status(404).json({ error: "Queue item not found" });
+      }
+      res.json({ item });
+    } catch (error: any) {
+      console.error("[STT API] Queue item get failed:", error);
+      res.status(500).json({ error: error.message || "Failed to get queue item" });
+    }
+  });
+
+  app.delete("/api/ai/stt/queue/:id", requireAuth, async (req, res) => {
+    try {
+      const cancelled = await speechToTextService.cancelQueueItem(req.params.id);
+      if (!cancelled) {
+        return res.status(400).json({ error: "Cannot cancel this queue item" });
+      }
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("[STT API] Queue cancel failed:", error);
+      res.status(500).json({ error: error.message || "Failed to cancel queue item" });
+    }
+  });
+
+  app.get("/api/ai/stt/transcriptions", requireAuth, async (req, res) => {
+    try {
+      const { limit } = req.query;
+      const transcriptions = await speechToTextService.getUserTranscriptions(req.user!.id, {
+        limit: limit ? parseInt(limit as string) : 50,
+      });
+      res.json({ transcriptions });
+    } catch (error: any) {
+      console.error("[STT API] Transcriptions get failed:", error);
+      res.status(500).json({ error: error.message || "Failed to get transcriptions" });
+    }
+  });
+
+  app.get("/api/ai/stt/transcriptions/:id", requireAuth, async (req, res) => {
+    try {
+      const transcription = await speechToTextService.getTranscription(req.params.id);
+      if (!transcription) {
+        return res.status(404).json({ error: "Transcription not found" });
+      }
+      res.json({ transcription });
+    } catch (error: any) {
+      console.error("[STT API] Transcription get failed:", error);
+      res.status(500).json({ error: error.message || "Failed to get transcription" });
+    }
+  });
+
+  app.get("/api/ai/stt/stats", requireAuth, async (req, res) => {
+    try {
+      const stats = await speechToTextService.getQueueStats(req.user!.id);
+      res.json({ stats });
+    } catch (error: any) {
+      console.error("[STT API] Stats failed:", error);
+      res.status(500).json({ error: error.message || "Failed to get STT stats" });
+    }
+  });
+
+  app.get("/api/ai/stt/config", requireAuth, async (req, res) => {
+    try {
+      res.json({
+        whisperConfig: speechToTextService.getWhisperConfig(),
+        supportedFormats: speechToTextService.getSupportedFormats(),
+        maxFileSizeMb: speechToTextService.getMaxFileSizeMb(),
+        isIntegrated: speechToTextService.isWhisperIntegrated(),
+      });
+    } catch (error: any) {
+      console.error("[STT API] Config failed:", error);
+      res.status(500).json({ error: error.message || "Failed to get STT config" });
     }
   });
 

@@ -37,6 +37,7 @@ from routes.database_routes import database_bp
 from routes.jarvis_control_plane import jarvis_control_bp
 from routes.docker_api import docker_bp
 from routes.audit_api import audit_bp
+from routes.jarvis_ai_api import jarvis_ai_bp
 # DISABLED: Subscription/licensing features removed per user request - "Remove subscriptions and don't block access. I never wanted that."
 # from routes.subscription_api import subscription_bp
 from services.activity_service import activity_service
@@ -86,6 +87,7 @@ csrf.exempt(database_bp)  # Database management API
 csrf.exempt(health_monitoring_bp)  # Health monitoring API
 csrf.exempt(docker_bp)  # Docker management API
 csrf.exempt(audit_bp)  # Audit logs API
+csrf.exempt(jarvis_ai_bp)  # Jarvis AI API (remediation, anomalies, enhanced chat)
 
 limiter.init_app(app)
 logger.info("✓ CSRF Protection and Rate Limiting initialized")
@@ -179,6 +181,7 @@ app.register_blueprint(database_bp)
 app.register_blueprint(jarvis_control_bp)
 app.register_blueprint(docker_bp)
 app.register_blueprint(audit_bp)
+app.register_blueprint(jarvis_ai_bp)
 # DISABLED: Subscription blueprint disabled - no subscription/licensing checks
 # app.register_blueprint(subscription_bp)
 

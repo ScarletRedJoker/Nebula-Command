@@ -36,6 +36,12 @@ from .health_check import ServiceHealthCheck, ServiceHealthAlert
 from .rbac import User, UserRole, Permission, ServiceOwnership, RoleAssignment, ROLE_PERMISSIONS
 from .audit import AuditLog
 from .deployment_queue import DeploymentQueue, DeploymentStatus, DeploymentLog
+from .system_log import SystemLog, ActivityLog
+from .service_config import ServiceConfig, ServiceSetting, ServiceDependency
+from .jarvis_ai import (
+    AnomalyBaseline, AnomalyEvent, RemediationHistory, RemediationStatus,
+    ModelUsage, ResponseCache, RequestQueue
+)
 
 __all__ = [
     'Base',
@@ -89,5 +95,17 @@ __all__ = [
     'AuditLog',
     'DeploymentQueue',
     'DeploymentStatus',
-    'DeploymentLog'
+    'DeploymentLog',
+    'SystemLog',
+    'ActivityLog',
+    'ServiceConfig',
+    'ServiceSetting',
+    'ServiceDependency',
+    'AnomalyBaseline',
+    'AnomalyEvent',
+    'RemediationHistory',
+    'RemediationStatus',
+    'ModelUsage',
+    'ResponseCache',
+    'RequestQueue'
 ]

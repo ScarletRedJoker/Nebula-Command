@@ -760,6 +760,234 @@ export const facts = pgTable("facts", {
 }));
 
 // ============================================================================
+// ENHANCED DATABASE AND AI FEATURES
+// Per-Platform Credentials, Analytics, Time-Series, Intent Detection, etc.
+// ============================================================================
+
+// Enhanced Platform Credentials - Additional token metadata per platform
+export const platformCredentialMetadata = pgTable("platform_credential_metadata", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  connectionId: varchar("connection_id").notNull().references(() => platformConnections.id, { onDelete: "cascade" }).unique(),
+  platform: text("platform").notNull(), // 'twitch', 'youtube', 'kick', 'spotify'
+  scopes: jsonb("scopes").default(sql`'[]'::jsonb`).notNull(), // Array of granted OAuth scopes
+  issuedAt: timestamp("issued_at"),
+  lastRefreshedAt: timestamp("last_refreshed_at"),
+  refreshCount: integer("refresh_count").default(0).notNull(),
+  encryptedAccessToken: text("encrypted_access_token"), // Backup encrypted access token
+  encryptedRefreshToken: text("encrypted_refresh_token"), // Backup encrypted refresh token
+  tokenVersion: integer("token_version").default(1).notNull(), // For token versioning/rollback
+  previousTokenHash: text("previous_token_hash"), // Hash of previous token for rollback verification
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  connectionIdx: index("platform_credential_metadata_connection_id_idx").on(table.connectionId),
+  platformIdx: index("platform_credential_metadata_platform_idx").on(table.platform),
+}));
+
+// Fact Generation Analytics - Track fact generation history and performance
+export const factAnalytics = pgTable("fact_analytics", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  factId: varchar("fact_id").references(() => facts.id, { onDelete: "set null" }),
+  factContent: text("fact_content").notNull(),
+  topic: text("topic").notNull(), // Topic category (space, history, animals, etc.)
+  length: integer("length").notNull(), // Character count
+  platform: text("platform").notNull(), // 'twitch', 'youtube', 'kick'
+  triggerType: text("trigger_type").notNull(), // 'scheduled', 'manual', 'command', 'chat_trigger'
+  triggerUser: text("trigger_user"), // Username who triggered (if applicable)
+  aiModel: text("ai_model").default("gpt-4o").notNull(), // Model used to generate
+  generationTimeMs: integer("generation_time_ms"), // Time taken to generate in ms
+  views: integer("views").default(0).notNull(),
+  reactions: jsonb("reactions").default(sql`'{}'::jsonb`).notNull(), // {emoji: count} reactions
+  engagementScore: integer("engagement_score").default(0).notNull(), // Calculated engagement
+  wasPersonalized: boolean("was_personalized").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  userIdIdx: index("fact_analytics_user_id_idx").on(table.userId),
+  topicIdx: index("fact_analytics_topic_idx").on(table.topic),
+  platformIdx: index("fact_analytics_platform_idx").on(table.platform),
+  createdAtIdx: index("fact_analytics_created_at_idx").on(table.createdAt),
+}));
+
+// User Topic Preferences - Learn user preferences from reactions for personalization
+export const userTopicPreferences = pgTable("user_topic_preferences", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  topic: text("topic").notNull(), // Topic category
+  positiveReactions: integer("positive_reactions").default(0).notNull(),
+  negativeReactions: integer("negative_reactions").default(0).notNull(),
+  totalShown: integer("total_shown").default(0).notNull(),
+  preferenceScore: integer("preference_score").default(50).notNull(), // 0-100 score
+  lastShownAt: timestamp("last_shown_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  userTopicIdx: uniqueIndex("user_topic_preferences_user_topic_unique").on(table.userId, table.topic),
+}));
+
+// Platform Stats Time-Series - Hourly/daily aggregated platform statistics
+export const platformStats = pgTable("platform_stats", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  platform: text("platform").notNull(), // 'twitch', 'youtube', 'kick'
+  periodType: text("period_type").notNull(), // 'hourly', 'daily'
+  periodStart: timestamp("period_start").notNull(),
+  periodEnd: timestamp("period_end").notNull(),
+  messagesSent: integer("messages_sent").default(0).notNull(),
+  messagesReceived: integer("messages_received").default(0).notNull(),
+  apiCalls: integer("api_calls").default(0).notNull(),
+  apiErrors: integer("api_errors").default(0).notNull(),
+  factsGenerated: integer("facts_generated").default(0).notNull(),
+  commandsProcessed: integer("commands_processed").default(0).notNull(),
+  moderationActions: integer("moderation_actions").default(0).notNull(),
+  avgResponseTimeMs: integer("avg_response_time_ms"),
+  peakConcurrentUsers: integer("peak_concurrent_users"),
+  totalEngagement: integer("total_engagement").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  userPlatformPeriodIdx: uniqueIndex("platform_stats_user_platform_period_unique").on(
+    table.userId, table.platform, table.periodType, table.periodStart
+  ),
+  periodStartIdx: index("platform_stats_period_start_idx").on(table.periodStart),
+}));
+
+// Token Rollback Storage - Temporary storage for old tokens during rotation
+export const tokenRollbackStorage = pgTable("token_rollback_storage", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  connectionId: varchar("connection_id").notNull().references(() => platformConnections.id, { onDelete: "cascade" }),
+  platform: text("platform").notNull(),
+  encryptedOldAccessToken: text("encrypted_old_access_token").notNull(),
+  encryptedOldRefreshToken: text("encrypted_old_refresh_token"),
+  oldTokenExpiresAt: timestamp("old_token_expires_at"),
+  rotationId: varchar("rotation_id").references(() => tokenRotationHistory.id, { onDelete: "cascade" }),
+  rollbackUsed: boolean("rollback_used").default(false).notNull(),
+  rollbackUsedAt: timestamp("rollback_used_at"),
+  expiresAt: timestamp("expires_at").notNull(), // Auto-cleanup after this time
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  connectionIdx: index("token_rollback_storage_connection_id_idx").on(table.connectionId),
+  expiresAtIdx: index("token_rollback_storage_expires_at_idx").on(table.expiresAt),
+}));
+
+// Intent Classifications - Store chat message intent analysis results
+export const intentClassifications = pgTable("intent_classifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  platform: text("platform").notNull(),
+  username: text("username").notNull(),
+  message: text("message").notNull(),
+  intent: text("intent").notNull(), // 'question', 'command', 'request', 'greeting', 'complaint', 'praise', 'other'
+  subIntent: text("sub_intent"), // More specific classification
+  confidence: integer("confidence").default(0).notNull(), // 0-100
+  entities: jsonb("entities").default(sql`'[]'::jsonb`).notNull(), // Extracted entities [{type, value}]
+  sentiment: text("sentiment"), // 'positive', 'negative', 'neutral'
+  wasRouted: boolean("was_routed").default(false).notNull(),
+  routedTo: text("routed_to"), // Handler name that processed this
+  processingTimeMs: integer("processing_time_ms"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  userIdIdx: index("intent_classifications_user_id_idx").on(table.userId),
+  intentIdx: index("intent_classifications_intent_idx").on(table.intent),
+  createdAtIdx: index("intent_classifications_created_at_idx").on(table.createdAt),
+}));
+
+// Enhanced Moderation Settings - Configurable moderation with sensitivity levels
+export const enhancedModerationSettings = pgTable("enhanced_moderation_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }).unique(),
+  globalSensitivity: text("global_sensitivity").default("medium").notNull(), // 'low', 'medium', 'high', 'custom'
+  toxicitySensitivity: integer("toxicity_sensitivity").default(50).notNull(), // 0-100
+  spamSensitivity: integer("spam_sensitivity").default(50).notNull(),
+  hateSensitivity: integer("hate_sensitivity").default(70).notNull(),
+  harassmentSensitivity: integer("harassment_sensitivity").default(60).notNull(),
+  sexualSensitivity: integer("sexual_sensitivity").default(70).notNull(),
+  violenceSensitivity: integer("violence_sensitivity").default(60).notNull(),
+  selfHarmSensitivity: integer("self_harm_sensitivity").default(80).notNull(),
+  customWhitelist: jsonb("custom_whitelist").default(sql`'[]'::jsonb`).notNull(), // Whitelisted words/phrases
+  customBlacklist: jsonb("custom_blacklist").default(sql`'[]'::jsonb`).notNull(), // Blacklisted words/phrases
+  whitelistedUsers: jsonb("whitelisted_users").default(sql`'[]'::jsonb`).notNull(), // Users exempt from moderation
+  autoTimeoutEnabled: boolean("auto_timeout_enabled").default(true).notNull(),
+  autoBanThreshold: integer("auto_ban_threshold").default(3).notNull(), // Number of violations before auto-ban
+  logAllMessages: boolean("log_all_messages").default(false).notNull(), // Log all checked messages
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Moderation Action Log - Detailed log of all moderation actions
+export const moderationActionLog = pgTable("moderation_action_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  platform: text("platform").notNull(),
+  targetUsername: text("target_username").notNull(),
+  targetMessage: text("target_message").notNull(),
+  actionType: text("action_type").notNull(), // 'delete', 'timeout', 'ban', 'warn', 'allow'
+  actionReason: text("action_reason").notNull(),
+  violationType: text("violation_type"), // 'toxic', 'spam', 'hate', 'harassment', 'sexual', 'violence', 'custom'
+  confidenceScore: integer("confidence_score"), // 0-100 AI confidence
+  sensitivityUsed: integer("sensitivity_used"), // Sensitivity setting at time of action
+  wasAppealed: boolean("was_appealed").default(false).notNull(),
+  appealOutcome: text("appeal_outcome"), // 'upheld', 'reversed', 'modified'
+  moderatorOverride: boolean("moderator_override").default(false).notNull(),
+  overrideBy: text("override_by"), // Moderator who overrode the decision
+  metadata: jsonb("metadata").default(sql`'{}'::jsonb`).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  userIdIdx: index("moderation_action_log_user_id_idx").on(table.userId),
+  targetUsernameIdx: index("moderation_action_log_target_username_idx").on(table.targetUsername),
+  actionTypeIdx: index("moderation_action_log_action_type_idx").on(table.actionType),
+  createdAtIdx: index("moderation_action_log_created_at_idx").on(table.createdAt),
+}));
+
+// Speech-to-Text Queue - Prepare for future Whisper integration
+export const speechToTextQueue = pgTable("speech_to_text_queue", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  platform: text("platform").notNull(),
+  audioSource: text("audio_source").notNull(), // 'stream_audio', 'clip', 'upload'
+  audioUrl: text("audio_url"), // URL to audio file if stored externally
+  audioFormat: text("audio_format").default("wav").notNull(), // 'wav', 'mp3', 'webm', 'ogg'
+  durationMs: integer("duration_ms"),
+  sampleRate: integer("sample_rate").default(16000).notNull(),
+  channels: integer("channels").default(1).notNull(),
+  status: text("status").default("pending").notNull(), // 'pending', 'processing', 'completed', 'failed', 'cancelled'
+  priority: integer("priority").default(5).notNull(),
+  processingStartedAt: timestamp("processing_started_at"),
+  processingCompletedAt: timestamp("processing_completed_at"),
+  processingTimeMs: integer("processing_time_ms"),
+  retryCount: integer("retry_count").default(0).notNull(),
+  maxRetries: integer("max_retries").default(3).notNull(),
+  lastError: text("last_error"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  userIdIdx: index("speech_to_text_queue_user_id_idx").on(table.userId),
+  statusIdx: index("speech_to_text_queue_status_idx").on(table.status),
+  createdAtIdx: index("speech_to_text_queue_created_at_idx").on(table.createdAt),
+}));
+
+// Transcriptions - Store completed speech-to-text transcriptions
+export const transcriptions = pgTable("transcriptions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  queueId: varchar("queue_id").references(() => speechToTextQueue.id, { onDelete: "set null" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  platform: text("platform").notNull(),
+  audioSource: text("audio_source").notNull(),
+  transcriptionText: text("transcription_text").notNull(),
+  language: text("language").default("en").notNull(),
+  confidence: integer("confidence"), // 0-100 overall confidence
+  wordTimestamps: jsonb("word_timestamps"), // [{word, start_ms, end_ms, confidence}]
+  segments: jsonb("segments"), // [{text, start_ms, end_ms, confidence}]
+  speakerLabels: jsonb("speaker_labels"), // [{speaker_id, segments: [indices]}]
+  durationMs: integer("duration_ms"),
+  modelUsed: text("model_used").default("whisper-1").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  userIdIdx: index("transcriptions_user_id_idx").on(table.userId),
+  queueIdIdx: index("transcriptions_queue_id_idx").on(table.queueId),
+  createdAtIdx: index("transcriptions_created_at_idx").on(table.createdAt),
+}));
+
+// ============================================================================
 // ENHANCED BACKEND FEATURES - Onboarding, Feature Toggles, Platform Failover,
 // Job Queue, and Enhanced Token Management
 // ============================================================================
@@ -1472,6 +1700,128 @@ export const insertTokenExpiryAlertSchema = createInsertSchema(tokenExpiryAlerts
   createdAt: true,
 });
 
+// ============================================================================
+// INSERT SCHEMAS FOR ENHANCED DATABASE AND AI FEATURES
+// ============================================================================
+
+export const insertPlatformCredentialMetadataSchema = createInsertSchema(platformCredentialMetadata, {
+  platform: z.enum(["twitch", "youtube", "kick", "spotify"]),
+  scopes: z.array(z.string()).optional(),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertFactAnalyticsSchema = createInsertSchema(factAnalytics, {
+  platform: z.enum(["twitch", "youtube", "kick"]),
+  triggerType: z.enum(["scheduled", "manual", "command", "chat_trigger"]),
+  factContent: z.string().min(1).max(200),
+  topic: z.string().min(1).max(50),
+  length: z.coerce.number().min(1).max(200),
+}).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertUserTopicPreferencesSchema = createInsertSchema(userTopicPreferences, {
+  topic: z.string().min(1).max(50),
+  preferenceScore: z.coerce.number().min(0).max(100).optional(),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertPlatformStatsSchema = createInsertSchema(platformStats, {
+  platform: z.enum(["twitch", "youtube", "kick"]),
+  periodType: z.enum(["hourly", "daily"]),
+}).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertTokenRollbackStorageSchema = createInsertSchema(tokenRollbackStorage, {
+  platform: z.enum(["twitch", "youtube", "kick", "spotify"]),
+  encryptedOldAccessToken: z.string().min(1),
+}).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertIntentClassificationSchema = createInsertSchema(intentClassifications, {
+  platform: z.enum(["twitch", "youtube", "kick"]),
+  intent: z.enum(["question", "command", "request", "greeting", "complaint", "praise", "feedback", "spam", "other"]),
+  sentiment: z.enum(["positive", "negative", "neutral"]).optional(),
+  confidence: z.coerce.number().min(0).max(100).optional(),
+}).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertEnhancedModerationSettingsSchema = createInsertSchema(enhancedModerationSettings, {
+  globalSensitivity: z.enum(["low", "medium", "high", "custom"]).optional(),
+  toxicitySensitivity: z.coerce.number().min(0).max(100).optional(),
+  spamSensitivity: z.coerce.number().min(0).max(100).optional(),
+  hateSensitivity: z.coerce.number().min(0).max(100).optional(),
+  harassmentSensitivity: z.coerce.number().min(0).max(100).optional(),
+  sexualSensitivity: z.coerce.number().min(0).max(100).optional(),
+  violenceSensitivity: z.coerce.number().min(0).max(100).optional(),
+  selfHarmSensitivity: z.coerce.number().min(0).max(100).optional(),
+  customWhitelist: z.array(z.string()).optional(),
+  customBlacklist: z.array(z.string()).optional(),
+  whitelistedUsers: z.array(z.string()).optional(),
+  autoBanThreshold: z.coerce.number().min(1).max(10).optional(),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertModerationActionLogSchema = createInsertSchema(moderationActionLog, {
+  platform: z.enum(["twitch", "youtube", "kick"]),
+  actionType: z.enum(["allow", "warn", "delete", "timeout", "ban"]),
+  violationType: z.enum(["toxic", "spam", "hate", "harassment", "sexual", "violence", "self_harm", "custom_blacklist"]).optional(),
+  confidenceScore: z.coerce.number().min(0).max(100).optional(),
+}).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertSpeechToTextQueueSchema = createInsertSchema(speechToTextQueue, {
+  platform: z.enum(["twitch", "youtube", "kick"]),
+  audioSource: z.enum(["stream_audio", "clip", "upload", "microphone"]),
+  audioFormat: z.enum(["wav", "mp3", "webm", "ogg", "m4a", "flac"]).optional(),
+  status: z.enum(["pending", "processing", "completed", "failed", "cancelled"]).optional(),
+  priority: z.coerce.number().min(1).max(10).optional(),
+}).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertTranscriptionSchema = createInsertSchema(transcriptions, {
+  platform: z.enum(["twitch", "youtube", "kick"]),
+  audioSource: z.enum(["stream_audio", "clip", "upload", "microphone"]),
+  transcriptionText: z.string().min(1),
+  language: z.string().min(2).max(10).optional(),
+  confidence: z.coerce.number().min(0).max(100).optional(),
+}).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Update schemas for enhanced database and AI features
+export const updatePlatformCredentialMetadataSchema = insertPlatformCredentialMetadataSchema.partial();
+export const updateFactAnalyticsSchema = insertFactAnalyticsSchema.partial();
+export const updateUserTopicPreferencesSchema = insertUserTopicPreferencesSchema.partial();
+export const updatePlatformStatsSchema = insertPlatformStatsSchema.partial();
+export const updateTokenRollbackStorageSchema = insertTokenRollbackStorageSchema.partial();
+export const updateIntentClassificationSchema = insertIntentClassificationSchema.partial();
+export const updateEnhancedModerationSettingsSchema = insertEnhancedModerationSettingsSchema.partial();
+export const updateModerationActionLogSchema = insertModerationActionLogSchema.partial();
+export const updateSpeechToTextQueueSchema = insertSpeechToTextQueueSchema.partial();
+export const updateTranscriptionSchema = insertTranscriptionSchema.partial();
+
 // Update schemas for partial updates
 export const updateUserSchema = insertUserSchema.partial();
 export const updateBotConfigSchema = insertBotConfigSchema.partial();
@@ -1580,6 +1930,18 @@ export type TokenRotationHistory = typeof tokenRotationHistory.$inferSelect;
 export type OnboardingProgress = typeof onboardingProgress.$inferSelect;
 export type TokenExpiryAlert = typeof tokenExpiryAlerts.$inferSelect;
 
+// Select types for enhanced database and AI features
+export type PlatformCredentialMetadata = typeof platformCredentialMetadata.$inferSelect;
+export type FactAnalytics = typeof factAnalytics.$inferSelect;
+export type UserTopicPreferences = typeof userTopicPreferences.$inferSelect;
+export type PlatformStats = typeof platformStats.$inferSelect;
+export type TokenRollbackStorage = typeof tokenRollbackStorage.$inferSelect;
+export type IntentClassification = typeof intentClassifications.$inferSelect;
+export type EnhancedModerationSettings = typeof enhancedModerationSettings.$inferSelect;
+export type ModerationActionLog = typeof moderationActionLog.$inferSelect;
+export type SpeechToTextQueue = typeof speechToTextQueue.$inferSelect;
+export type Transcription = typeof transcriptions.$inferSelect;
+
 // Insert types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type InsertPlatformConnection = z.infer<typeof insertPlatformConnectionSchema>;
@@ -1636,6 +1998,18 @@ export type InsertJobQueue = z.infer<typeof insertJobQueueSchema>;
 export type InsertTokenRotationHistory = z.infer<typeof insertTokenRotationHistorySchema>;
 export type InsertOnboardingProgress = z.infer<typeof insertOnboardingProgressSchema>;
 export type InsertTokenExpiryAlert = z.infer<typeof insertTokenExpiryAlertSchema>;
+
+// Insert types for enhanced database and AI features
+export type InsertPlatformCredentialMetadata = z.infer<typeof insertPlatformCredentialMetadataSchema>;
+export type InsertFactAnalytics = z.infer<typeof insertFactAnalyticsSchema>;
+export type InsertUserTopicPreferences = z.infer<typeof insertUserTopicPreferencesSchema>;
+export type InsertPlatformStats = z.infer<typeof insertPlatformStatsSchema>;
+export type InsertTokenRollbackStorage = z.infer<typeof insertTokenRollbackStorageSchema>;
+export type InsertIntentClassification = z.infer<typeof insertIntentClassificationSchema>;
+export type InsertEnhancedModerationSettings = z.infer<typeof insertEnhancedModerationSettingsSchema>;
+export type InsertModerationActionLog = z.infer<typeof insertModerationActionLogSchema>;
+export type InsertSpeechToTextQueue = z.infer<typeof insertSpeechToTextQueueSchema>;
+export type InsertTranscription = z.infer<typeof insertTranscriptionSchema>;
 
 // Update types
 export type UpdateUser = z.infer<typeof updateUserSchema>;

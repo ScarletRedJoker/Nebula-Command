@@ -42,6 +42,8 @@ import webhookRoutes from "./routes/webhook-routes";
 import { setReady } from "./routes/health-routes";
 import guildProvisioningRoutes from "./routes/guild-provisioning-routes";
 import { isDeveloperMiddleware } from "./middleware/developerAuth";
+import aiRoutes from "./routes/ai-routes";
+import { startRetentionService, stopRetentionService } from "./services/retention-service";
 
 // Configure multer for embed image uploads
 const EMBED_IMAGES_DIR = path.join(process.cwd(), 'attached_assets', 'embed-images');
@@ -3251,6 +3253,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Mount guild provisioning routes
   app.use('/api', guildProvisioningRoutes);
+
+  // Mount AI and retention routes
+  app.use('/api', aiRoutes);
+
+  // Start background services
+  startRetentionService();
 
   // Start the Discord bot
   try {
