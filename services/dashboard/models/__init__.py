@@ -33,6 +33,9 @@ from .gaming import GameSession, SunshineHost
 from .db_admin import DBCredential, DBBackupJob
 from .nas import NASMount, NASBackupJob
 from .health_check import ServiceHealthCheck, ServiceHealthAlert
+from .rbac import User, UserRole, Permission, ServiceOwnership, RoleAssignment, ROLE_PERMISSIONS
+from .audit import AuditLog
+from .deployment_queue import DeploymentQueue, DeploymentStatus, DeploymentLog
 
 __all__ = [
     'Base',
@@ -76,5 +79,15 @@ __all__ = [
     'NASMount',
     'NASBackupJob',
     'ServiceHealthCheck',
-    'ServiceHealthAlert'
+    'ServiceHealthAlert',
+    'User',
+    'UserRole',
+    'Permission',
+    'ServiceOwnership',
+    'RoleAssignment',
+    'ROLE_PERMISSIONS',
+    'AuditLog',
+    'DeploymentQueue',
+    'DeploymentStatus',
+    'DeploymentLog'
 ]

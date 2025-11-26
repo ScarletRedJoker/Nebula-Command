@@ -759,6 +759,208 @@ export const facts = pgTable("facts", {
   sourceIdx: index("facts_source_idx").on(table.source),
 }));
 
+// ============================================================================
+// ENHANCED BACKEND FEATURES - Onboarding, Feature Toggles, Platform Failover,
+// Job Queue, and Enhanced Token Management
+// ============================================================================
+
+// Feature Toggles - Per-user feature configuration for modular feature management
+export const featureToggles = pgTable("feature_toggles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }).unique(),
+  
+  // Platform-specific features
+  twitchEnabled: boolean("twitch_enabled").default(true).notNull(),
+  youtubeEnabled: boolean("youtube_enabled").default(true).notNull(),
+  kickEnabled: boolean("kick_enabled").default(true).notNull(),
+  spotifyEnabled: boolean("spotify_enabled").default(true).notNull(),
+  
+  // Core features
+  factsEnabled: boolean("facts_enabled").default(true).notNull(),
+  shoutoutsEnabled: boolean("shoutouts_enabled").default(true).notNull(),
+  commandsEnabled: boolean("commands_enabled").default(true).notNull(),
+  songRequestsEnabled: boolean("song_requests_enabled").default(true).notNull(),
+  pollsEnabled: boolean("polls_enabled").default(true).notNull(),
+  alertsEnabled: boolean("alerts_enabled").default(true).notNull(),
+  gamesEnabled: boolean("games_enabled").default(true).notNull(),
+  moderationEnabled: boolean("moderation_enabled").default(true).notNull(),
+  chatbotEnabled: boolean("chatbot_enabled").default(false).notNull(),
+  currencyEnabled: boolean("currency_enabled").default(true).notNull(),
+  giveawaysEnabled: boolean("giveaways_enabled").default(true).notNull(),
+  analyticsEnabled: boolean("analytics_enabled").default(true).notNull(),
+  obsIntegrationEnabled: boolean("obs_integration_enabled").default(false).notNull(),
+  
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Platform Health - Circuit breaker state for platform failover
+export const platformHealth = pgTable("platform_health", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  platform: text("platform").notNull().unique(), // 'twitch', 'youtube', 'kick', 'spotify'
+  
+  // Circuit breaker state
+  circuitState: text("circuit_state").default("closed").notNull(), // 'closed', 'open', 'half-open'
+  failureCount: integer("failure_count").default(0).notNull(),
+  successCount: integer("success_count").default(0).notNull(),
+  lastFailure: timestamp("last_failure"),
+  lastSuccess: timestamp("last_success"),
+  
+  // Throttling state
+  isThrottled: boolean("is_throttled").default(false).notNull(),
+  throttledUntil: timestamp("throttled_until"),
+  throttleRetryCount: integer("throttle_retry_count").default(0).notNull(),
+  
+  // Health metrics
+  avgResponseTime: integer("avg_response_time").default(0).notNull(), // ms
+  requestsToday: integer("requests_today").default(0).notNull(),
+  errorsToday: integer("errors_today").default(0).notNull(),
+  
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  platformIdx: index("platform_health_platform_idx").on(table.platform),
+  circuitStateIdx: index("platform_health_circuit_state_idx").on(table.circuitState),
+}));
+
+// Message Queue - Queue for throttled/failed messages
+export const messageQueue = pgTable("message_queue", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  platform: text("platform").notNull(), // 'twitch', 'youtube', 'kick'
+  messageType: text("message_type").notNull(), // 'fact', 'shoutout', 'alert', 'command_response'
+  content: text("content").notNull(),
+  metadata: jsonb("metadata"), // Additional context
+  
+  // Queue state
+  status: text("status").default("pending").notNull(), // 'pending', 'processing', 'completed', 'failed', 'cancelled'
+  priority: integer("priority").default(5).notNull(), // 1-10, higher = more priority
+  retryCount: integer("retry_count").default(0).notNull(),
+  maxRetries: integer("max_retries").default(3).notNull(),
+  lastError: text("last_error"),
+  
+  // Timing
+  scheduledFor: timestamp("scheduled_for").defaultNow().notNull(),
+  processedAt: timestamp("processed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  statusIdx: index("message_queue_status_idx").on(table.status),
+  platformIdx: index("message_queue_platform_idx").on(table.platform),
+  scheduledForIdx: index("message_queue_scheduled_for_idx").on(table.scheduledFor),
+  userIdIdx: index("message_queue_user_id_idx").on(table.userId),
+}));
+
+// Job Queue - Background task processing
+export const jobQueue = pgTable("job_queue", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }), // null for system jobs
+  
+  // Job definition
+  jobType: text("job_type").notNull(), // 'scheduled_fact', 'analytics_aggregation', 'token_refresh', 'cleanup', 'notification'
+  jobName: text("job_name").notNull(), // Human-readable name
+  payload: jsonb("payload"), // Job-specific data
+  
+  // Scheduling
+  status: text("status").default("pending").notNull(), // 'pending', 'running', 'completed', 'failed', 'cancelled', 'scheduled'
+  priority: integer("priority").default(5).notNull(), // 1-10
+  runAt: timestamp("run_at").defaultNow().notNull(), // When to run
+  repeatInterval: integer("repeat_interval"), // Interval in seconds for recurring jobs (null = one-time)
+  
+  // Execution
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  retryCount: integer("retry_count").default(0).notNull(),
+  maxRetries: integer("max_retries").default(3).notNull(),
+  lastError: text("last_error"),
+  result: jsonb("result"), // Job output/result
+  
+  // Tracking
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  statusIdx: index("job_queue_status_idx").on(table.status),
+  jobTypeIdx: index("job_queue_job_type_idx").on(table.jobType),
+  runAtIdx: index("job_queue_run_at_idx").on(table.runAt),
+  userIdIdx: index("job_queue_user_id_idx").on(table.userId),
+}));
+
+// Token Rotation History - Track OAuth token changes
+export const tokenRotationHistory = pgTable("token_rotation_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  platform: text("platform").notNull(), // 'twitch', 'youtube', 'kick', 'spotify'
+  
+  // Rotation details
+  rotationType: text("rotation_type").notNull(), // 'scheduled', 'on_error', 'manual', 'expiry_warning'
+  previousExpiresAt: timestamp("previous_expires_at"),
+  newExpiresAt: timestamp("new_expires_at"),
+  
+  // Result
+  success: boolean("success").default(true).notNull(),
+  errorMessage: text("error_message"),
+  
+  // Tracking
+  rotatedAt: timestamp("rotated_at").defaultNow().notNull(),
+}, (table) => ({
+  userIdIdx: index("token_rotation_history_user_id_idx").on(table.userId),
+  platformIdx: index("token_rotation_history_platform_idx").on(table.platform),
+  rotatedAtIdx: index("token_rotation_history_rotated_at_idx").on(table.rotatedAt),
+}));
+
+// Onboarding Progress - Track broadcaster onboarding steps
+export const onboardingProgress = pgTable("onboarding_progress", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }).unique(),
+  
+  // Step completion flags
+  welcomeCompleted: boolean("welcome_completed").default(false).notNull(), // Step 1: Welcome
+  platformsCompleted: boolean("platforms_completed").default(false).notNull(), // Step 2: Connect platforms
+  featuresCompleted: boolean("features_completed").default(false).notNull(), // Step 3: Enable features
+  settingsCompleted: boolean("settings_completed").default(false).notNull(), // Step 4: Configure settings
+  finishCompleted: boolean("finish_completed").default(false).notNull(), // Step 5: Review and finish
+  
+  // Platform connection status
+  twitchConnected: boolean("twitch_connected").default(false).notNull(),
+  youtubeConnected: boolean("youtube_connected").default(false).notNull(),
+  kickConnected: boolean("kick_connected").default(false).notNull(),
+  spotifyConnected: boolean("spotify_connected").default(false).notNull(),
+  
+  // Feature enablement checklist
+  enabledFeatures: jsonb("enabled_features").default(sql`'[]'::jsonb`).notNull(), // Array of enabled feature names
+  
+  // Progress metadata
+  currentStep: integer("current_step").default(1).notNull(), // 1-5
+  lastVisitedAt: timestamp("last_visited_at"),
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"),
+  
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Token Expiry Alerts - Track tokens nearing expiry
+export const tokenExpiryAlerts = pgTable("token_expiry_alerts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  platform: text("platform").notNull(), // 'twitch', 'youtube', 'kick', 'spotify'
+  
+  // Alert details
+  alertType: text("alert_type").notNull(), // '24hr_warning', '1hr_warning', 'expired', 'refresh_failed'
+  tokenExpiresAt: timestamp("token_expires_at").notNull(),
+  
+  // Notification status
+  notificationSent: boolean("notification_sent").default(false).notNull(),
+  notifiedAt: timestamp("notified_at"),
+  acknowledged: boolean("acknowledged").default(false).notNull(),
+  acknowledgedAt: timestamp("acknowledged_at"),
+  
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  userIdIdx: index("token_expiry_alerts_user_id_idx").on(table.userId),
+  platformIdx: index("token_expiry_alerts_platform_idx").on(table.platform),
+  alertTypeIdx: index("token_expiry_alerts_alert_type_idx").on(table.alertType),
+}));
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users, {
   email: z.string().email("Invalid email address"),
@@ -1210,6 +1412,66 @@ export const insertFactSchema = createInsertSchema(facts, {
   createdAt: true,
 });
 
+// ============================================================================
+// INSERT SCHEMAS FOR ENHANCED BACKEND FEATURES
+// ============================================================================
+
+export const insertFeatureTogglesSchema = createInsertSchema(featureToggles).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertPlatformHealthSchema = createInsertSchema(platformHealth).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertMessageQueueSchema = createInsertSchema(messageQueue, {
+  platform: z.enum(["twitch", "youtube", "kick"]),
+  messageType: z.enum(["fact", "shoutout", "alert", "command_response"]),
+  content: z.string().min(1, "Content is required").max(2000, "Content too long"),
+  status: z.enum(["pending", "processing", "completed", "failed", "cancelled"]).optional(),
+  priority: z.coerce.number().min(1).max(10).optional(),
+}).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertJobQueueSchema = createInsertSchema(jobQueue, {
+  jobType: z.enum(["scheduled_fact", "analytics_aggregation", "token_refresh", "cleanup", "notification"]),
+  jobName: z.string().min(1, "Job name is required").max(100, "Job name too long"),
+  status: z.enum(["pending", "running", "completed", "failed", "cancelled", "scheduled"]).optional(),
+  priority: z.coerce.number().min(1).max(10).optional(),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertTokenRotationHistorySchema = createInsertSchema(tokenRotationHistory, {
+  platform: z.enum(["twitch", "youtube", "kick", "spotify"]),
+  rotationType: z.enum(["scheduled", "on_error", "manual", "expiry_warning"]),
+}).omit({
+  id: true,
+  rotatedAt: true,
+});
+
+export const insertOnboardingProgressSchema = createInsertSchema(onboardingProgress).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertTokenExpiryAlertSchema = createInsertSchema(tokenExpiryAlerts, {
+  platform: z.enum(["twitch", "youtube", "kick", "spotify"]),
+  alertType: z.enum(["24hr_warning", "1hr_warning", "expired", "refresh_failed"]),
+}).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Update schemas for partial updates
 export const updateUserSchema = insertUserSchema.partial();
 export const updateBotConfigSchema = insertBotConfigSchema.partial();
@@ -1241,6 +1503,13 @@ export const updateChatbotContextSchema = insertChatbotContextSchema.partial();
 export const updateChatbotPersonalitySchema = insertChatbotPersonalitySchema.partial();
 export const updateOBSConnectionSchema = insertOBSConnectionSchema.partial();
 export const updateOBSAutomationSchema = insertOBSAutomationSchema.partial();
+
+// Update schemas for enhanced backend features
+export const updateFeatureTogglesSchema = insertFeatureTogglesSchema.partial();
+export const updatePlatformHealthSchema = insertPlatformHealthSchema.partial();
+export const updateMessageQueueSchema = insertMessageQueueSchema.partial();
+export const updateJobQueueSchema = insertJobQueueSchema.partial();
+export const updateOnboardingProgressSchema = insertOnboardingProgressSchema.partial();
 
 // Signup schema - for user registration
 export const signupSchema = z.object({
@@ -1302,6 +1571,15 @@ export type OBSConnection = typeof obsConnections.$inferSelect;
 export type OBSAutomation = typeof obsAutomations.$inferSelect;
 export type Fact = typeof facts.$inferSelect;
 
+// Select types for enhanced backend features
+export type FeatureToggles = typeof featureToggles.$inferSelect;
+export type PlatformHealth = typeof platformHealth.$inferSelect;
+export type MessageQueue = typeof messageQueue.$inferSelect;
+export type JobQueue = typeof jobQueue.$inferSelect;
+export type TokenRotationHistory = typeof tokenRotationHistory.$inferSelect;
+export type OnboardingProgress = typeof onboardingProgress.$inferSelect;
+export type TokenExpiryAlert = typeof tokenExpiryAlerts.$inferSelect;
+
 // Insert types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type InsertPlatformConnection = z.infer<typeof insertPlatformConnectionSchema>;
@@ -1350,6 +1628,15 @@ export type InsertOBSConnection = z.infer<typeof insertOBSConnectionSchema>;
 export type InsertOBSAutomation = z.infer<typeof insertOBSAutomationSchema>;
 export type InsertFact = z.infer<typeof insertFactSchema>;
 
+// Insert types for enhanced backend features
+export type InsertFeatureToggles = z.infer<typeof insertFeatureTogglesSchema>;
+export type InsertPlatformHealth = z.infer<typeof insertPlatformHealthSchema>;
+export type InsertMessageQueue = z.infer<typeof insertMessageQueueSchema>;
+export type InsertJobQueue = z.infer<typeof insertJobQueueSchema>;
+export type InsertTokenRotationHistory = z.infer<typeof insertTokenRotationHistorySchema>;
+export type InsertOnboardingProgress = z.infer<typeof insertOnboardingProgressSchema>;
+export type InsertTokenExpiryAlert = z.infer<typeof insertTokenExpiryAlertSchema>;
+
 // Update types
 export type UpdateUser = z.infer<typeof updateUserSchema>;
 export type UpdateBotConfig = z.infer<typeof updateBotConfigSchema>;
@@ -1377,6 +1664,13 @@ export type UpdateAlertSettings = z.infer<typeof updateAlertSettingsSchema>;
 export type UpdateMilestone = z.infer<typeof updateMilestoneSchema>;
 export type UpdateOBSConnection = z.infer<typeof updateOBSConnectionSchema>;
 export type UpdateOBSAutomation = z.infer<typeof updateOBSAutomationSchema>;
+
+// Update types for enhanced backend features
+export type UpdateFeatureToggles = z.infer<typeof updateFeatureTogglesSchema>;
+export type UpdatePlatformHealth = z.infer<typeof updatePlatformHealthSchema>;
+export type UpdateMessageQueue = z.infer<typeof updateMessageQueueSchema>;
+export type UpdateJobQueue = z.infer<typeof updateJobQueueSchema>;
+export type UpdateOnboardingProgress = z.infer<typeof updateOnboardingProgressSchema>;
 
 // Auth types
 export type Signup = z.infer<typeof signupSchema>;

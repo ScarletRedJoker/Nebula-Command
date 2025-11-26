@@ -2091,9 +2091,40 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
       // Schedule periodic auto-detection scans
       console.log('[Bot] Scheduling auto-detection periodic scans...');
       autoDetectionScanInterval = scheduleAutoDetectionScans(client!, storage);
+      
+      // Start SLA monitor for breach detection and auto-escalation
+      console.log('[Bot] Starting SLA monitor service...');
+      try {
+        const { startSlaMonitor } = await import('../services/sla-monitor');
+        startSlaMonitor();
+        console.log('[Bot] ✅ SLA monitor started successfully');
+      } catch (slaError) {
+        console.error('[Bot] Failed to start SLA monitor:', slaError);
+      }
     });
 
-    // Setup error handlers
+    // Handle bot joining a new guild (auto-provisioning)
+    client.on(Events.GuildCreate, async (guild) => {
+      console.log(`[Discord] Bot joined new guild: ${guild.name} (ID: ${guild.id})`);
+      
+      try {
+        const { autoProvisionNewGuild } = await import('../routes/guild-provisioning-routes');
+        await autoProvisionNewGuild(guild);
+      } catch (provError) {
+        console.error(`[Discord] Failed to auto-provision guild ${guild.name}:`, provError);
+      }
+      
+      broadcast({
+        type: 'GUILD_CREATE',
+        data: {
+          guildId: guild.id,
+          guildName: guild.name,
+          memberCount: guild.memberCount,
+          timestamp: new Date().toISOString()
+        }
+      });
+    });
+
     // Handle guild member add (new members joining)
     client.on(Events.GuildMemberAdd, async (member) => {
       console.log(`[Discord] Member joined: ${member.user.tag} in guild ${member.guild.name}`);

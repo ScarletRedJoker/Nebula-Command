@@ -35,6 +35,8 @@ from routes.unified_logs_api import unified_logs_bp
 from routes.ai_chat_api import ai_chat_bp
 from routes.database_routes import database_bp
 from routes.jarvis_control_plane import jarvis_control_bp
+from routes.docker_api import docker_bp
+from routes.audit_api import audit_bp
 # DISABLED: Subscription/licensing features removed per user request - "Remove subscriptions and don't block access. I never wanted that."
 # from routes.subscription_api import subscription_bp
 from services.activity_service import activity_service
@@ -82,6 +84,8 @@ csrf.exempt(jarvis_deployment_bp)  # Jarvis deployment API
 csrf.exempt(artifact_bp)  # Artifact builder API
 csrf.exempt(database_bp)  # Database management API
 csrf.exempt(health_monitoring_bp)  # Health monitoring API
+csrf.exempt(docker_bp)  # Docker management API
+csrf.exempt(audit_bp)  # Audit logs API
 
 limiter.init_app(app)
 logger.info("✓ CSRF Protection and Rate Limiting initialized")
@@ -173,6 +177,8 @@ app.register_blueprint(unified_logs_bp)
 app.register_blueprint(ai_chat_bp)
 app.register_blueprint(database_bp)
 app.register_blueprint(jarvis_control_bp)
+app.register_blueprint(docker_bp)
+app.register_blueprint(audit_bp)
 # DISABLED: Subscription blueprint disabled - no subscription/licensing checks
 # app.register_blueprint(subscription_bp)
 

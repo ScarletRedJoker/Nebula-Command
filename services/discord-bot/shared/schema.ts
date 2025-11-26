@@ -631,3 +631,206 @@ export const insertDeveloperAuditLogSchema = createInsertSchema(developerAuditLo
 });
 export type InsertDeveloperAuditLog = z.infer<typeof insertDeveloperAuditLogSchema>;
 export type DeveloperAuditLog = typeof developerAuditLog.$inferSelect;
+
+// SLA Configurations - defines SLA tiers and response time targets per server
+export const slaConfigurations = pgTable("sla_configurations", {
+  id: serial("id").primaryKey(),
+  serverId: text("server_id").notNull(),
+  priority: text("priority").notNull(), // urgent, high, normal, low
+  responseTimeMinutes: integer("response_time_minutes").notNull(), // Target response time
+  resolutionTimeMinutes: integer("resolution_time_minutes"), // Target resolution time
+  escalationTimeMinutes: integer("escalation_time_minutes"), // Time before auto-escalation
+  notifyOnBreach: boolean("notify_on_breach").default(true),
+  notifyChannelId: text("notify_channel_id"), // Discord channel for breach notifications
+  isEnabled: boolean("is_enabled").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// SLA Tracking - tracks SLA status for each ticket
+export const slaTracking = pgTable("sla_tracking", {
+  id: serial("id").primaryKey(),
+  ticketId: integer("ticket_id").notNull().references(() => tickets.id, { onDelete: "cascade" }),
+  serverId: text("server_id").notNull(),
+  slaConfigId: integer("sla_config_id").references(() => slaConfigurations.id),
+  responseDeadline: timestamp("response_deadline"), // When first response is due
+  resolutionDeadline: timestamp("resolution_deadline"), // When ticket should be resolved
+  firstRespondedAt: timestamp("first_responded_at"), // When first staff response was made
+  responseBreached: boolean("response_breached").default(false),
+  resolutionBreached: boolean("resolution_breached").default(false),
+  breachNotifiedAt: timestamp("breach_notified_at"), // When breach notification was sent
+  escalatedAt: timestamp("escalated_at"), // When ticket was escalated due to SLA
+  status: text("status").default("active"), // active, responded, resolved, breached
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Escalation Rules - defines escalation paths and triggers
+export const escalationRules = pgTable("escalation_rules", {
+  id: serial("id").primaryKey(),
+  serverId: text("server_id").notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  triggerType: text("trigger_type").notNull(), // keyword, time_based, priority, manual
+  triggerValue: text("trigger_value"), // JSON: keywords array, minutes for time-based, etc.
+  escalationLevel: integer("escalation_level").default(1), // 1=support, 2=supervisor, 3=admin
+  targetRoleId: text("target_role_id"), // Discord role to escalate to
+  notifyChannelId: text("notify_channel_id"), // Channel for escalation notifications
+  priority: integer("priority").default(0), // Rule priority (higher = first evaluated)
+  isEnabled: boolean("is_enabled").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Escalation History - tracks all escalations for audit trail
+export const escalationHistory = pgTable("escalation_history", {
+  id: serial("id").primaryKey(),
+  ticketId: integer("ticket_id").notNull().references(() => tickets.id, { onDelete: "cascade" }),
+  serverId: text("server_id").notNull(),
+  ruleId: integer("rule_id").references(() => escalationRules.id),
+  fromLevel: integer("from_level").notNull(),
+  toLevel: integer("to_level").notNull(),
+  reason: text("reason").notNull(), // Why escalation happened
+  triggeredBy: text("triggered_by"), // system, user_id, or rule_name
+  previousAssigneeId: text("previous_assignee_id"),
+  newAssigneeId: text("new_assignee_id"),
+  notificationSent: boolean("notification_sent").default(false),
+  messageId: text("message_id"), // Discord notification message ID
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Webhook Configurations - stores webhook endpoints for external integrations
+export const webhookConfigurations = pgTable("webhook_configurations", {
+  id: serial("id").primaryKey(),
+  serverId: text("server_id").notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  webhookUrl: text("webhook_url"), // External webhook URL to call
+  webhookSecret: text("webhook_secret"), // Secret for validating incoming webhooks
+  eventTypes: text("event_types").notNull(), // JSON array of event types to trigger on
+  targetChannelId: text("target_channel_id"), // Discord channel for incoming webhook alerts
+  isInbound: boolean("is_inbound").default(true), // true = receives from external, false = sends to external
+  isEnabled: boolean("is_enabled").default(true),
+  lastTriggeredAt: timestamp("last_triggered_at"),
+  failureCount: integer("failure_count").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Webhook Event Log - tracks all webhook events
+export const webhookEventLog = pgTable("webhook_event_log", {
+  id: serial("id").primaryKey(),
+  webhookId: integer("webhook_id").references(() => webhookConfigurations.id),
+  serverId: text("server_id").notNull(),
+  eventType: text("event_type").notNull(),
+  payload: text("payload"), // JSON payload
+  direction: text("direction").notNull(), // inbound or outbound
+  statusCode: integer("status_code"), // HTTP status code for outbound
+  response: text("response"), // Response body
+  success: boolean("success").default(true),
+  errorMessage: text("error_message"),
+  processedAt: timestamp("processed_at").defaultNow(),
+});
+
+// Guild Provisioning Status - tracks auto-setup progress for new servers
+export const guildProvisioningStatus = pgTable("guild_provisioning_status", {
+  id: serial("id").primaryKey(),
+  serverId: text("server_id").notNull().unique(),
+  provisioningStartedAt: timestamp("provisioning_started_at").defaultNow(),
+  provisioningCompletedAt: timestamp("provisioning_completed_at"),
+  categoriesCreated: boolean("categories_created").default(false),
+  settingsCreated: boolean("settings_created").default(false),
+  welcomeSent: boolean("welcome_sent").default(false),
+  ticketCategoryChannelId: text("ticket_category_channel_id"), // Discord category for tickets
+  supportChannelId: text("support_channel_id"), // Main support channel
+  logChannelId: text("log_channel_id"), // Ticket log channel
+  status: text("status").default("pending"), // pending, in_progress, completed, failed
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// SLA Configurations validation schemas
+export const insertSlaConfigurationSchema = createInsertSchema(slaConfigurations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+export type InsertSlaConfiguration = z.infer<typeof insertSlaConfigurationSchema>;
+export type SlaConfiguration = typeof slaConfigurations.$inferSelect;
+
+export const updateSlaConfigurationSchema = createInsertSchema(slaConfigurations).omit({
+  id: true,
+  serverId: true,
+  createdAt: true,
+  updatedAt: true
+}).partial();
+export type UpdateSlaConfiguration = z.infer<typeof updateSlaConfigurationSchema>;
+
+// SLA Tracking validation schemas
+export const insertSlaTrackingSchema = createInsertSchema(slaTracking).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+export type InsertSlaTracking = z.infer<typeof insertSlaTrackingSchema>;
+export type SlaTracking = typeof slaTracking.$inferSelect;
+
+// Escalation Rules validation schemas
+export const insertEscalationRuleSchema = createInsertSchema(escalationRules).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+export type InsertEscalationRule = z.infer<typeof insertEscalationRuleSchema>;
+export type EscalationRule = typeof escalationRules.$inferSelect;
+
+export const updateEscalationRuleSchema = createInsertSchema(escalationRules).omit({
+  id: true,
+  serverId: true,
+  createdAt: true,
+  updatedAt: true
+}).partial();
+export type UpdateEscalationRule = z.infer<typeof updateEscalationRuleSchema>;
+
+// Escalation History validation schemas
+export const insertEscalationHistorySchema = createInsertSchema(escalationHistory).omit({
+  id: true,
+  createdAt: true
+});
+export type InsertEscalationHistory = z.infer<typeof insertEscalationHistorySchema>;
+export type EscalationHistory = typeof escalationHistory.$inferSelect;
+
+// Webhook Configurations validation schemas
+export const insertWebhookConfigurationSchema = createInsertSchema(webhookConfigurations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+export type InsertWebhookConfiguration = z.infer<typeof insertWebhookConfigurationSchema>;
+export type WebhookConfiguration = typeof webhookConfigurations.$inferSelect;
+
+export const updateWebhookConfigurationSchema = createInsertSchema(webhookConfigurations).omit({
+  id: true,
+  serverId: true,
+  createdAt: true,
+  updatedAt: true
+}).partial();
+export type UpdateWebhookConfiguration = z.infer<typeof updateWebhookConfigurationSchema>;
+
+// Webhook Event Log validation schemas
+export const insertWebhookEventLogSchema = createInsertSchema(webhookEventLog).omit({
+  id: true,
+  processedAt: true
+});
+export type InsertWebhookEventLog = z.infer<typeof insertWebhookEventLogSchema>;
+export type WebhookEventLog = typeof webhookEventLog.$inferSelect;
+
+// Guild Provisioning Status validation schemas
+export const insertGuildProvisioningStatusSchema = createInsertSchema(guildProvisioningStatus).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+export type InsertGuildProvisioningStatus = z.infer<typeof insertGuildProvisioningStatusSchema>;
+export type GuildProvisioningStatus = typeof guildProvisioningStatus.$inferSelect;

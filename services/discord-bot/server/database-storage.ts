@@ -50,6 +50,23 @@ import {
   type InsertStreamNotificationLog,
   type InteractionLock,
   type InsertInteractionLock,
+  type SlaConfiguration,
+  type InsertSlaConfiguration,
+  type UpdateSlaConfiguration,
+  type SlaTracking,
+  type InsertSlaTracking,
+  type EscalationRule,
+  type InsertEscalationRule,
+  type UpdateEscalationRule,
+  type EscalationHistory,
+  type InsertEscalationHistory,
+  type WebhookConfiguration,
+  type InsertWebhookConfiguration,
+  type UpdateWebhookConfiguration,
+  type WebhookEventLog,
+  type InsertWebhookEventLog,
+  type GuildProvisioningStatus,
+  type InsertGuildProvisioningStatus,
   users,
   discordUsers,
   servers,
@@ -71,7 +88,14 @@ import {
   streamNotificationSettings,
   streamTrackedUsers,
   streamNotificationLog,
-  interactionLocks
+  interactionLocks,
+  slaConfigurations,
+  slaTracking,
+  escalationRules,
+  escalationHistory,
+  webhookConfigurations,
+  webhookEventLog,
+  guildProvisioningStatus
 } from "@shared/schema";
 import { IStorage } from "./storage";
 import { db } from "./db";
@@ -1003,6 +1027,269 @@ export class DatabaseStorage implements IStorage {
     await db.delete(interactionLocks).where(
       lt(interactionLocks.createdAt, fiveMinutesAgo)
     );
+  }
+
+  // SLA Configuration operations
+  async getSlaConfigurations(serverId: string): Promise<SlaConfiguration[]> {
+    return await db.select()
+      .from(slaConfigurations)
+      .where(eq(slaConfigurations.serverId, serverId));
+  }
+
+  async getSlaConfigurationByPriority(serverId: string, priority: string): Promise<SlaConfiguration | null> {
+    const [config] = await db.select()
+      .from(slaConfigurations)
+      .where(and(
+        eq(slaConfigurations.serverId, serverId),
+        eq(slaConfigurations.priority, priority)
+      ))
+      .limit(1);
+    return config || null;
+  }
+
+  async createSlaConfiguration(config: InsertSlaConfiguration): Promise<SlaConfiguration> {
+    const [newConfig] = await db.insert(slaConfigurations)
+      .values(config)
+      .returning();
+    return newConfig;
+  }
+
+  async updateSlaConfiguration(id: number, updates: UpdateSlaConfiguration): Promise<SlaConfiguration | null> {
+    const [updated] = await db.update(slaConfigurations)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(slaConfigurations.id, id))
+      .returning();
+    return updated || null;
+  }
+
+  async deleteSlaConfiguration(id: number): Promise<boolean> {
+    const result = await db.delete(slaConfigurations)
+      .where(eq(slaConfigurations.id, id));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  // SLA Tracking operations
+  async getSlaTracking(ticketId: number): Promise<SlaTracking | null> {
+    const [tracking] = await db.select()
+      .from(slaTracking)
+      .where(eq(slaTracking.ticketId, ticketId))
+      .limit(1);
+    return tracking || null;
+  }
+
+  async getSlaTrackingByServer(serverId: string): Promise<SlaTracking[]> {
+    return await db.select()
+      .from(slaTracking)
+      .where(eq(slaTracking.serverId, serverId));
+  }
+
+  async getActiveSlasApproachingBreach(): Promise<SlaTracking[]> {
+    const { lt, or, isNull } = await import('drizzle-orm');
+    const now = new Date();
+    return await db.select()
+      .from(slaTracking)
+      .where(and(
+        eq(slaTracking.status, 'active'),
+        or(
+          lt(slaTracking.responseDeadline, now),
+          lt(slaTracking.resolutionDeadline, now)
+        )
+      ));
+  }
+
+  async createSlaTracking(tracking: InsertSlaTracking): Promise<SlaTracking> {
+    const [newTracking] = await db.insert(slaTracking)
+      .values(tracking)
+      .returning();
+    return newTracking;
+  }
+
+  async updateSlaTracking(ticketId: number, updates: Partial<SlaTracking>): Promise<SlaTracking | null> {
+    const [updated] = await db.update(slaTracking)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(slaTracking.ticketId, ticketId))
+      .returning();
+    return updated || null;
+  }
+
+  // Escalation Rules operations
+  async getEscalationRules(serverId: string): Promise<EscalationRule[]> {
+    const { desc } = await import('drizzle-orm');
+    return await db.select()
+      .from(escalationRules)
+      .where(eq(escalationRules.serverId, serverId))
+      .orderBy(desc(escalationRules.priority));
+  }
+
+  async getEscalationRulesByType(serverId: string, triggerType: string): Promise<EscalationRule[]> {
+    return await db.select()
+      .from(escalationRules)
+      .where(and(
+        eq(escalationRules.serverId, serverId),
+        eq(escalationRules.triggerType, triggerType),
+        eq(escalationRules.isEnabled, true)
+      ));
+  }
+
+  async createEscalationRule(rule: InsertEscalationRule): Promise<EscalationRule> {
+    const [newRule] = await db.insert(escalationRules)
+      .values(rule)
+      .returning();
+    return newRule;
+  }
+
+  async updateEscalationRule(id: number, updates: UpdateEscalationRule): Promise<EscalationRule | null> {
+    const [updated] = await db.update(escalationRules)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(escalationRules.id, id))
+      .returning();
+    return updated || null;
+  }
+
+  async deleteEscalationRule(id: number): Promise<boolean> {
+    const result = await db.delete(escalationRules)
+      .where(eq(escalationRules.id, id));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  // Escalation History operations
+  async getEscalationHistory(ticketId: number): Promise<EscalationHistory[]> {
+    const { desc } = await import('drizzle-orm');
+    return await db.select()
+      .from(escalationHistory)
+      .where(eq(escalationHistory.ticketId, ticketId))
+      .orderBy(desc(escalationHistory.createdAt));
+  }
+
+  async getEscalationHistoryByServer(serverId: string, limit: number = 50): Promise<EscalationHistory[]> {
+    const { desc } = await import('drizzle-orm');
+    return await db.select()
+      .from(escalationHistory)
+      .where(eq(escalationHistory.serverId, serverId))
+      .orderBy(desc(escalationHistory.createdAt))
+      .limit(limit);
+  }
+
+  async createEscalationHistory(history: InsertEscalationHistory): Promise<EscalationHistory> {
+    const [newHistory] = await db.insert(escalationHistory)
+      .values(history)
+      .returning();
+    return newHistory;
+  }
+
+  // Webhook Configuration operations
+  async getWebhookConfigurations(serverId: string): Promise<WebhookConfiguration[]> {
+    return await db.select()
+      .from(webhookConfigurations)
+      .where(eq(webhookConfigurations.serverId, serverId));
+  }
+
+  async getWebhookConfigurationById(id: number): Promise<WebhookConfiguration | null> {
+    const [config] = await db.select()
+      .from(webhookConfigurations)
+      .where(eq(webhookConfigurations.id, id))
+      .limit(1);
+    return config || null;
+  }
+
+  async getInboundWebhookBySecret(secret: string): Promise<WebhookConfiguration | null> {
+    const [config] = await db.select()
+      .from(webhookConfigurations)
+      .where(and(
+        eq(webhookConfigurations.webhookSecret, secret),
+        eq(webhookConfigurations.isInbound, true),
+        eq(webhookConfigurations.isEnabled, true)
+      ))
+      .limit(1);
+    return config || null;
+  }
+
+  async createWebhookConfiguration(config: InsertWebhookConfiguration): Promise<WebhookConfiguration> {
+    const [newConfig] = await db.insert(webhookConfigurations)
+      .values(config)
+      .returning();
+    return newConfig;
+  }
+
+  async updateWebhookConfiguration(id: number, updates: UpdateWebhookConfiguration): Promise<WebhookConfiguration | null> {
+    const [updated] = await db.update(webhookConfigurations)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(webhookConfigurations.id, id))
+      .returning();
+    return updated || null;
+  }
+
+  async deleteWebhookConfiguration(id: number): Promise<boolean> {
+    const result = await db.delete(webhookConfigurations)
+      .where(eq(webhookConfigurations.id, id));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  async incrementWebhookFailureCount(id: number): Promise<void> {
+    const config = await this.getWebhookConfigurationById(id);
+    if (config) {
+      await db.update(webhookConfigurations)
+        .set({ failureCount: (config.failureCount || 0) + 1, updatedAt: new Date() })
+        .where(eq(webhookConfigurations.id, id));
+    }
+  }
+
+  async resetWebhookFailureCount(id: number): Promise<void> {
+    await db.update(webhookConfigurations)
+      .set({ failureCount: 0, lastTriggeredAt: new Date(), updatedAt: new Date() })
+      .where(eq(webhookConfigurations.id, id));
+  }
+
+  // Webhook Event Log operations
+  async createWebhookEventLog(log: InsertWebhookEventLog): Promise<WebhookEventLog> {
+    const [newLog] = await db.insert(webhookEventLog)
+      .values(log)
+      .returning();
+    return newLog;
+  }
+
+  async getWebhookEventLogs(webhookId: number, limit: number = 50): Promise<WebhookEventLog[]> {
+    const { desc } = await import('drizzle-orm');
+    return await db.select()
+      .from(webhookEventLog)
+      .where(eq(webhookEventLog.webhookId, webhookId))
+      .orderBy(desc(webhookEventLog.processedAt))
+      .limit(limit);
+  }
+
+  // Guild Provisioning operations
+  async getGuildProvisioningStatus(serverId: string): Promise<GuildProvisioningStatus | null> {
+    const [status] = await db.select()
+      .from(guildProvisioningStatus)
+      .where(eq(guildProvisioningStatus.serverId, serverId))
+      .limit(1);
+    return status || null;
+  }
+
+  async createGuildProvisioningStatus(status: InsertGuildProvisioningStatus): Promise<GuildProvisioningStatus> {
+    const [newStatus] = await db.insert(guildProvisioningStatus)
+      .values(status)
+      .returning();
+    return newStatus;
+  }
+
+  async updateGuildProvisioningStatus(serverId: string, updates: Partial<GuildProvisioningStatus>): Promise<GuildProvisioningStatus | null> {
+    const [updated] = await db.update(guildProvisioningStatus)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(guildProvisioningStatus.serverId, serverId))
+      .returning();
+    return updated || null;
+  }
+
+  // Database health check for probes
+  async checkDatabaseHealth(): Promise<{ connected: boolean; latencyMs: number }> {
+    const start = Date.now();
+    try {
+      await db.execute('SELECT 1');
+      return { connected: true, latencyMs: Date.now() - start };
+    } catch (error) {
+      return { connected: false, latencyMs: Date.now() - start };
+    }
   }
 }
 

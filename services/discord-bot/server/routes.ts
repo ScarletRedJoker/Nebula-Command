@@ -37,6 +37,10 @@ import { sendTicketNotificationToAdminChannel } from "./discord/commands";
 import devRoutes from "./routes/dev-routes";
 import homelabhubRoutes from "./routes/homelabhub-routes";
 import streamNotificationsRoutes from "./routes/stream-notifications";
+import slaEscalationRoutes from "./routes/sla-escalation-routes";
+import webhookRoutes from "./routes/webhook-routes";
+import { setReady } from "./routes/health-routes";
+import guildProvisioningRoutes from "./routes/guild-provisioning-routes";
 import { isDeveloperMiddleware } from "./middleware/developerAuth";
 
 // Configure multer for embed image uploads
@@ -330,18 +334,130 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Readiness check endpoint - verifies database connectivity
+  // Readiness check endpoint - verifies database and Discord connectivity
   app.get('/ready', async (req: Request, res: Response) => {
     try {
-      // Check database connection
+      const start = Date.now();
       const { pool } = await import('./db');
       await pool.query('SELECT 1');
-      res.json({ status: 'ready' });
+      const dbLatencyMs = Date.now() - start;
+
+      const { getDiscordClient } = await import('./discord/bot');
+      const client = getDiscordClient();
+      const discordReady = client?.isReady() || false;
+
+      if (!discordReady) {
+        return res.status(503).json({
+          ready: false,
+          message: 'Discord gateway not connected',
+          timestamp: new Date().toISOString(),
+          database: { connected: true, latencyMs: dbLatencyMs },
+          discord: { connected: false }
+        });
+      }
+
+      res.json({
+        ready: true,
+        message: 'Service is ready to accept traffic',
+        timestamp: new Date().toISOString(),
+        database: { connected: true, latencyMs: dbLatencyMs },
+        discord: {
+          connected: true,
+          gatewayPing: client?.ws.ping,
+          guilds: client?.guilds.cache.size
+        }
+      });
     } catch (error: any) {
       res.status(503).json({ 
-        status: 'not ready', 
-        error: 'Database unavailable',
-        message: error.message 
+        ready: false,
+        message: 'Readiness check failed',
+        error: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
+
+  // Liveness check endpoint - verifies process is alive
+  app.get('/live', async (req: Request, res: Response) => {
+    try {
+      const memoryUsage = process.memoryUsage();
+      const heapUsedMB = Math.round(memoryUsage.heapUsed / 1024 / 1024);
+      const heapTotalMB = Math.round(memoryUsage.heapTotal / 1024 / 1024);
+      const heapPercentage = Math.round((memoryUsage.heapUsed / memoryUsage.heapTotal) * 100);
+
+      if (heapPercentage > 95) {
+        return res.status(503).json({
+          alive: false,
+          message: 'Memory pressure detected',
+          timestamp: new Date().toISOString(),
+          memory: { heapUsedMB, heapTotalMB, heapPercentage }
+        });
+      }
+
+      res.json({
+        alive: true,
+        message: 'Service is alive',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        memory: {
+          heapUsedMB,
+          heapTotalMB,
+          heapPercentage,
+          rssMB: Math.round(memoryUsage.rss / 1024 / 1024)
+        },
+        pid: process.pid,
+        nodeVersion: process.version
+      });
+    } catch (error) {
+      res.status(503).json({
+        alive: false,
+        message: 'Liveness check failed',
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
+
+  // Metrics endpoint for monitoring
+  app.get('/metrics', async (req: Request, res: Response) => {
+    try {
+      const start = Date.now();
+      const { pool } = await import('./db');
+      await pool.query('SELECT 1');
+      const dbLatencyMs = Date.now() - start;
+
+      const { getDiscordClient } = await import('./discord/bot');
+      const client = getDiscordClient();
+      const memoryUsage = process.memoryUsage();
+
+      res.json({
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        memory: {
+          heapUsed: memoryUsage.heapUsed,
+          heapTotal: memoryUsage.heapTotal,
+          external: memoryUsage.external,
+          rss: memoryUsage.rss,
+          arrayBuffers: memoryUsage.arrayBuffers
+        },
+        database: { connected: true, latencyMs: dbLatencyMs },
+        discord: {
+          connected: client?.isReady() || false,
+          gatewayPing: client?.ws.ping || null,
+          guilds: client?.guilds.cache.size || 0,
+          users: client?.users.cache.size || 0,
+          channels: client?.channels.cache.size || 0
+        },
+        process: {
+          pid: process.pid,
+          nodeVersion: process.version,
+          platform: process.platform,
+          arch: process.arch
+        }
+      });
+    } catch (error) {
+      res.status(500).json({
+        error: 'Failed to collect metrics',
+        timestamp: new Date().toISOString()
       });
     }
   });
@@ -3127,20 +3243,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Mount stream notifications routes
   app.use('/api/stream-notifications', streamNotificationsRoutes);
 
+  // Mount SLA and escalation routes
+  app.use('/api', slaEscalationRoutes);
+
+  // Mount webhook routes
+  app.use('/api', webhookRoutes);
+
+  // Mount guild provisioning routes
+  app.use('/api', guildProvisioningRoutes);
+
   // Start the Discord bot
   try {
     if (process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_APP_ID) {
       console.log('Attempting to start Discord bot...');
       await startBot(storage, broadcast);
+      setReady(true);
     } else {
       const missing = [];
       if (!process.env.DISCORD_BOT_TOKEN) missing.push('DISCORD_BOT_TOKEN');
       if (!process.env.DISCORD_APP_ID) missing.push('DISCORD_APP_ID');
       console.warn(`Some Discord configuration values are missing: ${missing.join(', ')}. Discord bot functionality will be disabled.`);
+      setReady(true);
     }
   } catch (error) {
     console.error('Failed to start Discord bot:', error);
     console.warn('The application will continue to run without Discord bot integration. You can still use the web dashboard.');
+    setReady(true);
   }
 
   return httpServer;

@@ -34,6 +34,11 @@ import { AlertsService } from "./alerts-service";
 import { ChatbotService } from "./chatbot-service";
 import { analyticsService } from "./analytics-service";
 import { tokenRefreshService } from "./token-refresh-service";
+import { onboardingService } from "./onboarding-service";
+import { featureToggleService } from "./feature-toggle-service";
+import { circuitBreakerService } from "./circuit-breaker-service";
+import { jobQueueService } from "./job-queue-service";
+import { enhancedTokenService } from "./enhanced-token-service";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/auth", oauthSignInRoutes);
@@ -2816,6 +2821,331 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Failed to get token status:", error);
       res.status(500).json({ error: error.message || "Failed to get token status" });
+    }
+  });
+
+  // ============================================================================
+  // ENHANCED BACKEND API ROUTES
+  // Onboarding, Feature Toggles, Platform Health, Job Queue, Token Management
+  // ============================================================================
+
+  // --- Onboarding Wizard API ---
+  app.get("/api/onboarding", requireAuth, async (req, res) => {
+    try {
+      const status = await onboardingService.getOnboardingStatus(req.user!.id);
+      res.json(status);
+    } catch (error: any) {
+      console.error("[Onboarding API] Failed to get onboarding status:", error);
+      res.status(500).json({ error: error.message || "Failed to get onboarding status" });
+    }
+  });
+
+  app.post("/api/onboarding/step/:stepName/complete", requireAuth, async (req, res) => {
+    try {
+      const { stepName } = req.params;
+      const progress = await onboardingService.completeStep(req.user!.id, stepName);
+      const status = await onboardingService.getOnboardingStatus(req.user!.id);
+      res.json({ progress, status });
+    } catch (error: any) {
+      console.error("[Onboarding API] Failed to complete step:", error);
+      res.status(500).json({ error: error.message || "Failed to complete step" });
+    }
+  });
+
+  app.post("/api/onboarding/goto/:step", requireAuth, async (req, res) => {
+    try {
+      const step = parseInt(req.params.step);
+      if (isNaN(step) || step < 1 || step > 5) {
+        return res.status(400).json({ error: "Invalid step number (1-5)" });
+      }
+      const progress = await onboardingService.goToStep(req.user!.id, step);
+      res.json({ progress });
+    } catch (error: any) {
+      console.error("[Onboarding API] Failed to navigate to step:", error);
+      res.status(500).json({ error: error.message || "Failed to navigate to step" });
+    }
+  });
+
+  app.post("/api/onboarding/features", requireAuth, async (req, res) => {
+    try {
+      const { features } = req.body;
+      if (!Array.isArray(features)) {
+        return res.status(400).json({ error: "Features must be an array" });
+      }
+      const progress = await onboardingService.setEnabledFeatures(req.user!.id, features);
+      res.json({ progress });
+    } catch (error: any) {
+      console.error("[Onboarding API] Failed to set features:", error);
+      res.status(500).json({ error: error.message || "Failed to set features" });
+    }
+  });
+
+  app.post("/api/onboarding/skip", requireAuth, async (req, res) => {
+    try {
+      const progress = await onboardingService.skipOnboarding(req.user!.id);
+      res.json({ success: true, progress });
+    } catch (error: any) {
+      console.error("[Onboarding API] Failed to skip onboarding:", error);
+      res.status(500).json({ error: error.message || "Failed to skip onboarding" });
+    }
+  });
+
+  app.post("/api/onboarding/reset", requireAuth, async (req, res) => {
+    try {
+      const progress = await onboardingService.resetOnboarding(req.user!.id);
+      res.json({ success: true, progress });
+    } catch (error: any) {
+      console.error("[Onboarding API] Failed to reset onboarding:", error);
+      res.status(500).json({ error: error.message || "Failed to reset onboarding" });
+    }
+  });
+
+  // --- Feature Toggles API ---
+  app.get("/api/features/toggles", requireAuth, async (req, res) => {
+    try {
+      const toggles = await featureToggleService.getOrCreateFeatureToggles(req.user!.id);
+      const enabled = await featureToggleService.getEnabledFeatures(req.user!.id);
+      const disabled = await featureToggleService.getDisabledFeatures(req.user!.id);
+      res.json({ toggles, enabled, disabled, available: featureToggleService.getAvailableFeatures() });
+    } catch (error: any) {
+      console.error("[Feature Toggle API] Failed to get feature toggles:", error);
+      res.status(500).json({ error: error.message || "Failed to get feature toggles" });
+    }
+  });
+
+  app.put("/api/features/toggles", requireAuth, async (req, res) => {
+    try {
+      const updates = req.body;
+      if (typeof updates !== 'object' || updates === null) {
+        return res.status(400).json({ error: "Request body must be an object with feature flags" });
+      }
+      const toggles = await featureToggleService.updateFeatureToggles(req.user!.id, updates);
+      res.json({ toggles });
+    } catch (error: any) {
+      console.error("[Feature Toggle API] Failed to update feature toggles:", error);
+      res.status(500).json({ error: error.message || "Failed to update feature toggles" });
+    }
+  });
+
+  app.post("/api/features/toggles/:feature/toggle", requireAuth, async (req, res) => {
+    try {
+      const { feature } = req.params;
+      const toggles = await featureToggleService.toggleFeature(req.user!.id, feature as any);
+      res.json({ toggles, toggled: feature });
+    } catch (error: any) {
+      console.error("[Feature Toggle API] Failed to toggle feature:", error);
+      res.status(500).json({ error: error.message || "Failed to toggle feature" });
+    }
+  });
+
+  app.post("/api/features/toggles/reset", requireAuth, async (req, res) => {
+    try {
+      const toggles = await featureToggleService.resetToDefaults(req.user!.id);
+      res.json({ toggles, message: "Features reset to defaults" });
+    } catch (error: any) {
+      console.error("[Feature Toggle API] Failed to reset features:", error);
+      res.status(500).json({ error: error.message || "Failed to reset features" });
+    }
+  });
+
+  // --- Platform Health / Circuit Breaker API ---
+  app.get("/api/platform-health", requireAuth, async (req, res) => {
+    try {
+      const health = await circuitBreakerService.getAllPlatformHealth();
+      const queueStats = await circuitBreakerService.getQueueStats(req.user!.id);
+      res.json({ platforms: health, queueStats });
+    } catch (error: any) {
+      console.error("[Platform Health API] Failed to get platform health:", error);
+      res.status(500).json({ error: error.message || "Failed to get platform health" });
+    }
+  });
+
+  app.get("/api/platform-health/:platform", requireAuth, async (req, res) => {
+    try {
+      const platform = req.params.platform as 'twitch' | 'youtube' | 'kick' | 'spotify';
+      const health = await circuitBreakerService.getPlatformHealth(platform);
+      const canRequest = await circuitBreakerService.canMakeRequest(platform);
+      const isThrottled = await circuitBreakerService.isThrottled(platform);
+      res.json({ health, canRequest, isThrottled });
+    } catch (error: any) {
+      console.error("[Platform Health API] Failed to get platform health:", error);
+      res.status(500).json({ error: error.message || "Failed to get platform health" });
+    }
+  });
+
+  app.get("/api/message-queue", requireAuth, async (req, res) => {
+    try {
+      const { platform, limit } = req.query;
+      const messages = await circuitBreakerService.getQueuedMessages(
+        platform as any,
+        limit ? parseInt(limit as string) : 100
+      );
+      const stats = await circuitBreakerService.getQueueStats(req.user!.id);
+      res.json({ messages, stats });
+    } catch (error: any) {
+      console.error("[Message Queue API] Failed to get message queue:", error);
+      res.status(500).json({ error: error.message || "Failed to get message queue" });
+    }
+  });
+
+  app.post("/api/message-queue", requireAuth, async (req, res) => {
+    try {
+      const { platform, messageType, content, metadata, priority, scheduledFor } = req.body;
+      
+      if (!platform || !messageType || !content) {
+        return res.status(400).json({ error: "platform, messageType, and content are required" });
+      }
+
+      const message = await circuitBreakerService.queueMessage(
+        req.user!.id,
+        platform,
+        messageType,
+        content,
+        metadata,
+        priority,
+        scheduledFor ? new Date(scheduledFor) : undefined
+      );
+      res.json({ message });
+    } catch (error: any) {
+      console.error("[Message Queue API] Failed to queue message:", error);
+      res.status(500).json({ error: error.message || "Failed to queue message" });
+    }
+  });
+
+  // --- Job Queue API ---
+  app.get("/api/jobs/status", requireAuth, async (req, res) => {
+    try {
+      const status = await jobQueueService.getJobStatus();
+      const userJobs = await jobQueueService.getJobsByUser(req.user!.id, 20);
+      res.json({ ...status, userJobs });
+    } catch (error: any) {
+      console.error("[Job Queue API] Failed to get job status:", error);
+      res.status(500).json({ error: error.message || "Failed to get job status" });
+    }
+  });
+
+  app.get("/api/jobs", requireAuth, async (req, res) => {
+    try {
+      const { status, jobType, limit } = req.query;
+      const jobs = await jobQueueService.getJobs(
+        status as any,
+        jobType as any,
+        limit ? parseInt(limit as string) : 100
+      );
+      res.json({ jobs });
+    } catch (error: any) {
+      console.error("[Job Queue API] Failed to get jobs:", error);
+      res.status(500).json({ error: error.message || "Failed to get jobs" });
+    }
+  });
+
+  app.post("/api/jobs", requireAuth, async (req, res) => {
+    try {
+      const { jobType, jobName, payload, priority, runAt, repeatInterval } = req.body;
+      
+      if (!jobType || !jobName) {
+        return res.status(400).json({ error: "jobType and jobName are required" });
+      }
+
+      const job = await jobQueueService.createJob(jobType, jobName, payload, {
+        userId: req.user!.id,
+        priority,
+        runAt: runAt ? new Date(runAt) : undefined,
+        repeatInterval,
+      });
+      res.json({ job });
+    } catch (error: any) {
+      console.error("[Job Queue API] Failed to create job:", error);
+      res.status(500).json({ error: error.message || "Failed to create job" });
+    }
+  });
+
+  app.post("/api/jobs/:id/cancel", requireAuth, async (req, res) => {
+    try {
+      await jobQueueService.cancelJob(req.params.id);
+      res.json({ success: true, message: "Job cancelled" });
+    } catch (error: any) {
+      console.error("[Job Queue API] Failed to cancel job:", error);
+      res.status(500).json({ error: error.message || "Failed to cancel job" });
+    }
+  });
+
+  // --- Enhanced Token Management API ---
+  app.get("/api/tokens/dashboard", requireAuth, async (req, res) => {
+    try {
+      const dashboard = await enhancedTokenService.getTokenDashboard(req.user!.id);
+      res.json(dashboard);
+    } catch (error: any) {
+      console.error("[Token API] Failed to get token dashboard:", error);
+      res.status(500).json({ error: error.message || "Failed to get token dashboard" });
+    }
+  });
+
+  app.get("/api/tokens/health/:platform", requireAuth, async (req, res) => {
+    try {
+      const platform = req.params.platform as 'twitch' | 'youtube' | 'kick' | 'spotify';
+      const health = await enhancedTokenService.getTokenHealthStatus(req.user!.id, platform);
+      res.json(health);
+    } catch (error: any) {
+      console.error("[Token API] Failed to get token health:", error);
+      res.status(500).json({ error: error.message || "Failed to get token health" });
+    }
+  });
+
+  app.get("/api/tokens/rotation-history", requireAuth, async (req, res) => {
+    try {
+      const { platform, limit } = req.query;
+      const history = await enhancedTokenService.getRotationHistory(
+        req.user!.id,
+        platform as any,
+        limit ? parseInt(limit as string) : 50
+      );
+      res.json({ history });
+    } catch (error: any) {
+      console.error("[Token API] Failed to get rotation history:", error);
+      res.status(500).json({ error: error.message || "Failed to get rotation history" });
+    }
+  });
+
+  app.get("/api/tokens/alerts", requireAuth, async (req, res) => {
+    try {
+      const alerts = await enhancedTokenService.getPendingAlerts(req.user!.id);
+      res.json({ alerts });
+    } catch (error: any) {
+      console.error("[Token API] Failed to get token alerts:", error);
+      res.status(500).json({ error: error.message || "Failed to get token alerts" });
+    }
+  });
+
+  app.post("/api/tokens/alerts/:id/acknowledge", requireAuth, async (req, res) => {
+    try {
+      await enhancedTokenService.acknowledgeAlert(req.params.id);
+      res.json({ success: true, message: "Alert acknowledged" });
+    } catch (error: any) {
+      console.error("[Token API] Failed to acknowledge alert:", error);
+      res.status(500).json({ error: error.message || "Failed to acknowledge alert" });
+    }
+  });
+
+  app.post("/api/tokens/alerts/acknowledge-all", requireAuth, async (req, res) => {
+    try {
+      const { platform } = req.body;
+      const count = await enhancedTokenService.acknowledgeAllAlerts(req.user!.id, platform);
+      res.json({ success: true, acknowledged: count });
+    } catch (error: any) {
+      console.error("[Token API] Failed to acknowledge alerts:", error);
+      res.status(500).json({ error: error.message || "Failed to acknowledge alerts" });
+    }
+  });
+
+  app.post("/api/tokens/check-expiry", requireAuth, async (req, res) => {
+    try {
+      await enhancedTokenService.checkTokenExpiry(req.user!.id);
+      const alerts = await enhancedTokenService.getPendingAlerts(req.user!.id);
+      res.json({ success: true, alerts });
+    } catch (error: any) {
+      console.error("[Token API] Failed to check token expiry:", error);
+      res.status(500).json({ error: error.message || "Failed to check token expiry" });
     }
   });
 
