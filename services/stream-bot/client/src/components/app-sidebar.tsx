@@ -1,4 +1,4 @@
-import { Home, Settings, Activity, Zap, History, MessageSquare, Shield, Trophy, Megaphone, BarChart3, Gamepad2, Coins, Music, Vote, Bell, Bot, Sparkles, Video, Layers } from "lucide-react";
+import { Home, Settings, Activity, Zap, History, MessageSquare, Shield, Trophy, Megaphone, BarChart3, Gamepad2, Coins, Music, Vote, Bell, Bot, Sparkles, Video, Layers, Lightbulb } from "lucide-react";
 import { SiTwitch, SiYoutube, SiKick } from "react-icons/si";
 import {
   Sidebar,
@@ -39,6 +39,11 @@ const botControlItems = [
     title: "History",
     url: "/history",
     icon: History,
+  },
+  {
+    title: "Fact Feed",
+    url: "/fact-feed",
+    icon: Lightbulb,
   },
 ];
 

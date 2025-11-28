@@ -433,7 +433,7 @@ services:
     volumes:
       - code_server_data:/config
       - /home/${SERVICE_USER:-evin}/contain:/config/workspace
-      - ./config/code-server/continue-config.json:/config/.continue/config.json:ro
+      - ./config/code-server/continue-config.ts:/config/.continue/config.ts:ro
       - ./config/code-server/config.yaml:/config/.config/code-server/config.yaml:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8443/healthz"]

@@ -16,6 +16,7 @@ import UserMenu from "@/components/UserMenu";
 import OAuthLogin from "@/pages/OAuthLogin";
 import Profile from "@/pages/Profile";
 import Dashboard from "@/pages/dashboard";
+import FactFeed from "@/pages/fact-feed";
 import Settings from "@/pages/settings";
 import Trigger from "@/pages/trigger";
 import Activity from "@/pages/activity";
@@ -48,6 +49,8 @@ function AuthRouter() {
       <Route path="/spotify-overlay" component={SpotifyOverlay} />
       <Route path="/overlay/youtube" component={YouTubeOverlay} />
       <Route path="/youtube-overlay" component={YouTubeOverlay} />
+      {/* Public fact feed - accessible without authentication */}
+      <Route path="/fact-feed" component={FactFeed} />
       <Route>
         {() => (
           <ProtectedRoute>

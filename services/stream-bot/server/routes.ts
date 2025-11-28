@@ -371,6 +371,92 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // GET /api/facts/public - Public community fact feed (no auth required)
+  // Returns facts from all users with pagination, filtering, and sorting
+  app.get("/api/facts/public", async (req, res) => {
+    try {
+      const { db } = await import('./db');
+      const { facts } = await import('@shared/schema');
+      const { desc, asc, ilike, sql } = await import('drizzle-orm');
+      
+      // Parse query parameters with defaults
+      const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 100);
+      const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
+      const sort = (req.query.sort as string) === 'oldest' ? 'oldest' : 'newest';
+      const search = (req.query.search as string) || '';
+      const tag = (req.query.tag as string) || '';
+      
+      // Build query with filters
+      let query = db.select({
+        id: facts.id,
+        fact: facts.fact,
+        source: facts.source,
+        tags: facts.tags,
+        createdAt: facts.createdAt,
+      }).from(facts);
+      
+      // Apply search filter if provided
+      const conditions: any[] = [];
+      if (search) {
+        conditions.push(ilike(facts.fact, `%${search}%`));
+      }
+      
+      // Apply tag filter if provided (check if tag is in jsonb array)
+      if (tag) {
+        conditions.push(sql`${facts.tags} @> ${JSON.stringify([tag])}::jsonb`);
+      }
+      
+      // Apply conditions
+      if (conditions.length > 0) {
+        query = query.where(conditions.length === 1 ? conditions[0] : sql`${conditions[0]} AND ${conditions[1]}`);
+      }
+      
+      // Apply sorting
+      query = query.orderBy(sort === 'oldest' ? asc(facts.createdAt) : desc(facts.createdAt));
+      
+      // Apply pagination
+      query = query.limit(limit).offset(offset);
+      
+      const publicFacts = await query;
+      
+      // Get total count for pagination
+      let countQuery = db.select({ count: sql<number>`count(*)::int` }).from(facts);
+      if (conditions.length > 0) {
+        countQuery = countQuery.where(conditions.length === 1 ? conditions[0] : sql`${conditions[0]} AND ${conditions[1]}`);
+      }
+      const [{ count: totalCount }] = await countQuery;
+      
+      // Get unique tags for filtering UI
+      const allTags = await db.select({ tags: facts.tags }).from(facts);
+      const uniqueTags = [...new Set(allTags.flatMap(f => (f.tags as string[]) || []))].sort();
+      
+      res.json({
+        success: true,
+        facts: publicFacts.map(f => ({
+          id: f.id,
+          content: f.fact,
+          source: f.source,
+          tags: f.tags || [],
+          createdAt: f.createdAt,
+        })),
+        pagination: {
+          total: totalCount,
+          limit,
+          offset,
+          hasMore: offset + limit < totalCount,
+        },
+        availableTags: uniqueTags,
+      });
+    } catch (error: any) {
+      console.error('[Facts API] Error fetching public facts:', error);
+      res.status(500).json({ 
+        success: false,
+        error: "Failed to fetch public facts",
+        message: error.message 
+      });
+    }
+  });
+
   // Enhanced Health Check - Detailed bot health for homelabhub integration
   // Returns bot status, platform connections, and user counts
   app.get("/api/health", async (req, res) => {
