@@ -16,22 +16,33 @@ depends_on = None
 
 
 def upgrade():
+    connection = op.get_bind()
+    
+    try:
+        result = connection.execute(sa.text("SELECT 1 FROM pg_type WHERE typname = 'userrole'"))
+        if not result.fetchone():
+            connection.execute(sa.text("CREATE TYPE userrole AS ENUM ('admin', 'operator', 'viewer')"))
+    except Exception:
+        pass
+    
+    try:
+        result = connection.execute(sa.text("SELECT 1 FROM pg_type WHERE typname = 'deploymentstatus'"))
+        if not result.fetchone():
+            connection.execute(sa.text("""
+                CREATE TYPE deploymentstatus AS ENUM (
+                    'pending', 'queued', 'pulling_image', 'creating_container', 'configuring',
+                    'starting', 'running', 'completed', 'failed', 'rolling_back', 'rolled_back', 'cancelled'
+                )
+            """))
+    except Exception:
+        pass
+    
     user_role_enum = postgresql.ENUM('admin', 'operator', 'viewer', name='userrole', create_type=False)
     deployment_status_enum = postgresql.ENUM(
         'pending', 'queued', 'pulling_image', 'creating_container', 'configuring',
         'starting', 'running', 'completed', 'failed', 'rolling_back', 'rolled_back', 'cancelled',
         name='deploymentstatus', create_type=False
     )
-    
-    connection = op.get_bind()
-    
-    result = connection.execute(sa.text("SELECT 1 FROM pg_type WHERE typname = 'userrole'"))
-    if not result.fetchone():
-        user_role_enum.create(connection)
-    
-    result = connection.execute(sa.text("SELECT 1 FROM pg_type WHERE typname = 'deploymentstatus'"))
-    if not result.fetchone():
-        deployment_status_enum.create(connection)
     
     if not table_exists('users'):
         op.create_table(

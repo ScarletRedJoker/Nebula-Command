@@ -210,21 +210,31 @@ logger.info("=" * 60)
 logger.info("Initializing Jarvis Platform Database")
 logger.info("=" * 60)
 
+run_migrations_flag = os.environ.get('RUN_MIGRATIONS', 'true').lower() == 'true'
+
 if db_service.is_available:
-    logger.info("Database service is available, running migrations...")
-    if db_service.run_migrations():
-        logger.info("✓ Database migrations completed successfully")
+    if run_migrations_flag:
+        logger.info("Database service is available, running migrations...")
+        if db_service.run_migrations():
+            logger.info("✓ Database migrations completed successfully")
+            db_status = db_service.health_check()
+            if db_status['healthy']:
+                logger.info("✓ Database health check passed")
+                migration_status = db_service.get_migration_status()
+                if migration_status.get('available'):
+                    logger.info(f"✓ Current migration: {migration_status.get('current_revision', 'None')}")
+                    logger.info(f"✓ Latest migration: {migration_status.get('head_revision', 'None')}")
+            else:
+                logger.warning(f"⚠ Database health check failed: {db_status.get('error')}")
+        else:
+            logger.warning("⚠ Database migrations failed or skipped")
+    else:
+        logger.info("RUN_MIGRATIONS=false - Skipping migrations (Celery worker mode)")
         db_status = db_service.health_check()
         if db_status['healthy']:
-            logger.info("✓ Database health check passed")
-            migration_status = db_service.get_migration_status()
-            if migration_status.get('available'):
-                logger.info(f"✓ Current migration: {migration_status.get('current_revision', 'None')}")
-                logger.info(f"✓ Latest migration: {migration_status.get('head_revision', 'None')}")
+            logger.info("✓ Database connection verified")
         else:
             logger.warning(f"⚠ Database health check failed: {db_status.get('error')}")
-    else:
-        logger.warning("⚠ Database migrations failed or skipped")
 else:
     logger.warning("⚠ Database service not available (JARVIS_DATABASE_URL not set)")
     logger.warning("  The dashboard will run without database-backed features")
