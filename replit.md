@@ -28,8 +28,8 @@ The Nebula Command Dashboard is a web-based interface for managing a Ubuntu 25.1
 - Kick OAuth: ✓ Configured
 
 ### Bootstrap Fixes
-- **Discord Bot Missing Package:** Added `openai` to dependencies - was causing "Cannot find package 'openai'" errors on startup
-- **Migration 017 Concurrency Fix:** Added try/except guards around enum type creation to handle concurrent execution from multiple Celery workers
+- **Discord Bot Missing Packages:** Added `openai`, `p-limit`, and `p-retry` to dependencies - was causing "Cannot find package" errors on startup
+- **Migration 017 Concurrency Fix:** Updated enum creation to use PostgreSQL DO blocks with EXCEPTION handlers for idempotent execution - prevents "invalid input value for enum" errors during concurrent migrations
 - **Celery Worker Migration Prevention:** Added RUN_MIGRATIONS check to app.py - workers now skip migrations (RUN_MIGRATIONS=false) while dashboard runs them
 
 ## Code-Server X-Frame-Options Fix (November 26, 2025)
