@@ -1,7 +1,7 @@
 """Add Jarvis AI models, enhanced logging, and service config tables
 
-Revision ID: 018_add_jarvis_ai_enhanced_logging
-Revises: 017_add_rbac_audit_deployment_queue
+Revision ID: 018_jarvis_ai_logging
+Revises: 017_rbac_audit_deploy
 Create Date: 2025-11-26
 
 """
@@ -9,8 +9,8 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
-revision = '018_add_jarvis_ai_enhanced_logging'
-down_revision = '017_add_rbac_audit_deployment_queue'
+revision = '018_jarvis_ai_logging'
+down_revision = '017_rbac_audit_deploy'
 branch_labels = None
 depends_on = None
 
