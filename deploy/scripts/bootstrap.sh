@@ -132,12 +132,19 @@ echo -e "${GREEN}✓ Environment ready${NC}"
 # ═══════════════════════════════════════════════════════════════════
 echo -e "\n${CYAN}[2b/6] Creating required directories...${NC}"
 
-SERVICE_USER=$(grep "^SERVICE_USER=" .env | cut -d'=' -f2 || echo "evin")
-mkdir -p "/home/${SERVICE_USER}/contain" 2>/dev/null || true
-mkdir -p "/var/www" 2>/dev/null || true
+# Read path configuration from .env (with defaults)
+HOMELAB_ROOT=$(grep "^HOMELAB_PROJECT_ROOT=" .env | cut -d'=' -f2 || echo "/data/projects")
+STATIC_SITE=$(grep "^STATIC_SITE_PATH=" .env | cut -d'=' -f2 || echo "/var/www")
+DATA_DIR=$(grep "^DATA_DIR=" .env | cut -d'=' -f2 || echo "/data")
+
+# Create all required directories
+mkdir -p "$HOMELAB_ROOT" 2>/dev/null || true
+mkdir -p "$STATIC_SITE" 2>/dev/null || true
+mkdir -p "$DATA_DIR/plex/media" 2>/dev/null || true
 mkdir -p "$PROJECT_ROOT/services/dashboard/logs" 2>/dev/null || true
 mkdir -p "$PROJECT_ROOT/services/discord-bot/logs" 2>/dev/null || true
 mkdir -p "$PROJECT_ROOT/services/stream-bot/logs" 2>/dev/null || true
+mkdir -p "$PROJECT_ROOT/config/postgres-init" 2>/dev/null || true
 
 echo -e "${GREEN}✓ Directories ready${NC}"
 

@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from .workflow import Workflow
 
 class Project(Base):
-    """Detected projects from /home/evin/contain/"""
+    """Detected projects from project root"""
     __tablename__ = 'projects'
     
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

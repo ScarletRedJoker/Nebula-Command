@@ -17,7 +17,7 @@ branch_labels = None
 depends_on = None
 
 def upgrade():
-    # 1. Projects table - stores detected projects from /home/evin/contain/
+    # 1. Projects table - stores detected projects from project root
     op.create_table(
         'projects',
         sa.Column('id', UUID(as_uuid=True), primary_key=True, default=uuid.uuid4),

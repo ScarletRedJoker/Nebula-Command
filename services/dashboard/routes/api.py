@@ -475,8 +475,8 @@ ALLOWED_COMMANDS = [
 
 SAFE_DIRECTORIES = [
     '/var/log',
-    '/home/evin/contain',
-    '/var/www',
+    os.environ.get('HOMELAB_PROJECT_ROOT', '/data/projects'),
+    os.environ.get('STATIC_SITE_PATH', '/var/www'),
 ]
 
 SHELL_OPERATORS = ['&&', '||', ';', '|', '>', '<', '>>']

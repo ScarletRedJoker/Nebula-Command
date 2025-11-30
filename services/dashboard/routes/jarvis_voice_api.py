@@ -2,6 +2,7 @@
 from flask import Blueprint, jsonify, request
 from datetime import datetime
 import logging
+import os
 import uuid
 import re
 from sqlalchemy import func
@@ -135,9 +136,10 @@ def deploy_project():
             
             if not project:
                 # Create new project
+                project_root = os.environ.get('HOMELAB_PROJECT_ROOT', '/data/projects')
                 project = Project(
                     name=project_name,
-                    path=f"/home/evin/contain/{project_name}",
+                    path=f"{project_root}/{project_name}",
                     project_type=project_type,
                     status='deploying',
                     config={'domain': domain} if domain else {}
@@ -1067,7 +1069,8 @@ def jarvis_wizard_install():
         
         deployment_id = str(uuid_module.uuid4())
         app_name = variables.get('APP_NAME', template_id)
-        deployment_dir = Path(f"/home/evin/contain/marketplace/{app_name}")
+        project_root = os.environ.get('HOMELAB_PROJECT_ROOT', '/data/projects')
+        deployment_dir = Path(f"{project_root}/marketplace/{app_name}")
         deployment_dir.mkdir(parents=True, exist_ok=True)
         
         compose_file = deployment_dir / "docker-compose.yml"

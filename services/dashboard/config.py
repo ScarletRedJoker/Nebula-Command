@@ -62,7 +62,7 @@ class Config:
     # Plex Media Server configuration
     PLEX_URL = os.environ.get('PLEX_URL', 'http://plex:32400')
     PLEX_TOKEN = os.environ.get('PLEX_TOKEN', '')  # Get from Plex settings
-    PLEX_MEDIA_PATH = os.environ.get('PLEX_MEDIA_PATH', '/home/evin/contain/HomeLabHub/services/plex/media')
+    PLEX_MEDIA_PATH = os.environ.get('PLEX_MEDIA_PATH', '/data/plex/media')
     PLEX_MOVIES_PATH = os.path.join(PLEX_MEDIA_PATH, 'Movies')
     PLEX_TV_PATH = os.path.join(PLEX_MEDIA_PATH, 'TV Shows')
     PLEX_MUSIC_PATH = os.path.join(PLEX_MEDIA_PATH, 'Music')

@@ -10,6 +10,7 @@ from services.cache_service import cache_service
 from utils.auth import require_auth
 from sqlalchemy import select
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -492,7 +493,8 @@ def install_template():
         
         deployment_id = str(uuid.uuid4())
         app_name = variables.get('APP_NAME', template_id)
-        deployment_dir = Path(f"/home/evin/contain/marketplace/{app_name}")
+        project_root = os.environ.get('HOMELAB_PROJECT_ROOT', '/data/projects')
+        deployment_dir = Path(f"{project_root}/marketplace/{app_name}")
         deployment_dir.mkdir(parents=True, exist_ok=True)
         
         compose_file = deployment_dir / "docker-compose.yml"
