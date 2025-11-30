@@ -210,3 +210,13 @@ def fleet_management():
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'
     return response
+
+@web_bp.route('/jarvis-code')
+@require_web_auth
+def jarvis_code():
+    """Jarvis Code Integration - AI-powered code editing and deployment"""
+    response = make_response(render_template('jarvis_code.html'))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response

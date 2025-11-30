@@ -76,7 +76,7 @@ class AuditLog(Base):
             'duration_ms': self.duration_ms,
             'success': self.success == 'true',
             'error_message': self.error_message,
-            'timestamp': self.timestamp.isoformat() if self.timestamp else None,
+            'timestamp': self.timestamp.isoformat() if self.timestamp is not None else None,
             'metadata': self.metadata_json
         }
     

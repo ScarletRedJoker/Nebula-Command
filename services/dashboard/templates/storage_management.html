@@ -1,0 +1,1407 @@
+{% extends "base.html" %}
+
+{% block title %}Storage Management - Nebula Command{% endblock %}
+{% block page_title %}<i class="bi bi-cloud-arrow-up-down"></i> Unified Storage Management{% endblock %}
+
+{% block extra_css %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+    .storage-split-view {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        margin-bottom: 20px;
+    }
+    
+    @media (max-width: 1200px) {
+        .storage-split-view {
+            grid-template-columns: 1fr;
+        }
+    }
+    
+    .storage-panel {
+        background: linear-gradient(145deg, rgba(31, 41, 55, 0.6) 0%, rgba(17, 24, 39, 0.9) 100%);
+        border: 1px solid rgba(139, 92, 246, 0.3);
+        border-radius: 16px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        min-height: 500px;
+        backdrop-filter: blur(16px);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+    
+    .storage-panel.local-panel {
+        border-color: rgba(34, 197, 94, 0.4);
+    }
+    
+    .storage-panel.cloud-panel {
+        border-color: rgba(59, 130, 246, 0.4);
+    }
+    
+    .panel-header {
+        padding: 16px 20px;
+        border-bottom: 1px solid rgba(96, 165, 250, 0.2);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: rgba(17, 24, 39, 0.5);
+    }
+    
+    .panel-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .panel-title .icon-local {
+        color: #22C55E;
+    }
+    
+    .panel-title .icon-cloud {
+        color: #3B82F6;
+    }
+    
+    .status-badge {
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    
+    .status-online {
+        background: rgba(34, 197, 94, 0.2);
+        color: #22C55E;
+        border: 1px solid rgba(34, 197, 94, 0.4);
+    }
+    
+    .status-offline {
+        background: rgba(239, 68, 68, 0.2);
+        color: #EF4444;
+        border: 1px solid rgba(239, 68, 68, 0.4);
+    }
+    
+    .panel-toolbar {
+        padding: 12px 20px;
+        background: rgba(31, 41, 55, 0.5);
+        border-bottom: 1px solid rgba(96, 165, 250, 0.1);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+    
+    .bucket-select {
+        flex: 1;
+        min-width: 200px;
+    }
+    
+    .bucket-select select {
+        width: 100%;
+        background: rgba(17, 24, 39, 0.8);
+        border: 1px solid rgba(96, 165, 250, 0.3);
+        color: var(--text-primary);
+        padding: 8px 12px;
+        border-radius: 8px;
+        font-size: 0.9rem;
+    }
+    
+    .bucket-select select:focus {
+        outline: none;
+        border-color: rgba(139, 92, 246, 0.6);
+        box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2);
+    }
+    
+    .toolbar-btn {
+        background: rgba(96, 165, 250, 0.1);
+        border: 1px solid rgba(96, 165, 250, 0.3);
+        color: var(--text-primary);
+        padding: 8px 14px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.875rem;
+    }
+    
+    .toolbar-btn:hover {
+        background: rgba(96, 165, 250, 0.2);
+        border-color: rgba(96, 165, 250, 0.5);
+    }
+    
+    .toolbar-btn.btn-primary {
+        background: linear-gradient(135deg, #8B5CF6, #EC4899);
+        border: none;
+        color: white;
+    }
+    
+    .toolbar-btn.btn-primary:hover {
+        box-shadow: 0 4px 16px rgba(139, 92, 246, 0.4);
+    }
+    
+    .panel-content {
+        flex: 1;
+        overflow: auto;
+        padding: 16px 20px;
+    }
+    
+    .file-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    
+    .file-item {
+        display: flex;
+        align-items: center;
+        padding: 12px 16px;
+        background: rgba(31, 41, 55, 0.4);
+        border: 1px solid rgba(96, 165, 250, 0.1);
+        border-radius: 10px;
+        margin-bottom: 8px;
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+    
+    .file-item:hover {
+        background: rgba(31, 41, 55, 0.7);
+        border-color: rgba(96, 165, 250, 0.3);
+    }
+    
+    .file-item.selected {
+        background: rgba(139, 92, 246, 0.2);
+        border-color: rgba(139, 92, 246, 0.5);
+    }
+    
+    .file-icon {
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(96, 165, 250, 0.1);
+        border-radius: 8px;
+        margin-right: 14px;
+        font-size: 1.2rem;
+    }
+    
+    .file-icon.folder {
+        color: #FBB F24;
+    }
+    
+    .file-icon.file {
+        color: #60A5FA;
+    }
+    
+    .file-info {
+        flex: 1;
+    }
+    
+    .file-name {
+        font-weight: 500;
+        color: var(--text-primary);
+        margin-bottom: 2px;
+    }
+    
+    .file-meta {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+    }
+    
+    .file-actions {
+        display: flex;
+        gap: 6px;
+    }
+    
+    .file-action-btn {
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(96, 165, 250, 0.1);
+        border: 1px solid rgba(96, 165, 250, 0.2);
+        border-radius: 6px;
+        color: var(--text-secondary);
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .file-action-btn:hover {
+        background: rgba(96, 165, 250, 0.2);
+        color: var(--text-primary);
+    }
+    
+    .file-action-btn.delete:hover {
+        background: rgba(239, 68, 68, 0.2);
+        border-color: rgba(239, 68, 68, 0.4);
+        color: #EF4444;
+    }
+    
+    .upload-zone {
+        border: 2px dashed rgba(139, 92, 246, 0.4);
+        border-radius: 12px;
+        padding: 40px 20px;
+        text-align: center;
+        transition: all 0.3s ease;
+        cursor: pointer;
+        background: rgba(139, 92, 246, 0.05);
+    }
+    
+    .upload-zone:hover,
+    .upload-zone.dragover {
+        border-color: rgba(139, 92, 246, 0.8);
+        background: rgba(139, 92, 246, 0.1);
+    }
+    
+    .upload-zone i {
+        font-size: 3rem;
+        color: rgba(139, 92, 246, 0.6);
+        margin-bottom: 16px;
+    }
+    
+    .upload-zone h5 {
+        color: var(--text-primary);
+        margin-bottom: 8px;
+    }
+    
+    .upload-zone p {
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+    }
+    
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+        margin-bottom: 20px;
+    }
+    
+    .stat-card {
+        background: linear-gradient(145deg, rgba(31, 41, 55, 0.6) 0%, rgba(17, 24, 39, 0.9) 100%);
+        border: 1px solid rgba(139, 92, 246, 0.3);
+        border-radius: 12px;
+        padding: 20px;
+        text-align: center;
+    }
+    
+    .stat-value {
+        font-size: 1.8rem;
+        font-weight: 700;
+        background: linear-gradient(135deg, #8B5CF6 0%, #EC4899 50%, #3B82F6 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    .stat-label {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-top: 4px;
+    }
+    
+    .sync-controls {
+        background: linear-gradient(145deg, rgba(31, 41, 55, 0.6) 0%, rgba(17, 24, 39, 0.9) 100%);
+        border: 1px solid rgba(139, 92, 246, 0.3);
+        border-radius: 16px;
+        padding: 24px;
+        margin-bottom: 20px;
+    }
+    
+    .sync-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 20px;
+    }
+    
+    .sync-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .sync-direction {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 20px;
+        margin-bottom: 20px;
+    }
+    
+    .sync-endpoint {
+        flex: 1;
+        text-align: center;
+        padding: 16px;
+        background: rgba(31, 41, 55, 0.5);
+        border-radius: 10px;
+        border: 1px solid rgba(96, 165, 250, 0.2);
+    }
+    
+    .sync-endpoint i {
+        font-size: 2rem;
+        margin-bottom: 8px;
+    }
+    
+    .sync-endpoint.local i {
+        color: #22C55E;
+    }
+    
+    .sync-endpoint.cloud i {
+        color: #3B82F6;
+    }
+    
+    .sync-arrow {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .sync-arrow i {
+        font-size: 1.5rem;
+        color: var(--accent-purple);
+    }
+    
+    .sync-options {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+    
+    .sync-option {
+        flex: 1;
+        min-width: 200px;
+    }
+    
+    .sync-option select {
+        width: 100%;
+        background: rgba(17, 24, 39, 0.8);
+        border: 1px solid rgba(96, 165, 250, 0.3);
+        color: var(--text-primary);
+        padding: 10px 14px;
+        border-radius: 8px;
+    }
+    
+    .modal-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(4px);
+        z-index: 1050;
+        display: none;
+    }
+    
+    .modal-backdrop.show {
+        display: block;
+    }
+    
+    .custom-modal {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: linear-gradient(145deg, rgba(31, 41, 55, 0.98) 0%, rgba(17, 24, 39, 0.98) 100%);
+        border: 1px solid rgba(139, 92, 246, 0.4);
+        border-radius: 16px;
+        padding: 24px;
+        width: 90%;
+        max-width: 500px;
+        z-index: 1051;
+        display: none;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    }
+    
+    .custom-modal.show {
+        display: block;
+    }
+    
+    .modal-header-custom {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 20px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid rgba(96, 165, 250, 0.2);
+    }
+    
+    .modal-title-custom {
+        font-size: 1.2rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .modal-close {
+        background: none;
+        border: none;
+        color: var(--text-secondary);
+        font-size: 1.5rem;
+        cursor: pointer;
+        transition: color 0.2s;
+    }
+    
+    .modal-close:hover {
+        color: var(--text-primary);
+    }
+    
+    .form-group {
+        margin-bottom: 16px;
+    }
+    
+    .form-label {
+        display: block;
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+        margin-bottom: 6px;
+    }
+    
+    .form-control {
+        width: 100%;
+        background: rgba(17, 24, 39, 0.8);
+        border: 1px solid rgba(96, 165, 250, 0.3);
+        color: var(--text-primary);
+        padding: 10px 14px;
+        border-radius: 8px;
+        font-size: 0.95rem;
+    }
+    
+    .form-control:focus {
+        outline: none;
+        border-color: rgba(139, 92, 246, 0.6);
+        box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2);
+    }
+    
+    .modal-footer-custom {
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+        margin-top: 24px;
+        padding-top: 16px;
+        border-top: 1px solid rgba(96, 165, 250, 0.2);
+    }
+    
+    .btn-cancel {
+        background: rgba(107, 114, 128, 0.3);
+        border: 1px solid rgba(107, 114, 128, 0.5);
+        color: var(--text-primary);
+        padding: 10px 20px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .btn-cancel:hover {
+        background: rgba(107, 114, 128, 0.5);
+    }
+    
+    .btn-submit {
+        background: linear-gradient(135deg, #8B5CF6, #EC4899);
+        border: none;
+        color: white;
+        padding: 10px 24px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 500;
+        transition: all 0.2s;
+    }
+    
+    .btn-submit:hover {
+        box-shadow: 0 4px 16px rgba(139, 92, 246, 0.4);
+    }
+    
+    .btn-submit:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+    
+    .chart-container {
+        position: relative;
+        height: 200px;
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 40px 20px;
+        color: var(--text-secondary);
+    }
+    
+    .empty-state i {
+        font-size: 3rem;
+        margin-bottom: 16px;
+        opacity: 0.5;
+    }
+    
+    .breadcrumb-nav {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 0;
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+        margin-bottom: 12px;
+    }
+    
+    .breadcrumb-item {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+    
+    .breadcrumb-item a {
+        color: var(--accent-blue);
+        text-decoration: none;
+        cursor: pointer;
+    }
+    
+    .breadcrumb-item a:hover {
+        text-decoration: underline;
+    }
+    
+    .loading-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(17, 24, 39, 0.8);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+        border-radius: 16px;
+    }
+    
+    .spinner {
+        width: 40px;
+        height: 40px;
+        border: 3px solid rgba(139, 92, 246, 0.2);
+        border-top-color: #8B5CF6;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+    
+    .progress-bar {
+        height: 6px;
+        background: rgba(96, 165, 250, 0.2);
+        border-radius: 3px;
+        overflow: hidden;
+        margin-top: 8px;
+    }
+    
+    .progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #8B5CF6, #EC4899);
+        border-radius: 3px;
+        transition: width 0.3s ease;
+    }
+    
+    .toast-container {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 2000;
+    }
+    
+    .toast {
+        background: rgba(31, 41, 55, 0.95);
+        border: 1px solid rgba(139, 92, 246, 0.4);
+        border-radius: 10px;
+        padding: 14px 20px;
+        margin-top: 10px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        animation: slideIn 0.3s ease;
+    }
+    
+    .toast.success { border-color: rgba(34, 197, 94, 0.5); }
+    .toast.error { border-color: rgba(239, 68, 68, 0.5); }
+    
+    @keyframes slideIn {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value" id="statLocalBuckets">--</div>
+            <div class="stat-label">Local Buckets</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="statLocalSize">--</div>
+            <div class="stat-label">Local Storage</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="statCloudBuckets">--</div>
+            <div class="stat-label">Cloud Buckets</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="statCloudSize">--</div>
+            <div class="stat-label">Cloud Storage</div>
+        </div>
+    </div>
+
+    <div class="sync-controls">
+        <div class="sync-header">
+            <div class="sync-title">
+                <i class="bi bi-arrow-left-right"></i>
+                Bucket Sync & Mirror
+            </div>
+        </div>
+        <div class="sync-direction">
+            <div class="sync-endpoint local">
+                <i class="bi bi-hdd-rack"></i>
+                <div>Local (MinIO)</div>
+            </div>
+            <div class="sync-arrow">
+                <i class="bi bi-arrow-left-right"></i>
+                <select id="syncDirection" class="form-control" style="width: 160px;">
+                    <option value="local-to-cloud">Local → Cloud</option>
+                    <option value="cloud-to-local">Cloud → Local</option>
+                </select>
+            </div>
+            <div class="sync-endpoint cloud">
+                <i class="bi bi-cloud"></i>
+                <div>Cloud (S3)</div>
+            </div>
+        </div>
+        <div class="sync-options">
+            <div class="sync-option">
+                <label class="form-label">Select Bucket</label>
+                <select id="syncBucket" class="form-control">
+                    <option value="">Select a bucket...</option>
+                </select>
+            </div>
+            <div class="sync-option" style="flex: 0; min-width: auto;">
+                <label class="form-label">&nbsp;</label>
+                <button class="toolbar-btn btn-primary" onclick="syncBucket()" id="btnSync">
+                    <i class="bi bi-arrow-repeat"></i> Sync Now
+                </button>
+            </div>
+            <div class="sync-option" style="flex: 0; min-width: auto;">
+                <label class="form-label">&nbsp;</label>
+                <button class="toolbar-btn" onclick="mirrorToCloud()" id="btnMirror">
+                    <i class="bi bi-cloud-upload"></i> Mirror to Cloud
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="storage-split-view">
+        <div class="storage-panel local-panel" id="localPanel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <i class="bi bi-hdd-rack icon-local"></i>
+                    Local Storage (MinIO)
+                </div>
+                <span class="status-badge" id="localStatus">Checking...</span>
+            </div>
+            <div class="panel-toolbar">
+                <div class="bucket-select">
+                    <select id="localBucket" onchange="loadObjects('local')">
+                        <option value="">Select bucket...</option>
+                    </select>
+                </div>
+                <button class="toolbar-btn" onclick="showCreateBucketModal('local')">
+                    <i class="bi bi-plus-circle"></i> New Bucket
+                </button>
+                <button class="toolbar-btn" onclick="refreshBuckets('local')">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+            <div class="panel-content" id="localContent">
+                <div id="localUploadZone" class="upload-zone" ondrop="handleDrop(event, 'local')" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)">
+                    <i class="bi bi-cloud-arrow-up"></i>
+                    <h5>Drag & Drop Files</h5>
+                    <p>or click to browse</p>
+                    <input type="file" id="localFileInput" multiple style="display: none;" onchange="handleFileSelect(event, 'local')">
+                </div>
+                <div class="breadcrumb-nav" id="localBreadcrumb" style="display: none;"></div>
+                <ul class="file-list" id="localFileList"></ul>
+            </div>
+        </div>
+
+        <div class="storage-panel cloud-panel" id="cloudPanel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <i class="bi bi-cloud icon-cloud"></i>
+                    Cloud Storage (S3)
+                </div>
+                <span class="status-badge" id="cloudStatus">Checking...</span>
+            </div>
+            <div class="panel-toolbar">
+                <div class="bucket-select">
+                    <select id="cloudBucket" onchange="loadObjects('cloud')">
+                        <option value="">Select bucket...</option>
+                    </select>
+                </div>
+                <button class="toolbar-btn" onclick="showCreateBucketModal('cloud')">
+                    <i class="bi bi-plus-circle"></i> New Bucket
+                </button>
+                <button class="toolbar-btn" onclick="refreshBuckets('cloud')">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+            <div class="panel-content" id="cloudContent">
+                <div id="cloudUploadZone" class="upload-zone" ondrop="handleDrop(event, 'cloud')" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)">
+                    <i class="bi bi-cloud-arrow-up"></i>
+                    <h5>Drag & Drop Files</h5>
+                    <p>or click to browse</p>
+                    <input type="file" id="cloudFileInput" multiple style="display: none;" onchange="handleFileSelect(event, 'cloud')">
+                </div>
+                <div class="breadcrumb-nav" id="cloudBreadcrumb" style="display: none;"></div>
+                <ul class="file-list" id="cloudFileList"></ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal-backdrop" id="modalBackdrop"></div>
+
+<div class="custom-modal" id="createBucketModal">
+    <div class="modal-header-custom">
+        <div class="modal-title-custom">
+            <i class="bi bi-plus-circle"></i>
+            Create New Bucket
+        </div>
+        <button class="modal-close" onclick="closeModal()">&times;</button>
+    </div>
+    <form id="createBucketForm" onsubmit="createBucket(event)">
+        <div class="form-group">
+            <label class="form-label">Bucket Name</label>
+            <input type="text" class="form-control" id="newBucketName" required 
+                   pattern="[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]"
+                   placeholder="my-bucket-name">
+            <small class="text-muted">Lowercase letters, numbers, hyphens. 3-63 characters.</small>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Backend</label>
+            <select class="form-control" id="newBucketBackend">
+                <option value="local">Local (MinIO)</option>
+                <option value="cloud">Cloud (S3)</option>
+            </select>
+        </div>
+        <div class="modal-footer-custom">
+            <button type="button" class="btn-cancel" onclick="closeModal()">Cancel</button>
+            <button type="submit" class="btn-submit">Create Bucket</button>
+        </div>
+    </form>
+</div>
+
+<div class="custom-modal" id="copyModal">
+    <div class="modal-header-custom">
+        <div class="modal-title-custom">
+            <i class="bi bi-files"></i>
+            Copy Object
+        </div>
+        <button class="modal-close" onclick="closeModal()">&times;</button>
+    </div>
+    <form id="copyForm" onsubmit="copyObject(event)">
+        <div class="form-group">
+            <label class="form-label">Source</label>
+            <input type="text" class="form-control" id="copySrc" readonly>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Destination Backend</label>
+            <select class="form-control" id="copyDstBackend" onchange="updateCopyBuckets()">
+                <option value="local">Local (MinIO)</option>
+                <option value="cloud">Cloud (S3)</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Destination Bucket</label>
+            <select class="form-control" id="copyDstBucket"></select>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Destination Key</label>
+            <input type="text" class="form-control" id="copyDstKey" required>
+        </div>
+        <input type="hidden" id="copySrcBucket">
+        <input type="hidden" id="copySrcKey">
+        <input type="hidden" id="copySrcBackend">
+        <div class="modal-footer-custom">
+            <button type="button" class="btn-cancel" onclick="closeModal()">Cancel</button>
+            <button type="submit" class="btn-submit">Copy Object</button>
+        </div>
+    </form>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+let localBuckets = [];
+let cloudBuckets = [];
+let currentPrefixes = { local: '', cloud: '' };
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadStorageStats();
+    loadBuckets();
+    
+    document.getElementById('localUploadZone').addEventListener('click', () => {
+        document.getElementById('localFileInput').click();
+    });
+    document.getElementById('cloudUploadZone').addEventListener('click', () => {
+        document.getElementById('cloudFileInput').click();
+    });
+});
+
+async function loadStorageStats() {
+    try {
+        const response = await fetch('/api/storage/stats');
+        const data = await response.json();
+        
+        if (data.success) {
+            const stats = data.stats;
+            
+            if (stats.local) {
+                document.getElementById('localStatus').textContent = stats.local.available ? 'Online' : 'Offline';
+                document.getElementById('localStatus').className = `status-badge ${stats.local.available ? 'status-online' : 'status-offline'}`;
+                if (stats.local.available) {
+                    document.getElementById('statLocalBuckets').textContent = stats.local.total_buckets;
+                    document.getElementById('statLocalSize').textContent = stats.local.total_size_human;
+                }
+            }
+            
+            if (stats.cloud) {
+                document.getElementById('cloudStatus').textContent = stats.cloud.available ? 'Online' : 'Offline';
+                document.getElementById('cloudStatus').className = `status-badge ${stats.cloud.available ? 'status-online' : 'status-offline'}`;
+                if (stats.cloud.available) {
+                    document.getElementById('statCloudBuckets').textContent = stats.cloud.total_buckets;
+                    document.getElementById('statCloudSize').textContent = stats.cloud.total_size_human;
+                } else {
+                    document.getElementById('statCloudBuckets').textContent = 'N/A';
+                    document.getElementById('statCloudSize').textContent = 'Not configured';
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Error loading stats:', error);
+    }
+}
+
+async function loadBuckets() {
+    try {
+        const response = await fetch('/api/storage/buckets');
+        const data = await response.json();
+        
+        if (data.success) {
+            localBuckets = data.local || [];
+            cloudBuckets = data.cloud || [];
+            
+            updateBucketSelects('local', localBuckets);
+            updateBucketSelects('cloud', cloudBuckets);
+            updateSyncBucketSelect();
+        }
+    } catch (error) {
+        console.error('Error loading buckets:', error);
+    }
+}
+
+function updateBucketSelects(backend, buckets) {
+    const select = document.getElementById(`${backend}Bucket`);
+    select.innerHTML = '<option value="">Select bucket...</option>';
+    
+    buckets.forEach(bucket => {
+        const option = document.createElement('option');
+        option.value = bucket.name;
+        option.textContent = `${bucket.name} (${bucket.size_human}, ${bucket.object_count} objects)`;
+        select.appendChild(option);
+    });
+}
+
+function updateSyncBucketSelect() {
+    const select = document.getElementById('syncBucket');
+    const direction = document.getElementById('syncDirection').value;
+    const buckets = direction === 'local-to-cloud' ? localBuckets : cloudBuckets;
+    
+    select.innerHTML = '<option value="">Select a bucket...</option>';
+    buckets.forEach(bucket => {
+        const option = document.createElement('option');
+        option.value = bucket.name;
+        option.textContent = bucket.name;
+        select.appendChild(option);
+    });
+}
+
+document.getElementById('syncDirection').addEventListener('change', updateSyncBucketSelect);
+
+async function loadObjects(backend) {
+    const bucket = document.getElementById(`${backend}Bucket`).value;
+    if (!bucket) return;
+    
+    const prefix = currentPrefixes[backend];
+    const fileList = document.getElementById(`${backend}FileList`);
+    const breadcrumb = document.getElementById(`${backend}Breadcrumb`);
+    
+    fileList.innerHTML = '<li class="text-center text-muted py-4">Loading...</li>';
+    
+    try {
+        const response = await fetch(`/api/storage/buckets/${bucket}/objects?backend=${backend}&prefix=${prefix}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            renderFileList(backend, data.objects, data.folders, bucket);
+            renderBreadcrumb(backend, bucket, prefix);
+        }
+    } catch (error) {
+        console.error('Error loading objects:', error);
+        fileList.innerHTML = '<li class="text-center text-danger py-4">Error loading objects</li>';
+    }
+}
+
+function renderFileList(backend, objects, folders, bucket) {
+    const fileList = document.getElementById(`${backend}FileList`);
+    fileList.innerHTML = '';
+    
+    if (currentPrefixes[backend]) {
+        const li = document.createElement('li');
+        li.className = 'file-item';
+        li.innerHTML = `
+            <div class="file-icon folder"><i class="bi bi-arrow-up-circle"></i></div>
+            <div class="file-info">
+                <div class="file-name">..</div>
+                <div class="file-meta">Go back</div>
+            </div>
+        `;
+        li.onclick = () => navigateUp(backend);
+        fileList.appendChild(li);
+    }
+    
+    folders.forEach(folder => {
+        const li = document.createElement('li');
+        li.className = 'file-item';
+        li.innerHTML = `
+            <div class="file-icon folder"><i class="bi bi-folder-fill"></i></div>
+            <div class="file-info">
+                <div class="file-name">${folder.replace(currentPrefixes[backend], '').replace('/', '')}</div>
+                <div class="file-meta">Folder</div>
+            </div>
+        `;
+        li.onclick = () => navigateToFolder(backend, folder);
+        fileList.appendChild(li);
+    });
+    
+    objects.forEach(obj => {
+        const fileName = obj.key.split('/').pop();
+        const li = document.createElement('li');
+        li.className = 'file-item';
+        li.innerHTML = `
+            <div class="file-icon file"><i class="bi bi-file-earmark"></i></div>
+            <div class="file-info">
+                <div class="file-name">${fileName}</div>
+                <div class="file-meta">${obj.size_human} &bull; ${obj.last_modified ? new Date(obj.last_modified).toLocaleDateString() : 'N/A'}</div>
+            </div>
+            <div class="file-actions">
+                <button class="file-action-btn" title="Download" onclick="event.stopPropagation(); downloadFile('${bucket}', '${obj.key}', '${backend}')">
+                    <i class="bi bi-download"></i>
+                </button>
+                <button class="file-action-btn" title="Copy" onclick="event.stopPropagation(); showCopyModal('${bucket}', '${obj.key}', '${backend}')">
+                    <i class="bi bi-files"></i>
+                </button>
+                <button class="file-action-btn delete" title="Delete" onclick="event.stopPropagation(); deleteObject('${bucket}', '${obj.key}', '${backend}')">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        `;
+        fileList.appendChild(li);
+    });
+    
+    if (objects.length === 0 && folders.length === 0 && !currentPrefixes[backend]) {
+        fileList.innerHTML = `
+            <li class="empty-state">
+                <i class="bi bi-inbox"></i>
+                <p>No objects in this bucket</p>
+            </li>
+        `;
+    }
+}
+
+function renderBreadcrumb(backend, bucket, prefix) {
+    const breadcrumb = document.getElementById(`${backend}Breadcrumb`);
+    breadcrumb.style.display = 'flex';
+    
+    let html = `<span class="breadcrumb-item"><a onclick="navigateToRoot('${backend}')">${bucket}</a></span>`;
+    
+    if (prefix) {
+        const parts = prefix.split('/').filter(p => p);
+        let path = '';
+        parts.forEach((part, i) => {
+            path += part + '/';
+            const isLast = i === parts.length - 1;
+            html += ` <i class="bi bi-chevron-right"></i> `;
+            if (isLast) {
+                html += `<span class="breadcrumb-item">${part}</span>`;
+            } else {
+                html += `<span class="breadcrumb-item"><a onclick="navigateToPath('${backend}', '${path}')">${part}</a></span>`;
+            }
+        });
+    }
+    
+    breadcrumb.innerHTML = html;
+}
+
+function navigateToFolder(backend, folder) {
+    currentPrefixes[backend] = folder;
+    loadObjects(backend);
+}
+
+function navigateUp(backend) {
+    const parts = currentPrefixes[backend].split('/').filter(p => p);
+    parts.pop();
+    currentPrefixes[backend] = parts.length ? parts.join('/') + '/' : '';
+    loadObjects(backend);
+}
+
+function navigateToRoot(backend) {
+    currentPrefixes[backend] = '';
+    loadObjects(backend);
+}
+
+function navigateToPath(backend, path) {
+    currentPrefixes[backend] = path;
+    loadObjects(backend);
+}
+
+function handleDragOver(e) {
+    e.preventDefault();
+    e.currentTarget.classList.add('dragover');
+}
+
+function handleDragLeave(e) {
+    e.currentTarget.classList.remove('dragover');
+}
+
+function handleDrop(e, backend) {
+    e.preventDefault();
+    e.currentTarget.classList.remove('dragover');
+    
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+        uploadFiles(files, backend);
+    }
+}
+
+function handleFileSelect(e, backend) {
+    const files = e.target.files;
+    if (files.length > 0) {
+        uploadFiles(files, backend);
+    }
+}
+
+async function uploadFiles(files, backend) {
+    const bucket = document.getElementById(`${backend}Bucket`).value;
+    if (!bucket) {
+        showToast('Please select a bucket first', 'error');
+        return;
+    }
+    
+    for (const file of files) {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('bucket', bucket);
+        formData.append('key', currentPrefixes[backend] + file.name);
+        formData.append('backend', backend);
+        
+        try {
+            const response = await fetch('/api/storage/upload', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken
+                },
+                body: formData
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                showToast(`Uploaded ${file.name}`, 'success');
+            } else {
+                showToast(`Failed to upload ${file.name}: ${data.error}`, 'error');
+            }
+        } catch (error) {
+            showToast(`Error uploading ${file.name}`, 'error');
+        }
+    }
+    
+    loadObjects(backend);
+    loadStorageStats();
+}
+
+function downloadFile(bucket, key, backend) {
+    window.location.href = `/api/storage/download/${bucket}/${key}?backend=${backend}`;
+}
+
+async function deleteObject(bucket, key, backend) {
+    if (!confirm(`Delete ${key}?`)) return;
+    
+    try {
+        const response = await fetch(`/api/storage/objects/${bucket}/${key}?backend=${backend}`, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRFToken': csrfToken
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast('Object deleted', 'success');
+            loadObjects(backend);
+            loadStorageStats();
+        } else {
+            showToast(`Failed to delete: ${data.error}`, 'error');
+        }
+    } catch (error) {
+        showToast('Error deleting object', 'error');
+    }
+}
+
+function showCreateBucketModal(backend) {
+    document.getElementById('newBucketBackend').value = backend;
+    openModal('createBucketModal');
+}
+
+function showCopyModal(bucket, key, backend) {
+    document.getElementById('copySrcBucket').value = bucket;
+    document.getElementById('copySrcKey').value = key;
+    document.getElementById('copySrcBackend').value = backend;
+    document.getElementById('copySrc').value = `${backend}:${bucket}/${key}`;
+    document.getElementById('copyDstKey').value = key;
+    document.getElementById('copyDstBackend').value = backend === 'local' ? 'cloud' : 'local';
+    updateCopyBuckets();
+    openModal('copyModal');
+}
+
+function updateCopyBuckets() {
+    const backend = document.getElementById('copyDstBackend').value;
+    const buckets = backend === 'local' ? localBuckets : cloudBuckets;
+    const select = document.getElementById('copyDstBucket');
+    
+    select.innerHTML = '';
+    buckets.forEach(bucket => {
+        const option = document.createElement('option');
+        option.value = bucket.name;
+        option.textContent = bucket.name;
+        select.appendChild(option);
+    });
+}
+
+async function createBucket(e) {
+    e.preventDefault();
+    
+    const name = document.getElementById('newBucketName').value;
+    const backend = document.getElementById('newBucketBackend').value;
+    
+    try {
+        const response = await fetch('/api/storage/buckets', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({ name, backend })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast(`Bucket '${name}' created`, 'success');
+            closeModal();
+            loadBuckets();
+            loadStorageStats();
+        } else {
+            showToast(`Failed: ${data.error}`, 'error');
+        }
+    } catch (error) {
+        showToast('Error creating bucket', 'error');
+    }
+}
+
+async function copyObject(e) {
+    e.preventDefault();
+    
+    const data = {
+        src_bucket: document.getElementById('copySrcBucket').value,
+        src_key: document.getElementById('copySrcKey').value,
+        src_backend: document.getElementById('copySrcBackend').value,
+        dst_bucket: document.getElementById('copyDstBucket').value,
+        dst_key: document.getElementById('copyDstKey').value,
+        dst_backend: document.getElementById('copyDstBackend').value
+    };
+    
+    try {
+        const response = await fetch('/api/storage/copy', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast('Object copied successfully', 'success');
+            closeModal();
+            loadObjects(data.dst_backend);
+        } else {
+            showToast(`Failed: ${result.error}`, 'error');
+        }
+    } catch (error) {
+        showToast('Error copying object', 'error');
+    }
+}
+
+async function syncBucket() {
+    const bucket = document.getElementById('syncBucket').value;
+    const direction = document.getElementById('syncDirection').value;
+    
+    if (!bucket) {
+        showToast('Please select a bucket', 'error');
+        return;
+    }
+    
+    const source = direction === 'local-to-cloud' ? 'local' : 'cloud';
+    const destination = direction === 'local-to-cloud' ? 'cloud' : 'local';
+    
+    document.getElementById('btnSync').disabled = true;
+    document.getElementById('btnSync').innerHTML = '<i class="bi bi-arrow-repeat spin"></i> Syncing...';
+    
+    try {
+        const response = await fetch('/api/storage/sync', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({ bucket, source, destination })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast(`Synced: ${data.copied} copied, ${data.skipped} skipped`, 'success');
+            loadBuckets();
+            loadStorageStats();
+        } else {
+            showToast(`Sync failed: ${data.error}`, 'error');
+        }
+    } catch (error) {
+        showToast('Error syncing bucket', 'error');
+    } finally {
+        document.getElementById('btnSync').disabled = false;
+        document.getElementById('btnSync').innerHTML = '<i class="bi bi-arrow-repeat"></i> Sync Now';
+    }
+}
+
+async function mirrorToCloud() {
+    const bucket = document.getElementById('syncBucket').value;
+    
+    if (!bucket) {
+        showToast('Please select a bucket', 'error');
+        return;
+    }
+    
+    document.getElementById('btnMirror').disabled = true;
+    document.getElementById('btnMirror').innerHTML = '<i class="bi bi-cloud-upload spin"></i> Mirroring...';
+    
+    try {
+        const response = await fetch('/api/storage/mirror', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({ bucket })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast(`Mirrored: ${data.copied} objects copied to cloud`, 'success');
+            loadBuckets();
+            loadStorageStats();
+        } else {
+            showToast(`Mirror failed: ${data.error}`, 'error');
+        }
+    } catch (error) {
+        showToast('Error mirroring to cloud', 'error');
+    } finally {
+        document.getElementById('btnMirror').disabled = false;
+        document.getElementById('btnMirror').innerHTML = '<i class="bi bi-cloud-upload"></i> Mirror to Cloud';
+    }
+}
+
+function refreshBuckets(backend) {
+    loadBuckets();
+    showToast(`${backend} buckets refreshed`, 'success');
+}
+
+function openModal(modalId) {
+    document.getElementById('modalBackdrop').classList.add('show');
+    document.getElementById(modalId).classList.add('show');
+}
+
+function closeModal() {
+    document.getElementById('modalBackdrop').classList.remove('show');
+    document.querySelectorAll('.custom-modal').forEach(modal => {
+        modal.classList.remove('show');
+    });
+}
+
+document.getElementById('modalBackdrop').addEventListener('click', closeModal);
+
+function showToast(message, type = 'success') {
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.innerHTML = `
+        <i class="bi bi-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i>
+        <span>${message}</span>
+    `;
+    container.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.remove();
+    }, 4000);
+}
+</script>
+<style>
+    .spin {
+        animation: spin 1s linear infinite;
+    }
+</style>
+{% endblock %}

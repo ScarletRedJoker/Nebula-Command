@@ -39,6 +39,7 @@ from routes.audit_api import audit_bp
 from routes.jarvis_ai_api import jarvis_ai_bp
 from routes.dns_routes import dns_bp
 from routes.fleet_routes import fleet_bp
+from routes.jarvis_code_routes import jarvis_code_bp
 # DISABLED: Subscription/licensing features removed per user request - "Remove subscriptions and don't block access. I never wanted that."
 # from routes.subscription_api import subscription_bp
 from services.activity_service import activity_service
@@ -92,6 +93,7 @@ csrf.exempt(jarvis_ai_bp)  # Jarvis AI API (remediation, anomalies, enhanced cha
 csrf.exempt(nas_bp)  # NAS management API
 csrf.exempt(dns_bp)  # DNS management API (Cloudflare)
 csrf.exempt(fleet_bp)  # Fleet management API (remote host control)
+csrf.exempt(jarvis_code_bp)  # Jarvis Code API (AI code generation and deployment)
 
 limiter.init_app(app)
 logger.info("✓ CSRF Protection and Rate Limiting initialized")
@@ -187,6 +189,7 @@ app.register_blueprint(audit_bp)
 app.register_blueprint(jarvis_ai_bp)
 app.register_blueprint(dns_bp)
 app.register_blueprint(fleet_bp)
+app.register_blueprint(jarvis_code_bp)
 # DISABLED: Subscription blueprint disabled - no subscription/licensing checks
 # app.register_blueprint(subscription_bp)
 

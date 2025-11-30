@@ -104,11 +104,18 @@ class Config:
     STORAGE_SCAN_INTERVAL = int(os.environ.get('STORAGE_SCAN_INTERVAL', '3600'))  # 1 hour
     STORAGE_ALERT_THRESHOLD = float(os.environ.get('STORAGE_ALERT_THRESHOLD', '80.0'))  # percent
     
-    # MinIO configuration
+    # MinIO configuration (Local Storage)
     MINIO_ENDPOINT = os.environ.get('MINIO_ENDPOINT', 'minio:9000')
     MINIO_ACCESS_KEY = os.environ.get('MINIO_ROOT_USER', 'admin')
     MINIO_SECRET_KEY = os.environ.get('MINIO_ROOT_PASSWORD', 'minio_admin_password')
     MINIO_SECURE = os.environ.get('MINIO_SECURE', 'False').lower() == 'true'
+    
+    # Cloud S3 configuration (Backblaze B2 / S3-compatible)
+    CLOUD_S3_ENDPOINT = os.environ.get('CLOUD_S3_ENDPOINT', '')
+    CLOUD_S3_ACCESS_KEY = os.environ.get('CLOUD_S3_ACCESS_KEY', '')
+    CLOUD_S3_SECRET_KEY = os.environ.get('CLOUD_S3_SECRET_KEY', '')
+    CLOUD_S3_REGION = os.environ.get('CLOUD_S3_REGION', 'us-west-002')
+    CLOUD_S3_SECURE = os.environ.get('CLOUD_S3_SECURE', 'True').lower() == 'true'
     
     # Upload limits
     MAX_UPLOAD_SIZE = int(os.environ.get('MAX_UPLOAD_SIZE', 500 * 1024 * 1024))  # 500MB default

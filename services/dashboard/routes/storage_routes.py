@@ -1,10 +1,11 @@
-"""Storage Monitoring API Routes"""
+"""Storage Monitoring and Unified Storage Management API Routes"""
 import logging
+import io
 from datetime import datetime, timedelta
-from flask import Blueprint, request, jsonify, session, render_template
-from functools import wraps
+from flask import Blueprint, request, jsonify, session, render_template, send_file, Response
 
 from services.storage_monitor import storage_monitor
+from services.storage_service import storage_service
 from services.db_service import db_service
 from services.cache_service import cache_service
 from workers.storage_worker import (
@@ -468,6 +469,592 @@ def get_cleanup_suggestions():
     
     except Exception as e:
         logger.error(f"Error getting cleanup suggestions: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@storage_bp.route('/storage/management')
+@login_required
+def storage_management_page():
+    """Render unified storage management page"""
+    return render_template('storage_management.html')
+
+
+@storage_bp.route('/api/storage/buckets', methods=['GET'])
+@login_required
+def list_buckets():
+    """
+    List all buckets across local and cloud storage
+    
+    Query params:
+        backend: 'local', 'cloud', or 'all' (default: 'all')
+        
+    Returns:
+        JSON with buckets from specified backends
+    """
+    try:
+        backend = request.args.get('backend', 'all')
+        buckets = storage_service.list_buckets(backend)
+        
+        result = {
+            'success': True,
+            'local': [
+                {
+                    'name': b.name,
+                    'backend': b.backend,
+                    'creation_date': b.creation_date.isoformat() if b.creation_date else None,
+                    'size_bytes': b.size_bytes,
+                    'object_count': b.object_count,
+                    'size_human': storage_service._format_size(b.size_bytes)
+                }
+                for b in buckets.get('local', [])
+            ],
+            'cloud': [
+                {
+                    'name': b.name,
+                    'backend': b.backend,
+                    'creation_date': b.creation_date.isoformat() if b.creation_date else None,
+                    'size_bytes': b.size_bytes,
+                    'object_count': b.object_count,
+                    'size_human': storage_service._format_size(b.size_bytes)
+                }
+                for b in buckets.get('cloud', [])
+            ],
+            'local_available': storage_service.is_local_available(),
+            'cloud_available': storage_service.is_cloud_available(),
+            'timestamp': datetime.utcnow().isoformat()
+        }
+        
+        return jsonify(result)
+    
+    except Exception as e:
+        logger.error(f"Error listing buckets: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@storage_bp.route('/api/storage/buckets', methods=['POST'])
+@login_required
+def create_bucket():
+    """
+    Create a new bucket
+    
+    JSON body:
+        name: Bucket name
+        backend: 'local' or 'cloud' (default: 'local')
+        location: Optional region/location
+        
+    Returns:
+        JSON with creation result
+    """
+    try:
+        data = request.get_json()
+        
+        if not data or 'name' not in data:
+            return jsonify({
+                'success': False,
+                'error': 'Bucket name is required'
+            }), 400
+        
+        name = data['name']
+        backend = data.get('backend', 'local')
+        location = data.get('location')
+        
+        result = storage_service.create_bucket(name, backend, location)
+        
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+    
+    except Exception as e:
+        logger.error(f"Error creating bucket: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@storage_bp.route('/api/storage/buckets/<bucket_name>', methods=['DELETE'])
+@login_required
+def delete_bucket(bucket_name):
+    """
+    Delete a bucket
+    
+    Query params:
+        backend: 'local' or 'cloud'
+        force: 'true' to delete all objects first
+        
+    Returns:
+        JSON with deletion result
+    """
+    try:
+        backend = request.args.get('backend', 'local')
+        force = request.args.get('force', 'false').lower() == 'true'
+        
+        result = storage_service.delete_bucket(bucket_name, backend, force)
+        
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+    
+    except Exception as e:
+        logger.error(f"Error deleting bucket: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@storage_bp.route('/api/storage/buckets/<bucket_name>/objects', methods=['GET'])
+@login_required
+def list_objects(bucket_name):
+    """
+    List objects in a bucket
+    
+    Query params:
+        backend: 'local' or 'cloud'
+        prefix: Optional prefix filter
+        recursive: Whether to list recursively (default: false)
+        max_keys: Maximum number of objects (default: 1000)
+        
+    Returns:
+        JSON with objects list
+    """
+    try:
+        backend = request.args.get('backend', 'local')
+        prefix = request.args.get('prefix', '')
+        recursive = request.args.get('recursive', 'false').lower() == 'true'
+        max_keys = int(request.args.get('max_keys', 1000))
+        
+        result = storage_service.list_objects(
+            bucket_name, 
+            backend, 
+            prefix=prefix, 
+            recursive=recursive,
+            max_keys=max_keys
+        )
+        
+        return jsonify(result)
+    
+    except Exception as e:
+        logger.error(f"Error listing objects: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@storage_bp.route('/api/storage/upload', methods=['POST'])
+@login_required
+def upload_file():
+    """
+    Upload a file to storage
+    
+    Form data:
+        file: File to upload
+        bucket: Bucket name
+        key: Optional object key (defaults to filename)
+        backend: 'local' or 'cloud' (default: 'local')
+        
+    Returns:
+        JSON with upload result
+    """
+    try:
+        if 'file' not in request.files:
+            return jsonify({
+                'success': False,
+                'error': 'No file provided'
+            }), 400
+        
+        file = request.files['file']
+        bucket = request.form.get('bucket')
+        key = request.form.get('key', file.filename)
+        backend = request.form.get('backend', 'local')
+        
+        if not bucket:
+            return jsonify({
+                'success': False,
+                'error': 'Bucket name is required'
+            }), 400
+        
+        file_data = file.read()
+        content_type = file.content_type or 'application/octet-stream'
+        
+        result = storage_service.upload_file(
+            bucket,
+            key,
+            file_data,
+            backend,
+            content_type=content_type
+        )
+        
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+    
+    except Exception as e:
+        logger.error(f"Error uploading file: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@storage_bp.route('/api/storage/download/<bucket>/<path:key>', methods=['GET'])
+@login_required
+def download_file(bucket, key):
+    """
+    Download a file from storage
+    
+    Query params:
+        backend: 'local' or 'cloud'
+        
+    Returns:
+        File data with appropriate content type
+    """
+    try:
+        backend = request.args.get('backend', 'local')
+        
+        result = storage_service.download_file(bucket, key, backend)
+        
+        if not result['success']:
+            return jsonify(result), 404
+        
+        filename = key.split('/')[-1]
+        
+        return Response(
+            result['data'],
+            mimetype=result.get('content_type', 'application/octet-stream'),
+            headers={
+                'Content-Disposition': f'attachment; filename="{filename}"',
+                'Content-Length': str(result['size'])
+            }
+        )
+    
+    except Exception as e:
+        logger.error(f"Error downloading file: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@storage_bp.route('/api/storage/objects/<bucket>/<path:key>', methods=['DELETE'])
+@login_required
+def delete_object(bucket, key):
+    """
+    Delete an object from storage
+    
+    Query params:
+        backend: 'local' or 'cloud'
+        
+    Returns:
+        JSON with deletion result
+    """
+    try:
+        backend = request.args.get('backend', 'local')
+        
+        result = storage_service.delete_object(bucket, key, backend)
+        
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+    
+    except Exception as e:
+        logger.error(f"Error deleting object: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@storage_bp.route('/api/storage/copy', methods=['POST'])
+@login_required
+def copy_object():
+    """
+    Copy an object between buckets/backends
+    
+    JSON body:
+        src_bucket: Source bucket name
+        src_key: Source object key
+        dst_bucket: Destination bucket name
+        dst_key: Destination object key
+        src_backend: Source backend ('local' or 'cloud')
+        dst_backend: Destination backend ('local' or 'cloud')
+        
+    Returns:
+        JSON with copy result
+    """
+    try:
+        data = request.get_json()
+        
+        required_fields = ['src_bucket', 'src_key', 'dst_bucket', 'dst_key', 'src_backend', 'dst_backend']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({
+                    'success': False,
+                    'error': f'Missing required field: {field}'
+                }), 400
+        
+        result = storage_service.copy_object(
+            data['src_bucket'],
+            data['src_key'],
+            data['dst_bucket'],
+            data['dst_key'],
+            data['src_backend'],
+            data['dst_backend']
+        )
+        
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+    
+    except Exception as e:
+        logger.error(f"Error copying object: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@storage_bp.route('/api/storage/sync', methods=['POST'])
+@login_required
+def sync_bucket():
+    """
+    Sync a bucket between local and cloud storage
+    
+    JSON body:
+        bucket: Bucket name
+        source: Source backend ('local' or 'cloud')
+        destination: Destination backend ('local' or 'cloud')
+        delete_extra: Whether to delete objects that exist only in destination (default: false)
+        
+    Returns:
+        JSON with sync results
+    """
+    try:
+        data = request.get_json()
+        
+        if not data or 'bucket' not in data:
+            return jsonify({
+                'success': False,
+                'error': 'Bucket name is required'
+            }), 400
+        
+        bucket = data['bucket']
+        source = data.get('source', 'local')
+        destination = data.get('destination', 'cloud')
+        delete_extra = data.get('delete_extra', False)
+        
+        result = storage_service.sync_bucket(bucket, source, destination, delete_extra)
+        
+        return jsonify(result)
+    
+    except Exception as e:
+        logger.error(f"Error syncing bucket: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@storage_bp.route('/api/storage/stats', methods=['GET'])
+@login_required
+def get_storage_stats():
+    """
+    Get storage usage statistics
+    
+    Query params:
+        backend: 'local', 'cloud', or 'all' (default: 'all')
+        
+    Returns:
+        JSON with storage statistics
+    """
+    try:
+        backend = request.args.get('backend', 'all')
+        
+        cache_key = f'storage:unified:stats:{backend}'
+        cached = cache_service.get(cache_key)
+        if cached:
+            return jsonify(cached)
+        
+        result = storage_service.get_storage_stats(backend)
+        
+        cache_service.set(cache_key, result, ttl=cache_service.TTL_5_MIN)
+        
+        return jsonify(result)
+    
+    except Exception as e:
+        logger.error(f"Error getting storage stats: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@storage_bp.route('/api/storage/mirror', methods=['POST'])
+@login_required
+def mirror_to_cloud():
+    """
+    Mirror a local bucket to cloud storage
+    
+    JSON body:
+        bucket: Bucket name to mirror
+        
+    Returns:
+        JSON with mirror results
+    """
+    try:
+        data = request.get_json()
+        
+        if not data or 'bucket' not in data:
+            return jsonify({
+                'success': False,
+                'error': 'Bucket name is required'
+            }), 400
+        
+        bucket = data['bucket']
+        
+        result = storage_service.mirror_to_cloud(bucket)
+        
+        return jsonify(result)
+    
+    except Exception as e:
+        logger.error(f"Error mirroring to cloud: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@storage_bp.route('/api/storage/presigned-url', methods=['POST'])
+@login_required
+def get_presigned_url():
+    """
+    Generate a presigned URL for object access
+    
+    JSON body:
+        bucket: Bucket name
+        key: Object key
+        backend: 'local' or 'cloud'
+        expires: Expiration time in seconds (default: 3600)
+        method: 'GET' or 'PUT' (default: 'GET')
+        
+    Returns:
+        JSON with presigned URL
+    """
+    try:
+        data = request.get_json()
+        
+        if not data or 'bucket' not in data or 'key' not in data:
+            return jsonify({
+                'success': False,
+                'error': 'Bucket and key are required'
+            }), 400
+        
+        bucket = data['bucket']
+        key = data['key']
+        backend = data.get('backend', 'local')
+        expires = int(data.get('expires', 3600))
+        method = data.get('method', 'GET')
+        
+        result = storage_service.get_presigned_url(bucket, key, backend, expires, method)
+        
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+    
+    except Exception as e:
+        logger.error(f"Error generating presigned URL: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@storage_bp.route('/api/storage/lifecycle', methods=['GET'])
+@login_required
+def get_lifecycle_policy():
+    """
+    Get lifecycle policy for a bucket
+    
+    Query params:
+        bucket: Bucket name
+        backend: 'local' or 'cloud'
+        
+    Returns:
+        JSON with lifecycle rules
+    """
+    try:
+        bucket = request.args.get('bucket')
+        backend = request.args.get('backend', 'local')
+        
+        if not bucket:
+            return jsonify({
+                'success': False,
+                'error': 'Bucket name is required'
+            }), 400
+        
+        result = storage_service.get_lifecycle_policy(bucket, backend)
+        
+        return jsonify(result)
+    
+    except Exception as e:
+        logger.error(f"Error getting lifecycle policy: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@storage_bp.route('/api/storage/lifecycle', methods=['POST'])
+@login_required
+def set_lifecycle_policy():
+    """
+    Set lifecycle policy for a bucket
+    
+    JSON body:
+        bucket: Bucket name
+        backend: 'local' or 'cloud'
+        expiration_days: Days after which objects expire
+        prefix: Optional prefix to apply rule to
+        
+    Returns:
+        JSON with result
+    """
+    try:
+        data = request.get_json()
+        
+        if not data or 'bucket' not in data or 'expiration_days' not in data:
+            return jsonify({
+                'success': False,
+                'error': 'Bucket and expiration_days are required'
+            }), 400
+        
+        bucket = data['bucket']
+        backend = data.get('backend', 'local')
+        expiration_days = int(data['expiration_days'])
+        prefix = data.get('prefix', '')
+        
+        result = storage_service.set_lifecycle_policy(bucket, backend, expiration_days, prefix)
+        
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+    
+    except Exception as e:
+        logger.error(f"Error setting lifecycle policy: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
