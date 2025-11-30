@@ -3,35 +3,65 @@
 ## Overview
 The Nebula Command Dashboard is a web-based interface for managing a homelab environment consisting of a Ubuntu 25.10 server hosting 15 Docker-based services. These services, including homelab management, Discord/Twitch bots, media streaming, remote desktop, and home automation, are accessible via custom subdomains. The project aims to provide a centralized, robust, and secure platform, integrating various functionalities for personal and community use, with a vision to offer an app marketplace for one-click deployments.
 
-## Split Deployment Architecture (NEW - November 30, 2025)
+## Deployment Architecture (Simplified - November 30, 2025)
 
-The project now supports splitting services between a Linode cloud server and local Ubuntu host for optimal game streaming performance.
+**Philosophy: Simple, Straightforward, Automated, Self-Healing**
+
+The project uses a unified deployment approach with ONE .env, ONE docker-compose.yml, and ONE homelab script.
 
 ### Service Distribution
-**Linode Cloud ($20-40/mo):**
-- Discord Bot, Stream Bot, Dashboard/Celery, PostgreSQL, Redis, n8n, Code-Server, Static Sites
+**Linode Cloud (12 services):**
+- Dashboard, Celery Worker, Discord Bot, Stream Bot
+- PostgreSQL, Redis, n8n, Code-Server
+- Caddy (reverse proxy), Static Sites (scarletredjoker.com, rig-city.com)
 
-**Local Ubuntu Host (Gaming Priority):**
-- Plex Media Server, Home Assistant, MinIO Storage, VNC Desktop
-
-### Benefits
-- Frees ~6-8GB RAM and 4-6 CPU cores on local machine
-- Lower latency for Discord/Twitch webhooks (cloud-to-cloud)
-- Better OBS performance for game streaming
+**Local Ubuntu Host (3 services via compose.local.yml):**
+- Plex Media Server, Home Assistant, MinIO Storage
+- VNC runs natively on host (not in Docker)
 
 ### Deployment Files
 ```
-deploy/
-├── linode/docker-compose.yml    # Cloud services
-├── local/docker-compose.yml     # Local services
-├── linode/Caddyfile             # Cloud reverse proxy
-├── local/Caddyfile              # Local reverse proxy
-└── scripts/
-    ├── bootstrap-linode.sh      # Linode server setup
-    ├── bootstrap-local.sh       # Local host setup
-    ├── migrate-database.sh      # DB migration
-    ├── setup-tailscale.sh       # VPN mesh
-    └── health-check.sh          # Cross-env monitoring
+docker-compose.yml       # Main cloud services (Linode)
+compose.local.yml        # Local services (Ubuntu host)
+.env                     # All environment variables
+.env.example             # Template with documentation
+homelab                  # Management script
+Caddyfile                # Reverse proxy configuration
+
+deploy/scripts/
+├── bootstrap.sh         # Unified deployment script
+├── bootstrap-linode.sh  # Server setup (Docker, Tailscale, UFW)
+├── bootstrap-local.sh   # Local host setup
+└── health-check.sh      # Self-healing checks
+```
+
+### Quick Start (Linode Deployment)
+```bash
+# 1. Server setup (run as root on fresh Linode)
+./deploy/scripts/bootstrap-linode.sh
+
+# 2. Clone repo and configure
+git clone https://github.com/username/HomeLabHub.git
+cd HomeLabHub
+cp .env.example .env
+nano .env  # Add your credentials
+
+# 3. Deploy services
+./deploy/scripts/bootstrap.sh
+
+# 4. Verify
+./homelab status
+```
+
+### Daily Commands
+```bash
+./homelab up        # Start services
+./homelab down      # Stop services
+./homelab status    # Check status
+./homelab logs      # View logs
+./homelab fix       # Rebuild everything
+./homelab health    # Run health checks
+./homelab restart   # Restart all
 ```
 
 ## User Preferences
@@ -70,24 +100,18 @@ The core system leverages Docker Compose for orchestrating 15 services across a 
 - **Homelab Transformation:** Implemented an 8-phase roadmap covering configuration, modular service packaging, service discovery & networking (Consul, Traefik), database platform upgrade, observability, deployment automation, API Gateway & Auth, and DNS Automation (Cloudflare API).
 
 ## External Dependencies
-- **PostgreSQL 16 Alpine:** Shared database.
-- **Redis:** Caching.
-- **MinIO:** S3-compatible object storage.
-- **Caddy:** Reverse proxy and SSL.
-- **GPT-4o (OpenAI API):** Jarvis AI assistant, Stream Bot fact generation.
-- **Ollama:** AI model for complexity-based routing.
-- **Discord API:** Discord ticket bot.
-- **Twitch/Kick/YouTube APIs:** Multi-platform stream bot.
-- **Plex Media Server:** Media streaming.
-- **n8n:** Workflow automation.
-- **Home Assistant:** Smart home hub.
-- **Cloudflare API:** DNS automation.
-- **Consul:** Service registry.
-- **Traefik:** Unified API gateway and reverse proxy.
-- **Prometheus:** Metrics collection.
-- **Grafana:** Monitoring dashboards.
-- **Loki:** Log aggregation.
-- **Tailscale:** VPN integration.
+- **PostgreSQL 16 Alpine:** Shared database
+- **Redis:** Caching and message broker
+- **MinIO:** S3-compatible object storage (local Ubuntu host)
+- **Caddy:** Reverse proxy with automatic SSL
+- **GPT-4o (OpenAI API):** Jarvis AI assistant, Stream Bot fact generation
+- **Discord API:** Discord ticket bot
+- **Twitch/Kick/YouTube APIs:** Multi-platform stream bot
+- **Plex Media Server:** Media streaming (local Ubuntu host)
+- **n8n:** Workflow automation
+- **Home Assistant:** Smart home hub (local Ubuntu host)
+- **Cloudflare API:** DNS automation
+- **Tailscale:** VPN mesh connecting Linode and local host
 
 ## New Features (November 30, 2025)
 

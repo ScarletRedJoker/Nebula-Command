@@ -114,14 +114,32 @@ if [ ${#missing[@]} -gt 0 ]; then
     exit 1
 fi
 
-# Auto-generate SERVICE_AUTH_TOKEN if missing
-if ! grep -q "^SERVICE_AUTH_TOKEN=" .env || [ -z "$(grep "^SERVICE_AUTH_TOKEN=" .env | cut -d'=' -f2)" ]; then
+# Auto-generate SERVICE_AUTH_TOKEN if missing or empty (idempotent - uses sed to replace in-place)
+if ! grep -q "^SERVICE_AUTH_TOKEN=" .env; then
     TOKEN=$(openssl rand -hex 32)
     echo "SERVICE_AUTH_TOKEN=$TOKEN" >> .env
     echo -e "${GREEN}✓ Generated SERVICE_AUTH_TOKEN${NC}"
+elif [ -z "$(grep "^SERVICE_AUTH_TOKEN=" .env | cut -d'=' -f2)" ]; then
+    TOKEN=$(openssl rand -hex 32)
+    sed -i "s/^SERVICE_AUTH_TOKEN=.*/SERVICE_AUTH_TOKEN=$TOKEN/" .env
+    echo -e "${GREEN}✓ Generated SERVICE_AUTH_TOKEN (replaced empty value)${NC}"
 fi
 
 echo -e "${GREEN}✓ Environment ready${NC}"
+
+# ═══════════════════════════════════════════════════════════════════
+# STEP 2b: Create Required Directories
+# ═══════════════════════════════════════════════════════════════════
+echo -e "\n${CYAN}[2b/6] Creating required directories...${NC}"
+
+SERVICE_USER=$(grep "^SERVICE_USER=" .env | cut -d'=' -f2 || echo "evin")
+mkdir -p "/home/${SERVICE_USER}/contain" 2>/dev/null || true
+mkdir -p "/var/www" 2>/dev/null || true
+mkdir -p "$PROJECT_ROOT/services/dashboard/logs" 2>/dev/null || true
+mkdir -p "$PROJECT_ROOT/services/discord-bot/logs" 2>/dev/null || true
+mkdir -p "$PROJECT_ROOT/services/stream-bot/logs" 2>/dev/null || true
+
+echo -e "${GREEN}✓ Directories ready${NC}"
 
 # ═══════════════════════════════════════════════════════════════════
 # STEP 3: Pull Images
