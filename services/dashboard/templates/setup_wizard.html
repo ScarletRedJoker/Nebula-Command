@@ -370,10 +370,209 @@
             margin-top: 8px;
         }
     }
+    
+    .toast-container {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        max-width: 400px;
+    }
+    
+    .toast-notification {
+        background: linear-gradient(145deg, rgba(31, 41, 55, 0.95) 0%, rgba(17, 24, 39, 0.98) 100%);
+        border-radius: 12px;
+        padding: 16px 20px;
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        animation: slideIn 0.3s ease-out;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+        min-width: 300px;
+    }
+    
+    .toast-notification.success {
+        border: 1px solid rgba(52, 211, 153, 0.4);
+    }
+    
+    .toast-notification.error {
+        border: 1px solid rgba(248, 113, 113, 0.4);
+    }
+    
+    .toast-notification.info {
+        border: 1px solid rgba(59, 130, 246, 0.4);
+    }
+    
+    .toast-notification.warning {
+        border: 1px solid rgba(251, 191, 36, 0.4);
+    }
+    
+    .toast-icon {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    
+    .toast-notification.success .toast-icon {
+        background: rgba(52, 211, 153, 0.2);
+        color: var(--accent-green);
+    }
+    
+    .toast-notification.error .toast-icon {
+        background: rgba(248, 113, 113, 0.2);
+        color: var(--accent-red);
+    }
+    
+    .toast-notification.info .toast-icon {
+        background: rgba(59, 130, 246, 0.2);
+        color: var(--accent-blue);
+    }
+    
+    .toast-notification.warning .toast-icon {
+        background: rgba(251, 191, 36, 0.2);
+        color: var(--accent-yellow);
+    }
+    
+    .toast-content {
+        flex: 1;
+    }
+    
+    .toast-title {
+        font-weight: 600;
+        margin-bottom: 4px;
+        color: var(--text-primary);
+    }
+    
+    .toast-message {
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+    }
+    
+    .toast-close {
+        background: none;
+        border: none;
+        color: var(--text-secondary);
+        cursor: pointer;
+        padding: 0;
+        font-size: 1.2rem;
+        line-height: 1;
+        opacity: 0.7;
+        transition: opacity 0.2s;
+    }
+    
+    .toast-close:hover {
+        opacity: 1;
+    }
+    
+    @keyframes slideIn {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    
+    @keyframes slideOut {
+        from {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        to {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+    }
+    
+    .complete-setup-section {
+        background: linear-gradient(145deg, rgba(31, 41, 55, 0.6) 0%, rgba(17, 24, 39, 0.8) 100%);
+        border: 1px solid rgba(139, 92, 246, 0.3);
+        border-radius: 12px;
+        padding: 24px;
+        margin-top: 24px;
+    }
+    
+    .btn-complete {
+        background: linear-gradient(135deg, #10B981, #059669);
+        border: none;
+        color: white;
+        padding: 14px 32px;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 1.1rem;
+        transition: all 0.3s ease;
+    }
+    
+    .btn-complete:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 25px rgba(16, 185, 129, 0.4);
+        color: white;
+    }
+    
+    .btn-complete:disabled {
+        background: rgba(55, 65, 81, 0.8);
+        color: var(--text-secondary);
+        cursor: not-allowed;
+    }
+    
+    .setup-summary {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+    }
+    
+    .summary-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        background: rgba(17, 24, 39, 0.5);
+        border-radius: 8px;
+        font-size: 0.9rem;
+    }
+    
+    .summary-item.configured i {
+        color: var(--accent-green);
+    }
+    
+    .summary-item.not-configured i {
+        color: var(--accent-yellow);
+    }
+    
+    .summary-item.required {
+        border: 1px solid rgba(248, 113, 113, 0.3);
+    }
+    
+    .btn-reset {
+        background: transparent;
+        border: 1px solid rgba(248, 113, 113, 0.4);
+        color: var(--accent-red);
+        padding: 8px 16px;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        transition: all 0.2s ease;
+    }
+    
+    .btn-reset:hover {
+        background: rgba(248, 113, 113, 0.1);
+        color: var(--accent-red);
+    }
 </style>
 {% endblock %}
 
 {% block content %}
+<div id="toastContainer" class="toast-container"></div>
+
 <div class="container-fluid py-4">
     <div class="setup-hero">
         <div class="hero-content">
@@ -725,10 +924,74 @@
             </div>
         </div>
     </div>
+    
+    <div class="complete-setup-section" id="completeSetupSection">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <h4 class="mb-2"><i class="bi bi-rocket-takeoff me-2"></i>Ready to Launch?</h4>
+                <p class="text-secondary mb-3">Review your configuration status and complete the setup to start using all features.</p>
+                <div class="setup-summary" id="setupSummary">
+                </div>
+            </div>
+            <div class="col-md-4 text-md-end">
+                <button class="btn btn-complete" id="completeSetupBtn" onclick="completeSetup()" disabled>
+                    <i class="bi bi-check2-all me-2"></i>Complete Setup
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
 let setupStatus = {};
+const serviceNames = {
+    'cloudflare': 'Cloudflare DNS',
+    'tailscale': 'Tailscale VPN',
+    'fleet_ssh': 'Fleet SSH',
+    'cloud_storage': 'Cloud Storage',
+    'openai': 'OpenAI API'
+};
+
+const serviceIcons = {
+    'cloudflare': 'bi-cloud',
+    'tailscale': 'bi-diagram-3',
+    'fleet_ssh': 'bi-key',
+    'cloud_storage': 'bi-cloud-arrow-up',
+    'openai': 'bi-robot'
+};
+
+function showToast(type, title, message, duration = 5000) {
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = `toast-notification ${type}`;
+    
+    const icons = {
+        success: 'bi-check-circle',
+        error: 'bi-x-circle',
+        info: 'bi-info-circle',
+        warning: 'bi-exclamation-triangle'
+    };
+    
+    toast.innerHTML = `
+        <div class="toast-icon">
+            <i class="bi ${icons[type] || icons.info}"></i>
+        </div>
+        <div class="toast-content">
+            <div class="toast-title">${title}</div>
+            <div class="toast-message">${message}</div>
+        </div>
+        <button class="toast-close" onclick="this.parentElement.remove()">
+            <i class="bi bi-x"></i>
+        </button>
+    `;
+    
+    container.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.style.animation = 'slideOut 0.3s ease-out forwards';
+        setTimeout(() => toast.remove(), 300);
+    }, duration);
+}
 
 document.addEventListener('DOMContentLoaded', function() {
     loadSetupStatus();
@@ -745,6 +1008,7 @@ async function loadSetupStatus() {
         }
     } catch (error) {
         console.error('Error loading setup status:', error);
+        showToast('error', 'Connection Error', 'Failed to load setup status. Please refresh the page.');
     }
 }
 
@@ -805,6 +1069,46 @@ function updateUI(data) {
     
     if (services.openai && services.openai.configured) {
         document.getElementById('openai-integration-note').style.display = 'block';
+    }
+    
+    updateSetupSummary(services, summary);
+}
+
+function updateSetupSummary(services, summary) {
+    const summaryContainer = document.getElementById('setupSummary');
+    const completeBtn = document.getElementById('completeSetupBtn');
+    
+    let summaryHtml = '';
+    for (const [key, service] of Object.entries(services)) {
+        const configured = service.configured;
+        const required = service.required;
+        const name = serviceNames[key] || key;
+        const icon = serviceIcons[key] || 'bi-gear';
+        
+        let classes = configured ? 'configured' : 'not-configured';
+        if (required && !configured) classes += ' required';
+        
+        summaryHtml += `
+            <div class="summary-item ${classes}">
+                <i class="bi ${configured ? 'bi-check-circle-fill' : 'bi-circle'}"></i>
+                <span>${name}</span>
+                ${required ? '<span class="badge bg-danger ms-1" style="font-size: 0.65rem;">Required</span>' : ''}
+            </div>
+        `;
+    }
+    
+    summaryContainer.innerHTML = summaryHtml;
+    
+    const requiredComplete = summary.required_configured >= summary.required_total;
+    completeBtn.disabled = !requiredComplete;
+    
+    if (summary.setup_complete) {
+        completeBtn.innerHTML = '<i class="bi bi-check2-all me-2"></i>Setup Complete!';
+        completeBtn.classList.add('btn-success');
+    } else if (requiredComplete) {
+        completeBtn.innerHTML = '<i class="bi bi-check2-all me-2"></i>Complete Setup';
+    } else {
+        completeBtn.innerHTML = '<i class="bi bi-lock me-2"></i>Configure Required Services';
     }
 }
 
@@ -996,6 +1300,7 @@ async function testOpenAI() {
 
 async function saveConfig(service) {
     let config = {};
+    const serviceName = serviceNames[service] || service;
     
     switch (service) {
         case 'cloudflare':
@@ -1027,6 +1332,12 @@ async function saveConfig(service) {
             break;
     }
     
+    const hasValue = Object.values(config).some(v => v && v.trim() !== '');
+    if (!hasValue) {
+        showToast('warning', 'No Configuration', `Please enter at least one value for ${serviceName} before saving.`);
+        return;
+    }
+    
     try {
         const response = await fetch('/api/setup/save', {
             method: 'POST',
@@ -1037,13 +1348,74 @@ async function saveConfig(service) {
         const data = await response.json();
         
         if (data.success) {
-            alert('Configuration saved successfully!');
+            showToast('success', 'Configuration Saved', `${serviceName} settings have been saved to the database.`);
             loadSetupStatus();
         } else {
-            alert('Failed to save: ' + data.message);
+            showToast('error', 'Save Failed', data.message || 'Could not save configuration.');
         }
     } catch (error) {
-        alert('Error saving configuration: ' + error.message);
+        showToast('error', 'Connection Error', 'Could not connect to the server. Please try again.');
+    }
+}
+
+async function completeSetup() {
+    const button = document.getElementById('completeSetupBtn');
+    const originalHtml = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Validating...';
+    
+    try {
+        const response = await fetch('/api/setup/complete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast('success', 'Setup Complete!', 'Your dashboard is now fully configured and ready to use.', 7000);
+            button.innerHTML = '<i class="bi bi-check2-all me-2"></i>Setup Complete!';
+            button.classList.remove('btn-complete');
+            button.classList.add('btn-success');
+            
+            loadSetupStatus();
+            
+            setTimeout(() => {
+                showToast('info', 'Getting Started', 'You can now explore the dashboard. Visit the Fleet page to manage your servers.', 10000);
+            }, 2000);
+        } else {
+            showToast('warning', 'Setup Incomplete', data.message || 'Please configure all required services before completing setup.');
+            button.disabled = false;
+            button.innerHTML = originalHtml;
+        }
+    } catch (error) {
+        showToast('error', 'Connection Error', 'Could not complete setup. Please try again.');
+        button.disabled = false;
+        button.innerHTML = originalHtml;
+    }
+}
+
+async function resetServiceConfig(service) {
+    if (!confirm(`Are you sure you want to reset ${serviceNames[service] || service} configuration? This will remove all saved settings.`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/setup/reset/${service}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast('info', 'Configuration Reset', `${serviceNames[service] || service} settings have been cleared.`);
+            loadSetupStatus();
+        } else {
+            showToast('error', 'Reset Failed', data.message || 'Could not reset configuration.');
+        }
+    } catch (error) {
+        showToast('error', 'Connection Error', 'Could not reset configuration. Please try again.');
     }
 }
 </script>

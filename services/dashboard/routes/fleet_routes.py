@@ -2,9 +2,9 @@
 Fleet Management API Routes
 Remote server control via Tailscale VPN mesh
 """
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, render_template
 from services.fleet_service import fleet_manager
-from utils.auth import require_auth
+from utils.auth import require_auth, require_web_auth
 from utils.rbac import require_permission
 from models.rbac import Permission
 import logging
@@ -12,7 +12,14 @@ import re
 
 logger = logging.getLogger(__name__)
 
-fleet_bp = Blueprint('fleet', __name__, url_prefix='/api/fleet')
+fleet_bp = Blueprint('fleet', __name__)
+
+
+@fleet_bp.route('/fleet-management')
+@require_web_auth
+def fleet_management_page():
+    """Render Fleet Management page"""
+    return render_template('fleet_management.html')
 
 ALLOWED_HOST_ID_PATTERN = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9_-]{0,49}$')
 ALLOWED_CONTAINER_PATTERN = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$')
@@ -42,7 +49,7 @@ def make_response(success: bool, data=None, message=None, status_code=200):
     return jsonify(response), status_code
 
 
-@fleet_bp.route('/hosts', methods=['GET'])
+@fleet_bp.route('/api/fleet/hosts', methods=['GET'])
 @require_auth
 @require_permission(Permission.VIEW_DOCKER)
 def list_hosts():
@@ -64,7 +71,7 @@ def list_hosts():
         return make_response(False, message=str(e), status_code=500)
 
 
-@fleet_bp.route('/hosts/<host_id>/status', methods=['GET'])
+@fleet_bp.route('/api/fleet/hosts/<host_id>/status', methods=['GET'])
 @require_auth
 @require_permission(Permission.VIEW_DOCKER)
 def get_host_status(host_id):
@@ -91,7 +98,7 @@ def get_host_status(host_id):
         return make_response(False, message=str(e), status_code=500)
 
 
-@fleet_bp.route('/hosts/<host_id>/command', methods=['POST'])
+@fleet_bp.route('/api/fleet/hosts/<host_id>/command', methods=['POST'])
 @require_auth
 @require_permission(Permission.MANAGE_DOCKER)
 def execute_command(host_id):
@@ -136,7 +143,7 @@ def execute_command(host_id):
         return make_response(False, message=str(e), status_code=500)
 
 
-@fleet_bp.route('/hosts/<host_id>/containers', methods=['GET'])
+@fleet_bp.route('/api/fleet/hosts/<host_id>/containers', methods=['GET'])
 @require_auth
 @require_permission(Permission.VIEW_DOCKER)
 def list_containers(host_id):
@@ -164,7 +171,7 @@ def list_containers(host_id):
         return make_response(False, message=str(e), status_code=500)
 
 
-@fleet_bp.route('/hosts/<host_id>/containers/<container_name>/action', methods=['POST'])
+@fleet_bp.route('/api/fleet/hosts/<host_id>/containers/<container_name>/action', methods=['POST'])
 @require_auth
 @require_permission(Permission.MANAGE_DOCKER)
 def container_action(host_id, container_name):
@@ -207,7 +214,7 @@ def container_action(host_id, container_name):
         return make_response(False, message=str(e), status_code=500)
 
 
-@fleet_bp.route('/hosts/<host_id>/deploy', methods=['POST'])
+@fleet_bp.route('/api/fleet/hosts/<host_id>/deploy', methods=['POST'])
 @require_auth
 @require_permission(Permission.MANAGE_DOCKER)
 def deploy_service(host_id):
@@ -252,7 +259,7 @@ def deploy_service(host_id):
         return make_response(False, message=str(e), status_code=500)
 
 
-@fleet_bp.route('/hosts', methods=['POST'])
+@fleet_bp.route('/api/fleet/hosts', methods=['POST'])
 @require_auth
 @require_permission(Permission.MANAGE_DOCKER)
 def add_host():

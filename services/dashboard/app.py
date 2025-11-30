@@ -43,6 +43,7 @@ from routes.jarvis_code_routes import jarvis_code_bp
 from routes.jarvis_builder_routes import jarvis_builder_bp
 from routes.jarvis_codebase_routes import jarvis_codebase_bp
 from routes.setup_routes import setup_bp
+from routes.jarvis_infrastructure_api import jarvis_infrastructure_bp
 # DISABLED: Subscription/licensing features removed per user request - "Remove subscriptions and don't block access. I never wanted that."
 # from routes.subscription_api import subscription_bp
 from services.activity_service import activity_service
@@ -99,6 +100,7 @@ csrf.exempt(fleet_bp)  # Fleet management API (remote host control)
 csrf.exempt(jarvis_code_bp)  # Jarvis Code API (AI code generation and deployment)
 csrf.exempt(jarvis_builder_bp)  # Jarvis Website Builder API (autonomous website generation)
 csrf.exempt(setup_bp)  # Setup wizard API (configuration management)
+csrf.exempt(jarvis_infrastructure_bp)  # Jarvis Infrastructure API (IaC, deployment planning, cost estimation)
 
 limiter.init_app(app)
 logger.info("✓ CSRF Protection and Rate Limiting initialized")
@@ -198,6 +200,7 @@ app.register_blueprint(jarvis_code_bp)
 app.register_blueprint(jarvis_builder_bp)
 app.register_blueprint(jarvis_codebase_bp)
 app.register_blueprint(setup_bp)
+app.register_blueprint(jarvis_infrastructure_bp)
 # DISABLED: Subscription blueprint disabled - no subscription/licensing checks
 # app.register_blueprint(subscription_bp)
 

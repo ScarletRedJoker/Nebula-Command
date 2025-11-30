@@ -1069,8 +1069,8 @@ def jarvis_wizard_install():
         
         deployment_id = str(uuid_module.uuid4())
         app_name = variables.get('APP_NAME', template_id)
-        project_root = os.environ.get('HOMELAB_PROJECT_ROOT', '/data/projects')
-        deployment_dir = Path(f"{project_root}/marketplace/{app_name}")
+        marketplace_dir = os.environ.get('MARKETPLACE_DIR', '/marketplace')
+        deployment_dir = Path(f"{marketplace_dir}/{app_name}")
         deployment_dir.mkdir(parents=True, exist_ok=True)
         
         compose_file = deployment_dir / "docker-compose.yml"

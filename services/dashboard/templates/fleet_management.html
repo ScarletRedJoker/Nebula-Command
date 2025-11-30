@@ -3,6 +3,78 @@
 {% block title %}Fleet Management - Nebula Command{% endblock %}
 {% block page_title %}Fleet Management{% endblock %}
 
+{% block extra_css %}
+<style>
+.template-card {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(168, 85, 247, 0.1) 100%);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    height: 100%;
+}
+.template-card:hover {
+    transform: translateY(-3px);
+    border-color: rgba(99, 102, 241, 0.6);
+    box-shadow: 0 8px 25px rgba(99, 102, 241, 0.2);
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.2) 0%, rgba(168, 85, 247, 0.2) 100%);
+}
+.template-icon {
+    font-size: 2rem;
+    margin-bottom: 10px;
+    color: var(--accent-color, #6366f1);
+}
+.template-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 5px;
+}
+.template-desc {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+.resource-bar {
+    height: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 5px;
+}
+.resource-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.5s ease;
+}
+.resource-bar-fill.cpu { background: linear-gradient(90deg, #6366f1, #8b5cf6); }
+.resource-bar-fill.ram { background: linear-gradient(90deg, #10b981, #34d399); }
+.resource-bar-fill.disk { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+.host-resource-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+.resource-stat {
+    text-align: center;
+}
+.resource-stat-label {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.resource-stat-value {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="row">
     <div class="col-12">
@@ -70,6 +142,76 @@
             <div class="card-body">
                 <div id="container-list" style="max-height: 400px; overflow-y: auto;">
                     <p class="text-secondary text-center">Select a host to view containers</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card cosmic cosmic-fade-in mb-4">
+            <div class="card-header">
+                <i class="bi bi-lightning"></i> Quick Deploy Templates
+            </div>
+            <div class="card-body">
+                <div class="row" id="quick-deploy-templates">
+                    <div class="col-md-3 col-sm-6 mb-3">
+                        <div class="template-card" onclick="quickDeploy('nginx')">
+                            <div class="template-icon"><i class="bi bi-box"></i></div>
+                            <div class="template-name">Nginx</div>
+                            <div class="template-desc">Web Server</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-sm-6 mb-3">
+                        <div class="template-card" onclick="quickDeploy('portainer')">
+                            <div class="template-icon"><i class="bi bi-grid-3x3-gap"></i></div>
+                            <div class="template-name">Portainer</div>
+                            <div class="template-desc">Docker Management</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-sm-6 mb-3">
+                        <div class="template-card" onclick="quickDeploy('redis')">
+                            <div class="template-icon"><i class="bi bi-database"></i></div>
+                            <div class="template-name">Redis</div>
+                            <div class="template-desc">Cache Server</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-sm-6 mb-3">
+                        <div class="template-card" onclick="quickDeploy('traefik')">
+                            <div class="template-icon"><i class="bi bi-shuffle"></i></div>
+                            <div class="template-name">Traefik</div>
+                            <div class="template-desc">Reverse Proxy</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-sm-6 mb-3">
+                        <div class="template-card" onclick="quickDeploy('postgres')">
+                            <div class="template-icon"><i class="bi bi-hdd-stack"></i></div>
+                            <div class="template-name">PostgreSQL</div>
+                            <div class="template-desc">Database</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-sm-6 mb-3">
+                        <div class="template-card" onclick="quickDeploy('watchtower')">
+                            <div class="template-icon"><i class="bi bi-arrow-repeat"></i></div>
+                            <div class="template-name">Watchtower</div>
+                            <div class="template-desc">Auto Updates</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-sm-6 mb-3">
+                        <div class="template-card" onclick="quickDeploy('prometheus')">
+                            <div class="template-icon"><i class="bi bi-graph-up"></i></div>
+                            <div class="template-name">Prometheus</div>
+                            <div class="template-desc">Monitoring</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-sm-6 mb-3">
+                        <div class="template-card" onclick="quickDeploy('grafana')">
+                            <div class="template-icon"><i class="bi bi-bar-chart-line"></i></div>
+                            <div class="template-name">Grafana</div>
+                            <div class="template-desc">Dashboards</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -586,6 +728,163 @@ async function addHost(event) {
 
 function refreshFleet() {
     loadFleet();
+}
+
+const deployTemplates = {
+    nginx: {
+        image: 'nginx:alpine',
+        name: 'nginx-web',
+        ports: ['80:80', '443:443'],
+        restart: 'unless-stopped'
+    },
+    portainer: {
+        image: 'portainer/portainer-ce:latest',
+        name: 'portainer',
+        ports: ['9443:9443', '9000:9000'],
+        volumes: ['/var/run/docker.sock:/var/run/docker.sock', 'portainer_data:/data'],
+        restart: 'always'
+    },
+    redis: {
+        image: 'redis:alpine',
+        name: 'redis-cache',
+        ports: ['6379:6379'],
+        volumes: ['redis_data:/data'],
+        restart: 'unless-stopped'
+    },
+    traefik: {
+        image: 'traefik:v2.10',
+        name: 'traefik',
+        ports: ['80:80', '443:443', '8080:8080'],
+        volumes: ['/var/run/docker.sock:/var/run/docker.sock:ro', 'traefik_letsencrypt:/letsencrypt'],
+        restart: 'always'
+    },
+    postgres: {
+        image: 'postgres:15-alpine',
+        name: 'postgres-db',
+        ports: ['5432:5432'],
+        volumes: ['postgres_data:/var/lib/postgresql/data'],
+        environment: {'POSTGRES_PASSWORD': 'changeme'},
+        restart: 'unless-stopped'
+    },
+    watchtower: {
+        image: 'containrrr/watchtower',
+        name: 'watchtower',
+        volumes: ['/var/run/docker.sock:/var/run/docker.sock'],
+        environment: {'WATCHTOWER_CLEANUP': 'true', 'WATCHTOWER_POLL_INTERVAL': '86400'},
+        restart: 'always'
+    },
+    prometheus: {
+        image: 'prom/prometheus:latest',
+        name: 'prometheus',
+        ports: ['9090:9090'],
+        volumes: ['prometheus_data:/prometheus'],
+        restart: 'unless-stopped'
+    },
+    grafana: {
+        image: 'grafana/grafana:latest',
+        name: 'grafana',
+        ports: ['3000:3000'],
+        volumes: ['grafana_data:/var/lib/grafana'],
+        environment: {'GF_SECURITY_ADMIN_PASSWORD': 'admin'},
+        restart: 'unless-stopped'
+    }
+};
+
+function quickDeploy(templateName) {
+    const template = deployTemplates[templateName];
+    if (!template) {
+        alert('Template not found');
+        return;
+    }
+    
+    const onlineHosts = fleetHosts.filter(h => h.online);
+    if (onlineHosts.length === 0) {
+        alert('No online hosts available for deployment');
+        return;
+    }
+    
+    let hostOptions = onlineHosts.map(h => `<option value="${h.host_id}">${h.name} (${h.role})</option>`).join('');
+    
+    const modal = document.createElement('div');
+    modal.className = 'modal fade';
+    modal.id = 'quickDeployModal';
+    modal.innerHTML = `
+        <div class="modal-dialog">
+            <div class="modal-content bg-dark text-light">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-lightning"></i> Quick Deploy: ${templateName.charAt(0).toUpperCase() + templateName.slice(1)}</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Target Host</label>
+                        <select id="quick-deploy-host" class="form-select">${hostOptions}</select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Container Name</label>
+                        <input type="text" id="quick-deploy-name" class="form-control" value="${template.name}">
+                    </div>
+                    <div class="alert alert-info">
+                        <strong>Image:</strong> ${template.image}<br>
+                        <strong>Ports:</strong> ${(template.ports || []).join(', ') || 'None'}<br>
+                        <strong>Volumes:</strong> ${(template.volumes || []).length} configured
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-success" onclick="executeQuickDeploy('${templateName}')">
+                        <i class="bi bi-rocket-takeoff"></i> Deploy
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    const bsModal = new bootstrap.Modal(modal);
+    bsModal.show();
+    
+    modal.addEventListener('hidden.bs.modal', () => modal.remove());
+}
+
+async function executeQuickDeploy(templateName) {
+    const template = deployTemplates[templateName];
+    const hostId = document.getElementById('quick-deploy-host').value;
+    const containerName = document.getElementById('quick-deploy-name').value;
+    
+    const config = {
+        image: template.image,
+        name: containerName,
+        ports: template.ports || [],
+        volumes: template.volumes || [],
+        environment: template.environment || {},
+        restart_policy: template.restart || 'unless-stopped'
+    };
+    
+    try {
+        bootstrap.Modal.getInstance(document.getElementById('quickDeployModal')).hide();
+        
+        const response = await fetch(`/api/fleet/hosts/${hostId}/deploy`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(config)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert(`Successfully deployed ${containerName}!\nContainer ID: ${result.data?.container_id || 'unknown'}`);
+            if (document.getElementById('container-host').value === hostId) {
+                loadContainers();
+            }
+        } else {
+            alert('Deployment failed: ' + (result.message || 'Unknown error'));
+        }
+        
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
 }
 
 document.addEventListener('DOMContentLoaded', function() {

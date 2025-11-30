@@ -47,6 +47,7 @@ from .builder_project import (
     BuilderProject, BuilderPage, BuilderCheckpoint,
     BuilderProjectStatus, BuilderTechStack, CheckpointStatus
 )
+from .settings import SystemSetting
 
 __all__ = [
     'Base',
@@ -120,5 +121,6 @@ __all__ = [
     'BuilderCheckpoint',
     'BuilderProjectStatus',
     'BuilderTechStack',
-    'CheckpointStatus'
+    'CheckpointStatus',
+    'SystemSetting'
 ]

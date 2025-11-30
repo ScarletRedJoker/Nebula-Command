@@ -89,6 +89,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./services/dashboard/logs:/app/logs
       - .:/project
+      - ./marketplace:/marketplace
       - ${HOST_STATIC_SITE_PATH:-./static-sites}:/var/www
       - ./docker-compose.yml:/app/docker-compose.yml:ro
       - ./Caddyfile:/app/Caddyfile:ro
@@ -101,6 +102,7 @@ services:
       - RUN_MIGRATIONS=false
       - DOCKER_CONTAINER=true
       - HOMELAB_PROJECT_ROOT=/project
+      - MARKETPLACE_DIR=/marketplace
       - STATIC_SITE_PATH=/var/www
       - COMPOSE_PROJECT_DIR=/project
       - JARVIS_DATABASE_URL=postgresql://jarvis:${JARVIS_DB_PASSWORD}@homelab-postgres:5432/homelab_jarvis

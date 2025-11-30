@@ -2,6 +2,105 @@
 
 {% block title %}DNS Management - Nebula Command{% endblock %}
 
+{% block extra_css %}
+<style>
+.domain-tree {
+    font-family: 'Monaco', 'Consolas', monospace;
+    font-size: 0.9rem;
+}
+.tree-domain {
+    padding: 12px 16px;
+    margin-bottom: 8px;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(168, 85, 247, 0.1) 100%);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+.tree-domain:hover {
+    border-color: rgba(99, 102, 241, 0.6);
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(168, 85, 247, 0.15) 100%);
+}
+.tree-domain.expanded {
+    border-color: rgba(99, 102, 241, 0.6);
+}
+.tree-domain-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.tree-domain-name {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+.tree-domain-stats {
+    display: flex;
+    gap: 12px;
+}
+.tree-stat {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+.tree-stat-badge {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+.tree-records {
+    display: none;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+.tree-domain.expanded .tree-records {
+    display: block;
+}
+.tree-subdomain {
+    padding: 8px 12px;
+    margin: 4px 0;
+    margin-left: 20px;
+    background: rgba(255, 255, 255, 0.05);
+    border-left: 3px solid rgba(99, 102, 241, 0.5);
+    border-radius: 0 6px 6px 0;
+}
+.tree-subdomain-name {
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+.tree-record-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.tree-record-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    background: rgba(99, 102, 241, 0.2);
+    border-radius: 12px;
+    font-size: 0.75rem;
+}
+.tree-record-chip.type-A { background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(16, 185, 129, 0.4); }
+.tree-record-chip.type-AAAA { background: rgba(59, 130, 246, 0.2); border: 1px solid rgba(59, 130, 246, 0.4); }
+.tree-record-chip.type-CNAME { background: rgba(168, 85, 247, 0.2); border: 1px solid rgba(168, 85, 247, 0.4); }
+.tree-record-chip.type-TXT { background: rgba(245, 158, 11, 0.2); border: 1px solid rgba(245, 158, 11, 0.4); }
+.tree-record-chip.type-MX { background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.4); }
+.tree-record-chip.type-NS { background: rgba(99, 102, 241, 0.2); border: 1px solid rgba(99, 102, 241, 0.4); }
+.tree-expand-icon {
+    transition: transform 0.3s ease;
+}
+.tree-domain.expanded .tree-expand-icon {
+    transform: rotate(90deg);
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -89,6 +188,29 @@
                 <div class="card-body">
                     <div id="recordsList">
                         <p class="text-muted text-center">Select a zone to view records</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card nebula-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-sitemap me-2"></i>Domain Tree View
+                    </h5>
+                    <button class="btn btn-sm btn-outline-primary" onclick="refreshDomainTree()">
+                        <i class="fas fa-sync-alt me-2"></i>Refresh
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div id="domainTree" class="domain-tree">
+                        <div class="text-center py-3">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                            <span class="ms-2">Building domain tree...</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -239,11 +361,6 @@ let zones = [];
 let currentRecords = [];
 let selectedZone = null;
 let deleteTarget = null;
-
-document.addEventListener('DOMContentLoaded', function() {
-    loadHealthStatus();
-    loadZones();
-});
 
 async function loadHealthStatus() {
     try {
@@ -678,9 +795,145 @@ async function syncFromCatalog() {
 function refreshData() {
     loadHealthStatus();
     loadZones();
+    refreshDomainTree();
     if (selectedZone) {
         loadRecords(selectedZone.id);
     }
 }
+
+async function refreshDomainTree() {
+    const treeContainer = document.getElementById('domainTree');
+    treeContainer.innerHTML = `
+        <div class="text-center py-3">
+            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+            <span class="ms-2">Building domain tree...</span>
+        </div>
+    `;
+    
+    try {
+        const zonesResponse = await fetch('/api/dns/zones');
+        const zonesData = await zonesResponse.json();
+        
+        if (!zonesData.success) {
+            treeContainer.innerHTML = `<div class="alert alert-warning">${zonesData.message}</div>`;
+            return;
+        }
+        
+        const domainZones = zonesData.data.zones || [];
+        
+        if (domainZones.length === 0) {
+            treeContainer.innerHTML = '<p class="text-muted text-center">No DNS zones available</p>';
+            return;
+        }
+        
+        let treeHtml = '';
+        
+        for (const zone of domainZones) {
+            const recordsResponse = await fetch(`/api/dns/zones/${zone.id}/records?all=true`);
+            const recordsData = await recordsResponse.json();
+            
+            const records = recordsData.success ? (recordsData.data.records || []) : [];
+            
+            const recordsBySubdomain = {};
+            records.forEach(record => {
+                const name = record.name;
+                const subdomain = name === zone.name ? '@' : name.replace(`.${zone.name}`, '');
+                if (!recordsBySubdomain[subdomain]) {
+                    recordsBySubdomain[subdomain] = [];
+                }
+                recordsBySubdomain[subdomain].push(record);
+            });
+            
+            const typeCounts = {};
+            records.forEach(r => {
+                typeCounts[r.type] = (typeCounts[r.type] || 0) + 1;
+            });
+            
+            const subdomainCount = Object.keys(recordsBySubdomain).length;
+            
+            treeHtml += `
+                <div class="tree-domain" onclick="toggleTreeDomain(this)">
+                    <div class="tree-domain-header">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="fas fa-chevron-right tree-expand-icon"></i>
+                            <i class="fas fa-globe text-primary"></i>
+                            <span class="tree-domain-name">${zone.name}</span>
+                            <span class="badge ${zone.status === 'active' ? 'bg-success' : 'bg-warning'}">${zone.status}</span>
+                        </div>
+                        <div class="tree-domain-stats">
+                            <span class="tree-stat">
+                                <i class="fas fa-sitemap"></i>
+                                ${subdomainCount} subdomains
+                            </span>
+                            <span class="tree-stat">
+                                <i class="fas fa-list"></i>
+                                ${records.length} records
+                            </span>
+                        </div>
+                    </div>
+                    <div class="tree-records">
+            `;
+            
+            const sortedSubdomains = Object.keys(recordsBySubdomain).sort((a, b) => {
+                if (a === '@') return -1;
+                if (b === '@') return 1;
+                return a.localeCompare(b);
+            });
+            
+            for (const subdomain of sortedSubdomains) {
+                const subRecords = recordsBySubdomain[subdomain];
+                const displayName = subdomain === '@' ? `${zone.name} (root)` : `${subdomain}.${zone.name}`;
+                
+                treeHtml += `
+                    <div class="tree-subdomain">
+                        <div class="tree-subdomain-name">
+                            <i class="fas fa-${subdomain === '@' ? 'home' : 'folder'} me-2 text-muted"></i>
+                            ${displayName}
+                        </div>
+                        <div class="tree-record-list">
+                `;
+                
+                subRecords.forEach(record => {
+                    const proxiedIcon = record.proxied ? '<i class="fas fa-cloud text-warning" title="Proxied"></i>' : '';
+                    const shortContent = record.content.length > 30 ? record.content.substring(0, 30) + '...' : record.content;
+                    
+                    treeHtml += `
+                        <span class="tree-record-chip type-${record.type}" title="${record.content}">
+                            <strong>${record.type}</strong>
+                            ${shortContent}
+                            ${proxiedIcon}
+                        </span>
+                    `;
+                });
+                
+                treeHtml += `
+                        </div>
+                    </div>
+                `;
+            }
+            
+            treeHtml += `
+                    </div>
+                </div>
+            `;
+        }
+        
+        treeContainer.innerHTML = treeHtml;
+        
+    } catch (error) {
+        console.error('Error building domain tree:', error);
+        treeContainer.innerHTML = `<div class="alert alert-danger">Failed to build domain tree: ${error.message}</div>`;
+    }
+}
+
+function toggleTreeDomain(element) {
+    element.classList.toggle('expanded');
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadHealthStatus();
+    loadZones();
+    refreshDomainTree();
+});
 </script>
 {% endblock %}
