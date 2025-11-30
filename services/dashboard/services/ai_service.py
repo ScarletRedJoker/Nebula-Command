@@ -46,6 +46,63 @@ class AIService:
         except Exception as e:
             logger.error(f"Failed to initialize Ollama service: {e}")
             self.ollama = None
+        
+        # Initialize codebase access
+        self.codebase = None
+        try:
+            from services.jarvis_codebase_service import jarvis_codebase
+            self.codebase = jarvis_codebase
+            if self.codebase.enabled:
+                logger.info(f"Codebase access enabled: {self.codebase.project_root}")
+        except Exception as e:
+            logger.warning(f"Codebase access not available: {e}")
+    
+    def _get_system_prompt(self) -> str:
+        """Get the Jarvis system prompt with codebase context if available"""
+        base_prompt = """You are Jarvis, an AI-first homelab copilot assistant. You help with:
+- Docker container management and troubleshooting
+- Server health monitoring and diagnostics
+- Network configuration and debugging
+- Log analysis and error resolution
+- Service deployment and orchestration
+- **Direct codebase access and modification**
+
+Be concise, practical, and action-oriented. When diagnosing issues, suggest specific commands or checks the user can perform. Focus on real solutions, not just general advice.
+
+Format your responses using Markdown for better readability:
+- Use **bold** for important terms
+- Use `code` for commands, file paths, and configuration values
+- Use code blocks with language tags for multi-line code (```bash, ```python, etc.)
+- Use lists for step-by-step instructions
+- Use headers (##, ###) for organizing longer responses"""
+
+        # Add codebase context if available
+        if self.codebase and self.codebase.enabled:
+            codebase_context = f"""
+
+## Codebase Access
+You have DIRECT ACCESS to the HomeLabHub codebase at `{self.codebase.project_root}`.
+
+You can:
+- **Browse files**: List directories, view file structure
+- **Read code**: Read any file in the codebase
+- **Edit code**: Modify existing files (creates automatic backups)
+- **Create files**: Add new files to the project
+- **Search code**: Search for patterns using regex
+- **Git status**: Check current git status and changes
+
+When a user asks about the code, bots, or services, you can directly read and analyze the actual source code. When they ask you to fix something, you can directly edit the files.
+
+Key project directories:
+- `services/dashboard/` - Flask dashboard (Python)
+- `services/discord-bot/` - Discord bot (Node.js)
+- `services/stream-bot/` - Stream bot for Twitch/Kick/YouTube (Node.js)
+- `deploy/` - Docker Compose and deployment configs
+
+To access code, use the Codebase API endpoints available at `/api/jarvis/codebase/`."""
+            return base_prompt + codebase_context
+        
+        return base_prompt
     
     def analyze_logs(self, logs: str, context: str = "") -> str:
         if not self.enabled or self.client is None:
@@ -142,22 +199,9 @@ Provide specific troubleshooting steps and potential solutions."""
             return "AI chat is not available. Please check API configuration."
         
         try:
+            system_prompt = self._get_system_prompt()
             messages = [
-                {"role": "system", "content": """You are Jarvis, an AI-first homelab copilot assistant. You help with:
-- Docker container management and troubleshooting
-- Server health monitoring and diagnostics
-- Network configuration and debugging
-- Log analysis and error resolution
-- Service deployment and orchestration
-
-Be concise, practical, and action-oriented. When diagnosing issues, suggest specific commands or checks the user can perform. Focus on real solutions, not just general advice.
-
-Format your responses using Markdown for better readability:
-- Use **bold** for important terms
-- Use `code` for commands, file paths, and configuration values
-- Use code blocks with language tags for multi-line code (```bash, ```python, etc.)
-- Use lists for step-by-step instructions
-- Use headers (##, ###) for organizing longer responses"""}
+                {"role": "system", "content": system_prompt}
             ]
             
             if conversation_history:
@@ -178,22 +222,9 @@ Format your responses using Markdown for better readability:
     
     def _build_chat_messages(self, conversation_history: Optional[List[Dict[str, Any]]], message: str) -> List[Dict[str, Any]]:
         """Build chat messages array for Ollama/OpenAI"""
+        system_prompt = self._get_system_prompt()
         messages = [
-            {"role": "system", "content": """You are Jarvis, an AI-first homelab copilot assistant. You help with:
-- Docker container management and troubleshooting
-- Server health monitoring and diagnostics
-- Network configuration and debugging
-- Log analysis and error resolution
-- Service deployment and orchestration
-
-Be concise, practical, and action-oriented. When diagnosing issues, suggest specific commands or checks the user can perform. Focus on real solutions, not just general advice.
-
-Format your responses using Markdown for better readability:
-- Use **bold** for important terms
-- Use `code` for commands, file paths, and configuration values
-- Use code blocks with language tags for multi-line code (```bash, ```python, etc.)
-- Use lists for step-by-step instructions
-- Use headers (##, ###) for organizing longer responses"""}
+            {"role": "system", "content": system_prompt}
         ]
         
         if conversation_history:
@@ -224,22 +255,9 @@ Format your responses using Markdown for better readability:
             
             try:
                 # Convert conversation history format for Ollama
+                system_prompt = self._get_system_prompt()
                 messages = [
-                    {"role": "system", "content": """You are Jarvis, an AI-first homelab copilot assistant. You help with:
-- Docker container management and troubleshooting
-- Server health monitoring and diagnostics
-- Network configuration and debugging
-- Log analysis and error resolution
-- Service deployment and orchestration
-
-Be concise, practical, and action-oriented. When diagnosing issues, suggest specific commands or checks the user can perform. Focus on real solutions, not just general advice.
-
-Format your responses using Markdown for better readability:
-- Use **bold** for important terms
-- Use `code` for commands, file paths, and configuration values
-- Use code blocks with language tags for multi-line code (```bash, ```python, etc.)
-- Use lists for step-by-step instructions
-- Use headers (##, ###) for organizing longer responses"""}
+                    {"role": "system", "content": system_prompt}
                 ]
                 
                 if conversation_history:
@@ -282,22 +300,9 @@ Format your responses using Markdown for better readability:
             return
         
         try:
+            system_prompt = self._get_system_prompt()
             messages = [
-                {"role": "system", "content": """You are Jarvis, an AI-first homelab copilot assistant. You help with:
-- Docker container management and troubleshooting
-- Server health monitoring and diagnostics
-- Network configuration and debugging
-- Log analysis and error resolution
-- Service deployment and orchestration
-
-Be concise, practical, and action-oriented. When diagnosing issues, suggest specific commands or checks the user can perform. Focus on real solutions, not just general advice.
-
-Format your responses using Markdown for better readability:
-- Use **bold** for important terms
-- Use `code` for commands, file paths, and configuration values
-- Use code blocks with language tags for multi-line code (```bash, ```python, etc.)
-- Use lists for step-by-step instructions
-- Use headers (##, ###) for organizing longer responses"""}
+                {"role": "system", "content": system_prompt}
             ]
             
             if conversation_history:

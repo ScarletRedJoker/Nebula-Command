@@ -41,6 +41,7 @@ from routes.dns_routes import dns_bp
 from routes.fleet_routes import fleet_bp
 from routes.jarvis_code_routes import jarvis_code_bp
 from routes.jarvis_builder_routes import jarvis_builder_bp
+from routes.jarvis_codebase_routes import jarvis_codebase_bp
 # DISABLED: Subscription/licensing features removed per user request - "Remove subscriptions and don't block access. I never wanted that."
 # from routes.subscription_api import subscription_bp
 from services.activity_service import activity_service
@@ -193,6 +194,7 @@ app.register_blueprint(dns_bp)
 app.register_blueprint(fleet_bp)
 app.register_blueprint(jarvis_code_bp)
 app.register_blueprint(jarvis_builder_bp)
+app.register_blueprint(jarvis_codebase_bp)
 # DISABLED: Subscription blueprint disabled - no subscription/licensing checks
 # app.register_blueprint(subscription_bp)
 
