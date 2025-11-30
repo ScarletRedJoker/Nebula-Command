@@ -46,7 +46,6 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "  Starting Gunicorn Server"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-PORT=${PORT:-5000}
-echo "Binding to 0.0.0.0:$PORT"
+echo "Starting with gunicorn.conf.py configuration"
 echo ""
-exec gunicorn --bind 0.0.0.0:$PORT --workers 3 --timeout 120 --access-logfile - --error-logfile - "main:app"
+exec gunicorn --config gunicorn.conf.py "app:app"

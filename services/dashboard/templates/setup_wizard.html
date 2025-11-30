@@ -1,0 +1,1050 @@
+{% extends 'base.html' %}
+
+{% block title %}Setup Wizard - Nebula Command{% endblock %}
+
+{% block extra_css %}
+<style>
+    .setup-hero {
+        background: linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(59, 130, 246, 0.1) 50%, rgba(236, 72, 153, 0.1) 100%);
+        border: 1px solid rgba(139, 92, 246, 0.3);
+        border-radius: 16px;
+        padding: 32px;
+        margin-bottom: 24px;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .setup-hero::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(139, 92, 246, 0.1) 0%, transparent 50%);
+        animation: pulse-glow 8s ease-in-out infinite;
+    }
+    
+    @keyframes pulse-glow {
+        0%, 100% { transform: scale(1); opacity: 0.5; }
+        50% { transform: scale(1.1); opacity: 0.8; }
+    }
+    
+    .hero-content {
+        position: relative;
+        z-index: 1;
+    }
+    
+    .progress-circle {
+        width: 120px;
+        height: 120px;
+        position: relative;
+    }
+    
+    .progress-circle svg {
+        width: 100%;
+        height: 100%;
+        transform: rotate(-90deg);
+    }
+    
+    .progress-circle circle {
+        fill: none;
+        stroke-width: 8;
+    }
+    
+    .progress-circle .bg {
+        stroke: rgba(55, 65, 81, 0.5);
+    }
+    
+    .progress-circle .progress {
+        stroke: url(#progressGradient);
+        stroke-linecap: round;
+        transition: stroke-dashoffset 0.5s ease;
+    }
+    
+    .progress-text {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+    }
+    
+    .progress-value {
+        font-size: 1.8rem;
+        font-weight: 700;
+        background: linear-gradient(135deg, #8B5CF6, #3B82F6);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+    
+    .progress-label {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    
+    .setup-accordion {
+        --bs-accordion-bg: transparent;
+        --bs-accordion-border-color: rgba(139, 92, 246, 0.2);
+    }
+    
+    .accordion-item {
+        background: linear-gradient(145deg, rgba(31, 41, 55, 0.6) 0%, rgba(17, 24, 39, 0.8) 100%);
+        border: 1px solid rgba(139, 92, 246, 0.2);
+        border-radius: 12px !important;
+        margin-bottom: 16px;
+        overflow: hidden;
+        transition: all 0.3s ease;
+    }
+    
+    .accordion-item:hover {
+        border-color: rgba(139, 92, 246, 0.4);
+        box-shadow: 0 4px 20px rgba(139, 92, 246, 0.15);
+    }
+    
+    .accordion-button {
+        background: transparent;
+        color: var(--text-primary);
+        font-weight: 600;
+        padding: 20px 24px;
+        box-shadow: none !important;
+    }
+    
+    .accordion-button:not(.collapsed) {
+        background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(59, 130, 246, 0.05));
+        color: var(--text-primary);
+    }
+    
+    .accordion-button::after {
+        filter: invert(1);
+    }
+    
+    .accordion-body {
+        padding: 24px;
+        border-top: 1px solid rgba(139, 92, 246, 0.1);
+    }
+    
+    .service-header {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex: 1;
+    }
+    
+    .service-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.4rem;
+        background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(59, 130, 246, 0.15));
+        border: 1px solid rgba(139, 92, 246, 0.3);
+    }
+    
+    .service-icon.configured {
+        background: linear-gradient(135deg, rgba(52, 211, 153, 0.2), rgba(16, 185, 129, 0.15));
+        border-color: rgba(52, 211, 153, 0.4);
+        color: var(--accent-green);
+    }
+    
+    .service-icon.not-configured {
+        background: linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(245, 158, 11, 0.15));
+        border-color: rgba(251, 191, 36, 0.4);
+        color: var(--accent-yellow);
+    }
+    
+    .service-info h5 {
+        margin: 0 0 4px;
+        font-size: 1.1rem;
+    }
+    
+    .service-info small {
+        color: var(--text-secondary);
+    }
+    
+    .status-badge {
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    
+    .status-badge.configured {
+        background: rgba(52, 211, 153, 0.15);
+        color: var(--accent-green);
+        border: 1px solid rgba(52, 211, 153, 0.3);
+    }
+    
+    .status-badge.not-configured {
+        background: rgba(251, 191, 36, 0.15);
+        color: var(--accent-yellow);
+        border: 1px solid rgba(251, 191, 36, 0.3);
+    }
+    
+    .config-section {
+        background: rgba(17, 24, 39, 0.5);
+        border: 1px solid rgba(55, 65, 81, 0.5);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    
+    .config-section h6 {
+        color: var(--accent-purple);
+        margin-bottom: 16px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .form-label {
+        color: var(--text-secondary);
+        font-weight: 500;
+        font-size: 0.9rem;
+        margin-bottom: 8px;
+    }
+    
+    .form-control, .form-select {
+        background: rgba(17, 24, 39, 0.8);
+        border: 1px solid rgba(55, 65, 81, 0.8);
+        color: var(--text-primary);
+        border-radius: 8px;
+        padding: 12px 16px;
+        transition: all 0.2s ease;
+    }
+    
+    .form-control:focus, .form-select:focus {
+        background: rgba(17, 24, 39, 0.95);
+        border-color: rgba(139, 92, 246, 0.5);
+        box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
+        color: var(--text-primary);
+    }
+    
+    .form-control::placeholder {
+        color: rgba(156, 163, 175, 0.5);
+    }
+    
+    .input-group-text {
+        background: rgba(31, 41, 55, 0.8);
+        border: 1px solid rgba(55, 65, 81, 0.8);
+        color: var(--text-secondary);
+    }
+    
+    .btn-test {
+        background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(96, 165, 250, 0.15));
+        border: 1px solid rgba(59, 130, 246, 0.4);
+        color: var(--accent-blue);
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-weight: 600;
+        transition: all 0.2s ease;
+    }
+    
+    .btn-test:hover {
+        background: linear-gradient(135deg, rgba(59, 130, 246, 0.3), rgba(96, 165, 250, 0.25));
+        border-color: rgba(59, 130, 246, 0.6);
+        color: var(--accent-blue);
+        transform: translateY(-1px);
+    }
+    
+    .btn-test:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+    }
+    
+    .btn-save {
+        background: linear-gradient(135deg, #8B5CF6, #3B82F6);
+        border: none;
+        color: white;
+        padding: 10px 24px;
+        border-radius: 8px;
+        font-weight: 600;
+        transition: all 0.2s ease;
+    }
+    
+    .btn-save:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4);
+        color: white;
+    }
+    
+    .test-result {
+        padding: 16px;
+        border-radius: 8px;
+        margin-top: 16px;
+        display: none;
+    }
+    
+    .test-result.success {
+        display: block;
+        background: rgba(52, 211, 153, 0.1);
+        border: 1px solid rgba(52, 211, 153, 0.3);
+        color: var(--accent-green);
+    }
+    
+    .test-result.error {
+        display: block;
+        background: rgba(248, 113, 113, 0.1);
+        border: 1px solid rgba(248, 113, 113, 0.3);
+        color: var(--accent-red);
+    }
+    
+    .help-box {
+        background: rgba(59, 130, 246, 0.1);
+        border: 1px solid rgba(59, 130, 246, 0.2);
+        border-radius: 8px;
+        padding: 16px;
+        margin-top: 16px;
+    }
+    
+    .help-box h6 {
+        color: var(--accent-blue);
+        margin-bottom: 12px;
+        font-weight: 600;
+    }
+    
+    .help-box ul {
+        margin: 0;
+        padding-left: 20px;
+        color: var(--text-secondary);
+    }
+    
+    .help-box li {
+        margin-bottom: 8px;
+    }
+    
+    .help-box a {
+        color: var(--accent-blue);
+        text-decoration: none;
+    }
+    
+    .help-box a:hover {
+        text-decoration: underline;
+    }
+    
+    .current-value {
+        background: rgba(139, 92, 246, 0.1);
+        border: 1px solid rgba(139, 92, 246, 0.2);
+        border-radius: 6px;
+        padding: 8px 12px;
+        font-family: 'Monaco', 'Menlo', monospace;
+        font-size: 0.85rem;
+        color: var(--accent-purple);
+        display: inline-block;
+        margin-top: 8px;
+    }
+    
+    .spinner-border-sm {
+        width: 1rem;
+        height: 1rem;
+        border-width: 2px;
+    }
+    
+    @media (max-width: 768px) {
+        .setup-hero {
+            padding: 20px;
+        }
+        
+        .progress-circle {
+            width: 80px;
+            height: 80px;
+        }
+        
+        .progress-value {
+            font-size: 1.4rem;
+        }
+        
+        .service-header {
+            flex-wrap: wrap;
+        }
+        
+        .status-badge {
+            margin-top: 8px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="setup-hero">
+        <div class="hero-content">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h1 class="mb-3">
+                        <i class="bi bi-gear-wide-connected me-3"></i>Setup Wizard
+                    </h1>
+                    <p class="text-secondary mb-0 lead">
+                        Configure all required services for your Nebula Command dashboard.
+                        Complete each section to unlock full functionality.
+                    </p>
+                </div>
+                <div class="col-md-4 text-center text-md-end mt-4 mt-md-0">
+                    <div class="progress-circle d-inline-block">
+                        <svg>
+                            <defs>
+                                <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                    <stop offset="0%" style="stop-color:#8B5CF6"/>
+                                    <stop offset="100%" style="stop-color:#3B82F6"/>
+                                </linearGradient>
+                            </defs>
+                            <circle class="bg" cx="60" cy="60" r="50"></circle>
+                            <circle class="progress" cx="60" cy="60" r="50" 
+                                    stroke-dasharray="314" 
+                                    stroke-dashoffset="314"
+                                    id="progressCircle"></circle>
+                        </svg>
+                        <div class="progress-text">
+                            <div class="progress-value" id="progressValue">0%</div>
+                            <div class="progress-label">Complete</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="accordion setup-accordion" id="setupAccordion">
+        <div class="accordion-item" id="cloudflare-section">
+            <h2 class="accordion-header">
+                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#cloudflareCollapse">
+                    <div class="service-header">
+                        <div class="service-icon not-configured" id="cloudflare-icon">
+                            <i class="bi bi-cloud"></i>
+                        </div>
+                        <div class="service-info">
+                            <h5>Cloudflare DNS</h5>
+                            <small>Manage DNS records for your domains</small>
+                        </div>
+                        <span class="status-badge not-configured ms-auto me-3" id="cloudflare-status">Not Configured</span>
+                    </div>
+                </button>
+            </h2>
+            <div id="cloudflareCollapse" class="accordion-collapse collapse show" data-bs-parent="#setupAccordion">
+                <div class="accordion-body">
+                    <div class="config-section">
+                        <h6><i class="bi bi-key-fill"></i> API Configuration</h6>
+                        <div class="mb-3">
+                            <label class="form-label">Cloudflare API Token</label>
+                            <div class="input-group">
+                                <input type="password" class="form-control" id="cloudflare-token" 
+                                       placeholder="Enter your Cloudflare API token">
+                                <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('cloudflare-token')">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                            </div>
+                            <small class="text-muted">API token with Zone:Read and DNS:Edit permissions</small>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-test" onclick="testCloudflare()">
+                                <i class="bi bi-check-circle me-2"></i>Test Connection
+                            </button>
+                            <button class="btn btn-save" onclick="saveConfig('cloudflare')">
+                                <i class="bi bi-save me-2"></i>Save
+                            </button>
+                        </div>
+                        <div class="test-result" id="cloudflare-result"></div>
+                    </div>
+                    
+                    <div class="help-box">
+                        <h6><i class="bi bi-question-circle me-2"></i>How to get your API Token</h6>
+                        <ul>
+                            <li>Go to <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank">Cloudflare Dashboard → API Tokens</a></li>
+                            <li>Click "Create Token"</li>
+                            <li>Use the "Edit zone DNS" template or create custom token</li>
+                            <li>Ensure Zone:Read and DNS:Edit permissions are granted</li>
+                            <li>Select the specific zones you want to manage</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="accordion-item" id="tailscale-section">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tailscaleCollapse">
+                    <div class="service-header">
+                        <div class="service-icon not-configured" id="tailscale-icon">
+                            <i class="bi bi-diagram-3"></i>
+                        </div>
+                        <div class="service-info">
+                            <h5>Tailscale VPN</h5>
+                            <small>Secure mesh network for fleet management</small>
+                        </div>
+                        <span class="status-badge not-configured ms-auto me-3" id="tailscale-status">Not Configured</span>
+                    </div>
+                </button>
+            </h2>
+            <div id="tailscaleCollapse" class="accordion-collapse collapse" data-bs-parent="#setupAccordion">
+                <div class="accordion-body">
+                    <div class="config-section">
+                        <h6><i class="bi bi-hdd-network"></i> Host Configuration</h6>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Linode Host Tailscale IP</label>
+                                <input type="text" class="form-control" id="tailscale-linode-ip" 
+                                       placeholder="e.g., 100.x.x.x">
+                                <small class="text-muted">Cloud server Tailscale IP address</small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Local Host Tailscale IP</label>
+                                <input type="text" class="form-control" id="tailscale-local-ip" 
+                                       placeholder="e.g., 100.x.x.x">
+                                <small class="text-muted">Local server Tailscale IP address</small>
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-test" onclick="testTailscale()">
+                                <i class="bi bi-check-circle me-2"></i>Test Connectivity
+                            </button>
+                            <button class="btn btn-save" onclick="saveConfig('tailscale')">
+                                <i class="bi bi-save me-2"></i>Save
+                            </button>
+                        </div>
+                        <div class="test-result" id="tailscale-result"></div>
+                    </div>
+                    
+                    <div class="help-box">
+                        <h6><i class="bi bi-question-circle me-2"></i>Setting up Tailscale</h6>
+                        <ul>
+                            <li>Install Tailscale on all servers: <code>curl -fsSL https://tailscale.com/install.sh | sh</code></li>
+                            <li>Authenticate: <code>sudo tailscale up</code></li>
+                            <li>Get IP address: <code>tailscale ip -4</code></li>
+                            <li>View all devices at <a href="https://login.tailscale.com/admin/machines" target="_blank">Tailscale Admin Console</a></li>
+                            <li>Set environment variables: <code>TAILSCALE_LINODE_HOST</code> and <code>TAILSCALE_LOCAL_HOST</code></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="accordion-item" id="ssh-section">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#sshCollapse">
+                    <div class="service-header">
+                        <div class="service-icon not-configured" id="ssh-icon">
+                            <i class="bi bi-key"></i>
+                        </div>
+                        <div class="service-info">
+                            <h5>Fleet SSH Keys</h5>
+                            <small>SSH authentication for remote server management</small>
+                        </div>
+                        <span class="status-badge not-configured ms-auto me-3" id="ssh-status">Not Configured</span>
+                    </div>
+                </button>
+            </h2>
+            <div id="sshCollapse" class="accordion-collapse collapse" data-bs-parent="#setupAccordion">
+                <div class="accordion-body">
+                    <div class="config-section">
+                        <h6><i class="bi bi-file-earmark-lock"></i> SSH Key Configuration</h6>
+                        <div class="mb-3">
+                            <label class="form-label">SSH Private Key Path</label>
+                            <input type="text" class="form-control" id="ssh-key-path" 
+                                   placeholder="/home/user/.ssh/id_rsa" value="~/.ssh/id_rsa">
+                            <small class="text-muted">Path to your SSH private key for fleet access</small>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Linode SSH User</label>
+                                <input type="text" class="form-control" id="ssh-linode-user" 
+                                       placeholder="root" value="root">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Local Host SSH User</label>
+                                <input type="text" class="form-control" id="ssh-local-user" 
+                                       placeholder="evin">
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <button class="btn btn-test" onclick="testSSH('linode')">
+                                <i class="bi bi-check-circle me-2"></i>Test Linode SSH
+                            </button>
+                            <button class="btn btn-test" onclick="testSSH('local')">
+                                <i class="bi bi-check-circle me-2"></i>Test Local SSH
+                            </button>
+                            <button class="btn btn-save" onclick="saveConfig('ssh')">
+                                <i class="bi bi-save me-2"></i>Save
+                            </button>
+                        </div>
+                        <div class="test-result" id="ssh-result"></div>
+                    </div>
+                    
+                    <div class="help-box">
+                        <h6><i class="bi bi-question-circle me-2"></i>SSH Key Setup</h6>
+                        <ul>
+                            <li>Generate SSH key: <code>ssh-keygen -t ed25519 -C "homelab-fleet"</code></li>
+                            <li>Copy public key to servers: <code>ssh-copy-id user@server-ip</code></li>
+                            <li>Set key path: <code>FLEET_SSH_KEY_PATH=/path/to/private/key</code></li>
+                            <li>Set SSH users: <code>FLEET_LINODE_SSH_USER=root</code>, <code>FLEET_LOCAL_SSH_USER=evin</code></li>
+                            <li>Ensure key has proper permissions: <code>chmod 600 ~/.ssh/id_rsa</code></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="accordion-item" id="storage-section">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#storageCollapse">
+                    <div class="service-header">
+                        <div class="service-icon not-configured" id="storage-icon">
+                            <i class="bi bi-cloud-arrow-up"></i>
+                        </div>
+                        <div class="service-info">
+                            <h5>Cloud Storage</h5>
+                            <small>Backblaze B2 or S3-compatible object storage</small>
+                        </div>
+                        <span class="status-badge not-configured ms-auto me-3" id="storage-status">Not Configured</span>
+                    </div>
+                </button>
+            </h2>
+            <div id="storageCollapse" class="accordion-collapse collapse" data-bs-parent="#setupAccordion">
+                <div class="accordion-body">
+                    <div class="config-section">
+                        <h6><i class="bi bi-bucket"></i> Storage Configuration</h6>
+                        <div class="mb-3">
+                            <label class="form-label">Storage Provider</label>
+                            <select class="form-select" id="storage-provider">
+                                <option value="minio">MinIO (Self-hosted)</option>
+                                <option value="b2">Backblaze B2</option>
+                                <option value="s3">AWS S3</option>
+                                <option value="other">Other S3-Compatible</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Endpoint URL</label>
+                            <input type="text" class="form-control" id="storage-endpoint" 
+                                   placeholder="https://s3.us-west-002.backblazeb2.com">
+                            <small class="text-muted">S3-compatible endpoint URL</small>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Access Key ID</label>
+                                <input type="text" class="form-control" id="storage-access-key" 
+                                       placeholder="Your access key">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Secret Access Key</label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" id="storage-secret-key" 
+                                           placeholder="Your secret key">
+                                    <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('storage-secret-key')">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-test" onclick="testStorage()">
+                                <i class="bi bi-check-circle me-2"></i>Test Connection
+                            </button>
+                            <button class="btn btn-save" onclick="saveConfig('storage')">
+                                <i class="bi bi-save me-2"></i>Save
+                            </button>
+                        </div>
+                        <div class="test-result" id="storage-result"></div>
+                    </div>
+                    
+                    <div class="help-box">
+                        <h6><i class="bi bi-question-circle me-2"></i>Getting Storage Credentials</h6>
+                        <ul>
+                            <li><strong>Backblaze B2:</strong> Create application key at <a href="https://secure.backblaze.com/app_keys.htm" target="_blank">B2 Cloud Storage → App Keys</a></li>
+                            <li><strong>MinIO:</strong> Use the access/secret keys from your MinIO deployment</li>
+                            <li><strong>AWS S3:</strong> Create IAM user with S3 access at <a href="https://console.aws.amazon.com/iam/" target="_blank">AWS IAM Console</a></li>
+                            <li>Set environment variables: <code>MINIO_ENDPOINT</code>, <code>MINIO_ACCESS_KEY</code>, <code>MINIO_SECRET_KEY</code></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="accordion-item" id="openai-section">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#openaiCollapse">
+                    <div class="service-header">
+                        <div class="service-icon not-configured" id="openai-icon">
+                            <i class="bi bi-robot"></i>
+                        </div>
+                        <div class="service-info">
+                            <h5>OpenAI API</h5>
+                            <small>AI features for Jarvis assistant and chat</small>
+                        </div>
+                        <span class="status-badge not-configured ms-auto me-3" id="openai-status">Not Configured</span>
+                    </div>
+                </button>
+            </h2>
+            <div id="openaiCollapse" class="accordion-collapse collapse" data-bs-parent="#setupAccordion">
+                <div class="accordion-body">
+                    <div class="config-section">
+                        <h6><i class="bi bi-cpu"></i> API Configuration</h6>
+                        <div class="mb-3">
+                            <label class="form-label">OpenAI API Key</label>
+                            <div class="input-group">
+                                <input type="password" class="form-control" id="openai-key" 
+                                       placeholder="sk-...">
+                                <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('openai-key')">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                            </div>
+                            <small class="text-muted">Your OpenAI API key (starts with sk-)</small>
+                            <div id="openai-integration-note" class="current-value mt-2" style="display: none;">
+                                <i class="bi bi-check-circle text-success me-2"></i>
+                                Using Replit AI Integration (AI_INTEGRATIONS_OPENAI_API_KEY)
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-test" onclick="testOpenAI()">
+                                <i class="bi bi-check-circle me-2"></i>Test Connection
+                            </button>
+                            <button class="btn btn-save" onclick="saveConfig('openai')">
+                                <i class="bi bi-save me-2"></i>Save
+                            </button>
+                        </div>
+                        <div class="test-result" id="openai-result"></div>
+                    </div>
+                    
+                    <div class="help-box">
+                        <h6><i class="bi bi-question-circle me-2"></i>Getting your API Key</h6>
+                        <ul>
+                            <li>Go to <a href="https://platform.openai.com/api-keys" target="_blank">OpenAI Platform → API Keys</a></li>
+                            <li>Click "Create new secret key"</li>
+                            <li>Copy the key immediately (it won't be shown again)</li>
+                            <li>Set environment variable: <code>OPENAI_API_KEY=sk-...</code></li>
+                            <li>Or use Replit's built-in AI integration for automatic key management</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let setupStatus = {};
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadSetupStatus();
+});
+
+async function loadSetupStatus() {
+    try {
+        const response = await fetch('/api/setup/status');
+        const data = await response.json();
+        
+        if (data.success) {
+            setupStatus = data.data.services;
+            updateUI(data.data);
+        }
+    } catch (error) {
+        console.error('Error loading setup status:', error);
+    }
+}
+
+function updateUI(data) {
+    const services = data.services;
+    const summary = data.summary;
+    
+    const circumference = 2 * Math.PI * 50;
+    const offset = circumference - (summary.percentage / 100) * circumference;
+    document.getElementById('progressCircle').style.strokeDashoffset = offset;
+    document.getElementById('progressValue').textContent = summary.percentage + '%';
+    
+    for (const [key, service] of Object.entries(services)) {
+        const icon = document.getElementById(`${key}-icon`);
+        const status = document.getElementById(`${key}-status`);
+        
+        if (icon && status) {
+            if (service.configured) {
+                icon.classList.remove('not-configured');
+                icon.classList.add('configured');
+                status.classList.remove('not-configured');
+                status.classList.add('configured');
+                status.textContent = 'Configured';
+            } else {
+                icon.classList.remove('configured');
+                icon.classList.add('not-configured');
+                status.classList.remove('configured');
+                status.classList.add('not-configured');
+                status.textContent = 'Not Configured';
+            }
+        }
+    }
+    
+    if (services.tailscale) {
+        if (services.tailscale.linode_ip) {
+            document.getElementById('tailscale-linode-ip').value = services.tailscale.linode_ip;
+        }
+        if (services.tailscale.local_ip) {
+            document.getElementById('tailscale-local-ip').value = services.tailscale.local_ip;
+        }
+    }
+    
+    if (services.fleet_ssh) {
+        if (services.fleet_ssh.key_path) {
+            document.getElementById('ssh-key-path').value = services.fleet_ssh.key_path;
+        }
+        if (services.fleet_ssh.linode_user) {
+            document.getElementById('ssh-linode-user').value = services.fleet_ssh.linode_user;
+        }
+        if (services.fleet_ssh.local_user) {
+            document.getElementById('ssh-local-user').value = services.fleet_ssh.local_user;
+        }
+    }
+    
+    if (services.cloud_storage && services.cloud_storage.endpoint) {
+        document.getElementById('storage-endpoint').value = services.cloud_storage.endpoint;
+    }
+    
+    if (services.openai && services.openai.configured) {
+        document.getElementById('openai-integration-note').style.display = 'block';
+    }
+}
+
+function togglePassword(inputId) {
+    const input = document.getElementById(inputId);
+    const icon = input.nextElementSibling.querySelector('i');
+    
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.classList.remove('bi-eye');
+        icon.classList.add('bi-eye-slash');
+    } else {
+        input.type = 'password';
+        icon.classList.remove('bi-eye-slash');
+        icon.classList.add('bi-eye');
+    }
+}
+
+function showResult(elementId, success, message) {
+    const resultEl = document.getElementById(elementId);
+    resultEl.className = 'test-result ' + (success ? 'success' : 'error');
+    resultEl.innerHTML = `<i class="bi ${success ? 'bi-check-circle' : 'bi-x-circle'} me-2"></i>${message}`;
+}
+
+function setButtonLoading(button, loading) {
+    if (loading) {
+        button.disabled = true;
+        button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Testing...';
+    } else {
+        button.disabled = false;
+        button.innerHTML = '<i class="bi bi-check-circle me-2"></i>Test Connection';
+    }
+}
+
+async function testCloudflare() {
+    const button = event.target.closest('button');
+    const token = document.getElementById('cloudflare-token').value;
+    
+    setButtonLoading(button, true);
+    
+    try {
+        const response = await fetch('/api/setup/test/cloudflare', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ api_token: token || undefined })
+        });
+        
+        const data = await response.json();
+        showResult('cloudflare-result', data.success, data.data?.message || data.message);
+        
+        if (data.success) {
+            loadSetupStatus();
+        }
+    } catch (error) {
+        showResult('cloudflare-result', false, 'Connection error: ' + error.message);
+    } finally {
+        setButtonLoading(button, false);
+    }
+}
+
+async function testTailscale() {
+    const button = event.target.closest('button');
+    const linodeIp = document.getElementById('tailscale-linode-ip').value;
+    const localIp = document.getElementById('tailscale-local-ip').value;
+    
+    setButtonLoading(button, true);
+    
+    try {
+        const response = await fetch('/api/setup/test/tailscale', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                linode_ip: linodeIp || undefined,
+                local_ip: localIp || undefined
+            })
+        });
+        
+        const data = await response.json();
+        
+        let resultMsg = data.message;
+        if (data.data) {
+            const results = [];
+            if (data.data.linode?.ip) {
+                results.push(`Linode (${data.data.linode.ip}): ${data.data.linode.reachable ? '✓ Reachable' : '✗ Unreachable'}`);
+            }
+            if (data.data.local?.ip) {
+                results.push(`Local (${data.data.local.ip}): ${data.data.local.reachable ? '✓ Reachable' : '✗ Unreachable'}`);
+            }
+            if (results.length) {
+                resultMsg += '<br>' + results.join('<br>');
+            }
+        }
+        
+        showResult('tailscale-result', data.success, resultMsg);
+    } catch (error) {
+        showResult('tailscale-result', false, 'Connection error: ' + error.message);
+    } finally {
+        setButtonLoading(button, false);
+    }
+}
+
+async function testSSH(hostId) {
+    const button = event.target.closest('button');
+    
+    setButtonLoading(button, true);
+    
+    try {
+        const response = await fetch('/api/setup/test/ssh', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ host_id: hostId })
+        });
+        
+        const data = await response.json();
+        showResult('ssh-result', data.success, data.message);
+    } catch (error) {
+        showResult('ssh-result', false, 'Connection error: ' + error.message);
+    } finally {
+        button.disabled = false;
+        button.innerHTML = `<i class="bi bi-check-circle me-2"></i>Test ${hostId.charAt(0).toUpperCase() + hostId.slice(1)} SSH`;
+    }
+}
+
+async function testStorage() {
+    const button = event.target.closest('button');
+    const endpoint = document.getElementById('storage-endpoint').value;
+    const accessKey = document.getElementById('storage-access-key').value;
+    const secretKey = document.getElementById('storage-secret-key').value;
+    
+    setButtonLoading(button, true);
+    
+    try {
+        const response = await fetch('/api/setup/test/storage', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                endpoint: endpoint || undefined,
+                access_key: accessKey || undefined,
+                secret_key: secretKey || undefined
+            })
+        });
+        
+        const data = await response.json();
+        
+        let resultMsg = data.message;
+        if (data.success && data.data?.buckets) {
+            resultMsg += '<br>Buckets: ' + data.data.buckets.join(', ');
+        }
+        
+        showResult('storage-result', data.success, resultMsg);
+    } catch (error) {
+        showResult('storage-result', false, 'Connection error: ' + error.message);
+    } finally {
+        setButtonLoading(button, false);
+    }
+}
+
+async function testOpenAI() {
+    const button = event.target.closest('button');
+    const apiKey = document.getElementById('openai-key').value;
+    
+    setButtonLoading(button, true);
+    
+    try {
+        const response = await fetch('/api/setup/test/openai', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ api_key: apiKey || undefined })
+        });
+        
+        const data = await response.json();
+        
+        let resultMsg = data.message;
+        if (data.success && data.data) {
+            resultMsg += data.data.gpt4_available ? ' (GPT-4 available)' : ' (GPT-4 not available)';
+        }
+        
+        showResult('openai-result', data.success, resultMsg);
+        
+        if (data.success) {
+            loadSetupStatus();
+        }
+    } catch (error) {
+        showResult('openai-result', false, 'Connection error: ' + error.message);
+    } finally {
+        setButtonLoading(button, false);
+    }
+}
+
+async function saveConfig(service) {
+    let config = {};
+    
+    switch (service) {
+        case 'cloudflare':
+            config = { api_token: document.getElementById('cloudflare-token').value };
+            break;
+        case 'tailscale':
+            config = {
+                linode_ip: document.getElementById('tailscale-linode-ip').value,
+                local_ip: document.getElementById('tailscale-local-ip').value
+            };
+            break;
+        case 'ssh':
+            config = {
+                key_path: document.getElementById('ssh-key-path').value,
+                linode_user: document.getElementById('ssh-linode-user').value,
+                local_user: document.getElementById('ssh-local-user').value
+            };
+            break;
+        case 'storage':
+            config = {
+                provider: document.getElementById('storage-provider').value,
+                endpoint: document.getElementById('storage-endpoint').value,
+                access_key: document.getElementById('storage-access-key').value,
+                secret_key: document.getElementById('storage-secret-key').value
+            };
+            break;
+        case 'openai':
+            config = { api_key: document.getElementById('openai-key').value };
+            break;
+    }
+    
+    try {
+        const response = await fetch('/api/setup/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ service, config })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('Configuration saved successfully!');
+            loadSetupStatus();
+        } else {
+            alert('Failed to save: ' + data.message);
+        }
+    } catch (error) {
+        alert('Error saving configuration: ' + error.message);
+    }
+}
+</script>
+{% endblock %}

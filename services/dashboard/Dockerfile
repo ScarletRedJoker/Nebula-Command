@@ -1,40 +1,44 @@
 FROM python:3.11-slim
 
+LABEL maintainer="HomeLabHub Team"
+LABEL description="Production-ready Homelab Dashboard service"
+
 WORKDIR /app
 
-# Install system dependencies including Docker CLI
-RUN apt-get update && apt-get install -y \
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONFAULTHANDLER=1
+ENV PIP_NO_CACHE_DIR=1
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
+ENV FLASK_ENV=production
+ENV C_FORCE_ROOT=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     curl \
     ca-certificates \
+    libmagic1 \
     && install -m 0755 -d /etc/apt/keyrings \
     && curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc \
     && chmod a+r /etc/apt/keyrings/docker.asc \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian bookworm stable" > /etc/apt/sources.list.d/docker.list \
     && apt-get update \
-    && apt-get install -y docker-ce-cli \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get install -y --no-install-recommends docker-ce-cli \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
-# Copy requirements and install Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt gunicorn
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
 COPY . .
 
-# Set execute permissions on entrypoint script (must be AFTER COPY to persist in container)
 RUN chmod +x /app/docker-entrypoint.sh
 
-# Create logs directory
 RUN mkdir -p /app/logs
 
-# Set environment
-ENV PYTHONUNBUFFERED=1
-ENV FLASK_ENV=production
-ENV C_FORCE_ROOT=1
-
-# Expose port
 EXPOSE 5000
 
-# Use entrypoint script to run migrations before starting gunicorn
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:5000/health || exit 1
+
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
