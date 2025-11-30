@@ -136,7 +136,7 @@ def deploy_project():
             
             if not project:
                 # Create new project
-                project_root = os.environ.get('HOMELAB_PROJECT_ROOT', '/data/projects')
+                project_root = os.environ.get('HOMELAB_PROJECT_ROOT', '/project')
                 project = Project(
                     name=project_name,
                     path=f"{project_root}/{project_name}",

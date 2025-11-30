@@ -14,7 +14,7 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-PROJECT_ROOT = os.environ.get('HOMELAB_PROJECT_ROOT', '/home/evin/contain/HomeLabHub')
+PROJECT_ROOT = os.environ.get('HOMELAB_PROJECT_ROOT', '/project')
 
 PROTECTED_PATHS = [
     '.env',

@@ -475,7 +475,7 @@ ALLOWED_COMMANDS = [
 
 SAFE_DIRECTORIES = [
     '/var/log',
-    os.environ.get('HOMELAB_PROJECT_ROOT', '/data/projects'),
+    os.environ.get('HOMELAB_PROJECT_ROOT', '/project'),
     os.environ.get('STATIC_SITE_PATH', '/var/www'),
 ]
 
