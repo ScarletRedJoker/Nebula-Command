@@ -231,22 +231,46 @@ if [ -n "$TAILSCALE_IP" ]; then
 fi
 
 # Validate required variables
-required_vars=("POSTGRES_PASSWORD" "DISCORD_DB_PASSWORD" "STREAMBOT_DB_PASSWORD" "JARVIS_DB_PASSWORD" "WEB_USERNAME" "WEB_PASSWORD")
+# WEB_USERNAME must always be provided (cannot be auto-generated)
+# Other secrets can be auto-generated
+required_manual=("WEB_USERNAME")
+required_secrets=("POSTGRES_PASSWORD" "DISCORD_DB_PASSWORD" "STREAMBOT_DB_PASSWORD" "JARVIS_DB_PASSWORD" "WEB_PASSWORD")
 missing=()
+missing_secrets=()
 
-for var in "${required_vars[@]}"; do
+# Check manual requirements (cannot be auto-generated)
+for var in "${required_manual[@]}"; do
     if ! grep -q "^${var}=" .env || [ -z "$(grep "^${var}=" .env | cut -d'=' -f2-)" ]; then
         missing+=("$var")
     fi
 done
 
+# Check secrets (can be auto-generated if --generate-secrets is used)
+for var in "${required_secrets[@]}"; do
+    if ! grep -q "^${var}=" .env || [ -z "$(grep "^${var}=" .env | cut -d'=' -f2-)" ]; then
+        missing_secrets+=("$var")
+    fi
+done
+
+# Report manual variables that must be set
 if [ ${#missing[@]} -gt 0 ]; then
-    echo -e "${RED}✗ Missing required variables:${NC}"
+    echo -e "${RED}✗ Missing required variables (cannot be auto-generated):${NC}"
     for var in "${missing[@]}"; do
         echo "  - $var"
     done
     echo ""
-    echo "Run with --generate-secrets to auto-generate, or edit .env manually"
+    echo "Edit .env to set these values manually"
+    exit 1
+fi
+
+# Report missing secrets (can be auto-generated)
+if [ ${#missing_secrets[@]} -gt 0 ]; then
+    echo -e "${YELLOW}⚠ Missing secret variables:${NC}"
+    for var in "${missing_secrets[@]}"; do
+        echo "  - $var"
+    done
+    echo ""
+    echo "Re-run with --generate-secrets to auto-generate passwords"
     exit 1
 fi
 
