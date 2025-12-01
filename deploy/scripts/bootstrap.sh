@@ -300,6 +300,7 @@ if [ "$ROLE" = "local" ]; then
     mkdir -p "$PROJECT_ROOT/data/plex/media" 2>/dev/null || true
     mkdir -p "$PROJECT_ROOT/data/homeassistant" 2>/dev/null || true
     mkdir -p "$PROJECT_ROOT/data/minio" 2>/dev/null || true
+    mkdir -p "$PROJECT_ROOT/config/sunshine" 2>/dev/null || true
 fi
 
 echo -e "${GREEN}✓ Directories ready${NC}"
@@ -409,6 +410,7 @@ else
     echo "  Plex:           http://localhost:32400/web"
     echo "  Home Assistant: http://localhost:8123"
     echo "  MinIO Console:  http://localhost:9001"
+    echo "  Sunshine (GameStream): http://localhost:47990"
 fi
 
 echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
@@ -420,4 +422,17 @@ if [ -z "$TAILSCALE_IP" ]; then
     echo "1. Install Tailscale: curl -fsSL https://tailscale.com/install.sh | sh"
     echo "2. Connect to VPN: sudo tailscale up --authkey=YOUR_KEY"
     echo "3. Re-run bootstrap to register Tailscale IP"
+fi
+
+# Check for LOCAL_TAILSCALE_IP on cloud deployments (needed for routing to local services)
+if [ "$ROLE" = "cloud" ]; then
+    LOCAL_TS_IP=$(grep "^LOCAL_TAILSCALE_IP=" .env 2>/dev/null | cut -d'=' -f2 || echo "")
+    if [ -z "$LOCAL_TS_IP" ]; then
+        echo ""
+        echo -e "${YELLOW}Multi-Host Routing:${NC}"
+        echo "To route Plex, Home Assistant, and GameStream from Linode to your local host,"
+        echo "add LOCAL_TAILSCALE_IP to .env with your local host's Tailscale IP address."
+        echo ""
+        echo "Example: LOCAL_TAILSCALE_IP=100.x.x.x"
+    fi
 fi
