@@ -31,17 +31,23 @@
 └──────────────────────────┬──────────────────────────────────────┘
                            │
            ┌───────────────┴───────────────┐
-           ▼                               ▼
-┌─────────────────────┐         ┌─────────────────────┐
+           ▼                               │
+┌─────────────────────┐         ┌──────────┴──────────┐
 │   LINODE CLOUD      │◄═══════►│   LOCAL UBUNTU      │
 │   $24/month         │ Tailscale│   (Your PC)         │
-│                     │   VPN    │                     │
+│   (Public DNS)      │   VPN    │   (Tailscale only)  │
+│                     │         │                     │
 │ • Dashboard         │         │ • Plex Media        │
 │ • Discord Bot       │         │ • Home Assistant    │
 │ • Stream Bot        │         │ • MinIO Storage     │
 │ • PostgreSQL        │         │ • Sunshine Games    │
 │ • Redis/n8n/Caddy   │         │                     │
 └─────────────────────┘         └─────────────────────┘
+     ▲                                    ▲
+     │                                    │
+ dash.evindrake.net              app.plex.tv (native)
+ n8n.evindrake.net               Nabu Casa or Tailscale
+ bot.rig-city.com                (NO public DNS needed)
 ```
 
 ---
@@ -108,9 +114,11 @@ Do this now if you haven't already:
 ### 1.2 Your Domains
 
 You have these domains in Cloudflare:
-- `evindrake.net` - Dashboard, n8n, Code-Server, Plex
-- `rig-city.com` - Discord Bot, Stream Bot
+- `evindrake.net` - Dashboard, n8n, Code-Server (cloud services)
+- `rig-city.com` - Discord Bot, Stream Bot (cloud services)
 - `scarletredjoker.com` - Static portfolio site
+
+**Note:** Plex and Home Assistant are accessed via Tailscale or their native remote access (plex.tv, Nabu Casa) - NOT through public DNS.
 
 ---
 
@@ -136,15 +144,13 @@ Go to Cloudflare → Select domain → **DNS** → Add these records:
 
 **IMPORTANT:** Set Proxy status to **DNS only** (gray cloud) for ALL records!
 
-#### evindrake.net
+#### evindrake.net (Cloud Services Only)
 | Type | Name | Content | Proxy |
 |------|------|---------|-------|
 | A | `@` | YOUR_LINODE_IP | DNS only |
 | A | `dash` | YOUR_LINODE_IP | DNS only |
 | A | `n8n` | YOUR_LINODE_IP | DNS only |
 | A | `code` | YOUR_LINODE_IP | DNS only |
-| A | `plex` | YOUR_LINODE_IP | DNS only |
-| A | `home` | YOUR_LINODE_IP | DNS only |
 
 #### rig-city.com
 | Type | Name | Content | Proxy |
@@ -158,6 +164,23 @@ Go to Cloudflare → Select domain → **DNS** → Add these records:
 |------|------|---------|-------|
 | A | `@` | YOUR_LINODE_IP | DNS only |
 | A | `www` | YOUR_LINODE_IP | DNS only |
+
+#### Local Services (NO Public DNS Needed)
+
+These services run on your local Ubuntu host and should NOT have public DNS records pointing to Linode:
+
+| Service | How to Access Remotely |
+|---------|------------------------|
+| **Plex** | Use [app.plex.tv](https://app.plex.tv) - Plex handles remote access automatically |
+| **Home Assistant** | Use [Nabu Casa](https://www.nabucasa.com/) ($6.50/mo) or access via Tailscale IP: `http://100.110.227.25:8123` |
+| **MinIO** | Internal only - access via Tailscale: `http://100.110.227.25:9000` |
+| **Sunshine** | Local network or Tailscale only (for game streaming latency) |
+
+**Why not proxy through Linode?**
+- Wastes bandwidth (Plex streams would double-hop)
+- Adds latency (bad for game streaming)
+- Uses your Linode's 4TB monthly transfer
+- Tailscale provides encrypted direct access
 
 ### 2.3 Set Up Tailscale VPN
 
@@ -485,7 +508,7 @@ docker compose -f compose.local.yml ps
 
 ## Phase 6: Verification Checklist
 
-### Test All Services
+### Test Cloud Services (Public URLs)
 
 | Service | URL | Expected |
 |---------|-----|----------|
@@ -494,14 +517,23 @@ docker compose -f compose.local.yml ps
 | Stream Bot | https://stream.rig-city.com | Stream dashboard |
 | n8n | https://n8n.evindrake.net | n8n login |
 | Code Server | https://code.evindrake.net | VS Code |
-| Plex | https://plex.evindrake.net | Plex Web |
 
-### Test Cross-Host Routing
+### Test Local Services (Tailscale/Native Access)
 
-From Linode:
+| Service | How to Access | Expected |
+|---------|---------------|----------|
+| Plex | [app.plex.tv](https://app.plex.tv) | Your media library |
+| Home Assistant | `http://100.110.227.25:8123` via Tailscale | HA dashboard |
+| MinIO | `http://100.110.227.25:9000` via Tailscale | MinIO console |
+
+### Test Tailscale Connectivity
+
+From Linode (via SSH):
 ```bash
+# Test connectivity to local services
 curl -I http://100.110.227.25:32400   # Plex
 curl -I http://100.110.227.25:8123    # Home Assistant
+curl -I http://100.110.227.25:9000    # MinIO
 ```
 
 ### Test Discord Bot
