@@ -13,6 +13,7 @@
 | Set up OAuth apps | [Phase 4: OAuth Configuration](#phase-4-oauth-configuration) |
 | Configure email | [Phase 4.6: Email Setup](#46-email--notifications-setup) |
 | Set up KVM + Sunshine | [Phase 5: Local Deployment](#phase-5-local-deployment-ubuntu--windows-kvm) |
+| **Expose local services publicly** | [Phase 5.12: Public Access](#512-public-access-via-linode-reverse-proxy) |
 | Set up automation | [Phase 7: Automation](#phase-7-operational-automation) |
 | Fix something | [Troubleshooting](#troubleshooting) |
 | Daily management | [Operations](#daily-operations) |
@@ -35,29 +36,29 @@
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                         INTERNET                                │
+│                                                                  │
+│   dash.evindrake.net    plex.evindrake.net    ha.evindrake.net │
+│   n8n.evindrake.net     minio.evindrake.net                    │
 └──────────────────────────┬──────────────────────────────────────┘
-                           │
+                           │ HTTPS
            ┌───────────────┴───────────────┐
            ▼                               │
 ┌─────────────────────┐         ┌──────────┴──────────────────────┐
 │   LINODE CLOUD      │◄═══════►│   LOCAL UBUNTU 25.10            │
 │   Ubuntu 25.10      │ Tailscale│   (Your Main PC)                │
 │   $24/month         │   VPN    │                                 │
-│   (Public DNS)      │         │   Native Docker Services:       │
-│                     │         │   • Plex Media                  │
-│ • Dashboard         │         │   • Home Assistant              │
-│ • Discord Bot       │         │   • MinIO Storage               │
+│   (Caddy Proxy)     │         │   Native Docker Services:       │
+│                     │ Proxies  │   • Plex (plex.evindrake.net)   │
+│ • Dashboard         │ local ──►│   • Home Assistant (ha.*)       │
+│ • Discord Bot       │ services │   • MinIO Storage (minio.*)     │
 │ • Stream Bot        │         │                                 │
 │ • PostgreSQL        │         │   ┌─────────────────────────┐   │
 │ • Redis/n8n/Caddy   │         │   │ Windows 11 KVM VM       │   │
 └─────────────────────┘         │   │ (GPU Passthrough: 3060) │   │
-     ▲                          │   │ • Sunshine GameStream   │   │
-     │                          │   └─────────────────────────┘   │
- dash.evindrake.net             └─────────────────────────────────┘
- n8n.evindrake.net                          ▲
- bot.rig-city.com                 Moonlight + Tailscale
-                                  app.plex.tv (native)
-                                  (NO public DNS needed)
+                                │   │ • Sunshine GameStream   │   │
+                                │   │   (Tailscale only)      │   │
+                                │   └─────────────────────────┘   │
+                                └─────────────────────────────────┘
 ```
 
 ---
@@ -175,22 +176,22 @@ Go to Cloudflare → Select domain → **DNS** → Add these records:
 | A | `@` | YOUR_LINODE_IP | DNS only |
 | A | `www` | YOUR_LINODE_IP | DNS only |
 
-#### Local Services (NO Public DNS Needed)
+#### Local Services (Optional Public DNS - See Phase 5.12)
 
-These services run on your local Ubuntu host and should NOT have public DNS records pointing to Linode:
+These services run on your local Ubuntu host. You have two access options:
 
-| Service | How to Access Remotely |
-|---------|------------------------|
-| **Plex** | Use [app.plex.tv](https://app.plex.tv) - Plex handles remote access automatically |
-| **Home Assistant** | Use [Nabu Casa](https://www.nabucasa.com/) ($6.50/mo) or access via Tailscale IP: `http://100.110.227.25:8123` |
-| **MinIO** | Internal only - access via Tailscale: `http://100.110.227.25:9000` |
-| **Sunshine** | Runs in Windows KVM VM - access via Moonlight + Tailscale (for game streaming latency) |
+| Service | Default Access | Optional Public Access |
+|---------|---------------|------------------------|
+| **Plex** | [app.plex.tv](https://app.plex.tv) or Tailscale | plex.evindrake.net via Linode proxy |
+| **Home Assistant** | Tailscale: `http://100.110.227.25:8123` | ha.evindrake.net via Linode proxy |
+| **MinIO** | Tailscale: `http://100.110.227.25:9001` | minio.evindrake.net via Linode proxy |
+| **Sunshine** | Moonlight + Tailscale only | N/A (keep Tailscale-only for latency) |
 
-**Why not proxy through Linode?**
-- Wastes bandwidth (Plex streams would double-hop)
-- Adds latency (bad for game streaming)
-- Uses your Linode's 4TB monthly transfer
-- Tailscale provides encrypted direct access
+**Choose Your Approach:**
+- **Tailscale-only (simpler):** No extra DNS needed. Access via Tailscale IPs.
+- **Public access (convenient):** Set up DNS records in [Phase 5.12](#512-public-access-via-linode-reverse-proxy) to access from any browser without Tailscale.
+
+> **Note:** For full public access setup including DNS records, Caddy configuration, and security hardening, see [Phase 5.12: Public Access](#512-public-access-via-linode-reverse-proxy).
 
 ### 2.3 Set Up Tailscale VPN
 
@@ -1129,6 +1130,418 @@ Add inside `<features>`:
 </kvm>
 ```
 
+### 5.12 Public Access via Linode Reverse Proxy
+
+Want to access your local services from anywhere without installing Tailscale on every device? Route public traffic through Linode's Caddy reverse proxy.
+
+**How It Works:**
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                         INTERNET                                  │
+│           plex.evindrake.net / ha.evindrake.net                  │
+└──────────────────────────┬───────────────────────────────────────┘
+                           │ HTTPS (TLS)
+                           ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    LINODE (Caddy Reverse Proxy)                  │
+│                                                                   │
+│  • Terminates TLS (automatic Let's Encrypt)                      │
+│  • Applies authentication (OAuth/Basic Auth)                      │
+│  • Rate limiting & security headers                              │
+│  • Proxies to local services via Tailscale tunnel                │
+└──────────────────────────┬───────────────────────────────────────┘
+                           │ Tailscale (encrypted)
+                           ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    LOCAL UBUNTU HOST                             │
+│                                                                   │
+│  • Plex (32400)     → plex.evindrake.net                        │
+│  • Home Assistant (8123) → ha.evindrake.net                      │
+│  • MinIO (9000/9001) → minio.evindrake.net                       │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Benefits:**
+- No Tailscale needed on client devices for browser access
+- Your home IP stays hidden (all traffic routes through Linode)
+- Unified SSL certificates managed by Caddy
+- Centralized authentication and logging
+- No port forwarding on your home router
+
+**Keep on Tailscale Only:**
+- **Sunshine GameStream** - Latency-sensitive, needs direct low-latency path
+- **SSH to local host** - Use Tailscale SSH for security
+
+#### Step 1: Add DNS Records (Cloudflare)
+
+Add these A records pointing to your **Linode public IP** (e.g., `172.233.xxx.xxx`):
+
+| Type | Name | Full Domain | Value | Proxy |
+|------|------|-------------|-------|-------|
+| A | `plex` | plex.evindrake.net | YOUR_LINODE_IP | DNS only (gray cloud) |
+| A | `ha` | ha.evindrake.net | YOUR_LINODE_IP | DNS only |
+| A | `minio` | minio.evindrake.net | YOUR_LINODE_IP | DNS only |
+| A | `storage` | storage.evindrake.net | YOUR_LINODE_IP | DNS only |
+
+> **Important:** Use "DNS only" (gray cloud), not "Proxied" (orange cloud). Cloudflare proxying adds latency and can break WebSocket connections.
+
+#### Step 2: Update Caddyfile for Cross-Host Proxying
+
+SSH to Linode and update your Caddyfile:
+
+```bash
+ssh root@YOUR_LINODE_IP
+cd /opt/homelab/HomeLabHub
+nano Caddyfile
+```
+
+Add these entries (replace `100.110.227.25` with your local Ubuntu's Tailscale IP):
+
+```caddyfile
+# ============================================
+# LOCAL SERVICES (Proxied via Tailscale)
+# ============================================
+
+# Plex Media Server
+plex.evindrake.net {
+    # Plex handles its own authentication
+    reverse_proxy http://100.110.227.25:32400 {
+        # Increase timeouts for large media streams
+        transport http {
+            dial_timeout 10s
+            response_header_timeout 30s
+        }
+        # Health check
+        health_uri /identity
+        health_interval 30s
+    }
+    
+    # Security headers
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options SAMEORIGIN
+        Referrer-Policy strict-origin-when-cross-origin
+    }
+    
+    log {
+        output file /var/log/caddy/plex.log
+    }
+}
+
+# Home Assistant
+ha.evindrake.net {
+    # Basic Auth as extra layer (HA also has its own auth)
+    # Remove this block if you prefer HA-only auth
+    basicauth {
+        evin $2a$14$HASHED_PASSWORD_HERE
+    }
+    
+    reverse_proxy http://100.110.227.25:8123 {
+        # WebSocket support for HA frontend
+        transport http {
+            dial_timeout 10s
+        }
+        # Health check - HA API endpoint
+        health_uri /api/
+        health_interval 30s
+        health_status 2xx 4xx
+    }
+    
+    # Security headers
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options SAMEORIGIN
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    }
+    
+    log {
+        output file /var/log/caddy/homeassistant.log {
+            roll_size 10mb
+            roll_keep 5
+        }
+        format json
+    }
+}
+
+# ============================================
+# MinIO - Two endpoints: Console (Web UI) + S3 API
+# ============================================
+
+# MinIO Console (Web UI) - Port 9001
+# Access at: https://minio.evindrake.net
+minio.evindrake.net {
+    # Basic Auth required (MinIO also has its own auth)
+    basicauth {
+        evin $2a$14$HASHED_PASSWORD_HERE
+    }
+    
+    # MinIO Console (Web UI on port 9001)
+    reverse_proxy http://100.110.227.25:9001 {
+        transport http {
+            dial_timeout 10s
+        }
+        # Health check - MinIO console health
+        health_uri /minio/health/live
+        health_interval 30s
+    }
+    
+    log {
+        output file /var/log/caddy/minio.log {
+            roll_size 10mb
+            roll_keep 5
+        }
+        format json
+    }
+}
+
+# MinIO S3 API endpoint (Port 9000) - for programmatic access
+# Access at: https://storage.evindrake.net
+# Use this for: aws cli, s3cmd, boto3, application integrations
+storage.evindrake.net {
+    # No basic auth - use MinIO access/secret keys for API auth
+    reverse_proxy http://100.110.227.25:9000 {
+        transport http {
+            dial_timeout 10s
+            # Large file uploads need longer timeouts
+            response_header_timeout 300s
+        }
+        # Pass correct headers for S3 compatibility
+        header_up Host {upstream_hostport}
+        header_up X-Forwarded-Host {host}
+        header_up X-Forwarded-Proto {scheme}
+        # Health check - MinIO API health
+        health_uri /minio/health/live
+        health_interval 30s
+    }
+    
+    # Allow large uploads (adjust as needed)
+    request_body {
+        max_size 5GB
+    }
+    
+    # Security headers
+    header {
+        X-Content-Type-Options nosniff
+        # Allow CORS for web apps
+        Access-Control-Allow-Origin *
+        Access-Control-Allow-Methods "GET, PUT, POST, DELETE, OPTIONS"
+        Access-Control-Allow-Headers "Authorization, Content-Type, X-Amz-Date, X-Amz-Content-Sha256"
+    }
+    
+    log {
+        output file /var/log/caddy/minio-api.log {
+            roll_size 10mb
+            roll_keep 5
+        }
+        format json
+    }
+}
+```
+
+**MinIO Endpoint Summary:**
+- **minio.evindrake.net** (port 9001) → Web Console for browsing buckets, uploading via drag-and-drop
+- **storage.evindrake.net** (port 9000) → S3 API for CLI tools, applications, backups
+
+**Using the S3 API with AWS CLI:**
+```bash
+# Configure AWS CLI for MinIO (run once)
+aws configure set aws_access_key_id YOUR_MINIO_ACCESS_KEY
+aws configure set aws_secret_access_key YOUR_MINIO_SECRET_KEY
+aws configure set default.region us-east-1
+
+# List buckets
+aws s3 ls --endpoint-url https://storage.evindrake.net
+
+# Upload a file
+aws s3 cp myfile.txt s3://mybucket/ --endpoint-url https://storage.evindrake.net
+
+# Download a file
+aws s3 cp s3://mybucket/myfile.txt ./downloaded.txt --endpoint-url https://storage.evindrake.net
+
+# Sync a directory
+aws s3 sync ./backups s3://mybucket/backups/ --endpoint-url https://storage.evindrake.net
+```
+
+#### Step 3: Generate Password Hash for Basic Auth
+
+```bash
+# SSH to Linode
+ssh root@YOUR_LINODE_IP
+
+# Generate hashed password (interactive - will prompt for password)
+docker compose exec caddy caddy hash-password --algorithm bcrypt
+
+# Example session:
+# Enter password: ********
+# Confirm password: ********
+# $2a$14$Zkd2V5Rq.../... (copy this entire line)
+
+# Alternative: generate hash with password on command line (less secure, visible in history)
+docker compose exec caddy caddy hash-password --plaintext "YourStrongPassword123!"
+```
+
+Replace `$2a$14$HASHED_PASSWORD_HERE` in Caddyfile with your generated hash.
+
+**Example completed basicauth block:**
+```caddyfile
+basicauth {
+    evin $2a$14$Zkd2V5RqXmE8hF9.aBc123DEFghiJKLmnoPQRstUVwxYZ
+}
+```
+
+#### Step 4: Test Tailscale Connectivity from Linode
+
+Before enabling public access, verify Linode can reach your local services:
+
+```bash
+# From Linode SSH session
+curl -I http://100.110.227.25:32400  # Plex
+curl -I http://100.110.227.25:8123   # Home Assistant  
+curl -I http://100.110.227.25:9001   # MinIO Console
+
+# All should return HTTP 200 or 401 (auth required)
+```
+
+#### Step 5: Reload Caddy
+
+```bash
+cd /opt/homelab/HomeLabHub
+docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile
+
+# Or restart the stack
+docker compose down && docker compose up -d
+```
+
+#### Step 6: Test Public Access
+
+From any device (no Tailscale needed):
+
+| Service | URL | Expected |
+|---------|-----|----------|
+| Plex | https://plex.evindrake.net | Plex login |
+| Home Assistant | https://ha.evindrake.net | Basic auth → HA login |
+| MinIO Console | https://minio.evindrake.net | Basic auth → MinIO login |
+| MinIO API | https://storage.evindrake.net | S3-compatible API |
+
+#### Security Recommendations
+
+**Essential (Do These):**
+1. **Strong passwords** - Use unique, long passwords for Basic Auth and each service
+2. **Enable 2FA** - Turn on two-factor auth in Home Assistant and Plex
+3. **Monitor logs** - Check `/var/log/caddy/*.log` for suspicious activity
+4. **Keep updated** - Regularly update all services
+
+**Optional Enhancements - fail2ban:**
+
+Block brute force attempts automatically:
+
+```bash
+# SSH to Linode
+ssh root@YOUR_LINODE_IP
+
+# Install fail2ban
+apt update && apt install -y fail2ban jq
+
+# Create log directory (Caddy writes here)
+mkdir -p /var/log/caddy
+chmod 755 /var/log/caddy
+
+# Create Caddy auth failure filter
+cat > /etc/fail2ban/filter.d/caddy-auth.conf << 'EOF'
+# Caddy JSON log filter for authentication failures
+[Definition]
+# Match 401 Unauthorized responses in Caddy JSON logs
+failregex = ^.*"remote_ip"\s*:\s*"<HOST>".*"status"\s*:\s*401.*$
+            ^.*"request".*"remote_ip"\s*:\s*"<HOST>".*"status"\s*:\s*401.*$
+ignoreregex =
+datepattern = "ts"\s*:\s*{EPOCH}
+EOF
+
+# Create jail configuration
+cat > /etc/fail2ban/jail.d/caddy.conf << 'EOF'
+[caddy-auth]
+enabled = true
+port = http,https
+filter = caddy-auth
+# Caddy log files (JSON format)
+logpath = /var/log/caddy/homeassistant.log
+          /var/log/caddy/minio.log
+          /var/log/caddy/plex.log
+# Ban after 5 failed attempts
+maxretry = 5
+# Ban for 1 hour (3600 seconds)
+bantime = 3600
+# Look at last 10 minutes of logs
+findtime = 600
+# Use iptables to block
+banaction = iptables-multiport
+EOF
+
+# Enable and restart fail2ban
+systemctl enable fail2ban
+systemctl restart fail2ban
+
+# Verify jail is active
+fail2ban-client status caddy-auth
+
+# View banned IPs
+fail2ban-client status caddy-auth
+```
+
+**Test fail2ban is working:**
+```bash
+# Check fail2ban logs
+tail -f /var/log/fail2ban.log
+
+# Manually test a ban (from another IP, try 6 wrong passwords)
+# Then check: fail2ban-client status caddy-auth
+
+# Unban an IP if needed
+fail2ban-client set caddy-auth unbanip 192.168.1.100
+```
+
+**OAuth Alternative (Advanced):**
+
+Instead of Basic Auth, you can use OAuth with GitHub or Google. This is more secure and convenient:
+
+```caddyfile
+# Example with Caddy Security plugin (requires additional setup)
+ha.evindrake.net {
+    authenticate with github_oauth
+    authorize with github_oauth {
+        allow email *@yourdomain.com
+    }
+    reverse_proxy http://100.110.227.25:8123
+}
+```
+
+See [Caddy Security](https://github.com/greenpau/caddy-security) for OAuth setup.
+
+#### Access Summary
+
+After setup, you have two access methods for each service:
+
+**Services with Public + Tailscale Access:**
+
+| Service | Public URL (Any Browser) | Tailscale Direct (Lower Latency) |
+|---------|--------------------------|----------------------------------|
+| Plex | https://plex.evindrake.net | http://100.110.227.25:32400 |
+| Home Assistant | https://ha.evindrake.net | http://100.110.227.25:8123 |
+| MinIO Console | https://minio.evindrake.net | http://100.110.227.25:9001 |
+| MinIO S3 API | https://storage.evindrake.net | http://100.110.227.25:9000 |
+
+**Services with Tailscale-Only Access (No Public Exposure):**
+
+| Service | Access Method | Why Tailscale Only? |
+|---------|---------------|---------------------|
+| Sunshine GameStream | Moonlight → 100.115.92.47 | Latency-sensitive, security |
+| SSH to Ubuntu Host | ssh user@100.110.227.25 | Security best practice |
+| SSH to Windows VM | RDP/SSH → 100.115.92.47 | Security best practice |
+
+**When to Use Each:**
+- **Public URLs** - Browser access from any device, sharing with family, quick mobile checks
+- **Tailscale Direct** - Game streaming, SSH, lower latency, debugging, when Linode is down
+
 ---
 
 ## Phase 6: Verification Checklist
@@ -1143,13 +1556,22 @@ Add inside `<features>`:
 | n8n | https://n8n.evindrake.net | n8n login |
 | Code Server | https://code.evindrake.net | VS Code |
 
-### Test Local Services (Tailscale/Native Access)
+### Test Local Services (Public URLs)
+
+| Service | URL | Expected |
+|---------|-----|----------|
+| Plex | https://plex.evindrake.net | Plex login → media library |
+| Home Assistant | https://ha.evindrake.net | Basic auth → HA dashboard |
+| MinIO Console | https://minio.evindrake.net | Basic auth → MinIO login |
+
+### Test Local Services (Tailscale/Direct Access)
 
 | Service | How to Access | Expected |
 |---------|---------------|----------|
-| Plex | [app.plex.tv](https://app.plex.tv) | Your media library |
-| Home Assistant | `http://100.110.227.25:8123` via Tailscale | HA dashboard |
-| MinIO | `http://100.110.227.25:9000` via Tailscale | MinIO console |
+| Plex | `http://100.110.227.25:32400` via Tailscale | Plex UI (no proxy) |
+| Home Assistant | `http://100.110.227.25:8123` via Tailscale | HA dashboard (no proxy) |
+| MinIO | `http://100.110.227.25:9001` via Tailscale | MinIO console (no proxy) |
+| Sunshine | Moonlight → `100.115.92.47` | Game streaming |
 
 ### Test Tailscale Connectivity
 
