@@ -54,3 +54,23 @@ The core system relies on Docker Compose for orchestrating services across a spl
 - **Cloudflare API:** DNS automation.
 - **Tailscale:** VPN mesh connecting Linode and local host.
 - **Sunshine:** Game streaming server (local Ubuntu host).
+
+## Deployment
+
+**Full Deployment Guide**: See `docs/deploy/FULL_DEPLOYMENT_GUIDE.md` for complete step-by-step instructions covering:
+- Cloudflare DNS configuration
+- Tailscale VPN mesh setup
+- Linode cloud server deployment
+- Local Ubuntu host deployment
+- OAuth app configuration (Discord, Twitch, YouTube, Spotify)
+- Database initialization
+- Troubleshooting
+
+**Quick Start:**
+```bash
+# Linode (cloud)
+./deploy/scripts/bootstrap.sh --role cloud --generate-secrets
+
+# Local Ubuntu
+./deploy/scripts/bootstrap.sh --role local
+```
