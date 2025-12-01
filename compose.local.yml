@@ -21,6 +21,7 @@ volumes:
   homeassistant_config:
   plex_config:
   plex_transcode:
+  sunshine_config:
 
 services:
   # ============================================
@@ -115,17 +116,20 @@ services:
     restart: unless-stopped
     privileged: true
     network_mode: host
+    user: "${PUID:-1000}:${PGID:-1000}"
     environment:
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
       - TZ=${TZ:-America/New_York}
       - SUNSHINE_USER=${SUNSHINE_USER:-admin}
       - SUNSHINE_PASS=${SUNSHINE_PASS:-}
+      # Run as non-root user matching host PUID/PGID
+      - HOME=/config
       # NVIDIA GPU support (for hardware encoding)
       - NVIDIA_VISIBLE_DEVICES=${NVIDIA_VISIBLE_DEVICES:-all}
       - NVIDIA_DRIVER_CAPABILITIES=${NVIDIA_DRIVER_CAPABILITIES:-all}
     volumes:
-      - ./config/sunshine:/config
+      - sunshine_config:/config
       - /dev/dri:/dev/dri
       - /run/udev/data:/run/udev/data
     devices:

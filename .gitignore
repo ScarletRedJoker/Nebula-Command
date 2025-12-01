@@ -40,8 +40,11 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+/lib/
+/lib64/
+
+# Allow service frontend lib directories (critical for builds)
+!services/*/client/src/lib/
 parts/
 sdist/
 var/

@@ -276,6 +276,139 @@ fi
 
 echo -e "${GREEN}✓ Environment ready${NC}"
 
+# Re-source environment after generation so preflight sees updated values
+# This ensures check_env_var sees any auto-generated secrets
+export $(grep -v '^#' .env | grep -v '^$' | xargs 2>/dev/null) 2>/dev/null || true
+
+# ═══════════════════════════════════════════════════════════════════
+# STEP 3.5: PREFLIGHT VALIDATION - Role-Aware Checks
+# ═══════════════════════════════════════════════════════════════════
+# This runs AFTER secret generation so auto-generated values are available
+echo -e "\n${CYAN}[3.5/7] Running preflight validation for ${MAGENTA}$ROLE${CYAN} role...${NC}"
+
+# Track validation status
+PREFLIGHT_WARNINGS=()
+PREFLIGHT_ERRORS=()
+
+# Helper: Check if env var is set and non-empty (not a placeholder)
+check_env_var() {
+    local var_name="$1"
+    local required="$2"  # "required" or "optional"
+    local context="$3"   # Description of what it's for
+    
+    local value=$(grep "^${var_name}=" .env 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'")
+    
+    # Skip placeholders
+    if [[ "$value" == "YOUR_"* ]] || [[ "$value" == "sk-proj-YOUR_"* ]]; then
+        value=""
+    fi
+    
+    if [ -z "$value" ]; then
+        if [ "$required" = "required" ]; then
+            PREFLIGHT_ERRORS+=("$var_name - Required for: $context")
+            return 1
+        else
+            PREFLIGHT_WARNINGS+=("$var_name - Optional for: $context")
+            return 1
+        fi
+    fi
+    return 0
+}
+
+# ═══════════════════════════════════════════════════════════════════
+# CLOUD ROLE PREFLIGHT CHECKS
+# ═══════════════════════════════════════════════════════════════════
+if [ "$ROLE" = "cloud" ]; then
+    echo "Validating cloud deployment requirements..."
+    
+    # AI Features - Required for Jarvis/Discord AI (cannot be auto-generated)
+    check_env_var "OPENAI_API_KEY" "required" "Jarvis AI assistant, Discord bot AI features"
+    
+    # Discord Bot - Required (cannot be auto-generated)
+    check_env_var "DISCORD_BOT_TOKEN" "required" "Discord bot authentication"
+    check_env_var "DISCORD_CLIENT_ID" "required" "Discord OAuth login"
+    check_env_var "DISCORD_CLIENT_SECRET" "required" "Discord OAuth login"
+    
+    # Multi-Host Routing - Important for local services
+    LOCAL_TS_IP=$(grep "^LOCAL_TAILSCALE_IP=" .env 2>/dev/null | cut -d'=' -f2 | tr -d '"')
+    if [ -z "$LOCAL_TS_IP" ] || [ "$LOCAL_TS_IP" = "100.64.0.1" ]; then
+        PREFLIGHT_WARNINGS+=("LOCAL_TAILSCALE_IP - Set to your Ubuntu host's Tailscale IP for Plex/GameStream routing")
+    else
+        echo -e "  ${GREEN}✓${NC} LOCAL_TAILSCALE_IP configured: $LOCAL_TS_IP"
+    fi
+    
+    # DNS Management - Optional but recommended
+    check_env_var "CLOUDFLARE_API_TOKEN" "optional" "Automatic DNS management"
+    
+    # Stream Bot OAuth - Optional
+    check_env_var "TWITCH_CLIENT_ID" "optional" "Twitch stream integration"
+    check_env_var "YOUTUBE_CLIENT_ID" "optional" "YouTube stream integration"
+    check_env_var "SPOTIFY_CLIENT_ID" "optional" "Spotify music integration"
+fi
+
+# ═══════════════════════════════════════════════════════════════════
+# LOCAL ROLE PREFLIGHT CHECKS
+# ═══════════════════════════════════════════════════════════════════
+if [ "$ROLE" = "local" ]; then
+    echo "Validating local deployment requirements..."
+    
+    # Plex - Optional but common
+    check_env_var "PLEX_TOKEN" "optional" "Plex API access"
+    
+    # Sunshine GameStream - Check setup
+    if [ -f "$PROJECT_ROOT/compose.local.yml" ]; then
+        echo "  Checking Sunshine GameStream setup..."
+        check_env_var "SUNSHINE_PASS" "optional" "GameStream web UI login"
+    fi
+    
+    # Home Assistant - Optional
+    check_env_var "HOME_ASSISTANT_TOKEN" "optional" "Home Assistant API access"
+    
+    # Cloud Connectivity - Important for multi-host
+    CLOUD_TS_IP=$(grep "^TAILSCALE_LINODE_HOST=" .env 2>/dev/null | cut -d'=' -f2 | tr -d '"')
+    if [ -z "$CLOUD_TS_IP" ]; then
+        PREFLIGHT_WARNINGS+=("TAILSCALE_LINODE_HOST - Set to your Linode's Tailscale IP for cloud database access")
+    else
+        echo -e "  ${GREEN}✓${NC} TAILSCALE_LINODE_HOST configured: $CLOUD_TS_IP"
+    fi
+fi
+
+# ═══════════════════════════════════════════════════════════════════
+# PREFLIGHT REPORT
+# ═══════════════════════════════════════════════════════════════════
+echo ""
+
+# Show warnings (non-blocking)
+if [ ${#PREFLIGHT_WARNINGS[@]} -gt 0 ]; then
+    echo -e "${YELLOW}⚠ Optional Configuration (features may be limited):${NC}"
+    for warning in "${PREFLIGHT_WARNINGS[@]}"; do
+        echo "  - $warning"
+    done
+    echo ""
+fi
+
+# Show errors (blocking)
+if [ ${#PREFLIGHT_ERRORS[@]} -gt 0 ]; then
+    echo -e "${RED}✗ PREFLIGHT FAILED - Missing required configuration:${NC}"
+    for error in "${PREFLIGHT_ERRORS[@]}"; do
+        echo -e "  ${RED}✗${NC} $error"
+    done
+    echo ""
+    echo -e "${YELLOW}How to fix:${NC}"
+    echo "  1. Edit .env file: nano $PROJECT_ROOT/.env"
+    echo "  2. Set all required values listed above"
+    echo "  3. Re-run: ./deploy/scripts/bootstrap.sh --role $ROLE"
+    echo ""
+    echo -e "${CYAN}Quick links:${NC}"
+    echo "  OpenAI API Key:  https://platform.openai.com/api-keys"
+    echo "  Discord Dev:     https://discord.com/developers/applications"
+    echo "  Cloudflare:      https://dash.cloudflare.com/profile/api-tokens"
+    echo ""
+    exit 1
+fi
+
+echo -e "${GREEN}✓ Preflight validation passed${NC}"
+
 # ═══════════════════════════════════════════════════════════════════
 # STEP 4: Create Required Directories
 # ═══════════════════════════════════════════════════════════════════
