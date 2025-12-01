@@ -110,7 +110,7 @@ services:
 # Moonlight clients (iOS, Android, PC, TV, etc.)
 # This enables low-latency game streaming from your gaming PC.
   sunshine:
-    image: lizardbyte/sunshine:latest
+    image: lizardbyte/sunshine:latest-ubuntu-24.04
     container_name: sunshine-gamestream
     restart: unless-stopped
     privileged: true
