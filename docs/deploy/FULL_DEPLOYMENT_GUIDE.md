@@ -167,6 +167,79 @@ Common missing values:
 
 **Time to deploy:** ~2-3 hours from scratch
 
+---
+
+## Service Placement Matrix (CRITICAL - Read This First!)
+
+**Where does each service run? This table is the source of truth.**
+
+| Service | Runs On | Compose File | Why There |
+|---------|---------|--------------|-----------|
+| **Dashboard** | Linode (Cloud) | `docker-compose.yml` | Always accessible, central management |
+| **Discord Bot** | Linode (Cloud) | `docker-compose.yml` | Needs 24/7 uptime for Discord |
+| **Stream Bot** | Linode (Cloud) | `docker-compose.yml` | Webhook callbacks need public URL |
+| **PostgreSQL** | Linode (Cloud) | `docker-compose.yml` | Database for all services |
+| **Redis** | Linode (Cloud) | `docker-compose.yml` | Caching, message queue |
+| **n8n** | Linode (Cloud) | `docker-compose.yml` | Automation needs webhooks |
+| **Caddy** | Linode (Cloud) | `docker-compose.yml` | Reverse proxy with SSL |
+| **code-server** | Linode (Cloud) | `docker-compose.yml` | Browser IDE |
+| **Static sites** | Linode (Cloud) | `docker-compose.yml` | Public websites |
+| | | | |
+| **Plex** | Local Ubuntu | `compose.local.yml` | Media files are local |
+| **Home Assistant** | Local Ubuntu | `compose.local.yml` | Smart home devices are local |
+| **MinIO** | Local Ubuntu | `compose.local.yml` | Large file storage is local |
+| | | | |
+| **Sunshine** | Windows VM | Native install | GPU streaming needs GPU |
+| **Games** | Windows VM | Native install | GPU-intensive |
+
+### Deployment Order (Linear Flow)
+
+**Do these in order. Don't skip ahead.**
+
+```
+PHASE 1-2: Prerequisites & Accounts (Both)
+    ↓
+PHASE 3: Linode Cloud Setup
+    ↓
+    ├── Create Linode server
+    ├── Run bootstrap.sh --role cloud
+    ├── Verify: dash.evindrake.net works
+    └── ✓ CHECKPOINT: Cloud services running
+    ↓
+PHASE 4: OAuth & Integrations (Linode)
+    ↓
+    ├── Discord bot credentials
+    ├── Stream bot integrations (optional)
+    └── ✓ CHECKPOINT: Bots working
+    ↓
+PHASE 5: Local Ubuntu Setup (Your PC)
+    ↓
+    ├── 5.1-5.3: GPU passthrough setup
+    ├── 5.4: Create Windows VM
+    ├── 5.5: Install Sunshine in VM
+    ├── 5.6: Docker services (Plex, HA, MinIO)
+    └── ✓ CHECKPOINT: Local services running
+    ↓
+PHASE 6: Connect Local to Cloud
+    ↓
+    └── Tailscale connects everything
+```
+
+### Which Compose File Do I Use?
+
+```
+ON LINODE:
+  cd /opt/homelab/HomeLabHub
+  docker compose up -d                    # Uses docker-compose.yml
+
+ON LOCAL UBUNTU:
+  cd /opt/homelab
+  docker compose -f compose.local.yml up -d   # Uses compose.local.yml
+```
+
+**NEVER run `docker-compose.yml` on local Ubuntu.**
+**NEVER run `compose.local.yml` on Linode.**
+
 **Architecture:**
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -3210,25 +3283,111 @@ virt-install \
 
 After Windows 11 installation completes:
 
-#### Install GPU Drivers
+#### Install GPU Drivers (CRITICAL - Do This First!)
 
-1. Download NVIDIA drivers from [nvidia.com/drivers](https://www.nvidia.com/Download/index.aspx)
-2. Install and restart VM
+1. **Open Device Manager** in Windows VM (right-click Start → Device Manager)
+2. You should see "Microsoft Basic Display Adapter" under Display adapters
+3. Download NVIDIA drivers from [nvidia.com/drivers](https://www.nvidia.com/Download/index.aspx)
+   - Select: GeForce RTX 3060, Windows 11 64-bit, Game Ready Driver
+4. Run installer → Express Installation
+5. **Restart the VM**
+6. After restart, verify in Device Manager:
+   - Display adapters should now show "NVIDIA GeForce RTX 3060"
+   - NOT "Microsoft Basic Display Adapter"
 
-#### Install Sunshine
+**If you still see "Microsoft Basic Display Adapter":**
+- The GPU passthrough may not be working
+- Check VM settings: View → Details → PCI Host Devices should show your GPU
+- Verify GPU is bound to vfio-pci on host: `lspci -nnk -s 03:00`
+
+#### Install Sunshine WITH Virtual Display Driver
+
+**This is critical for headless VMs without a physical monitor:**
 
 1. Download latest release from [github.com/LizardByte/Sunshine/releases](https://github.com/LizardByte/Sunshine/releases)
-   - Get the `.exe` installer
+   - Get the `.exe` installer (e.g., `sunshine-windows-installer.exe`)
 
-2. Run installer as Administrator
+2. **Run installer as Administrator:**
+   - Right-click → Run as administrator
    - Allow firewall prompts
-   - Install Virtual Display Driver when prompted
+   - **IMPORTANT: Check "Install Sunshine Virtual Display Driver"** ← Don't skip this!
+   - Complete installation
 
-3. Open browser to `https://localhost:47990`
+3. **Restart Windows VM** after installation
+
+#### Fix "Failed to locate an output device" Error
+
+If Sunshine logs show this error:
+```
+Currently available display devices: []
+Failed to locate an output device
+Unable to find display or encoder during startup
+```
+
+**This means Windows has no display configured.** Follow these steps:
+
+**Option A: Enable Sunshine Virtual Display (Recommended)**
+
+1. Open Sunshine web UI: `https://localhost:47990`
+2. Go to **Configuration** tab
+3. Under **Video**, find "Output Name" and set it to your GPU adapter name
+4. Go to **Audio/Video** tab → set Adapter Name to "NVIDIA RTX 3060"
+5. **Click Save and restart Sunshine**
+
+If that doesn't work:
+
+**Option B: Create Virtual Display via Sunshine Settings**
+
+1. Open Sunshine web UI: `https://localhost:47990`
+2. Go to **Configuration** → **Video** section
+3. Set these values:
+   ```
+   Adapter Name: NVIDIA RTX 3060
+   Output Name: (leave blank or set to 0)
+   ```
+4. Under **Advanced** settings, enable "Capture Method: DXGI Desktop Duplication"
+5. Save and restart Sunshine
+
+**Option C: Install IddSampleDriver (Headless Virtual Monitor)**
+
+If Sunshine's built-in virtual display doesn't work:
+
+1. Download IddSampleDriver: [github.com/roshkins/IddSampleDriver/releases](https://github.com/roshkins/IddSampleDriver/releases)
+2. Extract and run `installCert.bat` as Administrator
+3. Run `install.bat` as Administrator
+4. Restart Windows
+5. Open Display Settings → You should see a new virtual display
+6. Set resolution to 1920x1080 or 2560x1440
+7. Restart Sunshine
+
+**Option D: Use Dummy HDMI Plug (Hardware Solution)**
+
+Buy a $5 dummy HDMI plug from Amazon. Plug it into your GPU's HDMI port.
+- This tricks Windows into thinking a monitor is connected
+- Most reliable but requires physical hardware
+
+#### Verify Sunshine is Working
+
+After applying one of the fixes above:
+
+1. **Check Sunshine logs:**
+   - Open Sunshine web UI → Logs
+   - Look for: `Currently available display devices: [Your Display]`
+   - Should NOT show `[]` anymore
+
+2. **Check Windows Display Settings:**
+   - Right-click desktop → Display Settings
+   - You should see at least one display listed
+
+3. **Test encoder:**
+   - In Sunshine logs, look for: `Encoder [nvenc] succeeded`
+   - NOT `Encoder [nvenc] failed`
+
+4. Open browser to `https://localhost:47990`
    - Create admin username and password
-   - **Save these!**
+   - **Save these credentials!**
 
-4. Configure settings:
+5. Configure settings:
    - **Network** tab: Note ports (47984-48010)
    - **Audio/Video** tab: Select NVENC encoder
    - **General** tab: Set hostname to `homelab-gaming`
