@@ -193,126 +193,795 @@ These services run on your local Ubuntu host. You have two access options:
 
 > **Note:** For full public access setup including DNS records, Caddy configuration, and security hardening, see [Phase 5.12: Public Access](#512-public-access-via-linode-reverse-proxy).
 
-### 2.3 Set Up Tailscale VPN
+### 2.3 Set Up Tailscale VPN (Complete Guide)
 
-**Get an auth key first:**
-1. Go to [Tailscale Admin](https://login.tailscale.com/admin/settings/keys)
-2. Click **Generate auth key**
-3. Settings: Reusable=Yes, Ephemeral=No, Expiry=90 days
-4. Copy the key (starts with `tskey-auth-`)
+Tailscale creates a secure mesh VPN between all your devices. This is critical for connecting Linode to your local services.
 
-**Install on Linode:**
+---
+
+#### Step 1: Create a Tailscale Account
+
+1. Go to [tailscale.com](https://tailscale.com/) and click **"Get Started"**
+2. Sign up with Google, Microsoft, GitHub, or email
+3. After signup, you'll see the **Machines** page (empty for now)
+
+---
+
+#### Step 2: Generate Auth Keys
+
+Auth keys let you add machines without interactive login.
+
+1. Go to [Tailscale Admin → Keys](https://login.tailscale.com/admin/settings/keys)
+2. Click **"Generate auth key..."**
+3. Configure the key:
+   | Setting | Value | Why |
+   |---------|-------|-----|
+   | **Description** | `HomeLabHub Servers` | Easy identification |
+   | **Reusable** | ✅ Yes | Use same key for multiple machines |
+   | **Ephemeral** | ❌ No | Machines stay in network after disconnect |
+   | **Expiration** | 90 days | Balance security and convenience |
+   | **Tags** | Leave empty | Optional for ACLs |
+   
+4. Click **"Generate key"**
+5. **Copy the key immediately!** It looks like: `tskey-auth-kXYZ123456CNTRL-abc123...`
+
+```
+⚠️  The key is shown only once! Save it somewhere safe.
+```
+
+---
+
+#### Step 3: Install on Linode (Cloud Server)
+
 ```bash
+# SSH into your Linode
 ssh root@YOUR_LINODE_IP
 
-# Install Tailscale
+# Download and install Tailscale
 curl -fsSL https://tailscale.com/install.sh | sh
 
-# Connect (use your auth key)
-sudo tailscale up --authkey=tskey-auth-XXXXX --hostname=homelab-linode
+# Verify installation
+tailscale --version
+# Expected: tailscale 1.xx.x
 
-# Get and save your Tailscale IP
+# Connect to your Tailnet (replace with your actual key)
+sudo tailscale up --authkey=tskey-auth-kXYZ123456CNTRL-abc123 --hostname=homelab-linode
+
+# Get your Tailscale IP
 tailscale ip -4
 # Example output: 100.66.61.51
+
+# Verify connection status
+tailscale status
+# Shows: logged in, connected
+
+# Enable Tailscale to start on boot
+sudo systemctl enable tailscaled
+sudo systemctl status tailscaled
+# Should show: active (running)
 ```
 
-**Install on Local Ubuntu Host:**
+**Record your Linode Tailscale IP:** `100.66.61.51` (yours will differ)
+
+---
+
+#### Step 4: Install on Local Ubuntu Host
+
 ```bash
-# Install Tailscale
+# On your local Ubuntu machine
+# Download and install Tailscale
 curl -fsSL https://tailscale.com/install.sh | sh
 
-# Connect (use your auth key)
-sudo tailscale up --authkey=tskey-auth-XXXXX --hostname=homelab-local
+# Verify installation
+tailscale --version
 
-# Get and save your Tailscale IP
+# Connect to your Tailnet (use the same auth key)
+sudo tailscale up --authkey=tskey-auth-kXYZ123456CNTRL-abc123 --hostname=homelab-local
+
+# Get your Tailscale IP
 tailscale ip -4
 # Example output: 100.110.227.25
+
+# Verify connection status
+tailscale status
+# Should show both machines now
+
+# Enable on boot
+sudo systemctl enable tailscaled
+sudo systemctl status tailscaled
 ```
 
-**Test connection:**
+**Record your Local Tailscale IP:** `100.110.227.25` (yours will differ)
+
+---
+
+#### Step 5: Verify Connectivity Between Machines
+
+Run these tests to ensure the VPN tunnel is working:
+
+**From Linode (test connection to local):**
 ```bash
-# From Linode, ping your local Ubuntu host
-ping 100.110.227.25
+# Ping local Ubuntu host
+ping -c 4 100.110.227.25
+# Expected: 4 packets transmitted, 4 received, 0% packet loss
 
-# From local Ubuntu, ping Linode
-ping 100.66.61.51
+# Test TCP connection to a local service (if running)
+nc -zv 100.110.227.25 22       # SSH
+nc -zv 100.110.227.25 8123     # Home Assistant (if running)
+nc -zv 100.110.227.25 32400    # Plex (if running)
 ```
 
-**Write down both IPs!**
-- Linode Tailscale IP: `100.66.61.51`
-- Local Tailscale IP: `100.110.227.25`
+**From Local Ubuntu (test connection to Linode):**
+```bash
+# Ping Linode
+ping -c 4 100.66.61.51
+# Expected: 4 packets transmitted, 4 received, 0% packet loss
 
-> **Note:** You can also install Tailscale inside your Windows KVM VM for remote game streaming. See [Phase 5.5](#55-configure-sunshine-in-windows-vm) for details.
+# Test TCP connection to Linode services
+nc -zv 100.66.61.51 22         # SSH
+nc -zv 100.66.61.51 443        # HTTPS (after Caddy setup)
+```
 
-### 2.4 Dynamic DNS for Residential IP (If Applicable)
+**Connectivity Test Matrix:**
+| From | To | Test Command | Expected Result |
+|------|------|--------------|-----------------|
+| Linode | Local Ubuntu | `ping 100.110.227.25` | 0% packet loss |
+| Local Ubuntu | Linode | `ping 100.66.61.51` | 0% packet loss |
+| Linode | Local Plex | `curl -s http://100.110.227.25:32400` | Connection or auth response |
+| Linode | Local HA | `curl -s http://100.110.227.25:8123` | Connection or auth response |
+| Linode | Local MinIO | `curl -s http://100.110.227.25:9001` | MinIO console or redirect |
+
+---
+
+#### Step 6: Enable MagicDNS (Recommended)
+
+MagicDNS lets you use hostnames instead of IP addresses.
+
+1. Go to [Tailscale Admin → DNS](https://login.tailscale.com/admin/dns)
+2. Under **MagicDNS**, click **"Enable"**
+3. Your machines are now accessible by hostname:
+   - `homelab-linode` instead of `100.66.61.51`
+   - `homelab-local` instead of `100.110.227.25`
+
+**Test MagicDNS:**
+```bash
+# From Linode
+ping homelab-local
+# Should resolve to 100.110.227.25
+
+# From Local Ubuntu
+ping homelab-linode
+# Should resolve to 100.66.61.51
+```
+
+**Note:** The guide uses numeric IPs for clarity, but you can substitute hostnames with MagicDNS enabled.
+
+---
+
+#### Step 7: Review Access Control Lists (Optional)
+
+ACLs control which machines can talk to each other. The default allows all devices to communicate freely.
+
+**View your ACL policy:**
+1. Go to [Tailscale Admin → Access controls](https://login.tailscale.com/admin/acls)
+2. Default policy looks like:
+   ```json
+   {
+     "acls": [
+       {"action": "accept", "src": ["*"], "dst": ["*:*"]}
+     ]
+   }
+   ```
+
+For a homelab, the default "allow all" policy is usually fine. For advanced setups, you can restrict access:
+
+**Example: Only allow Linode to access specific ports on local:**
+```json
+{
+  "acls": [
+    // Allow Linode to reach local services
+    {"action": "accept", "src": ["homelab-linode"], "dst": ["homelab-local:22,8123,9000,9001,32400"]},
+    // Allow local to reach Linode
+    {"action": "accept", "src": ["homelab-local"], "dst": ["homelab-linode:*"]},
+    // Default deny (implicit)
+  ],
+  "tagOwners": {}
+}
+```
+
+---
+
+#### Step 8: Install Tailscale in Windows VM (For Game Streaming)
+
+If you'll use Sunshine for game streaming, install Tailscale in your Windows 11 KVM VM:
+
+1. In the Windows VM, download from [tailscale.com/download/windows](https://tailscale.com/download/windows)
+2. Run the installer
+3. Log in with the same account
+4. Note the Windows VM's Tailscale IP (e.g., `100.100.x.x`)
+
+This allows Moonlight to connect directly to the Windows VM over Tailscale for low-latency game streaming.
+
+---
+
+#### Troubleshooting Tailscale
+
+**Problem: "Logged out" or "Not connected"**
+```bash
+# Re-authenticate
+sudo tailscale up --authkey=tskey-auth-YOUR-KEY
+
+# Or interactive login
+sudo tailscale up
+# Opens browser for login
+```
+
+**Problem: Can't ping other machine**
+```bash
+# Check status on both machines
+tailscale status
+
+# Ensure firewall allows Tailscale
+sudo ufw allow in on tailscale0
+sudo ufw allow out on tailscale0
+
+# Restart Tailscale
+sudo systemctl restart tailscaled
+```
+
+**Problem: Tailscale not starting on boot**
+```bash
+# Enable the service
+sudo systemctl enable tailscaled
+
+# Check for errors
+sudo systemctl status tailscaled
+sudo journalctl -u tailscaled -n 50
+```
+
+**Problem: DNS resolution failing with MagicDNS**
+```bash
+# Force DNS refresh
+sudo tailscale down
+sudo tailscale up
+
+# Check DNS settings
+cat /etc/resolv.conf
+# Should show Tailscale DNS entries
+```
+
+---
+
+#### Your Tailscale Configuration Summary
+
+| Machine | Hostname | Tailscale IP | Role |
+|---------|----------|--------------|------|
+| Linode | homelab-linode | 100.66.61.51 | Cloud server (Caddy, dashboard) |
+| Local Ubuntu | homelab-local | 100.110.227.25 | Local host (Plex, HA, MinIO) |
+| Windows VM | homelab-gaming | 100.100.x.x | Game streaming (Sunshine) |
+
+> **Note:** Your IPs will be different! Tailscale assigns unique IPs when you connect.
+
+### 2.4 Dynamic DNS for Residential IP (Complete Walkthrough)
 
 > **Skip this section if:** You only access local services via Tailscale (recommended) or your ISP provides a static IP.
 
-If you have a **residential internet connection** (like Spectrum, Comcast, AT&T), your public IP address changes periodically. If you want to access local services directly via a domain name (not just Tailscale), you need Dynamic DNS.
+If you have a **residential internet connection** (like Spectrum, Comcast, AT&T), your public IP address changes periodically. Dynamic DNS automatically updates your DNS records when your IP changes.
 
-#### Option 1: Cloudflare DDNS (Recommended)
+---
 
-Use a Docker container to automatically update Cloudflare DNS when your IP changes:
+#### Step 1: Create a Cloudflare API Token
 
-**On your local Ubuntu host:**
+You need an API token with permission to edit DNS records. Here's exactly how to create one:
 
-1. Create a `ddclient.conf` file:
-```ini
-# /opt/homelab/ddclient/ddclient.conf
-daemon=300
-syslog=yes
-protocol=cloudflare
-use=web, web=https://cloudflare.com/cdn-cgi/trace
-zone=evindrake.net
-login=your-cloudflare-email@example.com
-password=YOUR_CLOUDFLARE_API_TOKEN
-local.evindrake.net
+**Navigate to the API Token Page:**
+1. Log in to [Cloudflare Dashboard](https://dash.cloudflare.com)
+2. Click your profile icon (top-right corner)
+3. Select **"My Profile"**
+4. Click **"API Tokens"** in the left sidebar
+5. Click the **"Create Token"** button
+
+**Create a Custom Token:**
+1. Scroll down and click **"Create Custom Token"** (not a template)
+2. **Token name:** `DDNS Updater - HomeLabHub` (or any descriptive name)
+3. **Permissions** - Add these two permissions:
+   | Permission | Access Level |
+   |------------|--------------|
+   | **Zone** → **Zone** | **Read** |
+   | **Zone** → **DNS** | **Edit** |
+   
+4. **Zone Resources:**
+   - Select: **Include** → **Specific zone** → **evindrake.net** (your domain)
+   - Or select: **Include** → **All zones** (if managing multiple domains)
+
+5. **Client IP Address Filtering:** (Optional but recommended)
+   - Leave blank for now, or add your current home IP
+   
+6. **TTL:** (Token expiration)
+   - **Start Date:** Leave blank (starts immediately)
+   - **End Date:** Leave blank (no expiration) or set to 1 year from now
+   
+7. Click **"Continue to summary"**
+8. Review the settings and click **"Create Token"**
+
+**CRITICAL: Save Your Token!**
+```
+Your token: cf_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+⚠️  This token is shown ONLY ONCE. Copy it now and save it securely!
 ```
 
-2. Run the DDNS container:
+**Test your token immediately:**
 ```bash
+# Replace with your actual token
+curl -X GET "https://api.cloudflare.com/client/v4/user/tokens/verify" \
+  -H "Authorization: Bearer YOUR_API_TOKEN_HERE" \
+  -H "Content-Type: application/json"
+
+# Expected successful response:
+# {"result":{"id":"...","status":"active"},"success":true,"errors":[],"messages":[]}
+```
+
+---
+
+#### Step 2: Find Your Zone ID
+
+Every Cloudflare zone has a unique ID. Here's how to find it:
+
+**Method 1: Cloudflare Dashboard (Easiest)**
+1. Go to [Cloudflare Dashboard](https://dash.cloudflare.com)
+2. Click on your domain (e.g., **evindrake.net**)
+3. Scroll down on the **Overview** page
+4. Look at the right sidebar under **"API"**
+5. Copy the **Zone ID** (32-character string like `a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6`)
+
+**Method 2: Via API (If you have multiple zones)**
+```bash
+# List all zones and their IDs
+curl -X GET "https://api.cloudflare.com/client/v4/zones" \
+  -H "Authorization: Bearer YOUR_API_TOKEN_HERE" \
+  -H "Content-Type: application/json" | jq '.result[] | {name: .name, id: .id}'
+
+# Example output:
+# {
+#   "name": "evindrake.net",
+#   "id": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6"
+# }
+```
+
+**Save your Zone ID:** `a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6` (yours will be different)
+
+---
+
+#### Step 3: Create the DNS Record to Update
+
+Before DDNS can update a record, it must exist. Create it now:
+
+**Via Cloudflare Dashboard:**
+1. Go to your domain → **DNS** → **Records**
+2. Click **"Add record"**
+3. Fill in:
+   - **Type:** A
+   - **Name:** `local` (creates local.evindrake.net)
+   - **IPv4 address:** `1.2.3.4` (temporary placeholder - DDNS will update this)
+   - **Proxy status:** **DNS only** (gray cloud - not orange!)
+   - **TTL:** 5 min (allows faster propagation when IP changes)
+4. Click **Save**
+
+**Via API:**
+```bash
+# Create the A record
+curl -X POST "https://api.cloudflare.com/client/v4/zones/YOUR_ZONE_ID/dns_records" \
+  -H "Authorization: Bearer YOUR_API_TOKEN_HERE" \
+  -H "Content-Type: application/json" \
+  --data '{
+    "type": "A",
+    "name": "local",
+    "content": "1.2.3.4",
+    "ttl": 300,
+    "proxied": false
+  }'
+```
+
+---
+
+#### Step 4: Install Prerequisites
+
+**On your local Ubuntu host:**
+```bash
+# Install required packages
+sudo apt update
+sudo apt install -y curl jq
+
+# Verify installations
+curl --version   # Should show curl version
+jq --version     # Should show jq version (e.g., jq-1.6)
+
+# Create scripts directory
+sudo mkdir -p /opt/homelab/scripts
+sudo mkdir -p /var/log/homelab
+```
+
+---
+
+#### Step 5: Choose Your DDNS Method
+
+Pick ONE of these three options:
+
+---
+
+##### Option A: Docker Container (Recommended - Set and Forget)
+
+This is the easiest method - a container that runs continuously:
+
+```bash
+# Create config directory
 sudo mkdir -p /opt/homelab/ddclient
 
+# Create configuration file
+sudo nano /opt/homelab/ddclient/ddclient.conf
+```
+
+**Paste this configuration (edit the values):**
+```ini
+# /opt/homelab/ddclient/ddclient.conf
+# Cloudflare Dynamic DNS Configuration
+
+# Update every 5 minutes
+daemon=300
+
+# Log to syslog
+syslog=yes
+
+# Use Cloudflare protocol
+protocol=cloudflare
+
+# Method to determine public IP (reliable Cloudflare endpoint)
+use=web, web=https://cloudflare.com/cdn-cgi/trace, web-skip='ip='
+
+# Your domain zone
+zone=evindrake.net
+
+# Your Cloudflare email (login)
+login=your-email@example.com
+
+# Your API Token (from Step 1)
+password=YOUR_CLOUDFLARE_API_TOKEN_HERE
+
+# The record to update (without the zone suffix)
+local
+```
+
+**Run the container:**
+```bash
+# Pull and run ddclient container
 docker run -d \
   --name cloudflare-ddns \
   --restart=always \
   -v /opt/homelab/ddclient/ddclient.conf:/etc/ddclient.conf:ro \
-  linuxserver/ddclient
+  linuxserver/ddclient:latest
+
+# Verify it's running
+docker ps | grep ddclient
+
+# Check logs for successful update
+docker logs cloudflare-ddns
+
+# Expected log output:
+# SUCCESS:  local.evindrake.net: updating record to 203.0.113.45
 ```
 
-**Or use this simpler alternative script (no Docker):**
+**To update configuration:**
+```bash
+# Edit config
+sudo nano /opt/homelab/ddclient/ddclient.conf
 
+# Restart container to apply
+docker restart cloudflare-ddns
+```
+
+---
+
+##### Option B: Bash Script with Cron (No Docker)
+
+If you prefer not to use Docker:
+
+**Create the script:**
+```bash
+sudo nano /opt/homelab/scripts/cloudflare-ddns.sh
+```
+
+**Paste this script (edit the values at the top):**
 ```bash
 #!/bin/bash
-# /opt/homelab/scripts/cloudflare-ddns.sh
-# Add to crontab: */5 * * * * /opt/homelab/scripts/cloudflare-ddns.sh
+#===============================================================================
+# Cloudflare Dynamic DNS Update Script
+# Updates DNS record when your public IP changes
+#
+# Usage: Run via cron every 5 minutes
+# crontab -e → */5 * * * * /opt/homelab/scripts/cloudflare-ddns.sh
+#===============================================================================
 
-API_TOKEN="YOUR_CLOUDFLARE_API_TOKEN"
-ZONE_ID="YOUR_ZONE_ID"
-RECORD_NAME="local.evindrake.net"
+#--- CONFIGURATION (Edit these values) ---
+API_TOKEN="YOUR_CLOUDFLARE_API_TOKEN_HERE"     # From Step 1
+ZONE_ID="YOUR_ZONE_ID_HERE"                     # From Step 2
+RECORD_NAME="local.evindrake.net"               # Full DNS record name
+LOG_FILE="/var/log/homelab/ddns.log"
+#------------------------------------------
 
-# Get current public IP
-CURRENT_IP=$(curl -s https://api.ipify.org)
+# Ensure log directory exists
+mkdir -p "$(dirname "$LOG_FILE")"
 
-# Get existing record
-RECORD=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?name=$RECORD_NAME" \
-  -H "Authorization: Bearer $API_TOKEN" \
-  -H "Content-Type: application/json")
+# Function to log with timestamp
+log() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "$LOG_FILE"
+}
 
-RECORD_ID=$(echo $RECORD | jq -r '.result[0].id')
-OLD_IP=$(echo $RECORD | jq -r '.result[0].content')
+# Get current public IP (try multiple services for reliability)
+get_public_ip() {
+    local ip
+    ip=$(curl -s --max-time 10 https://api.ipify.org 2>/dev/null)
+    if [ -z "$ip" ]; then
+        ip=$(curl -s --max-time 10 https://ifconfig.me 2>/dev/null)
+    fi
+    if [ -z "$ip" ]; then
+        ip=$(curl -s --max-time 10 https://icanhazip.com 2>/dev/null)
+    fi
+    echo "$ip"
+}
 
-# Update only if IP changed
-if [ "$CURRENT_IP" != "$OLD_IP" ]; then
-  curl -s -X PUT "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records/$RECORD_ID" \
+CURRENT_IP=$(get_public_ip)
+
+# Validate we got an IP
+if [ -z "$CURRENT_IP" ]; then
+    log "ERROR: Could not determine public IP"
+    exit 1
+fi
+
+# Get existing DNS record from Cloudflare
+RECORD_RESPONSE=$(curl -s -X GET \
+    "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?name=$RECORD_NAME&type=A" \
+    -H "Authorization: Bearer $API_TOKEN" \
+    -H "Content-Type: application/json")
+
+# Check for API errors
+if echo "$RECORD_RESPONSE" | jq -e '.success == false' > /dev/null 2>&1; then
+    ERROR_MSG=$(echo "$RECORD_RESPONSE" | jq -r '.errors[0].message')
+    log "ERROR: Cloudflare API error: $ERROR_MSG"
+    exit 1
+fi
+
+# Extract record details
+RECORD_ID=$(echo "$RECORD_RESPONSE" | jq -r '.result[0].id')
+OLD_IP=$(echo "$RECORD_RESPONSE" | jq -r '.result[0].content')
+
+# Check if record exists
+if [ "$RECORD_ID" == "null" ] || [ -z "$RECORD_ID" ]; then
+    log "ERROR: DNS record '$RECORD_NAME' not found. Create it first in Cloudflare."
+    exit 1
+fi
+
+# Only update if IP changed
+if [ "$CURRENT_IP" == "$OLD_IP" ]; then
+    # Uncomment next line for verbose logging
+    # log "INFO: IP unchanged ($CURRENT_IP)"
+    exit 0
+fi
+
+# Update the DNS record
+UPDATE_RESPONSE=$(curl -s -X PUT \
+    "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records/$RECORD_ID" \
     -H "Authorization: Bearer $API_TOKEN" \
     -H "Content-Type: application/json" \
-    --data "{\"type\":\"A\",\"name\":\"$RECORD_NAME\",\"content\":\"$CURRENT_IP\",\"ttl\":300}"
-  echo "$(date): Updated IP from $OLD_IP to $CURRENT_IP" >> /var/log/ddns.log
+    --data "{
+        \"type\": \"A\",
+        \"name\": \"$RECORD_NAME\",
+        \"content\": \"$CURRENT_IP\",
+        \"ttl\": 300,
+        \"proxied\": false
+    }")
+
+# Check if update succeeded
+if echo "$UPDATE_RESPONSE" | jq -e '.success == true' > /dev/null 2>&1; then
+    log "SUCCESS: Updated $RECORD_NAME from $OLD_IP to $CURRENT_IP"
+else
+    ERROR_MSG=$(echo "$UPDATE_RESPONSE" | jq -r '.errors[0].message')
+    log "ERROR: Failed to update DNS: $ERROR_MSG"
+    exit 1
 fi
 ```
 
-#### Option 2: DuckDNS (Free & Simple)
+**Make executable and test:**
+```bash
+# Make script executable
+sudo chmod +x /opt/homelab/scripts/cloudflare-ddns.sh
+
+# Run manually to test
+sudo /opt/homelab/scripts/cloudflare-ddns.sh
+
+# Check the log
+cat /var/log/homelab/ddns.log
+
+# Expected output:
+# 2024-01-15 14:30:00 - SUCCESS: Updated local.evindrake.net from 1.2.3.4 to 203.0.113.45
+```
+
+**Add to cron (runs every 5 minutes):**
+```bash
+# Edit crontab
+sudo crontab -e
+
+# Add this line at the bottom:
+*/5 * * * * /opt/homelab/scripts/cloudflare-ddns.sh
+
+# Save and exit (Ctrl+X, Y, Enter in nano)
+
+# Verify cron entry
+sudo crontab -l | grep ddns
+
+# Expected output:
+# */5 * * * * /opt/homelab/scripts/cloudflare-ddns.sh
+```
+
+---
+
+##### Option C: Docker Compose (For Integration with Other Services)
+
+Add DDNS to your existing compose stack:
+
+**Create `docker-compose.ddns.yml`:**
+```yaml
+# /opt/homelab/docker-compose.ddns.yml
+version: '3.8'
+
+services:
+  cloudflare-ddns:
+    image: oznu/cloudflare-ddns:latest
+    container_name: cloudflare-ddns
+    restart: always
+    environment:
+      # Your Cloudflare API Token (from Step 1)
+      - API_KEY=YOUR_CLOUDFLARE_API_TOKEN_HERE
+      # Your domain zone
+      - ZONE=evindrake.net
+      # Subdomain to update (without zone)
+      - SUBDOMAIN=local
+      # Check interval (seconds)
+      - INTERVAL=300
+      # Use IPv4 only
+      - IPV6=false
+      # DNS only (not proxied)
+      - PROXIED=false
+    # Optional: resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+          cpus: '0.1'
+```
+
+**Run it:**
+```bash
+cd /opt/homelab
+docker compose -f docker-compose.ddns.yml up -d
+
+# Check status
+docker compose -f docker-compose.ddns.yml logs -f
+
+# Expected output:
+# cloudflare-ddns  | DNS record local.evindrake.net (A) updated to 203.0.113.45
+```
+
+---
+
+#### Step 6: Verify DDNS is Working
+
+After setting up any method above, verify it's working:
+
+**Check 1: Verify the DNS record updated:**
+```bash
+# Query DNS for your record
+dig +short local.evindrake.net
+
+# Expected output: Your current public IP
+# 203.0.113.45
+
+# Alternative using nslookup
+nslookup local.evindrake.net
+
+# Check what Cloudflare has
+dig @1.1.1.1 +short local.evindrake.net
+```
+
+**Check 2: Compare to your actual public IP:**
+```bash
+# Get your current public IP
+curl -s https://api.ipify.org
+
+# This should match the dig output above
+```
+
+**Check 3: Check logs for updates:**
+```bash
+# For Docker container method
+docker logs cloudflare-ddns --tail 20
+
+# For bash script method
+tail -20 /var/log/homelab/ddns.log
+
+# For Docker Compose method
+docker compose -f docker-compose.ddns.yml logs --tail 20
+```
+
+**Check 4: Force an update (for testing):**
+```bash
+# For Docker container
+docker restart cloudflare-ddns
+
+# For bash script
+sudo /opt/homelab/scripts/cloudflare-ddns.sh
+
+# For Docker Compose
+docker compose -f docker-compose.ddns.yml restart
+```
+
+---
+
+#### Step 7: Set Up Log Rotation (Optional but Recommended)
+
+Prevent log files from growing forever:
+
+```bash
+# Create logrotate configuration
+sudo nano /etc/logrotate.d/homelab-ddns
+```
+
+**Paste:**
+```
+/var/log/homelab/ddns.log {
+    weekly
+    rotate 4
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 644 root root
+}
+```
+
+---
+
+#### Troubleshooting DDNS
+
+**Problem: "DNS record not found"**
+- Make sure you created the A record in Cloudflare first (Step 3)
+- Verify the RECORD_NAME matches exactly (including zone suffix)
+
+**Problem: "Authentication error"**
+- Verify your API token is correct (test with curl in Step 1)
+- Make sure token has Zone:Read and DNS:Edit permissions
+- Check token hasn't expired
+
+**Problem: "Zone not found"**
+- Verify your Zone ID is correct (Step 2)
+- Make sure token has access to this zone
+
+**Problem: IP not updating after change**
+- Check cron is running: `sudo crontab -l`
+- Check script has execute permission: `ls -la /opt/homelab/scripts/`
+- Run script manually and check for errors
+
+**Test API access manually:**
+```bash
+# Test listing DNS records
+curl -s -X GET "https://api.cloudflare.com/client/v4/zones/YOUR_ZONE_ID/dns_records" \
+  -H "Authorization: Bearer YOUR_API_TOKEN" \
+  -H "Content-Type: application/json" | jq '.result[] | {name: .name, type: .type, content: .content}'
+```
+
+---
+
+#### Option 2: DuckDNS (Free & Simple Alternative)
 
 1. Sign up at [duckdns.org](https://www.duckdns.org/)
 2. Create a subdomain (e.g., `yourhomelab.duckdns.org`)
@@ -360,105 +1029,518 @@ If you set up DDNS and want direct access without Tailscale, you'll need to forw
 
 ---
 
-## Phase 3: Cloud Deployment (Linode)
+## Phase 3: Cloud Deployment (Linode) - Complete Guide
 
-**Time: 20 minutes**
+**Time: 30-45 minutes**
 
-### 3.1 Prepare the Server
+This phase walks you through setting up your Linode cloud server with all prerequisites, security hardening, and verification steps.
+
+---
+
+### 3.1 SSH Into Your Linode
 
 ```bash
+# Connect to your Linode (use the IP from Phase 1)
 ssh root@YOUR_LINODE_IP
 
-# Update system
-apt update && apt upgrade -y
+# If you get a host key warning on first connection, type 'yes'
+# The authenticity of host 'xxx.xxx.xxx.xxx' can't be established...
+# Are you sure you want to continue connecting (yes/no)? yes
+```
 
-# Install Docker
+---
+
+### 3.2 Install Prerequisites
+
+#### Step 1: Update System Packages
+
+```bash
+# Update package lists
+apt update
+
+# Upgrade existing packages (this may take a few minutes)
+apt upgrade -y
+
+# Verify you're on Ubuntu
+cat /etc/os-release
+# Should show: VERSION="25.10" or similar
+```
+
+#### Step 2: Install Essential Packages
+
+```bash
+# Install required system packages
+apt install -y \
+    curl \
+    wget \
+    git \
+    jq \
+    htop \
+    nano \
+    unzip \
+    ca-certificates \
+    gnupg \
+    lsb-release \
+    software-properties-common \
+    apt-transport-https
+
+# Verify installations
+git --version        # git version 2.x.x
+curl --version       # curl 8.x.x
+jq --version         # jq-1.6 or later
+```
+
+#### Step 3: Install Docker
+
+```bash
+# Download and run Docker's official install script
 curl -fsSL https://get.docker.com | sh
 
-# Verify
+# Verify Docker is installed and running
 docker --version
+# Expected: Docker version 27.x.x
+
 docker compose version
+# Expected: Docker Compose version v2.x.x
+
+# Test Docker works
+docker run --rm hello-world
+# Should print: Hello from Docker!
+
+# Enable Docker to start on boot
+systemctl enable docker
+systemctl status docker
+# Should show: active (running)
 ```
 
-### 3.2 Clone and Configure
+---
+
+### 3.3 Configure UFW Firewall (Security Hardening)
+
+UFW (Uncomplicated Firewall) protects your server from unauthorized access.
+
+#### Step 1: Check UFW Status
 
 ```bash
-# Create directory and clone
+# Check if UFW is installed
+which ufw
+# Expected: /usr/sbin/ufw
+
+# Check current status
+ufw status
+# Probably: Status: inactive
+```
+
+#### Step 2: Configure Firewall Rules
+
+```bash
+# Set default policies (deny incoming, allow outgoing)
+ufw default deny incoming
+ufw default allow outgoing
+
+# Allow SSH (CRITICAL - don't skip this or you'll lock yourself out!)
+ufw allow ssh
+# or explicitly:
+ufw allow 22/tcp
+
+# Allow HTTP and HTTPS for web traffic
+ufw allow 80/tcp
+ufw allow 443/tcp
+
+# Allow Tailscale (if using)
+ufw allow in on tailscale0
+
+# View rules before enabling
+ufw show added
+
+# Expected output:
+# Added user rules (see 'ufw status' for running firewall):
+# ufw allow 22/tcp
+# ufw allow 80/tcp
+# ufw allow 443/tcp
+```
+
+#### Step 3: Enable UFW
+
+```bash
+# Enable the firewall
+ufw enable
+# Type 'y' when prompted:
+# Command may disrupt existing ssh connections. Proceed with operation (y|n)? y
+
+# Verify status
+ufw status verbose
+
+# Expected output:
+# Status: active
+# Logging: on (low)
+# Default: deny (incoming), allow (outgoing)
+# 
+# To                         Action      From
+# --                         ------      ----
+# 22/tcp                     ALLOW IN    Anywhere
+# 80/tcp                     ALLOW IN    Anywhere
+# 443/tcp                    ALLOW IN    Anywhere
+```
+
+#### Step 4: Test SSH Still Works
+
+```bash
+# Open a NEW terminal window (don't close the current one!)
+ssh root@YOUR_LINODE_IP
+
+# If it works, you're good! Close the test terminal.
+# If it fails, go back to your original session and:
+# ufw disable
+# Then troubleshoot the rules
+```
+
+---
+
+### 3.4 Clone the Repository
+
+```bash
+# Create the homelab directory
 mkdir -p /opt/homelab
 cd /opt/homelab
+
+# Clone your repository (replace with your actual repo URL)
 git clone https://github.com/YOUR_USERNAME/HomeLabHub.git
+
+# Navigate into the project
 cd HomeLabHub
 
-# Create environment file
-cp .env.example .env
-chmod 600 .env
+# Verify files are present
+ls -la
+# Should show: docker-compose.yml, .env.example, Caddyfile, deploy/, etc.
+
+# Check the structure
+tree -L 2 -d
+# or if tree isn't installed:
+find . -maxdepth 2 -type d | head -20
 ```
 
-### 3.3 Edit .env File
+---
+
+### 3.5 Create and Configure Environment File
+
+#### Step 1: Copy the Example File
 
 ```bash
+# Copy example to actual .env
+cp .env.example .env
+
+# Set secure permissions (only root can read)
+chmod 600 .env
+
+# Verify permissions
+ls -la .env
+# Should show: -rw------- 1 root root ...
+```
+
+#### Step 2: Edit the Environment File
+
+```bash
+# Open the .env file for editing
 nano .env
 ```
 
-**Set these values (the rest will be auto-generated):**
+**Set these REQUIRED values:**
 
 ```bash
-# ═══════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
 # REQUIRED - Set these before deploying
-# ═══════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
 
-# Dashboard login
-WEB_USERNAME=admin
-WEB_PASSWORD=your_secure_password_here
+# --- Dashboard Authentication ---
+WEB_USERNAME=admin                           # Your login username
+WEB_PASSWORD=YourSecurePassword123!          # Use a strong password (16+ chars)
 
-# AI (from Phase 1)
-OPENAI_API_KEY=sk-proj-your-key-here
+# --- AI Integration (from Phase 1) ---
+OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
-# Cross-host routing (your LOCAL Ubuntu host's Tailscale IP)
+# --- Cross-Host Routing ---
+# Your LOCAL Ubuntu host's Tailscale IP (from Phase 2.3)
 LOCAL_TAILSCALE_IP=100.110.227.25
 
-# Code Server password
-CODE_SERVER_PASSWORD=your_code_password
+# --- Code Server ---
+CODE_SERVER_PASSWORD=AnotherSecurePassword456!
 
-# ═══════════════════════════════════════════════════════════════════
-# DISCORD - Add after Phase 4.1
-# ═══════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
+# DISCORD - Leave blank now, add after Phase 4.1
+# ═══════════════════════════════════════════════════════════════════════════════
 DISCORD_BOT_TOKEN=
 DISCORD_CLIENT_ID=
 DISCORD_CLIENT_SECRET=
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# AUTO-GENERATED - These will be set by bootstrap.sh
+# Don't fill these manually - leave them as placeholders or empty
+# ═══════════════════════════════════════════════════════════════════════════════
+# POSTGRES_PASSWORD=      # Will be auto-generated
+# REDIS_PASSWORD=         # Will be auto-generated
+# JWT_SECRET=             # Will be auto-generated
 ```
 
-Save with `Ctrl+X`, then `Y`, then `Enter`.
+**Save the file:**
+- Press `Ctrl+X` to exit
+- Press `Y` to confirm save
+- Press `Enter` to confirm filename
 
-### 3.4 Deploy
+---
+
+### 3.6 Validate Environment Before Deployment
+
+Before running bootstrap, verify your configuration:
 
 ```bash
+# Check .env file is readable
+cat .env | head -20
+
+# Verify required variables are set (replace 'grep' values with your actual keys)
+grep -E "^WEB_USERNAME=" .env       # Should show your username
+grep -E "^WEB_PASSWORD=" .env       # Should show your password
+grep -E "^OPENAI_API_KEY=" .env     # Should show sk-proj-...
+grep -E "^LOCAL_TAILSCALE_IP=" .env # Should show 100.x.x.x
+
+# Create a simple validation script
+cat << 'EOF' > /opt/homelab/validate-env.sh
+#!/bin/bash
+# Validate required environment variables
+
+source .env
+
+ERRORS=0
+
+check_var() {
+    if [ -z "${!1}" ]; then
+        echo "❌ Missing: $1"
+        ((ERRORS++))
+    else
+        echo "✅ Set: $1"
+    fi
+}
+
+echo "Checking required variables..."
+echo "=============================="
+
+check_var "WEB_USERNAME"
+check_var "WEB_PASSWORD"
+check_var "OPENAI_API_KEY"
+check_var "LOCAL_TAILSCALE_IP"
+check_var "CODE_SERVER_PASSWORD"
+
+echo ""
+if [ $ERRORS -eq 0 ]; then
+    echo "✅ All required variables are set!"
+    exit 0
+else
+    echo "❌ $ERRORS variable(s) missing. Please update .env"
+    exit 1
+fi
+EOF
+
+chmod +x /opt/homelab/validate-env.sh
+
+# Run the validation
+cd /opt/homelab/HomeLabHub
+/opt/homelab/validate-env.sh
+```
+
+---
+
+### 3.7 Run the Bootstrap Script
+
+```bash
+# Make the script executable
 chmod +x deploy/scripts/bootstrap.sh
+
+# Run with cloud role and auto-generate secrets
 ./deploy/scripts/bootstrap.sh --role cloud --generate-secrets
 ```
 
-This will:
-- Generate all missing passwords automatically
-- Create database initialization scripts
-- Start all services with Docker Compose
+**What bootstrap.sh does:**
+1. Generates secure random passwords for PostgreSQL, Redis, JWT
+2. Creates database initialization SQL
+3. Validates Docker and Docker Compose are available
+4. Pulls required Docker images
+5. Starts all services with Docker Compose
+6. Waits for services to become healthy
 
-### 3.5 Verify Deployment
-
-```bash
-# Check all containers are running
-docker compose ps
-
-# You should see all services as "Up":
-# caddy, homelab-postgres, homelab-redis, homelab-dashboard,
-# discord-bot, stream-bot, n8n, code-server
-
-# Check for errors
-docker compose logs --tail=50
+**Expected output:**
+```
+[INFO] Starting HomeLabHub bootstrap...
+[INFO] Role: cloud
+[INFO] Generating secure secrets...
+[INFO] Generated POSTGRES_PASSWORD
+[INFO] Generated REDIS_PASSWORD
+[INFO] Generated JWT_SECRET
+[INFO] Creating database init scripts...
+[INFO] Starting Docker Compose...
+[INFO] Waiting for services to be healthy...
+[SUCCESS] All services started successfully!
 ```
 
-**Test access (may take 5 min for SSL certificates):**
-- Dashboard: https://dash.evindrake.net
-- Code Server: https://code.evindrake.net
+---
+
+### 3.8 Verify All Services Are Running
+
+#### Step 1: Check Docker Containers
+
+```bash
+# List all running containers
+docker compose ps
+
+# Expected output (all should show "Up"):
+# NAME                STATUS              PORTS
+# caddy               Up                  0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp
+# homelab-postgres    Up (healthy)        5432/tcp
+# homelab-redis       Up                  6379/tcp
+# homelab-dashboard   Up                  
+# discord-bot         Up                  
+# stream-bot          Up                  
+# n8n                 Up                  5678/tcp
+# code-server         Up                  8080/tcp
+
+# If any container is not "Up", check its logs:
+docker compose logs container-name --tail=100
+```
+
+#### Step 2: Verify PostgreSQL Database
+
+```bash
+# Check database container health
+docker compose exec homelab-postgres pg_isready -U homelab
+# Expected: /var/run/postgresql:5432 - accepting connections
+
+# Connect to database and verify tables exist
+docker compose exec homelab-postgres psql -U homelab -d homelab_dashboard -c '\dt'
+
+# Expected: List of tables (users, sessions, audit_logs, etc.)
+# If you see "No relations found", the database may still be initializing
+
+# Check database logs
+docker compose logs homelab-postgres --tail=30
+```
+
+#### Step 3: Verify Redis
+
+```bash
+# Check Redis is responding
+docker compose exec homelab-redis redis-cli ping
+# Expected: PONG
+
+# Check Redis info
+docker compose exec homelab-redis redis-cli info server | head -10
+```
+
+#### Step 4: Check for Errors
+
+```bash
+# View combined logs from all services (last 100 lines)
+docker compose logs --tail=100
+
+# Check for specific error patterns
+docker compose logs 2>&1 | grep -i error | tail -20
+docker compose logs 2>&1 | grep -i failed | tail -20
+
+# Watch logs in real-time (Ctrl+C to stop)
+docker compose logs -f
+```
+
+---
+
+### 3.9 Wait for SSL Certificates
+
+Caddy automatically obtains SSL certificates from Let's Encrypt. This requires:
+1. DNS records pointing to your Linode IP (from Phase 2.2)
+2. Ports 80 and 443 open (configured in Phase 3.3)
+3. ~2-5 minutes for certificate issuance
+
+**Check Caddy certificate status:**
+```bash
+# View Caddy logs
+docker compose logs caddy --tail=50
+
+# Look for lines like:
+# successfully obtained certificate
+# certificate obtained successfully
+# or errors like:
+# failed to obtain certificate: ...
+
+# Test HTTPS (after 5 minutes)
+curl -I https://dash.evindrake.net
+# Expected: HTTP/2 200 (or 302 redirect)
+
+# If you see certificate errors, check:
+# 1. DNS is resolving correctly: dig +short dash.evindrake.net
+# 2. Ports are open: nc -zv YOUR_LINODE_IP 443
+# 3. Caddy logs for specific errors
+```
+
+---
+
+### 3.10 Test Web Access
+
+**After 5-10 minutes (for SSL certificates):**
+
+| Service | URL | Expected |
+|---------|-----|----------|
+| Dashboard | https://dash.evindrake.net | Login page |
+| Code Server | https://code.evindrake.net | Password prompt |
+| n8n | https://n8n.evindrake.net | n8n login |
+
+**Test from command line:**
+```bash
+# Test dashboard (should return HTML)
+curl -s https://dash.evindrake.net | head -20
+
+# Test with headers
+curl -I https://dash.evindrake.net
+
+# Expected response headers:
+# HTTP/2 200
+# content-type: text/html; charset=utf-8
+```
+
+**Common issues:**
+
+| Problem | Cause | Solution |
+|---------|-------|----------|
+| Connection refused | Container not running | `docker compose up -d` |
+| Certificate error | DNS not propagated | Wait 15 min, check `dig` |
+| 502 Bad Gateway | Backend not ready | Check backend container logs |
+| 404 Not Found | Wrong Caddyfile config | Verify Caddyfile domains |
+
+---
+
+### 3.11 Useful Commands Reference
+
+```bash
+# --- Container Management ---
+docker compose ps                    # Show container status
+docker compose up -d                 # Start all services
+docker compose down                  # Stop all services
+docker compose restart               # Restart all services
+docker compose restart service-name  # Restart one service
+
+# --- Logs ---
+docker compose logs -f               # Follow all logs
+docker compose logs service-name     # View specific service logs
+docker compose logs --tail=100       # Last 100 lines
+
+# --- Database ---
+docker compose exec homelab-postgres psql -U homelab -d homelab_dashboard
+
+# --- Shell Access ---
+docker compose exec service-name bash  # Get shell in container
+docker compose exec service-name sh    # If bash not available
+
+# --- Updates ---
+git pull                             # Pull latest code
+docker compose pull                  # Pull latest images
+docker compose up -d --force-recreate  # Recreate containers
+```
 
 ---
 
