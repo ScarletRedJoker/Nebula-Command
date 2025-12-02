@@ -177,21 +177,37 @@ TWITCH_REDIRECT_URI=https://stream.rig-city.com/api/auth/twitch/callback
 #### YouTube Integration (Stream Bot)
 ```env
 # Get from: https://console.cloud.google.com/apis/credentials
-# 1. Create Project → APIs & Services → Credentials
-# 2. Create OAuth Client ID → Web Application
-# 3. Authorized redirect URI: https://stream.yourdomain.com/api/auth/youtube/callback
+# Full step-by-step guide: Phase 4.3 below
+# 1. Create Project → APIs & Services → Enable YouTube Data API v3
+# 2. OAuth consent screen → Add yourself as test user
+# 3. Credentials → Create OAuth Client ID → Web Application
+# 4. Add redirect URIs: your callback URL + http://localhost:3000/callback
 YOUTUBE_CLIENT_ID=______________________.apps.googleusercontent.com
-YOUTUBE_CLIENT_SECRET=____________________
-YOUTUBE_REDIRECT_URI=https://stream.rig-city.com/api/auth/youtube/callback
+YOUTUBE_CLIENT_SECRET=GOCSPX-____________________
+
+# REFRESH TOKEN - Required! Generate via OAuth Playground (see Phase 4.3 Step 5)
+# 1. Go to: https://developers.google.com/oauthplayground/
+# 2. Settings gear → Use your own OAuth credentials → Enter Client ID & Secret
+# 3. Select YouTube Data API v3 → youtube.readonly scope
+# 4. Authorize → Exchange code → Copy the refresh_token
+YOUTUBE_REFRESH_TOKEN=1//____________________________________
 ```
 
 #### Spotify Integration (Now Playing)
 ```env
 # Get from: https://developer.spotify.com/dashboard
-# 1. Create App → Redirect URI: https://stream.yourdomain.com/api/auth/spotify/callback
+# Full step-by-step guide: Phase 4.4 below
+# 1. Create App → Add redirect URI: http://localhost:3000/callback
+# 2. Settings → Copy Client ID and Client Secret
 SPOTIFY_CLIENT_ID=________________________________
 SPOTIFY_CLIENT_SECRET=____________________________
-SPOTIFY_REDIRECT_URI=https://stream.rig-city.com/api/auth/spotify/callback
+
+# REFRESH TOKEN - Required! Generate via authorization flow (see Phase 4.4 Step 3)
+# Quick method:
+# 1. Visit: https://accounts.spotify.com/authorize?client_id=YOUR_CLIENT_ID&response_type=code&redirect_uri=http://localhost:3000/callback&scope=user-read-currently-playing
+# 2. Authorize → Copy the "code" from the redirect URL
+# 3. Exchange code for tokens with curl (see Phase 4.4)
+SPOTIFY_REFRESH_TOKEN=AQB_________________________________
 ```
 
 #### Kick Integration (Stream Bot)
@@ -312,13 +328,22 @@ DISCORD_CLIENT_ID=
 DISCORD_CLIENT_SECRET=
 
 # --- OPTIONAL: STREAMING INTEGRATIONS ---
+# Twitch (https://dev.twitch.tv/console/apps)
 TWITCH_CLIENT_ID=
 TWITCH_CLIENT_SECRET=
 TWITCH_CHANNEL=
+
+# YouTube (https://console.cloud.google.com - see Phase 4.3 for full guide)
 YOUTUBE_CLIENT_ID=
 YOUTUBE_CLIENT_SECRET=
+YOUTUBE_REFRESH_TOKEN=              # Generate via OAuth Playground - see Phase 4.3 Step 5
+
+# Spotify (https://developer.spotify.com/dashboard - see Phase 4.4 for full guide)
 SPOTIFY_CLIENT_ID=
 SPOTIFY_CLIENT_SECRET=
+SPOTIFY_REFRESH_TOKEN=              # Generate via authorization flow - see Phase 4.4 Step 3
+
+# Kick
 KICK_CLIENT_ID=
 KICK_CLIENT_SECRET=
 
@@ -378,8 +403,8 @@ Use this to verify you have everything:
 
 **Optional (can add later):**
 - [ ] Twitch Client ID/Secret
-- [ ] YouTube Client ID/Secret  
-- [ ] Spotify Client ID/Secret
+- [ ] YouTube Client ID/Secret + **Refresh Token** (see Phase 4.3 Step 5)
+- [ ] Spotify Client ID/Secret + **Refresh Token** (see Phase 4.4 Step 3)
 - [ ] Cloudflare API Token + Zone IDs
 
 ---
@@ -2325,50 +2350,417 @@ TWITCH_CLIENT_SECRET=your_twitch_secret
 
 **One project, multiple APIs:**
 
+#### Step 1: Create Google Cloud Project
+
 1. Go to [console.cloud.google.com](https://console.cloud.google.com)
-2. Create new project: "HomeLabHub"
-3. **Enable APIs** (APIs & Services → Library):
-   - YouTube Data API v3
-   - Google Calendar API
-   - Gmail API
-4. **OAuth Consent Screen** (APIs & Services → OAuth consent screen):
-   - User Type: External
-   - App name: HomeLabHub
-   - Support email: Your email
-   - Add scopes: YouTube, Calendar, Gmail (just click through)
-   - Add yourself as test user
-5. **Create Credentials** (APIs & Services → Credentials):
-   - Click **Create Credentials** → **OAuth client ID**
-   - Application type: Web application
-   - Name: HomeLabHub
-   - Authorized redirect URIs:
-     - `https://stream.rig-city.com/api/auth/youtube/callback`
-     - `https://dash.evindrake.net/api/google/callback`
-6. Copy **Client ID** and **Client Secret**
+2. Click the project dropdown (top-left) → **New Project**
+3. Name it: `HomeLabHub`
+4. Click **Create** and wait for it to finish
+5. Make sure it's selected in the dropdown
+
+#### Step 2: Enable Required APIs
+
+1. Go to **APIs & Services** → **Library** (left sidebar)
+2. Search for and **Enable** each of these:
+   - `YouTube Data API v3` - Click it → Click **Enable**
+   - `Google Calendar API` - Click it → Click **Enable**
+   - `Gmail API` - Click it → Click **Enable**
+
+#### Step 3: Configure OAuth Consent Screen
+
+1. Go to **APIs & Services** → **OAuth consent screen**
+2. Select **External** → Click **Create**
+3. Fill in the form:
+   - **App name:** `HomeLabHub`
+   - **User support email:** Your email
+   - **Developer contact email:** Your email
+4. Click **Save and Continue**
+5. **Scopes screen:** Click **Add or Remove Scopes**
+   - Search and check these:
+     - `https://www.googleapis.com/auth/youtube.readonly`
+     - `https://www.googleapis.com/auth/calendar.readonly`
+     - `https://www.googleapis.com/auth/gmail.readonly`
+   - Click **Update** → **Save and Continue**
+6. **Test users:** Click **Add Users**
+   - Add your Google email address (the one you'll authorize with)
+   - Click **Save and Continue**
+7. Click **Back to Dashboard**
+
+#### Step 4: Create OAuth Credentials
+
+1. Go to **APIs & Services** → **Credentials**
+2. Click **Create Credentials** → **OAuth client ID**
+3. Application type: **Web application**
+4. Name: `HomeLabHub`
+5. **Authorized redirect URIs** - Click **Add URI** for each:
+   ```
+   https://stream.rig-city.com/api/auth/youtube/callback
+   https://dash.evindrake.net/api/google/callback
+   http://localhost:3000/callback
+   ```
+   *(The localhost one is for generating tokens locally)*
+6. Click **Create**
+7. **COPY IMMEDIATELY:**
+   - **Client ID:** `xxxxxxxxxxxx.apps.googleusercontent.com`
+   - **Client Secret:** `GOCSPX-xxxxxxxxxxxx`
 
 **Add to .env:**
 ```bash
-YOUTUBE_CLIENT_ID=your_google_client_id
-YOUTUBE_CLIENT_SECRET=your_google_secret
-GOOGLE_CLIENT_ID=your_google_client_id
-GOOGLE_CLIENT_SECRET=your_google_secret
+YOUTUBE_CLIENT_ID=xxxxxxxxxxxx.apps.googleusercontent.com
+YOUTUBE_CLIENT_SECRET=GOCSPX-xxxxxxxxxxxx
+GOOGLE_CLIENT_ID=xxxxxxxxxxxx.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=GOCSPX-xxxxxxxxxxxx
 ```
+
+---
+
+#### Step 5: Generate YouTube Refresh Token (REQUIRED for API access)
+
+The refresh token allows your app to access YouTube without you logging in every time. You only need to do this once.
+
+**Option A: Use the OAuth Playground (Easiest)**
+
+1. Go to [Google OAuth Playground](https://developers.google.com/oauthplayground/)
+2. Click the **gear icon** (top right) → Check **Use your own OAuth credentials**
+3. Enter:
+   - **OAuth Client ID:** Your client ID from Step 4
+   - **OAuth Client Secret:** Your client secret from Step 4
+4. In the left panel, find **YouTube Data API v3**
+5. Check: `https://www.googleapis.com/auth/youtube.readonly`
+6. Click **Authorize APIs** (blue button)
+7. Sign in with your Google account → Click **Allow**
+8. You'll be redirected back with an **Authorization Code**
+9. Click **Exchange authorization code for tokens**
+10. **COPY THE REFRESH TOKEN** - it looks like: `1//0gxxxxxxxxxxxxxxxxxxxxxxxxxx`
+
+**Add to .env:**
+```bash
+YOUTUBE_REFRESH_TOKEN=1//0gxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+**Option B: Use a Local Script**
+
+If OAuth Playground doesn't work, run this on your local machine:
+
+```bash
+# Create a temporary script
+cat > /tmp/get_google_token.py << 'EOF'
+#!/usr/bin/env python3
+"""
+Google OAuth Token Generator
+Run this locally to get refresh tokens for YouTube/Calendar/Gmail
+"""
+import webbrowser
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from urllib.parse import urlparse, parse_qs
+import urllib.request
+import urllib.parse
+import json
+
+# Replace these with your credentials
+CLIENT_ID = "YOUR_CLIENT_ID.apps.googleusercontent.com"
+CLIENT_SECRET = "GOCSPX-YOUR_SECRET"
+
+# Scopes for YouTube (add more as needed)
+SCOPES = [
+    "https://www.googleapis.com/auth/youtube.readonly",
+]
+
+REDIRECT_URI = "http://localhost:3000/callback"
+auth_code = None
+
+class CallbackHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        global auth_code
+        query = parse_qs(urlparse(self.path).query)
+        if 'code' in query:
+            auth_code = query['code'][0]
+            self.send_response(200)
+            self.send_header('Content-type', 'text/html')
+            self.end_headers()
+            self.wfile.write(b"<h1>Success! You can close this window.</h1>")
+        else:
+            self.send_response(400)
+            self.end_headers()
+            self.wfile.write(b"Error: No code received")
+    def log_message(self, format, *args):
+        pass
+
+def main():
+    global auth_code
+    
+    # Build authorization URL
+    auth_url = (
+        "https://accounts.google.com/o/oauth2/v2/auth?"
+        f"client_id={CLIENT_ID}&"
+        f"redirect_uri={urllib.parse.quote(REDIRECT_URI)}&"
+        "response_type=code&"
+        f"scope={urllib.parse.quote(' '.join(SCOPES))}&"
+        "access_type=offline&"
+        "prompt=consent"
+    )
+    
+    print("\n=== Google OAuth Token Generator ===\n")
+    print("Opening browser for authorization...")
+    print(f"If browser doesn't open, visit:\n{auth_url}\n")
+    
+    # Start local server
+    server = HTTPServer(('localhost', 3000), CallbackHandler)
+    webbrowser.open(auth_url)
+    
+    print("Waiting for callback...")
+    while auth_code is None:
+        server.handle_request()
+    
+    # Exchange code for tokens
+    token_url = "https://oauth2.googleapis.com/token"
+    data = urllib.parse.urlencode({
+        'code': auth_code,
+        'client_id': CLIENT_ID,
+        'client_secret': CLIENT_SECRET,
+        'redirect_uri': REDIRECT_URI,
+        'grant_type': 'authorization_code'
+    }).encode()
+    
+    req = urllib.request.Request(token_url, data=data, method='POST')
+    with urllib.request.urlopen(req) as resp:
+        tokens = json.loads(resp.read().decode())
+    
+    print("\n" + "="*50)
+    print("SUCCESS! Add these to your .env file:")
+    print("="*50)
+    print(f"\nYOUTUBE_REFRESH_TOKEN={tokens.get('refresh_token', 'NOT RETURNED')}")
+    if 'access_token' in tokens:
+        print(f"\n# Access token (expires in {tokens.get('expires_in', '?')} seconds):")
+        print(f"# {tokens['access_token'][:50]}...")
+    print("\n" + "="*50)
+
+if __name__ == "__main__":
+    main()
+EOF
+
+# Edit the script with your credentials, then run:
+# python3 /tmp/get_google_token.py
+```
+
+**Troubleshooting:**
+- **"Access blocked" error:** Make sure you added yourself as a test user in Step 3.6
+- **"Invalid redirect URI":** Ensure `http://localhost:3000/callback` is in your authorized URIs
+- **No refresh token returned:** You must include `prompt=consent` and `access_type=offline` in the auth URL (the script does this)
+
+---
 
 ### 4.4 Spotify (Optional - for Now Playing)
 
+#### Step 1: Create Spotify Developer App
+
 1. Go to [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard)
-2. Click **Create App**
-3. Fill in:
-   - App name: HomeLabHub Stream Bot
-   - Redirect URI: `https://stream.rig-city.com/api/auth/spotify/callback`
-   - APIs: Web API
-4. Go to Settings → Copy **Client ID** and **Client Secret**
+2. Log in with your Spotify account
+3. Click **Create App**
+4. Fill in the form:
+   - **App name:** `HomeLabHub Stream Bot`
+   - **App description:** `Now playing integration for stream bot`
+   - **Website:** `https://stream.rig-city.com` (or your domain)
+   - **Redirect URI:** Click **Add** and enter:
+     ```
+     https://stream.rig-city.com/api/auth/spotify/callback
+     http://localhost:3000/callback
+     ```
+   - **APIs used:** Check **Web API**
+5. Check the box to agree to Terms of Service
+6. Click **Save**
+
+#### Step 2: Get Client Credentials
+
+1. On your app's dashboard, click **Settings**
+2. Copy the **Client ID** (visible immediately)
+3. Click **View client secret** → Copy the **Client Secret**
 
 **Add to .env:**
 ```bash
-SPOTIFY_CLIENT_ID=your_spotify_client_id
-SPOTIFY_CLIENT_SECRET=your_spotify_secret
+SPOTIFY_CLIENT_ID=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+SPOTIFY_CLIENT_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
+
+---
+
+#### Step 3: Generate Spotify Refresh Token (REQUIRED for API access)
+
+**Option A: Use the Web Authorization Flow (Easiest)**
+
+1. **Build your authorization URL:**
+   
+   Replace `YOUR_CLIENT_ID` with your actual Client ID:
+   ```
+   https://accounts.spotify.com/authorize?client_id=YOUR_CLIENT_ID&response_type=code&redirect_uri=http://localhost:3000/callback&scope=user-read-currently-playing%20user-read-playback-state
+   ```
+
+2. **Paste that URL in your browser**
+
+3. **Log in to Spotify and click "Agree"**
+
+4. **You'll be redirected to a URL like:**
+   ```
+   http://localhost:3000/callback?code=AQBxxxxxxxxxxxxxxxxxxxxxxx
+   ```
+   *(Your browser will show an error - that's fine, we just need the code)*
+
+5. **Copy the code** from the URL (everything after `code=`)
+
+6. **Exchange the code for tokens** - Run this in your terminal:
+   ```bash
+   # Replace these values:
+   CODE="AQBxxxxxxxxxxxxxxxxxxxxxxx"
+   CLIENT_ID="your_client_id"
+   CLIENT_SECRET="your_client_secret"
+   
+   curl -X POST "https://accounts.spotify.com/api/token" \
+     -H "Content-Type: application/x-www-form-urlencoded" \
+     -d "grant_type=authorization_code" \
+     -d "code=$CODE" \
+     -d "redirect_uri=http://localhost:3000/callback" \
+     -d "client_id=$CLIENT_ID" \
+     -d "client_secret=$CLIENT_SECRET"
+   ```
+
+7. **You'll get a JSON response like:**
+   ```json
+   {
+     "access_token": "BQDxxxxxxxxxx...",
+     "token_type": "Bearer",
+     "expires_in": 3600,
+     "refresh_token": "AQBxxxxxxxxxx...",
+     "scope": "user-read-currently-playing user-read-playback-state"
+   }
+   ```
+
+8. **Copy the `refresh_token` value** (starts with `AQB...`)
+
+**Add to .env:**
+```bash
+SPOTIFY_REFRESH_TOKEN=AQBxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+---
+
+**Option B: Use a Python Script**
+
+If the manual method is confusing, use this script:
+
+```bash
+cat > /tmp/get_spotify_token.py << 'EOF'
+#!/usr/bin/env python3
+"""
+Spotify OAuth Token Generator
+Run this locally to get your refresh token
+"""
+import webbrowser
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from urllib.parse import urlparse, parse_qs
+import urllib.request
+import urllib.parse
+import json
+import base64
+
+# Replace these with your credentials
+CLIENT_ID = "YOUR_SPOTIFY_CLIENT_ID"
+CLIENT_SECRET = "YOUR_SPOTIFY_CLIENT_SECRET"
+
+SCOPES = "user-read-currently-playing user-read-playback-state"
+REDIRECT_URI = "http://localhost:3000/callback"
+auth_code = None
+
+class CallbackHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        global auth_code
+        query = parse_qs(urlparse(self.path).query)
+        if 'code' in query:
+            auth_code = query['code'][0]
+            self.send_response(200)
+            self.send_header('Content-type', 'text/html')
+            self.end_headers()
+            self.wfile.write(b"<h1>Success! Check your terminal for the refresh token.</h1>")
+        else:
+            self.send_response(400)
+            self.end_headers()
+            error = query.get('error', ['Unknown'])[0]
+            self.wfile.write(f"Error: {error}".encode())
+    def log_message(self, format, *args):
+        pass
+
+def main():
+    global auth_code
+    
+    auth_url = (
+        "https://accounts.spotify.com/authorize?"
+        f"client_id={CLIENT_ID}&"
+        "response_type=code&"
+        f"redirect_uri={urllib.parse.quote(REDIRECT_URI)}&"
+        f"scope={urllib.parse.quote(SCOPES)}"
+    )
+    
+    print("\n=== Spotify OAuth Token Generator ===\n")
+    print("Opening browser for authorization...")
+    print(f"If browser doesn't open, visit:\n{auth_url}\n")
+    
+    server = HTTPServer(('localhost', 3000), CallbackHandler)
+    webbrowser.open(auth_url)
+    
+    print("Waiting for authorization...")
+    while auth_code is None:
+        server.handle_request()
+    
+    # Exchange code for tokens
+    token_url = "https://accounts.spotify.com/api/token"
+    auth_header = base64.b64encode(f"{CLIENT_ID}:{CLIENT_SECRET}".encode()).decode()
+    
+    data = urllib.parse.urlencode({
+        'grant_type': 'authorization_code',
+        'code': auth_code,
+        'redirect_uri': REDIRECT_URI
+    }).encode()
+    
+    req = urllib.request.Request(token_url, data=data, method='POST')
+    req.add_header('Authorization', f'Basic {auth_header}')
+    req.add_header('Content-Type', 'application/x-www-form-urlencoded')
+    
+    with urllib.request.urlopen(req) as resp:
+        tokens = json.loads(resp.read().decode())
+    
+    print("\n" + "="*60)
+    print("SUCCESS! Add this to your .env file:")
+    print("="*60)
+    print(f"\nSPOTIFY_REFRESH_TOKEN={tokens.get('refresh_token', 'NOT RETURNED')}")
+    print("\n" + "="*60)
+
+if __name__ == "__main__":
+    main()
+EOF
+
+# Edit CLIENT_ID and CLIENT_SECRET, then run:
+# python3 /tmp/get_spotify_token.py
+```
+
+---
+
+#### Spotify Scopes Reference
+
+If you need additional Spotify features, add these scopes when generating your token:
+
+| Scope | What it allows |
+|-------|----------------|
+| `user-read-currently-playing` | See what's playing now |
+| `user-read-playback-state` | See playback state (shuffle, repeat, etc.) |
+| `user-read-recently-played` | See recently played tracks |
+| `playlist-read-private` | Read private playlists |
+| `user-library-read` | Read saved tracks/albums |
+
+**Troubleshooting:**
+- **"INVALID_CLIENT" error:** Double-check your Client ID and Secret
+- **"Invalid redirect URI":** Make sure `http://localhost:3000/callback` is in your app's redirect URIs
+- **No refresh token:** Make sure you're using `grant_type=authorization_code` (not client_credentials)
+
+---
 
 ### 4.5 Kick.com (Optional - for Kick Streaming)
 
