@@ -1016,16 +1016,175 @@ echo url="https://www.duckdns.org/update?domains=$DOMAIN&token=$TOKEN&ip=" | cur
 
 #### Port Forwarding (If Using DDNS Without Tailscale)
 
-If you set up DDNS and want direct access without Tailscale, you'll need to forward these ports on your router:
+If you set up DDNS and want direct access without Tailscale, you'll need to forward these ports on your router.
 
-| Service | Port | Protocol | Notes |
-|---------|------|----------|-------|
-| Plex | 32400 | TCP | Optional - Plex relay works without this |
-| Home Assistant | 8123 | TCP | Only if not using Nabu Casa |
-| MinIO | 9000-9001 | TCP | Console + API |
-| Sunshine | 47984-48010 | TCP/UDP | Game streaming (not recommended over WAN) |
+> **Recommendation:** We strongly recommend using Tailscale instead of port forwarding. It's more secure, easier to set up, and doesn't expose your home network. Only use port forwarding if you have a specific reason (e.g., Plex needs it for optimal streaming quality).
 
-**Security Warning:** Exposing services to the internet without Tailscale increases attack surface. Use strong passwords, keep software updated, and consider a VPN.
+---
+
+**Ports to Forward:**
+
+| Service | External Port | Internal Port | Protocol | Notes |
+|---------|---------------|---------------|----------|-------|
+| Plex | 32400 | 32400 | TCP | Enables direct streaming |
+| Home Assistant | 8123 | 8123 | TCP | Only if not using Nabu Casa |
+| MinIO Console | 9001 | 9001 | TCP | Web management interface |
+| MinIO API | 9000 | 9000 | TCP | S3 API endpoint |
+
+---
+
+**How to Set Up Port Forwarding (Step-by-Step):**
+
+**Step 1: Find Your Router's Admin Page**
+```bash
+# On your Ubuntu host, find your router's IP (gateway)
+ip route | grep default
+# Example: default via 192.168.1.1 dev enp0s3
+
+# Or on Windows
+ipconfig | findstr "Gateway"
+# Example: Default Gateway . . . : 192.168.1.1
+```
+
+Open a browser and go to: `http://192.168.1.1` (your gateway IP)
+
+**Common router login pages:**
+- `192.168.1.1` - Most routers (Netgear, Linksys, TP-Link)
+- `192.168.0.1` - Some D-Link, Belkin
+- `192.168.1.254` - AT&T, some BT routers
+- `10.0.0.1` - Xfinity/Comcast, some Verizon
+
+**Step 2: Log In to Your Router**
+- Default username: `admin`
+- Default password: `admin`, `password`, or printed on the router label
+- If you've changed it and forgot, check the sticker on your router
+
+**Step 3: Find Port Forwarding Settings**
+
+The location varies by router brand:
+
+| Router Brand | Menu Location |
+|--------------|---------------|
+| **Netgear** | Advanced → Advanced Setup → Port Forwarding |
+| **Linksys** | Security → Apps and Gaming → Port Range Forwarding |
+| **TP-Link** | Advanced → NAT Forwarding → Port Forwarding |
+| **ASUS** | WAN → Virtual Server / Port Forwarding |
+| **D-Link** | Advanced → Port Forwarding |
+| **Xfinity/Comcast** | Connect → See Network → Advanced Settings → Port Forwarding |
+| **Google WiFi** | Use Google Home app → WiFi → Settings → Port Management |
+| **Eero** | eero app → Settings → Network Settings → Port Forwarding |
+
+**Step 4: Add Port Forwarding Rules**
+
+For each service, create a new rule with these settings:
+
+**Example: Plex**
+```
+Service Name: Plex
+External Port: 32400
+Internal Port: 32400
+Protocol: TCP
+Internal IP: 192.168.1.50  (your Ubuntu host's local IP)
+Enabled: Yes
+```
+
+**Find your Ubuntu host's local IP:**
+```bash
+# On your Ubuntu host
+ip addr show | grep "inet " | grep -v 127.0.0.1
+# Example: inet 192.168.1.50/24 ...
+```
+
+**Step 5: Set a Static IP for Your Ubuntu Host**
+
+Port forwarding requires a consistent internal IP. Either:
+
+**Option A: Reserve IP in Router (Recommended)**
+1. Find "DHCP Reservation" or "Address Reservation" in your router
+2. Add your Ubuntu host's MAC address with a permanent IP
+
+```bash
+# Get your MAC address
+ip link show | grep ether
+# Example: ether 00:1a:2b:3c:4d:5e brd ff:ff:ff:ff:ff:ff
+```
+
+**Option B: Set Static IP on Ubuntu**
+```bash
+# Edit netplan config
+sudo nano /etc/netplan/01-netcfg.yaml
+```
+
+Example static IP configuration:
+```yaml
+network:
+  version: 2
+  ethernets:
+    enp0s3:  # Your interface name (check with: ip link)
+      dhcp4: no
+      addresses:
+        - 192.168.1.50/24
+      routes:
+        - to: default
+          via: 192.168.1.1  # Your router IP
+      nameservers:
+        addresses:
+          - 8.8.8.8
+          - 1.1.1.1
+```
+
+```bash
+# Apply changes
+sudo netplan apply
+```
+
+**Step 6: Verify Port Forwarding**
+
+After saving port forwarding rules:
+
+```bash
+# Test from outside your network (use your phone on cellular, not WiFi)
+# Or use an online port checker
+
+# Test Plex port
+# Go to: https://www.yougetsignal.com/tools/open-ports/
+# Enter your public IP and port 32400
+
+# Find your public IP
+curl -4 ifconfig.me
+```
+
+---
+
+**Troubleshooting Port Forwarding:**
+
+| Problem | Solution |
+|---------|----------|
+| Port shows as closed | 1. Verify internal IP is correct 2. Check Ubuntu firewall: `sudo ufw allow 32400/tcp` 3. Restart router |
+| Works locally, not remotely | ISP may block port. Try a different external port (e.g., 32500 → 32400) |
+| Double NAT detected | If you have ISP router + personal router, configure on BOTH or put ISP router in bridge mode |
+| CGNAT (Carrier-Grade NAT) | Some ISPs use CGNAT which blocks port forwarding. Contact ISP or use Tailscale |
+
+```bash
+# Check if you're behind CGNAT
+curl -4 ifconfig.me
+# Compare to WAN IP in router (if different, you're behind CGNAT)
+
+# Check Ubuntu firewall
+sudo ufw status
+# If not listed, add: sudo ufw allow 32400/tcp
+```
+
+---
+
+**Security Warning:**
+
+Exposing services to the internet without Tailscale increases attack surface:
+- Use strong, unique passwords for all services
+- Keep software updated regularly
+- Consider using fail2ban to block brute-force attempts
+- Monitor logs for suspicious activity
+- Only forward ports you actually need
 
 ---
 
