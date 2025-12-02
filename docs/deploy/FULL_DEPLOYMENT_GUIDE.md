@@ -20,6 +20,140 @@
 | Daily management | [Operations](#daily-operations) |
 | View all env vars | [Complete Environment Variables](#complete-environment-variables-prepare-these-first) |
 | DNS scripts | [Appendix C](#appendix-c-dns-automation--scripts) |
+| **Fix existing Linode** | [Quick Fix](#quick-fix-existing-linode-deployment) |
+
+---
+
+## Quick Fix: Existing Linode Deployment
+
+**If you already ran bootstrap but services are failing with database errors, follow these steps:**
+
+### Symptoms
+- `./homelab logs` shows "ERROR: .env file not found"
+- PostgreSQL logs show: `Role "streambot" does not exist`, `Role "ticketbot" does not exist`, `Role "jarvis" does not exist`
+- Dashboard shows: "PostgreSQL not ready after 60s"
+- stream-bot and discord-bot containers are in "Restarting" state
+- Domains show 502 Bad Gateway
+
+### Root Cause
+The bootstrap was run before `.env` existed, so PostgreSQL initialized without the service database users.
+
+### Fix in 5 Minutes
+
+**Step 1: Create and configure .env file**
+```bash
+cd /opt/homelab/HomeLabHub
+
+# Copy the example
+cp .env.example .env
+
+# Generate random passwords for all required fields
+POSTGRES_PASS=$(openssl rand -hex 16)
+DISCORD_DB_PASS=$(openssl rand -hex 16)
+STREAMBOT_DB_PASS=$(openssl rand -hex 16)
+JARVIS_DB_PASS=$(openssl rand -hex 16)
+SESSION_SECRET=$(openssl rand -hex 32)
+SECRET_KEY=$(openssl rand -hex 32)
+DASHBOARD_API_KEY=$(openssl rand -hex 32)
+
+# Show passwords to copy
+echo "=== SAVE THESE PASSWORDS ==="
+echo "POSTGRES_PASSWORD=$POSTGRES_PASS"
+echo "DISCORD_DB_PASSWORD=$DISCORD_DB_PASS"
+echo "STREAMBOT_DB_PASSWORD=$STREAMBOT_DB_PASS"
+echo "JARVIS_DB_PASSWORD=$JARVIS_DB_PASS"
+echo "SESSION_SECRET=$SESSION_SECRET"
+echo "SECRET_KEY=$SECRET_KEY"
+echo "DASHBOARD_API_KEY=$DASHBOARD_API_KEY"
+echo "=== END PASSWORDS ==="
+
+# Now edit .env and paste the values above
+nano .env
+```
+
+**Step 2: Create missing PostgreSQL roles**
+
+```bash
+# First, get the passwords you just set in .env
+source .env
+
+# Connect to PostgreSQL and create the missing roles and databases
+docker exec -i homelab-postgres psql -U postgres << EOF
+-- Create jarvis user and database
+CREATE USER jarvis WITH PASSWORD '$JARVIS_DB_PASSWORD';
+CREATE DATABASE homelab_jarvis OWNER jarvis;
+GRANT ALL PRIVILEGES ON DATABASE homelab_jarvis TO jarvis;
+
+-- Create streambot user and database
+CREATE USER streambot WITH PASSWORD '$STREAMBOT_DB_PASSWORD';
+CREATE DATABASE streambot OWNER streambot;
+GRANT ALL PRIVILEGES ON DATABASE streambot TO streambot;
+
+-- Create ticketbot user and database (for discord-bot)
+CREATE USER ticketbot WITH PASSWORD '$DISCORD_DB_PASSWORD';
+CREATE DATABASE ticketbot OWNER ticketbot;
+GRANT ALL PRIVILEGES ON DATABASE ticketbot TO ticketbot;
+
+-- Verify creation
+\du
+\l
+EOF
+```
+
+**Expected output:**
+```
+CREATE ROLE
+CREATE DATABASE
+GRANT
+(repeated 3 times)
+
+             List of roles
+ Role name |  Attributes
+-----------+---------------
+ jarvis    |
+ postgres  | Superuser, Create role, Create DB, Replication, Bypass RLS
+ streambot |
+ ticketbot |
+```
+
+**Step 3: Restart affected containers**
+
+```bash
+# Force recreate containers to pick up new env vars
+docker compose up -d --force-recreate homelab-dashboard homelab-celery-worker discord-bot stream-bot caddy
+
+# Wait 30 seconds for health checks
+sleep 30
+
+# Check status - all should be "healthy" or "Up"
+docker ps --format "table {{.Names}}\t{{.Status}}"
+```
+
+**Step 4: Verify everything works**
+
+```bash
+# Check dashboard logs (should show successful DB connection)
+docker logs homelab-dashboard --tail 50
+
+# Check Caddy health
+docker logs caddy --tail 20
+
+# Test domains
+curl -I https://dash.evindrake.net
+curl -I https://bot.rig-city.com
+curl -I https://stream.rig-city.com
+```
+
+**If discord-bot or stream-bot still restart:** They need additional credentials. Check their logs:
+```bash
+docker logs discord-bot --tail 30
+docker logs stream-bot --tail 30
+```
+
+Common missing values:
+- `DISCORD_BOT_TOKEN` - Required for discord-bot to connect
+- `DISCORD_CLIENT_ID` - Required for discord-bot OAuth
+- Stream integrations (Twitch/YouTube/Spotify) - Optional, bot will work without them
 
 ---
 
