@@ -252,8 +252,8 @@ www.scarletredjoker.com {
 home.evindrake.net {
     reverse_proxy {$LOCAL_TAILSCALE_IP}:8123 {
         # WebSocket support for Home Assistant
-        header_up Upgrade {>Upgrade}
-        header_up Connection {>Connection}
+        header_up Upgrade {http.request.header.Upgrade}
+        header_up Connection {http.request.header.Connection}
         
         # Preserve original request info for Home Assistant
         header_up X-Forwarded-Host {host}
