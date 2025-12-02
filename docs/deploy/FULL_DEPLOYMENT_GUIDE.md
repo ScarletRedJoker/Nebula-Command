@@ -1163,7 +1163,7 @@ curl -4 ifconfig.me
 | Port shows as closed | 1. Verify internal IP is correct 2. Check Ubuntu firewall: `sudo ufw allow 32400/tcp` 3. Restart router |
 | Works locally, not remotely | ISP may block port. Try a different external port (e.g., 32500 → 32400) |
 | Double NAT detected | If you have ISP router + personal router, configure on BOTH or put ISP router in bridge mode |
-| CGNAT (Carrier-Grade NAT) | Some ISPs use CGNAT which blocks port forwarding. Contact ISP or use Tailscale |
+| CGNAT (Carrier-Grade NAT) | See detailed section below |
 
 ```bash
 # Check if you're behind CGNAT
@@ -1174,6 +1174,98 @@ curl -4 ifconfig.me
 sudo ufw status
 # If not listed, add: sudo ufw allow 32400/tcp
 ```
+
+---
+
+**What is CGNAT and How to Fix It:**
+
+CGNAT (Carrier-Grade NAT) means your ISP shares one public IP among many customers. Port forwarding won't work because you don't have a unique public IP.
+
+**How to check if you're behind CGNAT:**
+```bash
+# Get your public IP
+curl -4 ifconfig.me
+# Example result: 100.70.123.45
+
+# Compare to router's WAN IP:
+# Log into your router admin page
+# Look for WAN IP or External IP
+# Example: 10.45.67.89
+
+# If they're DIFFERENT, you're behind CGNAT
+# (Public IP starts with 100.64-100.127, 10.x.x.x, or similar private ranges)
+```
+
+**Solutions for CGNAT (in order of recommendation):**
+
+**Solution 1: Use Tailscale (Easiest, Free)**
+This is what we recommend throughout this guide. Tailscale creates a secure VPN mesh that works even behind CGNAT.
+- No port forwarding needed
+- More secure than exposing ports
+- Works everywhere automatically
+- See [Phase 2.3](#23-tailscale-setup-vpn-mesh) for setup
+
+**Solution 2: Use Your Linode as a Reverse Proxy**
+Route traffic through your Linode's public IP to reach your home services via Tailscale.
+- Your Linode has a real public IP
+- Home services accessed via `home.yourdomain.com` → Linode → Tailscale → Home
+- See [Phase 5.12](#512-public-access-via-linode-reverse-proxy) for setup
+
+**Solution 3: Request a Static/Public IP from Your ISP**
+Some ISPs will give you a real public IP if you ask:
+```
+Call your ISP and say:
+"I need a static public IP address for hosting services at home. 
+I'm currently behind CGNAT and need port forwarding to work."
+
+Typical responses:
+- Business plan upgrade: $10-30/month extra
+- One-time setup fee for static IP
+- Some ISPs offer it free if you ask nicely
+- Some ISPs flat-out refuse (find a new ISP)
+```
+
+**Solution 4: Use Cloudflare Tunnel (Free)**
+Cloudflare Tunnel exposes your services through Cloudflare's network without port forwarding:
+```bash
+# Install cloudflared on your Ubuntu host
+curl -fsSL https://pkg.cloudflare.com/cloudflared-ascii.repo | sudo tee /etc/yum.repos.d/cloudflared.repo
+# Or for Ubuntu/Debian:
+wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+sudo dpkg -i cloudflared-linux-amd64.deb
+
+# Authenticate with Cloudflare
+cloudflared tunnel login
+
+# Create a tunnel
+cloudflared tunnel create homelab
+
+# Configure in ~/.cloudflared/config.yml
+# tunnel: [your-tunnel-id]
+# credentials-file: /root/.cloudflared/[tunnel-id].json
+# ingress:
+#   - hostname: plex.yourdomain.com
+#     service: http://localhost:32400
+#   - service: http_status:404
+
+# Run the tunnel
+cloudflared tunnel run homelab
+```
+
+**Solution 5: Switch to IPv6 (If Available)**
+Some ISPs give you a real IPv6 address even with CGNAT on IPv4:
+```bash
+# Check if you have a public IPv6
+curl -6 ifconfig.me
+# If you get an address, you can use IPv6 for services
+
+# Note: Not all clients support IPv6, so this isn't a complete solution
+```
+
+**Bottom Line:**
+- **CGNAT detected?** → Use Tailscale or Linode reverse proxy (our recommended setup)
+- **Must have port forwarding?** → Call ISP for static IP or use Cloudflare Tunnel
+- **Don't fight CGNAT** → Tailscale is easier, more secure, and works everywhere
 
 ---
 
@@ -2413,27 +2505,76 @@ curl -fsSL https://get.docker.com | sh
 # Add your user to the docker group (avoids needing sudo)
 sudo usermod -aG docker $USER
 
-# Log out and back in for group changes to take effect
-# Or run: newgrp docker
+# IMPORTANT: Log out and back in for group changes to take effect
+# Or run this command to apply immediately:
+newgrp docker
+```
 
-# Verify installation
+---
+
+**Verify Docker Installation (DO NOT SKIP):**
+
+```bash
+# Check Docker version is installed
 docker --version
-# Expected: Docker version 27.x.x
+# Expected: Docker version 27.x.x (or similar)
+# If you see "command not found", the installation failed
 
 docker compose version
 # Expected: Docker Compose version v2.x.x
+# If you see "command not found", reinstall Docker
 
 # Enable Docker to start on boot
 sudo systemctl enable docker
+
+# Start the Docker service
 sudo systemctl start docker
 
-# Verify Docker is running
+# CRITICAL: Verify Docker daemon is running
 sudo systemctl status docker
-# Should show: active (running)
-
-# Test Docker works
-docker run --rm hello-world
 ```
+
+**What to look for in status output:**
+```
+● docker.service - Docker Application Container Engine
+     Loaded: loaded (/lib/systemd/system/docker.service; enabled)
+     Active: active (running) since [date/time]    <-- MUST say "active (running)"
+```
+
+**If Docker is NOT running (shows "inactive" or "failed"):**
+```bash
+# Check what went wrong
+sudo journalctl -u docker --no-pager | tail -50
+
+# Common fixes:
+# 1. Restart Docker
+sudo systemctl restart docker
+
+# 2. Check for conflicting software
+sudo apt remove docker-desktop  # If desktop version conflicts
+
+# 3. Reinstall Docker
+sudo apt purge docker-ce docker-ce-cli containerd.io
+curl -fsSL https://get.docker.com | sh
+sudo systemctl enable docker
+sudo systemctl start docker
+```
+
+**Final test - Docker must work before proceeding:**
+```bash
+# Run hello-world test container
+docker run --rm hello-world
+
+# Expected output includes:
+# "Hello from Docker!"
+# "This message shows that your installation appears to be working correctly."
+
+# If you see permission errors:
+# "permission denied while trying to connect to the Docker daemon"
+# Run: newgrp docker (or log out and back in)
+```
+
+> **STOP:** Do not proceed to the next step until `docker run --rm hello-world` works without errors.
 
 ---
 
