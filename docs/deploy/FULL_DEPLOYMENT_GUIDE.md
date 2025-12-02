@@ -1859,12 +1859,44 @@ find . -maxdepth 2 -type d | head -20
 
 ### 3.5 Create and Configure Environment File
 
-#### Step 1: Copy the Example File
+> **⚠️ CRITICAL: NEVER overwrite an existing .env file!**
+> If you already have a .env with OAuth tokens, Plex claims, passwords, etc. - DO NOT run `cp .env.example .env`
+> That command DESTROYS all your work. Use the safe workflow below instead.
+
+#### Step 1: Check if .env Already Exists
 
 ```bash
-# Copy example to actual .env
-cp .env.example .env
+# Check for existing .env file
+ls -la .env 2>/dev/null && echo "✅ .env EXISTS - DO NOT OVERWRITE" || echo "❌ No .env - safe to create"
+```
 
+#### Step 2A: If .env Does NOT Exist (Fresh Install)
+
+```bash
+# ONLY run this if no .env exists
+cp .env.example .env
+chmod 600 .env
+```
+
+#### Step 2B: If .env ALREADY Exists (Preserve Your Work)
+
+```bash
+# Create a backup first (ALWAYS)
+cp .env .env.backup.$(date +%Y%m%d_%H%M%S)
+
+# Check for missing variables (compare with example)
+echo "=== Variables in .env.example but missing from .env ==="
+comm -23 <(grep -E "^[A-Z_]+=" .env.example | cut -d= -f1 | sort) \
+         <(grep -E "^[A-Z_]+=" .env | cut -d= -f1 | sort)
+
+# If any variables are missing, add them manually:
+nano .env
+# Add any missing variables from the output above
+```
+
+#### Step 3: Verify Permissions
+
+```bash
 # Set secure permissions (only root can read)
 chmod 600 .env
 
@@ -1873,7 +1905,7 @@ ls -la .env
 # Should show: -rw------- 1 root root ...
 ```
 
-#### Step 2: Edit the Environment File
+#### Step 4: Edit the Environment File
 
 ```bash
 # Open the .env file for editing

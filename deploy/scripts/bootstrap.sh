@@ -14,6 +14,8 @@
 #   --role cloud|local  Specify deployment role
 #   --skip-cron         Skip self-healing cron setup
 #   --generate-secrets  Auto-generate all missing secrets
+#   --merge-env         Safely merge missing variables from .env.example
+#                       (NEVER overwrites existing values)
 #   --hostname NAME     Set custom hostname for service URLs
 #
 # Features:
@@ -42,6 +44,7 @@ ROLE=""
 SKIP_CRON=false
 GENERATE_SECRETS=false
 CUSTOM_HOSTNAME=""
+MERGE_ENV=false
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -56,6 +59,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --generate-secrets)
             GENERATE_SECRETS=true
+            shift
+            ;;
+        --merge-env)
+            MERGE_ENV=true
             shift
             ;;
         --hostname)
@@ -162,6 +169,41 @@ fi
 # ═══════════════════════════════════════════════════════════════════
 echo -e "\n${CYAN}[3/7] Setting up environment...${NC}"
 
+# Function to safely merge missing variables from .env.example into .env
+merge_env_files() {
+    echo "Merging missing variables from .env.example into .env..."
+    
+    # Create timestamped backup first
+    local backup_file=".env.backup.$(date +%Y%m%d_%H%M%S)"
+    cp .env "$backup_file"
+    echo -e "  ${GREEN}✓ Backup created: $backup_file${NC}"
+    
+    # Find missing variables
+    local missing_vars=()
+    while IFS= read -r line; do
+        # Skip comments and empty lines
+        [[ "$line" =~ ^# ]] && continue
+        [[ -z "$line" ]] && continue
+        
+        # Extract variable name
+        var_name=$(echo "$line" | cut -d'=' -f1)
+        [[ -z "$var_name" ]] && continue
+        
+        # Check if variable exists in .env
+        if ! grep -q "^${var_name}=" .env 2>/dev/null; then
+            missing_vars+=("$var_name")
+            echo "$line" >> .env
+            echo -e "  ${YELLOW}+ Added missing: $var_name${NC}"
+        fi
+    done < .env.example
+    
+    if [ ${#missing_vars[@]} -eq 0 ]; then
+        echo -e "  ${GREEN}✓ No missing variables${NC}"
+    else
+        echo -e "  ${GREEN}✓ Added ${#missing_vars[@]} missing variables${NC}"
+    fi
+}
+
 if [ ! -f ".env" ]; then
     if [ -f ".env.example" ]; then
         echo "Creating .env from .env.example..."
@@ -183,6 +225,14 @@ if [ ! -f ".env" ]; then
     else
         echo -e "${RED}✗ No .env or .env.example found${NC}"
         exit 1
+    fi
+else
+    # .env exists - check if we should merge
+    if [ "$MERGE_ENV" = true ]; then
+        merge_env_files
+    else
+        echo -e "${GREEN}✓ Using existing .env file${NC}"
+        echo "  (Run with --merge-env to add missing variables from .env.example)"
     fi
 fi
 
