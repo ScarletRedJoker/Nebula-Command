@@ -126,4 +126,48 @@ function downloadLogs() {
     URL.revokeObjectURL(url);
 }
 
+async function downloadAllLogs(format = 'text') {
+    const lines = document.getElementById('logLines').value || 500;
+    
+    const downloadBtn = document.querySelector('.btn-info');
+    const originalText = downloadBtn.innerHTML;
+    downloadBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Collecting logs...';
+    downloadBtn.disabled = true;
+    
+    try {
+        const response = await fetch(`/api/docker/logs/download-all?lines=${lines}&format=${format}`);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const blob = await response.blob();
+        const contentDisposition = response.headers.get('content-disposition');
+        let filename = format === 'json' ? 'all_container_logs.json' : 'all_container_logs.txt';
+        
+        if (contentDisposition) {
+            const match = contentDisposition.match(/filename="(.+?)"/);
+            if (match) {
+                filename = match[1];
+            }
+        }
+        
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+    } catch (error) {
+        console.error('Error downloading all logs:', error);
+        alert(`Error downloading logs: ${error.message}`);
+    } finally {
+        downloadBtn.innerHTML = originalText;
+        downloadBtn.disabled = false;
+    }
+}
+
 loadContainers();

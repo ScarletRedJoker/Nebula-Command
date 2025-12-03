@@ -44,6 +44,20 @@
         <button class="btn btn-secondary" onclick="downloadLogs()">
             <i class="bi bi-download"></i> Download
         </button>
+        <div class="btn-group ms-2">
+            <button class="btn btn-info" onclick="downloadAllLogs('text')">
+                <i class="bi bi-file-earmark-zip"></i> Download All Logs (TXT)
+            </button>
+            <button class="btn btn-info dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false">
+                <span class="visually-hidden">Toggle Dropdown</span>
+            </button>
+            <ul class="dropdown-menu">
+                <li><a class="dropdown-item" href="#" onclick="downloadAllLogs('text'); return false;"><i class="bi bi-file-text"></i> Text Format (.txt)</a></li>
+                <li><a class="dropdown-item" href="#" onclick="downloadAllLogs('json'); return false;"><i class="bi bi-filetype-json"></i> JSON Format (.json)</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><span class="dropdown-item-text text-muted small">500 lines per container</span></li>
+            </ul>
+        </div>
     </div>
 </div>
 

@@ -244,6 +244,103 @@ def get_container_logs(container_id):
         return make_response(False, message=str(e), status_code=500)
 
 
+@docker_bp.route('/logs/download-all', methods=['GET'])
+@require_auth
+@require_permission(Permission.VIEW_LOGS)
+def download_all_logs():
+    """
+    GET /api/docker/logs/download-all
+    Download logs from ALL containers as a single file
+    
+    Query params:
+        lines: int - Number of lines per container (default: 500, max: 2000)
+        format: str - Output format: 'text' or 'json' (default: 'text')
+    
+    Returns:
+        Text file with all container logs separated by headers
+    """
+    from flask import Response
+    from datetime import datetime
+    import json
+    
+    try:
+        lines = request.args.get('lines', 500, type=int)
+        lines = min(lines, 2000)
+        output_format = request.args.get('format', 'text')
+        
+        containers = docker_service.list_all_containers()
+        
+        timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+        
+        if output_format == 'json':
+            all_logs = {
+                'generated_at': datetime.now().isoformat(),
+                'lines_per_container': lines,
+                'containers': []
+            }
+            
+            for container in containers:
+                container_name = container.get('name', 'unknown')
+                logs = docker_service.get_container_logs(container_name, lines=lines) or 'No logs available'
+                
+                all_logs['containers'].append({
+                    'name': container_name,
+                    'status': container.get('status', 'unknown'),
+                    'logs': logs
+                })
+            
+            content = json.dumps(all_logs, indent=2)
+            filename = f'all_container_logs_{timestamp}.json'
+            mimetype = 'application/json'
+        else:
+            output_lines = []
+            output_lines.append("=" * 80)
+            output_lines.append(f"NEBULA COMMAND - ALL CONTAINER LOGS")
+            output_lines.append(f"Generated: {datetime.now().isoformat()}")
+            output_lines.append(f"Lines per container: {lines}")
+            output_lines.append(f"Total containers: {len(containers)}")
+            output_lines.append("=" * 80)
+            output_lines.append("")
+            
+            for container in containers:
+                container_name = container.get('name', 'unknown')
+                container_status = container.get('status', 'unknown')
+                
+                output_lines.append("")
+                output_lines.append("#" * 80)
+                output_lines.append(f"# CONTAINER: {container_name}")
+                output_lines.append(f"# STATUS: {container_status}")
+                output_lines.append("#" * 80)
+                output_lines.append("")
+                
+                logs = docker_service.get_container_logs(container_name, lines=lines)
+                if logs:
+                    output_lines.append(logs)
+                else:
+                    output_lines.append("(No logs available)")
+                
+                output_lines.append("")
+            
+            output_lines.append("")
+            output_lines.append("=" * 80)
+            output_lines.append("END OF LOG EXPORT")
+            output_lines.append("=" * 80)
+            
+            content = '\n'.join(output_lines)
+            filename = f'all_container_logs_{timestamp}.txt'
+            mimetype = 'text/plain'
+        
+        response = Response(content, mimetype=mimetype)
+        response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+        response.headers['Content-Length'] = len(content)
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error downloading all logs: {e}")
+        return make_response(False, message=str(e), status_code=500)
+
+
 @docker_bp.route('/stats', methods=['GET'])
 @require_auth
 @require_permission(Permission.VIEW_DOCKER)
