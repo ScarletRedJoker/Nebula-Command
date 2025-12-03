@@ -49,7 +49,7 @@ router.get('/ai/status', isAuthenticated, async (req: Request, res: Response) =>
     const configured = isOpenAIConfigured();
     res.json({
       configured,
-      model: 'gpt-5',
+      model: configured ? 'gpt-4o' : null,
       features: {
         triage: configured,
         summary: configured,

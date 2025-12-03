@@ -544,6 +544,14 @@ if [ "$ROLE" = "cloud" ]; then
             echo -e " ${YELLOW}timeout (may still be starting)${NC}"
         fi
     done
+    
+    # Create/update database users (idempotent - safe to run every time)
+    echo "Configuring database users..."
+    if [ -f "$PROJECT_ROOT/deploy/scripts/backfill-db-users.sh" ]; then
+        "$PROJECT_ROOT/deploy/scripts/backfill-db-users.sh" || {
+            echo -e "${YELLOW}⚠ Database user setup had issues (services may still work)${NC}"
+        }
+    fi
 fi
 
 echo -e "${GREEN}✓ Services started${NC}"

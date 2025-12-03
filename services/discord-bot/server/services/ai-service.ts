@@ -4,12 +4,31 @@ import pRetry from 'p-retry';
 import { dbStorage as storage } from '../database-storage';
 import { pool } from '../db';
 
-// Initialize OpenAI client using Replit AI Integrations
-// the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
-const openai = new OpenAI({
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY
-});
+// Lazy-initialized OpenAI client - only created when needed and configured
+let openaiClient: OpenAI | null = null;
+
+function getOpenAIClient(): OpenAI | null {
+  // Return cached client if already initialized
+  if (openaiClient) return openaiClient;
+  
+  // Check if AI is configured (supports both Replit integrations and standard env var)
+  const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+  const baseURL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
+  
+  if (!apiKey) {
+    // AI not configured - this is fine, AI features are optional
+    return null;
+  }
+  
+  // Initialize client with available configuration
+  openaiClient = new OpenAI({
+    baseURL: baseURL || undefined,
+    apiKey: apiKey
+  });
+  
+  console.log('[AI Service] OpenAI client initialized successfully');
+  return openaiClient;
+}
 
 const limit = pLimit(2);
 
@@ -27,12 +46,17 @@ async function callOpenAI(messages: OpenAI.ChatCompletionMessageParam[], options
   responseFormat?: 'json' | 'text';
   maxTokens?: number;
 } = {}): Promise<string> {
+  const client = getOpenAIClient();
+  if (!client) {
+    throw new Error('AI features are not configured. Set OPENAI_API_KEY to enable AI functionality.');
+  }
+  
   return limit(() =>
     pRetry(
       async () => {
         try {
-          const response = await openai.chat.completions.create({
-            model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025
+          const response = await client.chat.completions.create({
+            model: "gpt-4o", // Using GPT-4o for reliable performance
             messages,
             max_completion_tokens: options.maxTokens || 4096,
             response_format: options.responseFormat === 'json' ? { type: "json_object" } : undefined,
@@ -127,7 +151,7 @@ async function cacheAnalysis(
     await pool.query(
       `INSERT INTO ai_analysis (ticket_id, server_id, analysis_type, result, model_used, expires_at)
        VALUES ($1, $2, $3, $4, $5, $6)`,
-      [ticketId, serverId, analysisType, JSON.stringify(result), 'gpt-5', expiresAt]
+      [ticketId, serverId, analysisType, JSON.stringify(result), 'gpt-4o', expiresAt]
     );
   } catch (error) {
     console.error('Error caching analysis:', error);
@@ -568,5 +592,5 @@ export async function applyTriageToTicket(ticketId: number, triage: TriageResult
 }
 
 export function isOpenAIConfigured(): boolean {
-  return !!(process.env.AI_INTEGRATIONS_OPENAI_BASE_URL && process.env.AI_INTEGRATIONS_OPENAI_API_KEY);
+  return !!(process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY);
 }
