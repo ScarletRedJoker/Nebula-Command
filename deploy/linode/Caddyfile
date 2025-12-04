@@ -76,3 +76,29 @@ scarletredjoker.com {
 www.scarletredjoker.com {
     redir https://scarletredjoker.com{uri} permanent
 }
+
+plex.evindrake.net {
+    reverse_proxy 10.200.0.2:32400 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Plex-Client-Identifier {http.request.header.X-Plex-Client-Identifier}
+        header_up X-Plex-Token {http.request.header.X-Plex-Token}
+        transport http {
+            read_timeout 120s
+            write_timeout 120s
+        }
+    }
+}
+
+home.evindrake.net {
+    reverse_proxy 10.200.0.2:8123 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up Upgrade {http.request.header.Upgrade}
+        header_up Connection {http.request.header.Connection}
+    }
+}
+
+game.evindrake.net {
+    redir https://dashboard.evindrake.net/game-connect permanent
+}
