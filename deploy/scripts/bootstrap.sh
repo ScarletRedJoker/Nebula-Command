@@ -16,6 +16,7 @@
 #   --generate-secrets  Auto-generate all missing secrets
 #   --merge-env         Safely merge missing variables from .env.example
 #                       (NEVER overwrites existing values)
+#   --force-new-env     DANGER: Backup and recreate .env from scratch
 #   --hostname NAME     Set custom hostname for service URLs
 #
 # Features:
@@ -24,6 +25,7 @@
 #   - Auto-generation of secrets
 #   - Tailscale VPN integration
 #   - Self-healing cron job installation
+#   - .env protection with automatic backups
 # ═══════════════════════════════════════════════════════════════════
 
 set -euo pipefail
@@ -45,6 +47,7 @@ SKIP_CRON=false
 GENERATE_SECRETS=false
 CUSTOM_HOSTNAME=""
 MERGE_ENV=false
+FORCE_NEW_ENV=false
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -65,6 +68,10 @@ while [[ $# -gt 0 ]]; do
             MERGE_ENV=true
             shift
             ;;
+        --force-new-env)
+            FORCE_NEW_ENV=true
+            shift
+            ;;
         --hostname)
             CUSTOM_HOSTNAME="$2"
             shift 2
@@ -74,6 +81,37 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+# ═══════════════════════════════════════════════════════════════════
+# .ENV PROTECTION - Prevents accidental overwrites
+# ═══════════════════════════════════════════════════════════════════
+
+# Create timestamped backup of .env (keeps last 10 backups)
+backup_env() {
+    if [ -f "$PROJECT_ROOT/.env" ]; then
+        local backup_dir="$PROJECT_ROOT/.env-backups"
+        mkdir -p "$backup_dir"
+        local backup_file="$backup_dir/.env.backup.$(date +%Y%m%d_%H%M%S)"
+        cp "$PROJECT_ROOT/.env" "$backup_file"
+        echo -e "  ${GREEN}✓ Backup created: $backup_file${NC}"
+        
+        # Keep only last 10 backups
+        ls -t "$backup_dir"/.env.backup.* 2>/dev/null | tail -n +11 | xargs -r rm -f
+    fi
+}
+
+# Check if .env is immutable (chattr +i)
+check_env_immutable() {
+    if [ -f "$PROJECT_ROOT/.env" ]; then
+        if lsattr "$PROJECT_ROOT/.env" 2>/dev/null | grep -q "i"; then
+            echo -e "${YELLOW}⚠ .env is immutable (protected with chattr +i)${NC}"
+            echo "  To modify: sudo chattr -i $PROJECT_ROOT/.env"
+            echo "  After changes: sudo chattr +i $PROJECT_ROOT/.env"
+            return 0
+        fi
+    fi
+    return 1
+}
 
 # Auto-detect role if not specified
 if [ -z "$ROLE" ]; then
@@ -165,18 +203,22 @@ else
 fi
 
 # ═══════════════════════════════════════════════════════════════════
-# STEP 3: Setup Environment
+# STEP 3: Setup Environment (WITH OVERWRITE PROTECTION)
 # ═══════════════════════════════════════════════════════════════════
 echo -e "\n${CYAN}[3/7] Setting up environment...${NC}"
+
+# Check for immutable protection first
+if check_env_immutable; then
+    echo -e "${GREEN}✓ .env is protected and will not be modified${NC}"
+    echo "  Continuing with validation only..."
+fi
 
 # Function to safely merge missing variables from .env.example into .env
 merge_env_files() {
     echo "Merging missing variables from .env.example into .env..."
     
-    # Create timestamped backup first
-    local backup_file=".env.backup.$(date +%Y%m%d_%H%M%S)"
-    cp .env "$backup_file"
-    echo -e "  ${GREEN}✓ Backup created: $backup_file${NC}"
+    # Always backup before any modification
+    backup_env
     
     # Find missing variables
     local missing_vars=()
@@ -205,6 +247,7 @@ merge_env_files() {
 }
 
 if [ ! -f ".env" ]; then
+    # No .env exists - safe to create from example
     if [ -f ".env.example" ]; then
         echo "Creating .env from .env.example..."
         cp .env.example .env
@@ -226,13 +269,39 @@ if [ ! -f ".env" ]; then
         echo -e "${RED}✗ No .env or .env.example found${NC}"
         exit 1
     fi
+elif [ "$FORCE_NEW_ENV" = true ]; then
+    # User explicitly requested a fresh .env - backup first!
+    echo -e "${RED}═══════════════════════════════════════════════════════════════${NC}"
+    echo -e "${RED}  WARNING: --force-new-env will REPLACE your existing .env!${NC}"
+    echo -e "${RED}═══════════════════════════════════════════════════════════════${NC}"
+    echo ""
+    backup_env
+    echo ""
+    echo "Creating fresh .env from .env.example..."
+    cp .env.example .env
+    chmod 600 .env
+    echo -e "${YELLOW}⚠ Fresh .env created - you must re-enter ALL credentials!${NC}"
+    echo "  Your previous .env was backed up to .env-backups/"
+    echo ""
+    if [ "$GENERATE_SECRETS" != true ]; then
+        echo "Re-run with --generate-secrets to auto-generate passwords"
+        exit 1
+    fi
 else
-    # .env exists - check if we should merge
+    # .env exists - PROTECT IT!
+    echo -e "${GREEN}✓ Using existing .env file (PROTECTED)${NC}"
+    
     if [ "$MERGE_ENV" = true ]; then
+        # User wants to merge - this is safe, only adds missing vars
         merge_env_files
     else
-        echo -e "${GREEN}✓ Using existing .env file${NC}"
-        echo "  (Run with --merge-env to add missing variables from .env.example)"
+        echo "  No modifications made to .env"
+        echo ""
+        echo -e "  ${CYAN}Available options:${NC}"
+        echo "    --merge-env       Add missing variables from .env.example"
+        echo "    --generate-secrets Fill in empty password fields"
+        echo "    --force-new-env   DANGER: Replace .env entirely (backs up first)"
+        echo ""
     fi
 fi
 
@@ -261,6 +330,8 @@ set_env_if_empty() {
 # Auto-generate secrets if requested or if values are empty
 if [ "$GENERATE_SECRETS" = true ]; then
     echo "Generating missing secrets..."
+    # Backup before any modifications
+    backup_env
     set_env_if_empty "POSTGRES_PASSWORD" || true
     set_env_if_empty "DISCORD_DB_PASSWORD" || true
     set_env_if_empty "STREAMBOT_DB_PASSWORD" || true

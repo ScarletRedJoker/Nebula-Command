@@ -3,6 +3,7 @@
 .env.local
 .env.*.local
 *.env
+.env-backups/
 
 # Environment-specific files (dual-environment setup)
 .env.replit
