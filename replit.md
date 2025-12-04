@@ -57,6 +57,14 @@ The core system relies on Docker Compose for orchestrating services across a spl
 
 ## Current Status (December 4, 2025)
 
+### Network Configuration (Post-Router Migration)
+- **Router**: TP-Link BE9300 WiFi 7 (replaced Moto AC2600)
+- **Local Ubuntu IP**: 192.168.0.228/24 (on wlp6s0)
+- **KVM NAT Network**: 192.168.122.0/24 (virbr0)
+- **Windows VM IP**: 192.168.122.250
+- **WireGuard Tunnel**: 10.200.0.2 (local) ↔ 10.200.0.1 (Linode), ~34ms latency
+- **GameStream Port Forwarding**: iptables configured on Ubuntu host
+
 ### Replit Development Environment
 - **Dashboard**: Running on port 5000 (Flask)
 - **Discord Bot**: Running on port 4000 (Connected to 2 servers: Rig City + Joker's HQ)
@@ -91,6 +99,7 @@ The core system relies on Docker Compose for orchestrating services across a spl
 
 **See [`docs/deploy/FULL_DEPLOYMENT_GUIDE.md`](docs/deploy/FULL_DEPLOYMENT_GUIDE.md)** - the single source of truth for all deployment instructions.
 **See [`docs/deploy/INFRASTRUCTURE_AUDIT.md`](docs/deploy/INFRASTRUCTURE_AUDIT.md)** - complete infrastructure audit and status map.
+**See [`docs/deploy/FULL_NETWORK_AUDIT_DEC4.md`](docs/deploy/FULL_NETWORK_AUDIT_DEC4.md)** - December 4, 2025 network audit post-BE9300 router migration.
 
 ### Automated Zero-Touch Deployment
 
