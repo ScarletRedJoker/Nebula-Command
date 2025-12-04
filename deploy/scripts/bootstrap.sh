@@ -89,6 +89,14 @@ CLOUD_REQUIRED_VARS=(
     "CODE_SERVER_PASSWORD"
 )
 
+# Alternative variable names (legacy/compatibility)
+# Format: "EXPECTED_NAME:ALTERNATIVE_NAME"
+VARIABLE_ALIASES=(
+    "DISCORD_BOT_TOKEN:DISCORD_TOKEN"
+    "DISCORD_DB_PASSWORD:TICKETBOT_DB_PASSWORD"
+    "CODE_SERVER_PASSWORD:PASSWORD"
+)
+
 # Optional cloud variables (warnings only)
 CLOUD_OPTIONAL_VARS=(
     "N8N_BASIC_AUTH_PASSWORD"
@@ -373,6 +381,38 @@ check_env_file() {
     fi
     
     log_success ".env file exists"
+}
+
+# Normalize variable names using aliases
+# If DISCORD_TOKEN exists but DISCORD_BOT_TOKEN doesn't, copy the value
+normalize_env_aliases() {
+    local env_file="$PROJECT_ROOT/.env"
+    local normalized=0
+    
+    for alias_pair in "${VARIABLE_ALIASES[@]}"; do
+        local expected="${alias_pair%%:*}"
+        local alternative="${alias_pair##*:}"
+        
+        local expected_val
+        local alt_val
+        expected_val=$(grep "^${expected}=" "$env_file" 2>/dev/null | head -1 | cut -d'=' -f2-)
+        alt_val=$(grep "^${alternative}=" "$env_file" 2>/dev/null | head -1 | cut -d'=' -f2-)
+        
+        # If expected is empty but alternative exists, copy alternative to expected
+        if [ -z "$expected_val" ] && [ -n "$alt_val" ]; then
+            if grep -q "^${expected}=" "$env_file" 2>/dev/null; then
+                sed -i "s|^${expected}=.*|${expected}=${alt_val}|" "$env_file"
+            else
+                echo "${expected}=${alt_val}" >> "$env_file"
+            fi
+            log_info "Mapped $alternative → $expected"
+            ((normalized++))
+        fi
+    done
+    
+    if [ "$normalized" -gt 0 ]; then
+        log_success "Normalized $normalized variable(s) from legacy names"
+    fi
 }
 
 # Get env value (handles quoted values and empty values)
@@ -1030,6 +1070,9 @@ main() {
     # Step 2: Check .env file
     log_step 2 $total_steps "Validating Environment File"
     check_env_file
+    
+    # Normalize legacy variable names before validation
+    normalize_env_aliases
     
     # Generate secrets if requested
     if [ "$GENERATE_SECRETS" = true ]; then
