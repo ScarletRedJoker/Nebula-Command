@@ -92,10 +92,34 @@ The core system relies on Docker Compose for orchestrating services across a spl
 **See [`docs/deploy/FULL_DEPLOYMENT_GUIDE.md`](docs/deploy/FULL_DEPLOYMENT_GUIDE.md)** - the single source of truth for all deployment instructions.
 **See [`docs/deploy/INFRASTRUCTURE_AUDIT.md`](docs/deploy/INFRASTRUCTURE_AUDIT.md)** - complete infrastructure audit and status map.
 
+### Automated Zero-Touch Deployment
+
 ```bash
 # Cloud (Linode)
+cd /opt/homelab/HomeLabHub
+cp deploy/linode/.env.example deploy/linode/.env
+# Edit .env with your secrets, then:
 ./deploy/scripts/bootstrap.sh --role cloud --generate-secrets
 
 # Local (Ubuntu)
+cd /opt/homelab/HomeLabHub
+cp deploy/local/.env.example deploy/local/.env
+# Edit .env with your secrets, then:
 ./deploy/scripts/bootstrap.sh --role local
+
+# Verify deployment
+./deploy/scripts/verify-deployment.sh cloud   # On Linode
+./deploy/scripts/verify-deployment.sh local   # On Ubuntu
 ```
+
+### Deployment Scripts
+- `deploy/scripts/bootstrap.sh` - Comprehensive deployment with environment validation, secret generation, health checks, and functional verification
+- `deploy/scripts/verify-deployment.sh` - Functional verification testing actual service behavior, not just HTTP codes
+- `deploy/linode/.env.example` - Template for all cloud environment variables
+- `deploy/local/.env.example` - Template for all local environment variables
+
+### Auto-Migration
+All services automatically run database migrations on startup:
+- **Dashboard**: Alembic migrations via `wait_for_schema.py`
+- **Discord Bot**: Drizzle push via `docker-entrypoint.sh`
+- **Stream Bot**: Drizzle push via `docker-entrypoint.sh`
