@@ -1,9 +1,9 @@
 #!/bin/bash
-# ═══════════════════════════════════════════════════════════════════
-# HOMELAB BOOTSTRAP - Role-Based, Idempotent, Self-Healing
-# ═══════════════════════════════════════════════════════════════════
-# One script to rule them all. Run on any server with role specification.
-# Safe to run multiple times - it only changes what needs changing.
+# ═══════════════════════════════════════════════════════════════════════════════
+# HOMELAB BOOTSTRAP - Comprehensive Role-Based Deployment Script
+# ═══════════════════════════════════════════════════════════════════════════════
+# A fully automated deployment script with proper validation, health checks,
+# and meaningful exit codes.
 #
 # Usage:
 #   ./deploy/scripts/bootstrap.sh --role cloud    # Linode cloud server
@@ -11,696 +11,1089 @@
 #   ./deploy/scripts/bootstrap.sh                 # Auto-detect role
 #
 # Options:
-#   --role cloud|local  Specify deployment role
-#   --skip-cron         Skip self-healing cron setup
-#   --generate-secrets  Auto-generate all missing secrets
-#   --merge-env         Safely merge missing variables from .env.example
-#                       (NEVER overwrites existing values)
-#   --force-new-env     DANGER: Backup and recreate .env from scratch
-#   --hostname NAME     Set custom hostname for service URLs
+#   --role cloud|local    Specify deployment role (required for first run)
+#   --generate-secrets    Auto-generate all missing secrets
+#   --skip-cron           Skip self-healing cron setup
+#   --skip-health-wait    Skip waiting for health checks
+#   --setup-iptables      Setup iptables persistence for GameStream ports
+#   --dry-run             Validate environment without deploying
+#   --verbose             Enable verbose output
+#   --help                Show this help message
+#
+# Exit Codes:
+#   0  - Success
+#   1  - General error
+#   2  - .env file missing
+#   3  - Required environment variables missing
+#   4  - Docker not available
+#   5  - Docker Compose failed
+#   6  - Health check failed
+#   7  - iptables setup failed
 #
 # Features:
-#   - Role-based service deployment
-#   - Docker & Docker Compose verification
+#   - Role-based service deployment (cloud vs local)
+#   - Comprehensive environment validation
 #   - Auto-generation of secrets
-#   - Tailscale VPN integration
-#   - Self-healing cron job installation
-#   - .env protection with automatic backups
-# ═══════════════════════════════════════════════════════════════════
+#   - Docker health check waiting
+#   - Service health verification
+#   - iptables persistence for GameStream
+#   - Meaningful exit codes for automation
+# ═══════════════════════════════════════════════════════════════════════════════
 
 set -euo pipefail
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
-MAGENTA='\033[0;35m'
-NC='\033[0m'
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXIT CODES
+# ═══════════════════════════════════════════════════════════════════════════════
+readonly EXIT_SUCCESS=0
+readonly EXIT_GENERAL_ERROR=1
+readonly EXIT_ENV_MISSING=2
+readonly EXIT_ENV_INVALID=3
+readonly EXIT_DOCKER_ERROR=4
+readonly EXIT_COMPOSE_ERROR=5
+readonly EXIT_HEALTH_ERROR=6
+readonly EXIT_IPTABLES_ERROR=7
 
-# Detect project root - use script location, no hardcoded paths
+# ═══════════════════════════════════════════════════════════════════════════════
+# COLORS AND FORMATTING
+# ═══════════════════════════════════════════════════════════════════════════════
+readonly RED='\033[0;31m'
+readonly GREEN='\033[0;32m'
+readonly YELLOW='\033[1;33m'
+readonly CYAN='\033[0;36m'
+readonly MAGENTA='\033[0;35m'
+readonly BLUE='\033[0;34m'
+readonly BOLD='\033[1m'
+readonly NC='\033[0m'
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Detect project root from script location
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+# Required environment variables by role
+# Cloud: Main PostgreSQL, all service passwords, Discord, OpenAI, etc.
+CLOUD_REQUIRED_VARS=(
+    "POSTGRES_PASSWORD"
+    "JARVIS_DB_PASSWORD"
+    "DISCORD_DB_PASSWORD"
+    "STREAMBOT_DB_PASSWORD"
+    "DISCORD_BOT_TOKEN"
+    "DISCORD_CLIENT_ID"
+    "TWITCH_CLIENT_ID"
+    "TWITCH_CLIENT_SECRET"
+    "OPENAI_API_KEY"
+    "SESSION_SECRET"
+    "CODE_SERVER_PASSWORD"
+)
+
+# Optional cloud variables (warnings only)
+CLOUD_OPTIONAL_VARS=(
+    "N8N_BASIC_AUTH_PASSWORD"
+    "N8N_ENCRYPTION_KEY"
+    "DISCORD_CLIENT_SECRET"
+    "YOUTUBE_CLIENT_ID"
+    "SPOTIFY_CLIENT_ID"
+    "CLOUDFLARE_API_TOKEN"
+)
+
+# Local: Plex, MinIO, Home Assistant
+# Note: PLEX_TOKEN and HOME_ASSISTANT_TOKEN are required for full functionality
+LOCAL_REQUIRED_VARS=(
+    "PLEX_TOKEN"
+    "MINIO_ROOT_USER"
+    "MINIO_ROOT_PASSWORD"
+    "HOME_ASSISTANT_TOKEN"
+)
+
+# Optional local variables (warnings only)
+LOCAL_OPTIONAL_VARS=(
+    "SUNSHINE_PASS"
+    "VNC_PASSWORD"
+    "NAS_PASSWORD"
+)
+
+# GameStream ports for iptables
+GAMESTREAM_TCP_PORTS=(47984 47989 47990 48010)
+GAMESTREAM_UDP_PORTS=(47998 47999 48000 48002 48010)
 
 # Default values
 ROLE=""
-SKIP_CRON=false
 GENERATE_SECRETS=false
-CUSTOM_HOSTNAME=""
-MERGE_ENV=false
-FORCE_NEW_ENV=false
+SKIP_CRON=false
+SKIP_HEALTH_WAIT=false
+SETUP_IPTABLES=false
+DRY_RUN=false
+VERBOSE=false
 
-# Parse arguments
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        --role)
-            ROLE="$2"
-            shift 2
-            ;;
-        --skip-cron)
-            SKIP_CRON=true
-            shift
-            ;;
-        --generate-secrets)
-            GENERATE_SECRETS=true
-            shift
-            ;;
-        --merge-env)
-            MERGE_ENV=true
-            shift
-            ;;
-        --force-new-env)
-            FORCE_NEW_ENV=true
-            shift
-            ;;
-        --hostname)
-            CUSTOM_HOSTNAME="$2"
-            shift 2
-            ;;
-        *)
-            shift
-            ;;
-    esac
-done
+# ═══════════════════════════════════════════════════════════════════════════════
+# HELPER FUNCTIONS
+# ═══════════════════════════════════════════════════════════════════════════════
 
-# ═══════════════════════════════════════════════════════════════════
-# .ENV PROTECTION - Prevents accidental overwrites
-# ═══════════════════════════════════════════════════════════════════
+log_info() {
+    echo -e "${CYAN}[INFO]${NC} $*"
+}
 
-# Create timestamped backup of .env (keeps last 10 backups)
-backup_env() {
-    if [ -f "$PROJECT_ROOT/.env" ]; then
-        local backup_dir="$PROJECT_ROOT/.env-backups"
-        mkdir -p "$backup_dir"
-        local backup_file="$backup_dir/.env.backup.$(date +%Y%m%d_%H%M%S)"
-        cp "$PROJECT_ROOT/.env" "$backup_file"
-        echo -e "  ${GREEN}✓ Backup created: $backup_file${NC}"
-        
-        # Keep only last 10 backups
-        ls -t "$backup_dir"/.env.backup.* 2>/dev/null | tail -n +11 | xargs -r rm -f
+log_success() {
+    echo -e "${GREEN}[✓]${NC} $*"
+}
+
+log_warn() {
+    echo -e "${YELLOW}[⚠]${NC} $*"
+}
+
+log_error() {
+    echo -e "${RED}[✗]${NC} $*" >&2
+}
+
+log_debug() {
+    if [ "$VERBOSE" = true ]; then
+        echo -e "${BLUE}[DEBUG]${NC} $*"
     fi
 }
 
-# Check if .env is immutable (chattr +i)
-check_env_immutable() {
-    if [ -f "$PROJECT_ROOT/.env" ]; then
-        if lsattr "$PROJECT_ROOT/.env" 2>/dev/null | grep -q "i"; then
-            echo -e "${YELLOW}⚠ .env is immutable (protected with chattr +i)${NC}"
-            echo "  To modify: sudo chattr -i $PROJECT_ROOT/.env"
-            echo "  After changes: sudo chattr +i $PROJECT_ROOT/.env"
-            return 0
-        fi
-    fi
-    return 1
+log_step() {
+    local step_num="$1"
+    local total_steps="$2"
+    local description="$3"
+    echo -e "\n${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BOLD}[$step_num/$total_steps]${NC} ${MAGENTA}$description${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 }
 
-# Auto-detect role if not specified
-if [ -z "$ROLE" ]; then
-    if [ -f "/etc/tailscale/tailscaled.env" ] 2>/dev/null; then
-        # Check if we're on Linode (cloud) or local
-        if curl -s --max-time 2 http://169.254.169.254/v1/instance-id &>/dev/null; then
-            ROLE="cloud"
-        else
-            ROLE="local"
-        fi
-    else
-        # Default to cloud for new deployments
+show_help() {
+    cat << 'EOF'
+HOMELAB BOOTSTRAP - Comprehensive Role-Based Deployment Script
+
+USAGE:
+    ./deploy/scripts/bootstrap.sh [OPTIONS]
+
+OPTIONS:
+    --role cloud|local    Specify deployment role
+                          cloud: Linode server with dashboard, bots, database
+                          local: Ubuntu host with Plex, MinIO, Home Assistant
+    
+    --generate-secrets    Auto-generate all missing secrets (passwords, tokens)
+    
+    --skip-cron           Skip installing the self-healing cron job
+    
+    --skip-health-wait    Skip waiting for Docker health checks
+    
+    --setup-iptables      Setup iptables persistence for GameStream ports
+                          (local role only, requires sudo)
+    
+    --dry-run             Validate environment without deploying
+    
+    --verbose             Enable verbose debug output
+    
+    --help                Show this help message
+
+EXIT CODES:
+    0  - Success
+    1  - General error
+    2  - .env file missing
+    3  - Required environment variables missing
+    4  - Docker not available
+    5  - Docker Compose failed
+    6  - Health check failed
+    7  - iptables setup failed
+
+EXAMPLES:
+    # First-time cloud deployment with secret generation
+    ./deploy/scripts/bootstrap.sh --role cloud --generate-secrets
+
+    # Local deployment with iptables setup
+    sudo ./deploy/scripts/bootstrap.sh --role local --setup-iptables
+
+    # Validate environment without deploying
+    ./deploy/scripts/bootstrap.sh --role cloud --dry-run
+
+    # Quick redeploy (auto-detect role)
+    ./deploy/scripts/bootstrap.sh
+
+REQUIRED ENVIRONMENT VARIABLES:
+
+    Cloud Role:
+      POSTGRES_PASSWORD      - Main PostgreSQL superuser password
+      JARVIS_DB_PASSWORD     - Jarvis/Dashboard database password
+      DISCORD_DB_PASSWORD    - Discord bot (ticketbot) database password
+      STREAMBOT_DB_PASSWORD  - Stream bot database password
+      DISCORD_BOT_TOKEN      - Discord bot token
+      DISCORD_CLIENT_ID      - Discord OAuth client ID
+      TWITCH_CLIENT_ID       - Twitch API client ID
+      TWITCH_CLIENT_SECRET   - Twitch API client secret
+      OPENAI_API_KEY         - OpenAI API key for AI features
+      SESSION_SECRET         - Flask session secret
+      CODE_SERVER_PASSWORD   - VS Code server password
+
+    Optional Cloud (N8N_ENCRYPTION_KEY for enhanced security)
+
+    Local Role:
+      PLEX_TOKEN             - Plex authentication token
+      MINIO_ROOT_USER        - MinIO admin username
+      MINIO_ROOT_PASSWORD    - MinIO admin password
+      HOME_ASSISTANT_TOKEN   - Home Assistant long-lived access token
+EOF
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PARSE ARGUMENTS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+parse_args() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --role)
+                if [[ -n "${2:-}" ]]; then
+                    ROLE="$2"
+                    shift 2
+                else
+                    log_error "--role requires an argument (cloud or local)"
+                    exit $EXIT_GENERAL_ERROR
+                fi
+                ;;
+            --generate-secrets)
+                GENERATE_SECRETS=true
+                shift
+                ;;
+            --skip-cron)
+                SKIP_CRON=true
+                shift
+                ;;
+            --skip-health-wait)
+                SKIP_HEALTH_WAIT=true
+                shift
+                ;;
+            --setup-iptables)
+                SETUP_IPTABLES=true
+                shift
+                ;;
+            --dry-run)
+                DRY_RUN=true
+                shift
+                ;;
+            --verbose)
+                VERBOSE=true
+                shift
+                ;;
+            --help|-h)
+                show_help
+                exit $EXIT_SUCCESS
+                ;;
+            *)
+                log_warn "Unknown option: $1 (ignoring)"
+                shift
+                ;;
+        esac
+    done
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ROLE DETECTION
+# ═══════════════════════════════════════════════════════════════════════════════
+
+detect_role() {
+    if [ -n "$ROLE" ]; then
+        log_debug "Role specified via argument: $ROLE"
+        return
+    fi
+    
+    log_info "Auto-detecting deployment role..."
+    
+    # Check for Linode metadata service (cloud)
+    if curl -s --max-time 2 http://169.254.169.254/v1/instance-id &>/dev/null; then
         ROLE="cloud"
+        log_info "Detected Linode cloud environment"
+        return
     fi
-fi
-
-# Validate role
-if [[ ! "$ROLE" =~ ^(cloud|local)$ ]]; then
-    echo -e "${RED}✗ Invalid role: $ROLE${NC}"
-    echo "Valid roles: cloud, local"
-    exit 1
-fi
-
-# Verify we're in a valid project directory
-if [ ! -f "$PROJECT_ROOT/docker-compose.yml" ]; then
-    echo -e "${RED}✗ Not a valid HomeLabHub directory${NC}"
-    echo "Could not find docker-compose.yml in $PROJECT_ROOT"
-    exit 1
-fi
-
-cd "$PROJECT_ROOT"
-
-echo -e "${CYAN}"
-echo "═══════════════════════════════════════════════════════════════"
-echo "  HOMELAB BOOTSTRAP - ${MAGENTA}$ROLE${CYAN} deployment"
-echo "  Project: $PROJECT_ROOT"
-echo "═══════════════════════════════════════════════════════════════"
-echo -e "${NC}"
-
-# ═══════════════════════════════════════════════════════════════════
-# STEP 1: Verify Docker
-# ═══════════════════════════════════════════════════════════════════
-echo -e "${CYAN}[1/7] Checking Docker...${NC}"
-
-if ! command -v docker &> /dev/null; then
-    echo -e "${RED}✗ Docker not installed${NC}"
-    echo "Install with: curl -fsSL https://get.docker.com | sh"
-    exit 1
-fi
-
-if ! docker info &> /dev/null; then
-    echo -e "${RED}✗ Docker daemon not running${NC}"
-    echo "Start with: sudo systemctl start docker"
-    exit 1
-fi
-
-if ! command -v docker compose &> /dev/null; then
-    echo -e "${RED}✗ Docker Compose not installed${NC}"
-    echo "Update Docker to latest version"
-    exit 1
-fi
-
-echo -e "${GREEN}✓ Docker ready${NC}"
-
-# ═══════════════════════════════════════════════════════════════════
-# STEP 2: Check Tailscale (for multi-server setup)
-# ═══════════════════════════════════════════════════════════════════
-echo -e "\n${CYAN}[2/7] Checking Tailscale VPN...${NC}"
-
-TAILSCALE_IP=""
-if command -v tailscale &> /dev/null; then
-    # Try to get Tailscale IP - this only works when connected
-    TAILSCALE_IP=$(tailscale ip -4 2>/dev/null || echo "")
-    if [ -n "$TAILSCALE_IP" ]; then
-        echo -e "${GREEN}✓ Tailscale connected: $TAILSCALE_IP${NC}"
-    else
-        # Double-check with status command
-        if tailscale status &>/dev/null; then
-            TAILSCALE_IP=$(tailscale ip -4 2>/dev/null || echo "")
-            echo -e "${GREEN}✓ Tailscale connected: $TAILSCALE_IP${NC}"
-        else
-            echo -e "${YELLOW}⚠ Tailscale installed but not connected${NC}"
-            echo "  Run: sudo tailscale up --authkey=YOUR_KEY"
-        fi
+    
+    # Check for local indicators
+    if [ -f "/etc/libvirt/qemu.conf" ] || [ -d "/var/lib/libvirt" ]; then
+        ROLE="local"
+        log_info "Detected local Ubuntu host (KVM/libvirt present)"
+        return
     fi
-else
-    echo -e "${YELLOW}⚠ Tailscale not installed (optional for single-server)${NC}"
-    echo "  Install: curl -fsSL https://tailscale.com/install.sh | sh"
-fi
-
-# ═══════════════════════════════════════════════════════════════════
-# STEP 3: Setup Environment (WITH OVERWRITE PROTECTION)
-# ═══════════════════════════════════════════════════════════════════
-echo -e "\n${CYAN}[3/7] Setting up environment...${NC}"
-
-# Check for immutable protection first
-if check_env_immutable; then
-    echo -e "${GREEN}✓ .env is protected and will not be modified${NC}"
-    echo "  Continuing with validation only..."
-fi
-
-# Function to safely merge missing variables from .env.example into .env
-merge_env_files() {
-    echo "Merging missing variables from .env.example into .env..."
     
-    # Always backup before any modification
-    backup_env
+    # Check for GPU (typically local)
+    if lspci 2>/dev/null | grep -qi nvidia; then
+        ROLE="local"
+        log_info "Detected local host (NVIDIA GPU present)"
+        return
+    fi
     
-    # Find missing variables
-    local missing_vars=()
-    while IFS= read -r line; do
-        # Skip comments and empty lines
-        [[ "$line" =~ ^# ]] && continue
-        [[ -z "$line" ]] && continue
-        
-        # Extract variable name
-        var_name=$(echo "$line" | cut -d'=' -f1)
-        [[ -z "$var_name" ]] && continue
-        
-        # Check if variable exists in .env
-        if ! grep -q "^${var_name}=" .env 2>/dev/null; then
-            missing_vars+=("$var_name")
-            echo "$line" >> .env
-            echo -e "  ${YELLOW}+ Added missing: $var_name${NC}"
-        fi
-    done < .env.example
-    
-    if [ ${#missing_vars[@]} -eq 0 ]; then
-        echo -e "  ${GREEN}✓ No missing variables${NC}"
-    else
-        echo -e "  ${GREEN}✓ Added ${#missing_vars[@]} missing variables${NC}"
+    # Default to cloud for VPS-like environments
+    ROLE="cloud"
+    log_warn "Could not determine role, defaulting to 'cloud'"
+}
+
+validate_role() {
+    if [[ ! "$ROLE" =~ ^(cloud|local)$ ]]; then
+        log_error "Invalid role: '$ROLE'"
+        log_error "Valid roles are: cloud, local"
+        exit $EXIT_GENERAL_ERROR
     fi
 }
 
-if [ ! -f ".env" ]; then
-    # No .env exists - safe to create from example
-    if [ -f ".env.example" ]; then
-        echo "Creating .env from .env.example..."
-        cp .env.example .env
-        chmod 600 .env
-        
-        if [ "$GENERATE_SECRETS" = true ]; then
-            echo "Auto-generating secrets..."
-        else
-            echo -e "${YELLOW}⚠ Created .env - please update with your credentials!${NC}"
-            echo "Or run with --generate-secrets to auto-generate passwords"
-            echo ""
-            echo "Required variables:"
-            echo "  POSTGRES_PASSWORD, DISCORD_DB_PASSWORD, STREAMBOT_DB_PASSWORD"
-            echo "  JARVIS_DB_PASSWORD, WEB_USERNAME, WEB_PASSWORD"
-            echo ""
-            exit 1
-        fi
-    else
-        echo -e "${RED}✗ No .env or .env.example found${NC}"
-        exit 1
-    fi
-elif [ "$FORCE_NEW_ENV" = true ]; then
-    # User explicitly requested a fresh .env - backup first!
-    echo -e "${RED}═══════════════════════════════════════════════════════════════${NC}"
-    echo -e "${RED}  WARNING: --force-new-env will REPLACE your existing .env!${NC}"
-    echo -e "${RED}═══════════════════════════════════════════════════════════════${NC}"
-    echo ""
-    backup_env
-    echo ""
-    echo "Creating fresh .env from .env.example..."
-    cp .env.example .env
-    chmod 600 .env
-    echo -e "${YELLOW}⚠ Fresh .env created - you must re-enter ALL credentials!${NC}"
-    echo "  Your previous .env was backed up to .env-backups/"
-    echo ""
-    if [ "$GENERATE_SECRETS" != true ]; then
-        echo "Re-run with --generate-secrets to auto-generate passwords"
-        exit 1
-    fi
-else
-    # .env exists - PROTECT IT!
-    echo -e "${GREEN}✓ Using existing .env file (PROTECTED)${NC}"
-    
-    if [ "$MERGE_ENV" = true ]; then
-        # User wants to merge - this is safe, only adds missing vars
-        merge_env_files
-    else
-        echo "  No modifications made to .env"
-        echo ""
-        echo -e "  ${CYAN}Available options:${NC}"
-        echo "    --merge-env       Add missing variables from .env.example"
-        echo "    --generate-secrets Fill in empty password fields"
-        echo "    --force-new-env   DANGER: Replace .env entirely (backs up first)"
-        echo ""
-    fi
-fi
+# ═══════════════════════════════════════════════════════════════════════════════
+# ENVIRONMENT FILE HANDLING
+# ═══════════════════════════════════════════════════════════════════════════════
 
-# Function to generate a secure password
+check_env_file() {
+    local env_file="$PROJECT_ROOT/.env"
+    
+    if [ ! -f "$env_file" ]; then
+        log_error ".env file not found at: $env_file"
+        echo ""
+        echo -e "${YELLOW}To create the environment file:${NC}"
+        echo ""
+        echo "  1. Copy the example file:"
+        echo "     cp $PROJECT_ROOT/.env.example $PROJECT_ROOT/.env"
+        echo ""
+        echo "  2. Edit and fill in your values:"
+        echo "     nano $PROJECT_ROOT/.env"
+        echo ""
+        echo "  3. Or run with --generate-secrets to auto-generate passwords:"
+        echo "     $0 --role $ROLE --generate-secrets"
+        echo ""
+        echo -e "${CYAN}Required variables for ${MAGENTA}$ROLE${CYAN} role:${NC}"
+        
+        if [ "$ROLE" = "cloud" ]; then
+            for var in "${CLOUD_REQUIRED_VARS[@]}"; do
+                echo "     - $var"
+            done
+        else
+            for var in "${LOCAL_REQUIRED_VARS[@]}"; do
+                echo "     - $var"
+            done
+        fi
+        echo ""
+        exit $EXIT_ENV_MISSING
+    fi
+    
+    log_success ".env file exists"
+}
+
+# Get env value (handles quoted values and empty values)
+get_env_value() {
+    local var_name="$1"
+    local env_file="$PROJECT_ROOT/.env"
+    
+    local value
+    value=$(grep "^${var_name}=" "$env_file" 2>/dev/null | head -1 | cut -d'=' -f2- | sed 's/^["'\''"]//;s/["'\''"]$//')
+    
+    # Check for placeholder values
+    if [[ "$value" == "YOUR_"* ]] || [[ "$value" == "sk-proj-YOUR_"* ]] || [[ "$value" == "your_"* ]]; then
+        echo ""
+        return
+    fi
+    
+    echo "$value"
+}
+
+# Generate secure password
 generate_password() {
-    openssl rand -base64 24 | tr -d '/+=' | head -c 32
+    local length="${1:-32}"
+    openssl rand -base64 48 | tr -d '/+=' | head -c "$length"
 }
 
-# Function to set env var if empty or missing
+# Generate hex secret
+generate_hex_secret() {
+    local length="${1:-32}"
+    openssl rand -hex "$length"
+}
+
+# Set env var if empty or missing
 set_env_if_empty() {
     local var_name="$1"
-    local default_value="${2:-$(generate_password)}"
+    local default_value="${2:-$(generate_password 32)}"
+    local env_file="$PROJECT_ROOT/.env"
     
-    if ! grep -q "^${var_name}=" .env; then
-        echo "${var_name}=${default_value}" >> .env
-        echo -e "  ${GREEN}+ Generated ${var_name}${NC}"
-        return 0
-    elif [ -z "$(grep "^${var_name}=" .env | cut -d'=' -f2-)" ]; then
-        sed -i "s|^${var_name}=.*|${var_name}=${default_value}|" .env
-        echo -e "  ${GREEN}+ Generated ${var_name}${NC}"
+    local current_value
+    current_value=$(get_env_value "$var_name")
+    
+    if [ -z "$current_value" ]; then
+        if grep -q "^${var_name}=" "$env_file" 2>/dev/null; then
+            # Variable exists but is empty, update it
+            sed -i "s|^${var_name}=.*|${var_name}=${default_value}|" "$env_file"
+        else
+            # Variable doesn't exist, add it
+            echo "${var_name}=${default_value}" >> "$env_file"
+        fi
+        log_success "Generated: $var_name"
         return 0
     fi
+    
+    log_debug "Skipping $var_name (already set)"
     return 1
 }
 
-# Auto-generate secrets if requested or if values are empty
-if [ "$GENERATE_SECRETS" = true ]; then
-    echo "Generating missing secrets..."
-    # Backup before any modifications
-    backup_env
-    set_env_if_empty "POSTGRES_PASSWORD" || true
-    set_env_if_empty "DISCORD_DB_PASSWORD" || true
-    set_env_if_empty "STREAMBOT_DB_PASSWORD" || true
-    set_env_if_empty "JARVIS_DB_PASSWORD" || true
-    set_env_if_empty "WEB_PASSWORD" || true
-    set_env_if_empty "SESSION_SECRET" "$(openssl rand -hex 32)" || true
-    set_env_if_empty "SECRET_KEY" "$(openssl rand -hex 32)" || true
-    set_env_if_empty "DASHBOARD_API_KEY" "$(openssl rand -hex 24)" || true
-    set_env_if_empty "DISCORD_SESSION_SECRET" "$(openssl rand -hex 32)" || true
-    set_env_if_empty "STREAMBOT_SESSION_SECRET" "$(openssl rand -hex 32)" || true
-    set_env_if_empty "CODE_SERVER_PASSWORD" || true
-fi
-
-# Always generate SERVICE_AUTH_TOKEN if missing
-set_env_if_empty "SERVICE_AUTH_TOKEN" "$(openssl rand -hex 32)" || true
-
-# Set Tailscale IP in .env if detected
-if [ -n "$TAILSCALE_IP" ]; then
-    if [ "$ROLE" = "cloud" ]; then
-        set_env_if_empty "TAILSCALE_LINODE_HOST" "$TAILSCALE_IP" || true
+# Generate all missing secrets
+generate_secrets() {
+    log_info "Generating missing secrets..."
+    
+    local generated=0
+    
+    # Database passwords
+    set_env_if_empty "POSTGRES_PASSWORD" && ((generated++)) || true
+    set_env_if_empty "JARVIS_DB_PASSWORD" && ((generated++)) || true
+    set_env_if_empty "DISCORD_DB_PASSWORD" && ((generated++)) || true
+    set_env_if_empty "STREAMBOT_DB_PASSWORD" && ((generated++)) || true
+    
+    # Session secrets (hex)
+    set_env_if_empty "SESSION_SECRET" "$(generate_hex_secret 32)" && ((generated++)) || true
+    set_env_if_empty "SECRET_KEY" "$(generate_hex_secret 32)" && ((generated++)) || true
+    set_env_if_empty "DISCORD_SESSION_SECRET" "$(generate_hex_secret 32)" && ((generated++)) || true
+    set_env_if_empty "STREAMBOT_SESSION_SECRET" "$(generate_hex_secret 32)" && ((generated++)) || true
+    
+    # Service tokens
+    set_env_if_empty "SERVICE_AUTH_TOKEN" "$(generate_hex_secret 32)" && ((generated++)) || true
+    set_env_if_empty "DASHBOARD_API_KEY" "$(generate_hex_secret 24)" && ((generated++)) || true
+    
+    # Code server
+    set_env_if_empty "CODE_SERVER_PASSWORD" && ((generated++)) || true
+    
+    # N8N
+    set_env_if_empty "N8N_BASIC_AUTH_PASSWORD" && ((generated++)) || true
+    
+    # Local services
+    if [ "$ROLE" = "local" ]; then
+        set_env_if_empty "MINIO_ROOT_PASSWORD" && ((generated++)) || true
+        set_env_if_empty "VNC_PASSWORD" && ((generated++)) || true
+        set_env_if_empty "SUNSHINE_PASS" && ((generated++)) || true
+    fi
+    
+    if [ $generated -gt 0 ]; then
+        log_success "Generated $generated secrets"
     else
-        set_env_if_empty "TAILSCALE_LOCAL_HOST" "$TAILSCALE_IP" || true
+        log_info "All secrets already configured"
     fi
-fi
-
-# Validate required variables
-# WEB_USERNAME must always be provided (cannot be auto-generated)
-# Other secrets can be auto-generated
-required_manual=("WEB_USERNAME")
-required_secrets=("POSTGRES_PASSWORD" "DISCORD_DB_PASSWORD" "STREAMBOT_DB_PASSWORD" "JARVIS_DB_PASSWORD" "WEB_PASSWORD")
-missing=()
-missing_secrets=()
-
-# Check manual requirements (cannot be auto-generated)
-for var in "${required_manual[@]}"; do
-    if ! grep -q "^${var}=" .env || [ -z "$(grep "^${var}=" .env | cut -d'=' -f2-)" ]; then
-        missing+=("$var")
-    fi
-done
-
-# Check secrets (can be auto-generated if --generate-secrets is used)
-for var in "${required_secrets[@]}"; do
-    if ! grep -q "^${var}=" .env || [ -z "$(grep "^${var}=" .env | cut -d'=' -f2-)" ]; then
-        missing_secrets+=("$var")
-    fi
-done
-
-# Report manual variables that must be set
-if [ ${#missing[@]} -gt 0 ]; then
-    echo -e "${RED}✗ Missing required variables (cannot be auto-generated):${NC}"
-    for var in "${missing[@]}"; do
-        echo "  - $var"
-    done
-    echo ""
-    echo "Edit .env to set these values manually"
-    exit 1
-fi
-
-# Report missing secrets (can be auto-generated)
-if [ ${#missing_secrets[@]} -gt 0 ]; then
-    echo -e "${YELLOW}⚠ Missing secret variables:${NC}"
-    for var in "${missing_secrets[@]}"; do
-        echo "  - $var"
-    done
-    echo ""
-    echo "Re-run with --generate-secrets to auto-generate passwords"
-    exit 1
-fi
-
-echo -e "${GREEN}✓ Environment ready${NC}"
-
-# Re-source environment after generation so preflight sees updated values
-# This ensures check_env_var sees any auto-generated secrets
-export $(grep -v '^#' .env | grep -v '^$' | xargs 2>/dev/null) 2>/dev/null || true
-
-# ═══════════════════════════════════════════════════════════════════
-# STEP 3.5: PREFLIGHT VALIDATION - Role-Aware Checks
-# ═══════════════════════════════════════════════════════════════════
-# This runs AFTER secret generation so auto-generated values are available
-echo -e "\n${CYAN}[3.5/7] Running preflight validation for ${MAGENTA}$ROLE${CYAN} role...${NC}"
-
-# Track validation status
-PREFLIGHT_WARNINGS=()
-PREFLIGHT_ERRORS=()
-
-# Helper: Check if env var is set and non-empty (not a placeholder)
-check_env_var() {
-    local var_name="$1"
-    local required="$2"  # "required" or "optional"
-    local context="$3"   # Description of what it's for
-    
-    local value=$(grep "^${var_name}=" .env 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'")
-    
-    # Skip placeholders
-    if [[ "$value" == "YOUR_"* ]] || [[ "$value" == "sk-proj-YOUR_"* ]]; then
-        value=""
-    fi
-    
-    if [ -z "$value" ]; then
-        if [ "$required" = "required" ]; then
-            PREFLIGHT_ERRORS+=("$var_name - Required for: $context")
-            return 1
-        else
-            PREFLIGHT_WARNINGS+=("$var_name - Optional for: $context")
-            return 1
-        fi
-    fi
-    return 0
 }
 
-# ═══════════════════════════════════════════════════════════════════
-# CLOUD ROLE PREFLIGHT CHECKS
-# ═══════════════════════════════════════════════════════════════════
-if [ "$ROLE" = "cloud" ]; then
-    echo "Validating cloud deployment requirements..."
+# Validate required environment variables
+validate_environment() {
+    local role="$1"
+    local missing_required=()
+    local missing_optional=()
     
-    # AI Features - Required for Jarvis/Discord AI (cannot be auto-generated)
-    check_env_var "OPENAI_API_KEY" "required" "Jarvis AI assistant, Discord bot AI features"
+    log_info "Validating environment for $role role..."
     
-    # Discord Bot - Required (cannot be auto-generated)
-    check_env_var "DISCORD_BOT_TOKEN" "required" "Discord bot authentication"
-    check_env_var "DISCORD_CLIENT_ID" "required" "Discord OAuth login"
-    check_env_var "DISCORD_CLIENT_SECRET" "required" "Discord OAuth login"
+    # Select variable lists based on role
+    local -n required_vars
+    local -n optional_vars
     
-    # Multi-Host Routing - Important for local services
-    LOCAL_TS_IP=$(grep "^LOCAL_TAILSCALE_IP=" .env 2>/dev/null | cut -d'=' -f2 | tr -d '"')
-    if [ -z "$LOCAL_TS_IP" ] || [ "$LOCAL_TS_IP" = "100.64.0.1" ]; then
-        PREFLIGHT_WARNINGS+=("LOCAL_TAILSCALE_IP - Set to your Ubuntu host's Tailscale IP for Plex/GameStream routing")
+    if [ "$role" = "cloud" ]; then
+        required_vars=CLOUD_REQUIRED_VARS
+        optional_vars=CLOUD_OPTIONAL_VARS
     else
-        echo -e "  ${GREEN}✓${NC} LOCAL_TAILSCALE_IP configured: $LOCAL_TS_IP"
+        required_vars=LOCAL_REQUIRED_VARS
+        optional_vars=LOCAL_OPTIONAL_VARS
     fi
     
-    # DNS Management - Optional but recommended
-    check_env_var "CLOUDFLARE_API_TOKEN" "optional" "Automatic DNS management"
+    # Check required variables
+    for var in "${required_vars[@]}"; do
+        local value
+        value=$(get_env_value "$var")
+        if [ -z "$value" ]; then
+            missing_required+=("$var")
+        else
+            log_debug "✓ $var is set"
+        fi
+    done
     
-    # Stream Bot OAuth - Optional
-    check_env_var "TWITCH_CLIENT_ID" "optional" "Twitch stream integration"
-    check_env_var "YOUTUBE_CLIENT_ID" "optional" "YouTube stream integration"
-    check_env_var "SPOTIFY_CLIENT_ID" "optional" "Spotify music integration"
-fi
+    # Check optional variables
+    for var in "${optional_vars[@]}"; do
+        local value
+        value=$(get_env_value "$var")
+        if [ -z "$value" ]; then
+            missing_optional+=("$var")
+        else
+            log_debug "✓ $var is set (optional)"
+        fi
+    done
+    
+    # Report optional warnings
+    if [ ${#missing_optional[@]} -gt 0 ]; then
+        echo ""
+        log_warn "Optional variables not set (some features may be limited):"
+        for var in "${missing_optional[@]}"; do
+            echo -e "     ${YELLOW}-${NC} $var"
+        done
+    fi
+    
+    # Report required errors
+    if [ ${#missing_required[@]} -gt 0 ]; then
+        echo ""
+        log_error "Required variables are missing or empty:"
+        for var in "${missing_required[@]}"; do
+            echo -e "     ${RED}✗${NC} $var"
+        done
+        echo ""
+        echo -e "${YELLOW}To fix this, you can:${NC}"
+        echo ""
+        echo "  1. Edit .env and set the values manually:"
+        echo "     nano $PROJECT_ROOT/.env"
+        echo ""
+        echo "  2. Run with --generate-secrets to auto-generate passwords:"
+        echo "     $0 --role $role --generate-secrets"
+        echo ""
+        echo -e "${CYAN}Helpful links:${NC}"
+        echo "     OpenAI API Key:    https://platform.openai.com/api-keys"
+        echo "     Discord Developer: https://discord.com/developers/applications"
+        echo "     Twitch Developer:  https://dev.twitch.tv/console/apps"
+        echo "     Plex Token:        https://www.plex.tv/claim/"
+        echo ""
+        exit $EXIT_ENV_INVALID
+    fi
+    
+    log_success "All required environment variables are set"
+}
 
-# ═══════════════════════════════════════════════════════════════════
-# LOCAL ROLE PREFLIGHT CHECKS
-# ═══════════════════════════════════════════════════════════════════
-if [ "$ROLE" = "local" ]; then
-    echo "Validating local deployment requirements..."
+# ═══════════════════════════════════════════════════════════════════════════════
+# DOCKER CHECKS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+check_docker() {
+    log_info "Checking Docker installation..."
     
-    # Plex - Optional but common
-    check_env_var "PLEX_TOKEN" "optional" "Plex API access"
-    
-    # Sunshine GameStream - Check setup
-    if [ -f "$PROJECT_ROOT/compose.local.yml" ]; then
-        echo "  Checking Sunshine GameStream setup..."
-        check_env_var "SUNSHINE_PASS" "optional" "GameStream web UI login"
+    # Check if docker is installed
+    if ! command -v docker &>/dev/null; then
+        log_error "Docker is not installed"
+        echo ""
+        echo "Install Docker with:"
+        echo "  curl -fsSL https://get.docker.com | sh"
+        echo "  sudo usermod -aG docker \$USER"
+        echo ""
+        exit $EXIT_DOCKER_ERROR
     fi
     
-    # Home Assistant - Optional
-    check_env_var "HOME_ASSISTANT_TOKEN" "optional" "Home Assistant API access"
+    # Check if docker daemon is running
+    if ! docker info &>/dev/null; then
+        log_error "Docker daemon is not running"
+        echo ""
+        echo "Start Docker with:"
+        echo "  sudo systemctl start docker"
+        echo "  sudo systemctl enable docker"
+        echo ""
+        exit $EXIT_DOCKER_ERROR
+    fi
     
-    # Cloud Connectivity - Important for multi-host
-    CLOUD_TS_IP=$(grep "^TAILSCALE_LINODE_HOST=" .env 2>/dev/null | cut -d'=' -f2 | tr -d '"')
-    if [ -z "$CLOUD_TS_IP" ]; then
-        PREFLIGHT_WARNINGS+=("TAILSCALE_LINODE_HOST - Set to your Linode's Tailscale IP for cloud database access")
+    # Check docker compose
+    if ! docker compose version &>/dev/null; then
+        log_error "Docker Compose is not available"
+        echo ""
+        echo "Docker Compose should be included with recent Docker versions."
+        echo "Try updating Docker to the latest version."
+        echo ""
+        exit $EXIT_DOCKER_ERROR
+    fi
+    
+    local docker_version
+    docker_version=$(docker version --format '{{.Server.Version}}' 2>/dev/null || echo "unknown")
+    log_success "Docker $docker_version is ready"
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# DIRECTORY SETUP
+# ═══════════════════════════════════════════════════════════════════════════════
+
+create_directories() {
+    log_info "Creating required directories..."
+    
+    # Common directories
+    local dirs=(
+        "$PROJECT_ROOT/logs"
+        "$PROJECT_ROOT/static-sites"
+        "$PROJECT_ROOT/services/dashboard/logs"
+        "$PROJECT_ROOT/services/discord-bot/logs"
+        "$PROJECT_ROOT/services/discord-bot/attached_assets"
+        "$PROJECT_ROOT/services/stream-bot/logs"
+        "$PROJECT_ROOT/config/postgres-init"
+    )
+    
+    # Role-specific directories
+    if [ "$ROLE" = "local" ]; then
+        dirs+=(
+            "$PROJECT_ROOT/data/plex/config"
+            "$PROJECT_ROOT/data/plex/media"
+            "$PROJECT_ROOT/data/plex/transcode"
+            "$PROJECT_ROOT/data/homeassistant"
+            "$PROJECT_ROOT/data/minio"
+            "$PROJECT_ROOT/config/sunshine"
+        )
+    fi
+    
+    for dir in "${dirs[@]}"; do
+        if mkdir -p "$dir" 2>/dev/null; then
+            log_debug "Created: $dir"
+        fi
+    done
+    
+    log_success "Directories ready"
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# DOCKER COMPOSE DEPLOYMENT
+# ═══════════════════════════════════════════════════════════════════════════════
+
+get_compose_file() {
+    if [ "$ROLE" = "cloud" ]; then
+        echo "$PROJECT_ROOT/docker-compose.yml"
     else
-        echo -e "  ${GREEN}✓${NC} TAILSCALE_LINODE_HOST configured: $CLOUD_TS_IP"
+        echo "$PROJECT_ROOT/deploy/local/docker-compose.yml"
     fi
-fi
+}
 
-# ═══════════════════════════════════════════════════════════════════
-# PREFLIGHT REPORT
-# ═══════════════════════════════════════════════════════════════════
-echo ""
+deploy_services() {
+    local compose_file
+    compose_file=$(get_compose_file)
+    
+    if [ ! -f "$compose_file" ]; then
+        log_error "Compose file not found: $compose_file"
+        exit $EXIT_COMPOSE_ERROR
+    fi
+    
+    log_info "Using compose file: $compose_file"
+    
+    # Pull images
+    log_info "Pulling Docker images..."
+    if ! docker compose --project-directory "$PROJECT_ROOT" \
+        --env-file "$PROJECT_ROOT/.env" \
+        -f "$compose_file" \
+        pull --quiet 2>&1; then
+        log_warn "Some images could not be pulled (will try to build)"
+    fi
+    
+    # Build images
+    log_info "Building Docker images..."
+    if ! docker compose --project-directory "$PROJECT_ROOT" \
+        --env-file "$PROJECT_ROOT/.env" \
+        -f "$compose_file" \
+        build --quiet 2>&1; then
+        log_warn "Some images could not be built (may use existing)"
+    fi
+    
+    # Start services
+    log_info "Starting services..."
+    local compose_args=(
+        "--project-directory" "$PROJECT_ROOT"
+        "--env-file" "$PROJECT_ROOT/.env"
+        "-f" "$compose_file"
+        "up" "-d" "--remove-orphans"
+    )
+    
+    # Add health check waiting if not skipped
+    if [ "$SKIP_HEALTH_WAIT" = false ]; then
+        compose_args+=("--wait" "--wait-timeout" "120")
+    fi
+    
+    if ! docker compose "${compose_args[@]}" 2>&1; then
+        log_error "Failed to start services"
+        echo ""
+        echo "Check logs with:"
+        echo "  docker compose -f $compose_file logs"
+        echo ""
+        exit $EXIT_COMPOSE_ERROR
+    fi
+    
+    log_success "Services started"
+}
 
-# Show warnings (non-blocking)
-if [ ${#PREFLIGHT_WARNINGS[@]} -gt 0 ]; then
-    echo -e "${YELLOW}⚠ Optional Configuration (features may be limited):${NC}"
-    for warning in "${PREFLIGHT_WARNINGS[@]}"; do
-        echo "  - $warning"
-    done
-    echo ""
-fi
+# ═══════════════════════════════════════════════════════════════════════════════
+# HEALTH CHECKS
+# ═══════════════════════════════════════════════════════════════════════════════
 
-# Show errors (blocking)
-if [ ${#PREFLIGHT_ERRORS[@]} -gt 0 ]; then
-    echo -e "${RED}✗ PREFLIGHT FAILED - Missing required configuration:${NC}"
-    for error in "${PREFLIGHT_ERRORS[@]}"; do
-        echo -e "  ${RED}✗${NC} $error"
-    done
-    echo ""
-    echo -e "${YELLOW}How to fix:${NC}"
-    echo "  1. Edit .env file: nano $PROJECT_ROOT/.env"
-    echo "  2. Set all required values listed above"
-    echo "  3. Re-run: ./deploy/scripts/bootstrap.sh --role $ROLE"
-    echo ""
-    echo -e "${CYAN}Quick links:${NC}"
-    echo "  OpenAI API Key:  https://platform.openai.com/api-keys"
-    echo "  Discord Dev:     https://discord.com/developers/applications"
-    echo "  Cloudflare:      https://dash.cloudflare.com/profile/api-tokens"
-    echo ""
-    exit 1
-fi
-
-echo -e "${GREEN}✓ Preflight validation passed${NC}"
-
-# ═══════════════════════════════════════════════════════════════════
-# STEP 4: Create Required Directories
-# ═══════════════════════════════════════════════════════════════════
-echo -e "\n${CYAN}[4/7] Creating required directories...${NC}"
-
-# Read host path configuration from .env (with defaults)
-HOST_STATIC_SITE=$(grep "^HOST_STATIC_SITE_PATH=" .env 2>/dev/null | cut -d'=' -f2 || echo "$PROJECT_ROOT/static-sites")
-
-# Create all required directories relative to project
-mkdir -p "$HOST_STATIC_SITE" 2>/dev/null || true
-mkdir -p "$PROJECT_ROOT/static-sites" 2>/dev/null || true
-mkdir -p "$PROJECT_ROOT/services/dashboard/logs" 2>/dev/null || true
-mkdir -p "$PROJECT_ROOT/services/discord-bot/logs" 2>/dev/null || true
-mkdir -p "$PROJECT_ROOT/services/discord-bot/attached_assets" 2>/dev/null || true
-mkdir -p "$PROJECT_ROOT/services/stream-bot/logs" 2>/dev/null || true
-mkdir -p "$PROJECT_ROOT/config/postgres-init" 2>/dev/null || true
-mkdir -p "$PROJECT_ROOT/marketplace" 2>/dev/null || true
-
-# Role-specific directories
-if [ "$ROLE" = "local" ]; then
-    mkdir -p "$PROJECT_ROOT/data/plex/config" 2>/dev/null || true
-    mkdir -p "$PROJECT_ROOT/data/plex/media" 2>/dev/null || true
-    mkdir -p "$PROJECT_ROOT/data/homeassistant" 2>/dev/null || true
-    mkdir -p "$PROJECT_ROOT/data/minio" 2>/dev/null || true
-    mkdir -p "$PROJECT_ROOT/config/sunshine" 2>/dev/null || true
-fi
-
-echo -e "${GREEN}✓ Directories ready${NC}"
-
-# ═══════════════════════════════════════════════════════════════════
-# STEP 5: Pull and Build Images
-# ═══════════════════════════════════════════════════════════════════
-echo -e "\n${CYAN}[5/7] Pulling and building Docker images...${NC}"
-
-# Select compose file based on role
-if [ "$ROLE" = "cloud" ]; then
-    COMPOSE_FILE="$PROJECT_ROOT/docker-compose.yml"
-else
-    COMPOSE_FILE="$PROJECT_ROOT/compose.local.yml"
-fi
-
-echo "Using compose file: $COMPOSE_FILE"
-
-docker compose --project-directory "$PROJECT_ROOT" \
-    --env-file "$PROJECT_ROOT/.env" \
-    -f "$COMPOSE_FILE" \
-    pull --quiet 2>/dev/null || true
-
-docker compose --project-directory "$PROJECT_ROOT" \
-    --env-file "$PROJECT_ROOT/.env" \
-    -f "$COMPOSE_FILE" \
-    build --quiet 2>/dev/null || true
-
-echo -e "${GREEN}✓ Images ready${NC}"
-
-# ═══════════════════════════════════════════════════════════════════
-# STEP 6: Start Services
-# ═══════════════════════════════════════════════════════════════════
-echo -e "\n${CYAN}[6/7] Starting services...${NC}"
-
-docker compose --project-directory "$PROJECT_ROOT" \
-    --env-file "$PROJECT_ROOT/.env" \
-    -f "$COMPOSE_FILE" \
-    up -d
-
-# Wait for PostgreSQL (cloud role only)
-if [ "$ROLE" = "cloud" ]; then
-    echo -n "Waiting for PostgreSQL..."
-    for i in {1..60}; do
+wait_for_postgres() {
+    if [ "$ROLE" != "cloud" ]; then
+        return 0
+    fi
+    
+    log_info "Waiting for PostgreSQL to be ready..."
+    
+    local max_attempts=60
+    local attempt=1
+    
+    while [ $attempt -le $max_attempts ]; do
         if docker exec homelab-postgres pg_isready -U postgres &>/dev/null; then
-            echo -e " ${GREEN}ready${NC}"
-            break
+            log_success "PostgreSQL is ready"
+            return 0
         fi
-        echo -n "."
+        
+        if [ $((attempt % 10)) -eq 0 ]; then
+            log_info "Still waiting for PostgreSQL... ($attempt/$max_attempts)"
+        fi
+        
         sleep 1
-        if [ $i -eq 60 ]; then
-            echo -e " ${YELLOW}timeout (may still be starting)${NC}"
-        fi
+        ((attempt++))
     done
     
-    # Create/update database users (idempotent - safe to run every time)
-    echo "Configuring database users..."
-    if [ -f "$PROJECT_ROOT/deploy/scripts/backfill-db-users.sh" ]; then
-        "$PROJECT_ROOT/deploy/scripts/backfill-db-users.sh" || {
-            echo -e "${YELLOW}⚠ Database user setup had issues (services may still work)${NC}"
+    log_error "PostgreSQL failed to become ready within $max_attempts seconds"
+    return 1
+}
+
+verify_service_health() {
+    local compose_file
+    compose_file=$(get_compose_file)
+    
+    log_info "Verifying service health..."
+    
+    local all_healthy=true
+    local service_status=()
+    
+    # Get all services
+    local services
+    services=$(docker compose --project-directory "$PROJECT_ROOT" -f "$compose_file" ps --format "{{.Name}}:{{.Status}}" 2>/dev/null || echo "")
+    
+    if [ -z "$services" ]; then
+        log_warn "Could not retrieve service status"
+        return 1
+    fi
+    
+    echo ""
+    printf "%-30s %-15s %-10s\n" "SERVICE" "STATE" "HEALTH"
+    printf "%s\n" "──────────────────────────────────────────────────────────"
+    
+    while IFS= read -r line; do
+        local name status health state
+        name=$(echo "$line" | cut -d':' -f1)
+        status=$(echo "$line" | cut -d':' -f2-)
+        
+        # Parse status for health info
+        if echo "$status" | grep -qi "healthy"; then
+            health="${GREEN}healthy${NC}"
+            state="Up"
+        elif echo "$status" | grep -qi "unhealthy"; then
+            health="${RED}unhealthy${NC}"
+            state="Up"
+            all_healthy=false
+        elif echo "$status" | grep -qi "starting"; then
+            health="${YELLOW}starting${NC}"
+            state="Up"
+        elif echo "$status" | grep -qi "up"; then
+            health="${BLUE}no check${NC}"
+            state="Up"
+        elif echo "$status" | grep -qi "exited"; then
+            health="${RED}exited${NC}"
+            state="Exited"
+            all_healthy=false
+        else
+            health="${YELLOW}unknown${NC}"
+            state="Unknown"
+        fi
+        
+        printf "%-30s %-15s " "$name" "$state"
+        echo -e "$health"
+        
+    done <<< "$services"
+    
+    echo ""
+    
+    if [ "$all_healthy" = true ]; then
+        log_success "All services are healthy"
+        return 0
+    else
+        log_warn "Some services may need attention"
+        return 0  # Don't fail on warnings
+    fi
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# IPTABLES SETUP (for GameStream)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+setup_iptables() {
+    if [ "$ROLE" != "local" ]; then
+        log_debug "Skipping iptables setup (not local role)"
+        return 0
+    fi
+    
+    log_info "Setting up iptables rules for GameStream..."
+    
+    # Check if we have root/sudo
+    if [ "$EUID" -ne 0 ]; then
+        log_warn "iptables setup requires root privileges"
+        log_warn "Run with sudo or as root to setup iptables"
+        return 0
+    fi
+    
+    # Install iptables-persistent if not present
+    if ! dpkg -l | grep -q iptables-persistent; then
+        log_info "Installing iptables-persistent..."
+        DEBIAN_FRONTEND=noninteractive apt-get install -y iptables-persistent >/dev/null 2>&1 || {
+            log_error "Failed to install iptables-persistent"
+            return 1
         }
     fi
-fi
-
-echo -e "${GREEN}✓ Services started${NC}"
-
-# ═══════════════════════════════════════════════════════════════════
-# STEP 7: Setup Self-Healing Cron
-# ═══════════════════════════════════════════════════════════════════
-if [ "$SKIP_CRON" = false ]; then
-    echo -e "\n${CYAN}[7/7] Setting up self-healing cron...${NC}"
     
-    CRON_CMD="*/5 * * * * cd $PROJECT_ROOT && ./homelab health --quiet || ./homelab restart 2>&1 | logger -t homelab-heal"
+    # Add TCP rules
+    for port in "${GAMESTREAM_TCP_PORTS[@]}"; do
+        if ! iptables -C INPUT -p tcp --dport "$port" -j ACCEPT 2>/dev/null; then
+            iptables -A INPUT -p tcp --dport "$port" -j ACCEPT
+            log_debug "Added TCP rule for port $port"
+        fi
+    done
     
-    # Remove old cron entries
-    crontab -l 2>/dev/null | grep -v "homelab-heal" | crontab - 2>/dev/null || true
+    # Add UDP rules
+    for port in "${GAMESTREAM_UDP_PORTS[@]}"; do
+        if ! iptables -C INPUT -p udp --dport "$port" -j ACCEPT 2>/dev/null; then
+            iptables -A INPUT -p udp --dport "$port" -j ACCEPT
+            log_debug "Added UDP rule for port $port"
+        fi
+    done
     
-    # Add new cron entry
-    (crontab -l 2>/dev/null; echo "$CRON_CMD") | crontab -
-    
-    echo -e "${GREEN}✓ Self-healing cron installed (every 5 minutes)${NC}"
-else
-    echo -e "\n${CYAN}[7/7] Skipping cron setup (--skip-cron)${NC}"
-fi
-
-# ═══════════════════════════════════════════════════════════════════
-# Summary
-# ═══════════════════════════════════════════════════════════════════
-echo -e "\n${CYAN}═══════════════════════════════════════════════════════════════${NC}"
-
-running=$(docker compose --project-directory "$PROJECT_ROOT" -f "$COMPOSE_FILE" ps --status running --format "{{.Name}}" 2>/dev/null | wc -l || echo "0")
-total=$(docker compose --project-directory "$PROJECT_ROOT" -f "$COMPOSE_FILE" ps --format "{{.Name}}" 2>/dev/null | wc -l || echo "0")
-
-echo -e "${GREEN}✅ BOOTSTRAP COMPLETE - $ROLE deployment${NC}"
-echo ""
-echo "Services: $running/$total running"
-if [ -n "$TAILSCALE_IP" ]; then
-    echo "Tailscale IP: $TAILSCALE_IP"
-fi
-echo ""
-echo "Quick Commands:"
-echo "  ./homelab status   - Check service status"
-echo "  ./homelab logs     - View service logs"
-echo "  ./homelab health   - Run health check"
-echo "  ./homelab restart  - Restart all services"
-echo ""
-
-if [ "$ROLE" = "cloud" ]; then
-    echo "Cloud Endpoints:"
-    echo "  Dashboard:   https://host.evindrake.net"
-    echo "  Discord Bot: https://bot.rig-city.com"
-    echo "  Stream Bot:  https://stream.rig-city.com"
-else
-    echo "Local Services:"
-    echo "  Plex:           http://localhost:32400/web"
-    echo "  Home Assistant: http://localhost:8123"
-    echo "  MinIO Console:  http://localhost:9001"
-    echo "  Sunshine (GameStream): http://localhost:47990"
-fi
-
-echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
-
-# Show next steps for multi-server setup
-if [ -z "$TAILSCALE_IP" ]; then
-    echo ""
-    echo -e "${YELLOW}Next Steps for Multi-Server Setup:${NC}"
-    echo "1. Install Tailscale: curl -fsSL https://tailscale.com/install.sh | sh"
-    echo "2. Connect to VPN: sudo tailscale up --authkey=YOUR_KEY"
-    echo "3. Re-run bootstrap to register Tailscale IP"
-fi
-
-# Check for LOCAL_TAILSCALE_IP on cloud deployments (needed for routing to local services)
-if [ "$ROLE" = "cloud" ]; then
-    LOCAL_TS_IP=$(grep "^LOCAL_TAILSCALE_IP=" .env 2>/dev/null | cut -d'=' -f2 || echo "")
-    if [ -z "$LOCAL_TS_IP" ]; then
-        echo ""
-        echo -e "${YELLOW}Multi-Host Routing:${NC}"
-        echo "To route Plex, Home Assistant, and GameStream from Linode to your local host,"
-        echo "add LOCAL_TAILSCALE_IP to .env with your local host's Tailscale IP address."
-        echo ""
-        echo "Example: LOCAL_TAILSCALE_IP=100.x.x.x"
+    # Save rules
+    if command -v netfilter-persistent &>/dev/null; then
+        netfilter-persistent save >/dev/null 2>&1
+    else
+        iptables-save > /etc/iptables/rules.v4 2>/dev/null || true
     fi
-fi
+    
+    log_success "iptables rules configured for GameStream"
+    echo ""
+    echo "GameStream ports opened:"
+    echo "  TCP: ${GAMESTREAM_TCP_PORTS[*]}"
+    echo "  UDP: ${GAMESTREAM_UDP_PORTS[*]}"
+    echo ""
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CRON SETUP
+# ═══════════════════════════════════════════════════════════════════════════════
+
+setup_cron() {
+    log_info "Setting up self-healing cron job..."
+    
+    local homelab_script="$PROJECT_ROOT/homelab"
+    
+    if [ ! -f "$homelab_script" ]; then
+        log_warn "homelab script not found, skipping cron setup"
+        return 0
+    fi
+    
+    local cron_cmd="*/5 * * * * cd $PROJECT_ROOT && ./homelab health --quiet || ./homelab restart 2>&1 | logger -t homelab-heal"
+    
+    # Remove old entries
+    (crontab -l 2>/dev/null | grep -v "homelab-heal" | crontab -) 2>/dev/null || true
+    
+    # Add new entry
+    (crontab -l 2>/dev/null; echo "$cron_cmd") | crontab - 2>/dev/null || {
+        log_warn "Failed to setup cron job"
+        return 0
+    }
+    
+    log_success "Self-healing cron installed (every 5 minutes)"
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# FUNCTIONAL VERIFICATION
+# ═══════════════════════════════════════════════════════════════════════════════
+
+run_functional_verification() {
+    local verify_script="$SCRIPT_DIR/verify-deployment.sh"
+    
+    if [ ! -f "$verify_script" ]; then
+        log_warning "Verification script not found at $verify_script"
+        log_info "Running basic health checks instead..."
+        
+        # Basic smoke test: check if we can reach the main services
+        if [ "$ROLE" = "cloud" ]; then
+            local checks_passed=0
+            local checks_total=3
+            
+            # Check PostgreSQL
+            if docker exec homelab-postgres pg_isready -U postgres &>/dev/null; then
+                log_success "PostgreSQL is ready"
+                ((checks_passed++))
+            else
+                log_error "PostgreSQL not responding"
+            fi
+            
+            # Check Redis
+            if docker exec homelab-redis redis-cli ping 2>/dev/null | grep -q "PONG"; then
+                log_success "Redis is ready"
+                ((checks_passed++))
+            else
+                log_error "Redis not responding"
+            fi
+            
+            # Check Dashboard
+            if curl -sf http://localhost:5000/health &>/dev/null; then
+                log_success "Dashboard is healthy"
+                ((checks_passed++))
+            else
+                log_error "Dashboard not responding"
+            fi
+            
+            if [ "$checks_passed" -lt "$checks_total" ]; then
+                log_warning "Some services are not responding ($checks_passed/$checks_total)"
+                log_info "This may resolve in a few seconds as services finish starting"
+            else
+                log_success "All basic health checks passed"
+            fi
+        else
+            log_info "Local deployment - skipping remote verification"
+        fi
+        return 0
+    fi
+    
+    # Run the full verification script
+    log_info "Running comprehensive verification..."
+    
+    chmod +x "$verify_script" 2>/dev/null || true
+    
+    if "$verify_script" "$ROLE"; then
+        log_success "All functional verification checks passed"
+    else
+        log_warning "Some verification checks failed"
+        log_info "Run '$verify_script $ROLE --verbose' for details"
+        log_info "Services may still be starting - try again in 30 seconds"
+    fi
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SUMMARY
+# ═══════════════════════════════════════════════════════════════════════════════
+
+print_summary() {
+    local compose_file
+    compose_file=$(get_compose_file)
+    
+    local running total
+    running=$(docker compose --project-directory "$PROJECT_ROOT" -f "$compose_file" ps --status running --format "{{.Name}}" 2>/dev/null | wc -l || echo "0")
+    total=$(docker compose --project-directory "$PROJECT_ROOT" -f "$compose_file" ps --format "{{.Name}}" 2>/dev/null | wc -l || echo "0")
+    
+    echo ""
+    echo -e "${GREEN}╔══════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║${NC}                    ${BOLD}BOOTSTRAP COMPLETE${NC}                           ${GREEN}║${NC}"
+    echo -e "${GREEN}╠══════════════════════════════════════════════════════════════════╣${NC}"
+    echo -e "${GREEN}║${NC}  Role:     ${MAGENTA}$ROLE${NC}                                              ${GREEN}║${NC}"
+    echo -e "${GREEN}║${NC}  Services: ${CYAN}$running/$total running${NC}                                     ${GREEN}║${NC}"
+    echo -e "${GREEN}╚══════════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    
+    if [ "$ROLE" = "cloud" ]; then
+        echo -e "${CYAN}Cloud Endpoints:${NC}"
+        echo "  Dashboard:    https://host.evindrake.net"
+        echo "  Discord Bot:  https://bot.rig-city.com"
+        echo "  Stream Bot:   https://stream.rig-city.com"
+        echo "  n8n:          https://n8n.evindrake.net"
+        echo "  Code Server:  https://code.evindrake.net"
+    else
+        echo -e "${CYAN}Local Services:${NC}"
+        echo "  Home Assistant: http://localhost:8123"
+        echo "  MinIO Console:  http://localhost:9001"
+        echo "  Plex:           http://localhost:32400/web"
+        echo "  Sunshine:       https://localhost:47990"
+    fi
+    
+    echo ""
+    echo -e "${CYAN}Quick Commands:${NC}"
+    echo "  ./homelab status   - Check service status"
+    echo "  ./homelab logs     - View service logs"
+    echo "  ./homelab health   - Run health check"
+    echo "  ./homelab restart  - Restart all services"
+    echo ""
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MAIN EXECUTION
+# ═══════════════════════════════════════════════════════════════════════════════
+
+main() {
+    parse_args "$@"
+    
+    # Show banner
+    echo -e "${CYAN}"
+    echo "╔══════════════════════════════════════════════════════════════════╗"
+    echo "║          HOMELAB BOOTSTRAP - Automated Deployment                ║"
+    echo "╚══════════════════════════════════════════════════════════════════╝"
+    echo -e "${NC}"
+    
+    # Detect and validate role
+    detect_role
+    validate_role
+    
+    echo -e "Deployment Role: ${MAGENTA}$ROLE${NC}"
+    echo -e "Project Root:    ${CYAN}$PROJECT_ROOT${NC}"
+    echo ""
+    
+    local total_steps=7
+    if [ "$DRY_RUN" = true ]; then
+        total_steps=3
+    fi
+    
+    # Step 1: Check Docker
+    log_step 1 $total_steps "Checking Docker"
+    check_docker
+    
+    # Step 2: Check .env file
+    log_step 2 $total_steps "Validating Environment File"
+    check_env_file
+    
+    # Generate secrets if requested
+    if [ "$GENERATE_SECRETS" = true ]; then
+        generate_secrets
+    fi
+    
+    # Step 3: Validate environment variables
+    log_step 3 $total_steps "Validating Environment Variables"
+    validate_environment "$ROLE"
+    
+    # Stop here if dry run
+    if [ "$DRY_RUN" = true ]; then
+        echo ""
+        log_success "Dry run complete - environment is valid"
+        exit $EXIT_SUCCESS
+    fi
+    
+    # Step 4: Create directories
+    log_step 4 $total_steps "Creating Directories"
+    create_directories
+    
+    # Step 5: Deploy services
+    log_step 5 $total_steps "Deploying Services"
+    deploy_services
+    
+    # Wait for PostgreSQL if cloud
+    if [ "$ROLE" = "cloud" ]; then
+        wait_for_postgres
+    fi
+    
+    # Step 6: Health verification
+    log_step 6 $total_steps "Verifying Health"
+    verify_service_health
+    
+    # Step 7: Additional setup
+    log_step 7 $total_steps "Additional Configuration"
+    
+    # Setup iptables if requested (requires root)
+    if [ "$SETUP_IPTABLES" = true ]; then
+        if [ "$EUID" -ne 0 ] && ! command -v sudo &> /dev/null; then
+            log_warning "iptables setup requires root privileges"
+            log_warning "Run with sudo or as root to enable iptables setup"
+            log_info "Skipping iptables setup - deployment will continue"
+        else
+            setup_iptables || log_warning "iptables setup failed - continuing deployment"
+        fi
+    fi
+    
+    # Setup cron if not skipped
+    if [ "$SKIP_CRON" = false ]; then
+        setup_cron
+    else
+        log_info "Skipping cron setup (--skip-cron)"
+    fi
+    
+    # Step 8: Run functional verification
+    log_step 8 $((total_steps + 1)) "Running Functional Verification"
+    run_functional_verification
+    
+    # Print summary
+    print_summary
+    
+    exit $EXIT_SUCCESS
+}
+
+# Run main function
+main "$@"

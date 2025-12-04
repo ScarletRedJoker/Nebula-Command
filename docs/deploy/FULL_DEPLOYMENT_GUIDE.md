@@ -91,20 +91,40 @@ PHASE 6: Connect Local to Cloud
     └── Tailscale connects everything
 ```
 
+### Quick Deploy (TL;DR)
+
+```bash
+# LINODE (Cloud):
+cd /opt/homelab/HomeLabHub
+cp deploy/linode/.env.example deploy/linode/.env
+# Edit .env with your secrets, then:
+./deploy/scripts/bootstrap.sh --role cloud --generate-secrets
+
+# LOCAL UBUNTU:
+cd /opt/homelab/HomeLabHub
+cp deploy/local/.env.example deploy/local/.env
+# Edit .env with your secrets, then:
+./deploy/scripts/bootstrap.sh --role local
+
+# VERIFY DEPLOYMENT:
+./deploy/scripts/verify-deployment.sh cloud   # On Linode
+./deploy/scripts/verify-deployment.sh local   # On Ubuntu
+```
+
 ### Which Compose File Do I Use?
 
 ```
 ON LINODE:
   cd /opt/homelab/HomeLabHub
-  docker compose up -d                    # Uses docker-compose.yml
+  docker compose -f deploy/linode/docker-compose.yml up -d
 
 ON LOCAL UBUNTU:
-  cd /opt/homelab
-  docker compose -f compose.local.yml up -d   # Uses compose.local.yml
+  cd /opt/homelab/HomeLabHub
+  docker compose -f deploy/local/docker-compose.yml up -d
 ```
 
-**NEVER run `docker-compose.yml` on local Ubuntu.**
-**NEVER run `compose.local.yml` on Linode.**
+**NEVER run the cloud compose on local Ubuntu.**
+**NEVER run the local compose on Linode.**
 
 **Architecture:**
 ```
