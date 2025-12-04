@@ -218,9 +218,9 @@ sunshine_name = RDPWindows
 2. [x] Verify WireGuard tunnel connectivity between hosts ✅ (~34ms latency)
 3. [x] Configure iptables port forwarding for Sunshine ✅
 4. [x] Pair Moonlight with Sunshine ✅
-5. [ ] Set YOUTUBE_API_KEY for Discord Bot YouTube notifications
-6. [ ] Set CLOUDFLARE_API_TOKEN for DNS automation
-7. [ ] Make iptables rules persistent on Ubuntu host
+5. [x] Make iptables rules persistent on Ubuntu host ✅ (netfilter-persistent installed)
+6. [ ] Set YOUTUBE_API_KEY for Discord Bot YouTube notifications
+7. [ ] Set CLOUDFLARE_API_TOKEN for DNS automation
 
 ### Short-term
 1. [ ] Configure Home Assistant integration (set URL and TOKEN)

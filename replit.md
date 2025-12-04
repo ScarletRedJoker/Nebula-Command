@@ -82,7 +82,7 @@ The core system relies on Docker Compose for orchestrating services across a spl
 ### Outstanding Items
 | Item | Status | Action |
 |------|--------|--------|
-| iptables Persistence | Needs setup | Run `./scripts/persist-iptables.sh` on Ubuntu host |
+| iptables Persistence | ✅ Done | netfilter-persistent installed |
 | YouTube API | Not set | Add YOUTUBE_API_KEY secret for Discord Bot notifications |
 | Cloudflare API | Not set | Add CLOUDFLARE_API_TOKEN for DNS automation |
 | Home Assistant | Not configured | Set HOME_ASSISTANT_URL and HOME_ASSISTANT_TOKEN in production |
