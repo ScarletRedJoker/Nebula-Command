@@ -68,13 +68,24 @@ The core system relies on Docker Compose for orchestrating services across a spl
 - **Phase 3**: GPU passthrough WORKING - Sunshine streaming via Moonlight
 - **WireGuard**: Site-to-site tunnel operational (10.200.0.1 ↔ 10.200.0.2)
 
+### Completed Items ✅
+| Item | Status | Date |
+|------|--------|------|
+| Sunshine GameStream | 1920x1080@60Hz WORKING | Dec 4, 2025 |
+| WireGuard VPN Tunnel | Operational (~34ms latency) | Dec 4, 2025 |
+| Moonlight Pairing | Complete | Dec 4, 2025 |
+| Port Forwarding | iptables configured | Dec 4, 2025 |
+| Plex Native | Running on port 32400 | Dec 4, 2025 |
+| Home Assistant Docker | Running on port 8123 | Dec 4, 2025 |
+| MinIO Storage | Running on ports 9000/9001 | Dec 4, 2025 |
+
 ### Outstanding Items
 | Item | Status | Action |
 |------|--------|--------|
-| Sunshine Resolution | 1024x768@32Hz | Run fix-sunshine-resolution.ps1 on Windows VM |
+| iptables Persistence | Needs setup | Run `./scripts/persist-iptables.sh` on Ubuntu host |
 | YouTube API | Not set | Add YOUTUBE_API_KEY secret for Discord Bot notifications |
 | Cloudflare API | Not set | Add CLOUDFLARE_API_TOKEN for DNS automation |
-| Home Assistant | Not configured | Set HOME_ASSISTANT_URL and HOME_ASSISTANT_TOKEN |
+| Home Assistant | Not configured | Set HOME_ASSISTANT_URL and HOME_ASSISTANT_TOKEN in production |
 
 ## Deployment
 
