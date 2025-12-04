@@ -55,9 +55,31 @@ The core system relies on Docker Compose for orchestrating services across a spl
 - **Tailscale:** VPN mesh connecting Linode and local host.
 - **Sunshine:** Game streaming server (Windows 11 KVM VM with GPU passthrough on local Ubuntu host).
 
+## Current Status (December 4, 2025)
+
+### Replit Development Environment
+- **Dashboard**: Running on port 5000 (Flask)
+- **Discord Bot**: Running on port 4000 (Connected to 2 servers: Rig City + Joker's HQ)
+- **Stream Bot**: Running on port 3000 (OAuth for Twitch/YouTube/Spotify/Kick configured)
+- **Database**: Neon PostgreSQL (cloud) - migrations complete
+
+### Production (Linode + Local)
+- **Phase 1-2**: All cloud services deployed with SSL
+- **Phase 3**: GPU passthrough WORKING - Sunshine streaming via Moonlight
+- **WireGuard**: Site-to-site tunnel operational (10.200.0.1 ↔ 10.200.0.2)
+
+### Outstanding Items
+| Item | Status | Action |
+|------|--------|--------|
+| Sunshine Resolution | 1024x768@32Hz | Run fix-sunshine-resolution.ps1 on Windows VM |
+| YouTube API | Not set | Add YOUTUBE_API_KEY secret for Discord Bot notifications |
+| Cloudflare API | Not set | Add CLOUDFLARE_API_TOKEN for DNS automation |
+| Home Assistant | Not configured | Set HOME_ASSISTANT_URL and HOME_ASSISTANT_TOKEN |
+
 ## Deployment
 
 **See [`docs/deploy/FULL_DEPLOYMENT_GUIDE.md`](docs/deploy/FULL_DEPLOYMENT_GUIDE.md)** - the single source of truth for all deployment instructions.
+**See [`docs/deploy/INFRASTRUCTURE_AUDIT.md`](docs/deploy/INFRASTRUCTURE_AUDIT.md)** - complete infrastructure audit and status map.
 
 ```bash
 # Cloud (Linode)
