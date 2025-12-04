@@ -1,0 +1,16 @@
+services:
+  homelab-dashboard:
+    image: homelabhub-homelab-dashboard:latest
+    build: !reset null
+
+  homelab-celery-worker:
+    image: homelabhub-homelab-celery-worker:latest
+    build: !reset null
+
+  discord-bot:
+    image: homelabhub-discord-bot:latest
+    build: !reset null
+
+  stream-bot:
+    image: homelabhub-stream-bot:latest
+    build: !reset null
