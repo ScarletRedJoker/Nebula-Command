@@ -395,8 +395,8 @@ normalize_env_aliases() {
         
         local expected_val
         local alt_val
-        expected_val=$(grep "^${expected}=" "$env_file" 2>/dev/null | head -1 | cut -d'=' -f2-)
-        alt_val=$(grep "^${alternative}=" "$env_file" 2>/dev/null | head -1 | cut -d'=' -f2-)
+        expected_val=$(grep "^${expected}=" "$env_file" 2>/dev/null | head -1 | cut -d'=' -f2-) || true
+        alt_val=$(grep "^${alternative}=" "$env_file" 2>/dev/null | head -1 | cut -d'=' -f2-) || true
         
         # If expected is empty but alternative exists, copy alternative to expected
         if [ -z "$expected_val" ] && [ -n "$alt_val" ]; then
@@ -406,7 +406,7 @@ normalize_env_aliases() {
                 echo "${expected}=${alt_val}" >> "$env_file"
             fi
             log_info "Mapped $alternative → $expected"
-            ((normalized++))
+            normalized=$((normalized + 1))
         fi
     done
     
