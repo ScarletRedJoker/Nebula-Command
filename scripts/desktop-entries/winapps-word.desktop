@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Microsoft Word (WinApps)
+Comment=Launch Word with automatic Productivity Mode
+Exec=/opt/homelab/HomeLabHub/scripts/winapps-wrapper.sh word
+Icon=ms-word
+Terminal=false
+Type=Application
+Categories=Office;
+Keywords=word;document;microsoft;

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Moonlight Gaming
+Comment=Launch Moonlight with automatic Gaming Mode
+Exec=/opt/homelab/HomeLabHub/scripts/moonlight-wrapper.sh
+Icon=moonlight
+Terminal=false
+Type=Application
+Categories=Game;Network;
+Keywords=streaming;gaming;moonlight;sunshine;

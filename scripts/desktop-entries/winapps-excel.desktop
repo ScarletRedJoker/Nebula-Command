@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Microsoft Excel (WinApps)
+Comment=Launch Excel with automatic Productivity Mode
+Exec=/opt/homelab/HomeLabHub/scripts/winapps-wrapper.sh excel
+Icon=ms-excel
+Terminal=false
+Type=Application
+Categories=Office;
+Keywords=excel;spreadsheet;microsoft;
