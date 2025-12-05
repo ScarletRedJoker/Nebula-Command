@@ -25,6 +25,11 @@ services:
       - ./config:/config
       - ./transcode:/transcode
       - ./media:/media
+      # NAS Media Mounts (Zyxel NAS326)
+      - /mnt/nas/all/networkshare/video:/nas/video:ro
+      - /mnt/nas/all/networkshare/music:/nas/music:ro
+      - /mnt/nas/all/networkshare/photo:/nas/photo:ro
+      - /mnt/nas/all/networkshare/games:/nas/games:ro
     devices:
       - /dev/dri:/dev/dri
     restart: unless-stopped
