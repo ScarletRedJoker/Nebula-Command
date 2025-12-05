@@ -133,16 +133,20 @@ test_nfs_connection() {
 create_mount_points() {
     log_info "Creating mount points..."
     
-    mkdir -p "$MOUNT_BASE"
+    mkdir -p "$MOUNT_BASE" 2>/dev/null || true
     
     for mount_name in "${!MOUNTS[@]}"; do
         local mount_point="${MOUNT_BASE}/${mount_name}"
-        mkdir -p "$mount_point"
-        log_success "Created: $mount_point"
+        mkdir -p "$mount_point" 2>/dev/null || true
+        if [ -d "$mount_point" ]; then
+            log_success "Ready: $mount_point"
+        fi
     done
     
-    mkdir -p "$MOUNT_BASE/all"
-    log_success "Created: $MOUNT_BASE/all (full share)"
+    mkdir -p "$MOUNT_BASE/all" 2>/dev/null || true
+    if [ -d "$MOUNT_BASE/all" ]; then
+        log_success "Ready: $MOUNT_BASE/all (full share)"
+    fi
 }
 
 configure_fstab() {
