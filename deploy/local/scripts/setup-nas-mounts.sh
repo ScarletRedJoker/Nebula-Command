@@ -214,9 +214,16 @@ mount_shares() {
     for mount_name in "${!MOUNTS[@]}"; do
         local nas_folder="${MOUNTS[$mount_name]}"
         local symlink="${MOUNT_BASE}/${mount_name}"
-        local target="${MOUNT_BASE}/all/${nas_folder}"
         
-        if [ -d "$target" ]; then
+        # Check multiple possible locations for media folders
+        local target=""
+        if [ -d "${MOUNT_BASE}/all/${nas_folder}" ]; then
+            target="${MOUNT_BASE}/all/${nas_folder}"
+        elif [ -d "${MOUNT_BASE}/all/networkshare/${nas_folder}" ]; then
+            target="${MOUNT_BASE}/all/networkshare/${nas_folder}"
+        fi
+        
+        if [ -n "$target" ] && [ -d "$target" ]; then
             rm -f "$symlink" 2>/dev/null || rmdir "$symlink" 2>/dev/null || true
             ln -sf "$target" "$symlink"
             log_success "Linked: $symlink -> $target"
