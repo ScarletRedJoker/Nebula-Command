@@ -124,7 +124,7 @@ configure_fstab() {
 
 # NAS326 NFS Mounts (auto-generated)
 # Zyxel NAS326 at $NAS_HOST ($NAS_IP)
-${NAS_IP}:${NFS_SHARE}  ${MOUNT_BASE}/all  nfs  defaults,soft,timeo=150,retrans=3,_netdev,noauto,x-systemd.automount  0  0
+${NAS_IP}:${NFS_SHARE}  ${MOUNT_BASE}/all  nfs  nfsvers=3,proto=tcp,soft,timeo=150,retrans=3,_netdev,noauto,x-systemd.automount  0  0
 # End NAS326
 
 EOF
@@ -137,34 +137,55 @@ mount_shares() {
     
     systemctl daemon-reload
     
-    if mount "${MOUNT_BASE}/all" 2>/dev/null; then
-        log_success "Mounted: ${MOUNT_BASE}/all"
-        
-        log_info "Creating symlinks to media folders..."
-        for mount_name in "${!MOUNTS[@]}"; do
-            local nas_folder="${MOUNTS[$mount_name]}"
-            local symlink="${MOUNT_BASE}/${mount_name}"
-            local target="${MOUNT_BASE}/all/${nas_folder}"
-            
-            if [ -d "$target" ]; then
-                rm -f "$symlink" 2>/dev/null || rmdir "$symlink" 2>/dev/null || true
-                ln -sf "$target" "$symlink"
-                log_success "Linked: $symlink -> $target"
-            else
-                log_warn "Folder not found on NAS: $nas_folder"
-            fi
-        done
+    # Try NFS v3 first (most compatible with Zyxel)
+    log_info "Attempting NFS mount..."
+    if mount -t nfs -o nfsvers=3,proto=tcp,soft,timeo=150,retrans=3 "${NAS_IP}:${NFS_SHARE}" "${MOUNT_BASE}/all" 2>/dev/null; then
+        log_success "Mounted via NFS v3: ${MOUNT_BASE}/all"
+    elif mount -t nfs -o nfsvers=4,proto=tcp,soft,timeo=150 "${NAS_IP}:${NFS_SHARE}" "${MOUNT_BASE}/all" 2>/dev/null; then
+        log_success "Mounted via NFS v4: ${MOUNT_BASE}/all"
+    elif mount -t nfs "${NAS_IP}:${NFS_SHARE}" "${MOUNT_BASE}/all" 2>/dev/null; then
+        log_success "Mounted via NFS (auto): ${MOUNT_BASE}/all"
     else
-        log_error "Failed to mount NFS share"
-        log_info "Trying alternative mount..."
+        log_error "NFS mount failed"
+        log_info "Checking if SMB/CIFS is available..."
         
-        if mount -t nfs -o soft,timeo=150 "${NAS_IP}:${NFS_SHARE}" "${MOUNT_BASE}/all"; then
-            log_success "Mounted with alternative options"
+        if nc -z -w2 "$NAS_IP" 445 2>/dev/null; then
+            log_info "SMB port is open, trying CIFS mount..."
+            apt-get install -y cifs-utils 2>/dev/null || true
+            
+            if mount -t cifs "//${NAS_IP}/nfs" "${MOUNT_BASE}/all" -o guest,vers=3.0 2>/dev/null; then
+                log_success "Mounted via SMB/CIFS: ${MOUNT_BASE}/all"
+            else
+                log_error "CIFS mount also failed"
+                echo ""
+                echo "Please run the diagnostic script:"
+                echo "  ./scripts/diagnose-nas.sh"
+                exit 1
+            fi
         else
-            log_error "Mount failed. Check NFS export permissions on NAS."
+            log_error "Mount failed. NFS and SMB ports not accessible."
+            echo ""
+            echo "Please run the diagnostic script:"
+            echo "  ./scripts/diagnose-nas.sh ${NAS_IP}"
             exit 1
         fi
     fi
+    
+    # Create symlinks to media folders
+    log_info "Creating symlinks to media folders..."
+    for mount_name in "${!MOUNTS[@]}"; do
+        local nas_folder="${MOUNTS[$mount_name]}"
+        local symlink="${MOUNT_BASE}/${mount_name}"
+        local target="${MOUNT_BASE}/all/${nas_folder}"
+        
+        if [ -d "$target" ]; then
+            rm -f "$symlink" 2>/dev/null || rmdir "$symlink" 2>/dev/null || true
+            ln -sf "$target" "$symlink"
+            log_success "Linked: $symlink -> $target"
+        else
+            log_warn "Folder not found on NAS: $nas_folder"
+        fi
+    done
 }
 
 verify_mounts() {
