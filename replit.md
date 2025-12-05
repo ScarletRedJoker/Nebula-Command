@@ -117,9 +117,36 @@ See [`docs/deploy/EXTERNAL_ACCESS_GUIDE.md`](docs/deploy/EXTERNAL_ACCESS_GUIDE.m
 
 ## Deployment
 
-**See [`docs/deploy/FULL_DEPLOYMENT_GUIDE.md`](docs/deploy/FULL_DEPLOYMENT_GUIDE.md)** - the single source of truth for all deployment instructions.
-**See [`docs/deploy/INFRASTRUCTURE_AUDIT.md`](docs/deploy/INFRASTRUCTURE_AUDIT.md)** - complete infrastructure audit and status map.
-**See [`docs/deploy/FULL_NETWORK_AUDIT_DEC4.md`](docs/deploy/FULL_NETWORK_AUDIT_DEC4.md)** - December 4, 2025 network audit post-BE9300 router migration.
+**See [`docs/DEPLOYMENT_PIPELINE.md`](docs/DEPLOYMENT_PIPELINE.md)** - One-click deployment from Replit.
+**See [`docs/deploy/FULL_DEPLOYMENT_GUIDE.md`](docs/deploy/FULL_DEPLOYMENT_GUIDE.md)** - Full deployment instructions.
+**See [`docs/deploy/INFRASTRUCTURE_AUDIT.md`](docs/deploy/INFRASTRUCTURE_AUDIT.md)** - Infrastructure audit and status.
+
+### One-Click Deploy from Replit
+
+```bash
+# Full deployment (test → push → deploy to production)
+npm run deploy
+
+# Other deployment commands
+npm run deploy:test     # Run tests only
+npm run deploy:push     # Push to GitHub only
+npm run deploy:status   # Check deployment status
+npm run deploy:health   # Run health checks
+```
+
+### Environment Sync
+
+```bash
+# Check environment status
+npm run env:status
+
+# Validate all required variables
+npm run env:validate
+
+# Sync with production
+npm run env:pull        # Pull from production
+npm run env:push        # Push to production
+```
 
 ### Automated Zero-Touch Deployment
 

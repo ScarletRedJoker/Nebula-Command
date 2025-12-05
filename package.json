@@ -1,18 +1,36 @@
 {
-  "name": "workspace",
+  "name": "homelab-workspace",
   "version": "1.0.0",
-  "description": "**Centralized development environment for all homelab services**",
+  "description": "Nebula Command Dashboard - Centralized homelab management",
   "main": "index.js",
+  "type": "module",
   "directories": {
     "doc": "docs"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "npm run test:ts && npm run test:py",
+    "test:ts": "cd services/discord-bot && npm run check && cd ../stream-bot && npm run check",
+    "test:py": "python -m pytest services/dashboard/tests/ -v --tb=short || true",
+    "deploy": "./scripts/deploy/replit-deploy.sh deploy",
+    "deploy:test": "./scripts/deploy/replit-deploy.sh test",
+    "deploy:push": "./scripts/deploy/replit-deploy.sh push",
+    "deploy:status": "./scripts/deploy/replit-deploy.sh status",
+    "deploy:health": "./scripts/deploy/replit-deploy.sh health",
+    "env:status": "./scripts/env/sync.sh status",
+    "env:validate": "./scripts/env/validate.sh all",
+    "env:sync": "./scripts/env/sync.sh",
+    "env:pull": "./scripts/env/sync.sh pull cloud",
+    "env:push": "./scripts/env/sync.sh push cloud",
+    "dashboard": "cd services/dashboard && python app.py",
+    "discord-bot": "cd services/discord-bot && npm run dev",
+    "stream-bot": "cd services/stream-bot && npm run dev",
+    "all": "npm run dashboard & npm run discord-bot & npm run stream-bot"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": ["homelab", "dashboard", "discord-bot", "stream-bot"],
+  "author": "Evin",
+  "license": "MIT",
   "dependencies": {
+    "@octokit/rest": "^22.0.0",
     "@vitest/ui": "^4.0.9",
     "happy-dom": "^20.0.10",
     "obs-websocket-js": "^5.0.7",
