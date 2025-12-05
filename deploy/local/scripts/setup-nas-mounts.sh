@@ -20,7 +20,7 @@ log_error() { echo -e "${RED}[ERROR]${NC} $*"; }
 # Configuration
 NAS_HOST="${NAS_HOST:-NAS326.local}"
 NAS_IP="${NAS_IP:-}"
-NFS_SHARE="/nfs/networkshare"
+NFS_SHARE="${NFS_SHARE:-}"  # Auto-detected from showmount
 MOUNT_BASE="/mnt/nas"
 
 # Media mount points (matching NAS folders)
@@ -91,8 +91,42 @@ test_nfs_connection() {
         log_success "NFS server is accessible"
         log_info "Available exports:"
         showmount -e "$NAS_IP" | head -10
+        
+        # Auto-detect best export path if not specified
+        if [ -z "$NFS_SHARE" ]; then
+            log_info "Auto-detecting NFS export path..."
+            
+            # Look for exports available to everyone (*) or this host
+            local my_ip=$(hostname -I | awk '{print $1}')
+            local exports=$(showmount -e "$NAS_IP" 2>/dev/null)
+            
+            # First try: find export with networkshare that allows everyone or our IP
+            NFS_SHARE=$(echo "$exports" | grep -E "networkshare.*(\*|${my_ip})" | awk '{print $1}' | head -1)
+            
+            # Second try: find any export that allows everyone (*)
+            if [ -z "$NFS_SHARE" ]; then
+                NFS_SHARE=$(echo "$exports" | grep '\*$' | awk '{print $1}' | head -1)
+            fi
+            
+            # Third try: find any nfs-related export
+            if [ -z "$NFS_SHARE" ]; then
+                NFS_SHARE=$(echo "$exports" | grep -i nfs | awk '{print $1}' | head -1)
+            fi
+            
+            if [ -n "$NFS_SHARE" ]; then
+                log_success "Auto-detected export: $NFS_SHARE"
+            else
+                log_error "Could not auto-detect NFS export path"
+                log_info "Please specify with: --nfs-share=/path/to/share"
+                exit 1
+            fi
+        fi
     else
         log_warn "Cannot query NFS exports - server may still work"
+        if [ -z "$NFS_SHARE" ]; then
+            NFS_SHARE="/nfs/networkshare"  # Fallback default
+            log_warn "Using default export path: $NFS_SHARE"
+        fi
     fi
 }
 
@@ -238,6 +272,9 @@ parse_args() {
             --nas-host=*)
                 NAS_HOST="${arg#*=}"
                 ;;
+            --nfs-share=*)
+                NFS_SHARE="${arg#*=}"
+                ;;
             --unmount)
                 unmount_shares
                 exit 0
@@ -250,8 +287,28 @@ parse_args() {
                 show_help
                 exit 0
                 ;;
+            --clean-fstab)
+                clean_old_fstab
+                exit 0
+                ;;
         esac
     done
+}
+
+clean_old_fstab() {
+    log_info "Cleaning old NAS entries from fstab..."
+    
+    # Backup
+    cp /etc/fstab /etc/fstab.backup.$(date +%Y%m%d%H%M%S)
+    
+    # Remove old NAS326 entries and old IP entries
+    sed -i '/# NAS326/,/# End NAS326/d' /etc/fstab
+    sed -i '/192\.168\.1\.[0-9]*.*nas/d' /etc/fstab
+    sed -i '/192\.168\.1\.[0-9]*.*nfs/d' /etc/fstab
+    
+    log_success "Cleaned old fstab entries"
+    log_info "Current NAS-related fstab entries:"
+    grep -i "nas\|nfs" /etc/fstab || echo "  (none)"
 }
 
 unmount_shares() {
