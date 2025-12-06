@@ -102,3 +102,33 @@ home.evindrake.net {
 game.evindrake.net {
     redir https://dashboard.evindrake.net/game-connect permanent
 }
+
+grafana.evindrake.net {
+    reverse_proxy homelab-grafana:3000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+    }
+    
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    }
+}
+
+dns.evindrake.net {
+    reverse_proxy dns-manager:8001 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+    }
+    
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    }
+}
