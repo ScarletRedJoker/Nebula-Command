@@ -280,7 +280,7 @@ select_best_nas() {
     local best_host=""
     local best_share=""
     local best_type=""
-    local best_score=0
+    local best_score=-1
     
     for share_info in "${DISCOVERED_SHARES[@]}"; do
         local host=$(echo "$share_info" | cut -d: -f1)
