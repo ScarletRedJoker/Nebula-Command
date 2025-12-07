@@ -73,7 +73,7 @@ services:
 
   homelab-dashboard:
     build:
-      context: ./services/dashboard
+      context: ../../services/dashboard
       dockerfile: Dockerfile
     container_name: homelab-dashboard
     restart: unless-stopped
@@ -106,7 +106,7 @@ services:
 
   homelab-celery-worker:
     build:
-      context: ./services/dashboard
+      context: ../../services/dashboard
       dockerfile: Dockerfile
     container_name: homelab-celery-worker
     restart: unless-stopped
@@ -144,7 +144,7 @@ services:
 
   discord-bot:
     build:
-      context: ./services/discord-bot
+      context: ../../services/discord-bot
       dockerfile: Dockerfile
     container_name: discord-bot
     restart: unless-stopped
@@ -184,7 +184,7 @@ services:
 
   stream-bot:
     build:
-      context: ./services/stream-bot
+      context: ../../services/stream-bot
       dockerfile: Dockerfile
     container_name: stream-bot
     restart: unless-stopped
