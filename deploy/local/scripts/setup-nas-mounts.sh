@@ -190,7 +190,8 @@ configure_fstab() {
 
 # NAS326 SMB Mounts (auto-generated)
 # Zyxel NAS326 at $NAS_HOST ($NAS_IP)
-//${NAS_IP}/${SMB_SHARE}  ${MOUNT_BASE}/all  cifs  guest,vers=3.0,_netdev,noauto,x-systemd.automount  0  0
+# rw = read-write access enabled for uploads
+//${NAS_IP}/${SMB_SHARE}  ${MOUNT_BASE}/all  cifs  guest,vers=3.0,rw,_netdev,noauto,x-systemd.automount  0  0
 # End NAS326
 
 EOF
@@ -199,7 +200,8 @@ EOF
 
 # NAS326 NFS Mounts (auto-generated)
 # Zyxel NAS326 at $NAS_HOST ($NAS_IP)
-${NAS_IP}:${NFS_SHARE}  ${MOUNT_BASE}/all  nfs  nfsvers=3,proto=tcp,soft,timeo=150,retrans=3,_netdev,noauto,x-systemd.automount  0  0
+# rw = read-write access enabled for uploads
+${NAS_IP}:${NFS_SHARE}  ${MOUNT_BASE}/all  nfs  rw,nfsvers=3,proto=tcp,soft,timeo=150,retrans=3,_netdev,noauto,x-systemd.automount  0  0
 # End NAS326
 
 EOF
@@ -237,17 +239,21 @@ mount_nfs_share() {
     
     log_info "Attempting NFS mount: ${NAS_IP}:${NFS_SHARE}"
     
-    if mount -t nfs -o nfsvers=3,proto=tcp,soft,timeo=150,retrans=3 "${NAS_IP}:${NFS_SHARE}" "${MOUNT_BASE}/all" 2>/dev/null; then
-        log_success "Mounted via NFS v3: ${MOUNT_BASE}/all"
+    # Mount with read-write access (rw) explicitly set
+    # Use soft mounts with reasonable timeouts to prevent hangs
+    if mount -t nfs -o rw,nfsvers=3,proto=tcp,soft,timeo=150,retrans=3 "${NAS_IP}:${NFS_SHARE}" "${MOUNT_BASE}/all" 2>/dev/null; then
+        log_success "Mounted via NFS v3 (read-write): ${MOUNT_BASE}/all"
         return 0
-    elif mount -t nfs -o nfsvers=4,proto=tcp,soft,timeo=150 "${NAS_IP}:${NFS_SHARE}" "${MOUNT_BASE}/all" 2>/dev/null; then
-        log_success "Mounted via NFS v4: ${MOUNT_BASE}/all"
+    elif mount -t nfs -o rw,nfsvers=4,proto=tcp,soft,timeo=150 "${NAS_IP}:${NFS_SHARE}" "${MOUNT_BASE}/all" 2>/dev/null; then
+        log_success "Mounted via NFS v4 (read-write): ${MOUNT_BASE}/all"
         return 0
-    elif mount -t nfs "${NAS_IP}:${NFS_SHARE}" "${MOUNT_BASE}/all" 2>/dev/null; then
-        log_success "Mounted via NFS (auto): ${MOUNT_BASE}/all"
+    elif mount -t nfs -o rw "${NAS_IP}:${NFS_SHARE}" "${MOUNT_BASE}/all" 2>/dev/null; then
+        log_success "Mounted via NFS (auto, read-write): ${MOUNT_BASE}/all"
         return 0
     else
         log_error "NFS mount failed for ${NAS_IP}:${NFS_SHARE}"
+        log_info "If this is a permission issue, ensure NAS exports allow write access"
+        log_info "Check NAS admin panel: NFS settings -> Export permissions -> Allow rw"
         return 1
     fi
 }
@@ -295,8 +301,20 @@ mount_shares() {
         exit 1
     fi
     
-    # Create symlinks to media folders
+    # Create symlinks to media folders and compatibility paths
     log_info "Creating symlinks to media folders..."
+    
+    # Create /mnt/nas/networkshare symlink for Docker compatibility
+    # Docker compose uses /mnt/nas/networkshare/video, etc.
+    local networkshare_link="${MOUNT_BASE}/networkshare"
+    if [ ! -e "$networkshare_link" ] || [ -L "$networkshare_link" ]; then
+        rm -f "$networkshare_link" 2>/dev/null || true
+        ln -sf "${MOUNT_BASE}/all" "$networkshare_link"
+        log_success "Created Docker compatibility symlink: $networkshare_link -> ${MOUNT_BASE}/all"
+    else
+        log_warn "$networkshare_link exists but is not a symlink - skipping"
+    fi
+    
     for mount_name in "${!MOUNTS[@]}"; do
         local nas_folder="${MOUNTS[$mount_name]}"
         local symlink="${MOUNT_BASE}/${mount_name}"

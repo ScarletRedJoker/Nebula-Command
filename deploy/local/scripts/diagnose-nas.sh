@@ -122,13 +122,29 @@ fi
 
 # Step 6: Check current mounts
 echo ""
-echo -e "${CYAN}[6/7] Current Mount Status${NC}"
+echo -e "${CYAN}[6/8] Current Mount Status${NC}"
 if mountpoint -q "$MOUNT_BASE/all" 2>/dev/null; then
     echo -e "${GREEN}[MOUNTED]${NC} $MOUNT_BASE/all is mounted"
     df -h "$MOUNT_BASE/all"
     echo ""
     echo "Contents:"
     ls -la "$MOUNT_BASE/all" 2>/dev/null | head -10
+    
+    # Test write access
+    echo ""
+    echo -e "${CYAN}Testing write access...${NC}"
+    test_file="$MOUNT_BASE/all/.write-test-$$"
+    if touch "$test_file" 2>/dev/null; then
+        rm -f "$test_file"
+        echo -e "${GREEN}[OK]${NC} Write access confirmed - uploads will work"
+    else
+        echo -e "${RED}[FAIL]${NC} No write access to NAS"
+        echo ""
+        echo "  To enable writes:"
+        echo "  1. Check NAS share permissions in web panel"
+        echo "  2. Ensure export allows 'rw' (read-write)"
+        echo "  3. Remount: sudo umount $MOUNT_BASE/all && sudo mount -o rw ..."
+    fi
 else
     echo -e "${YELLOW}[NOT MOUNTED]${NC} $MOUNT_BASE/all is not mounted"
 fi
@@ -138,9 +154,30 @@ echo ""
 echo "fstab entries for NAS:"
 grep -i "nas\|nfs\|networkshare" /etc/fstab 2>/dev/null || echo "  (none found)"
 
-# Step 7: Recommendations
+# Step 7: Plex Integration Check
 echo ""
-echo -e "${CYAN}[7/7] Recommendations${NC}"
+echo -e "${CYAN}[7/8] Plex Integration${NC}"
+if command -v docker &>/dev/null && docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^plex$"; then
+    echo -e "${GREEN}[OK]${NC} Plex container is running"
+    
+    # Check if Plex can see media
+    for folder in video music photo; do
+        count=$(docker exec plex ls -1 /nas/$folder 2>/dev/null | wc -l || echo "0")
+        if [ "$count" -gt 0 ]; then
+            echo -e "${GREEN}[OK]${NC} Plex sees /nas/$folder ($count items)"
+        else
+            echo -e "${YELLOW}[WARN]${NC} Plex cannot see /nas/$folder"
+            echo "         → Restart Plex after mounting: docker restart plex"
+        fi
+    done
+else
+    echo -e "${YELLOW}[INFO]${NC} Plex container not running"
+    echo "  Start with: docker-compose up -d plex"
+fi
+
+# Step 8: Recommendations
+echo ""
+echo -e "${CYAN}[8/8] Recommendations${NC}"
 echo ""
 
 if [ -n "$NAS_IP" ]; then

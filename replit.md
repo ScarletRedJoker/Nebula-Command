@@ -117,8 +117,26 @@ sudo ./deploy/local/scripts/bootstrap-local.sh --skip-nas
 
 Scripts:
 - `deploy/local/scripts/discover-nas.sh` - Auto-discovery with scoring algorithm (prefers NFS, media shares)
-- `deploy/local/scripts/setup-nas-mounts.sh` - Mount configuration supporting both NFS and SMB/CIFS
+- `deploy/local/scripts/setup-nas-mounts.sh` - Mount configuration with read-write access and Docker compatibility symlinks
+- `deploy/local/scripts/diagnose-nas.sh` - Troubleshooting script for NAS connectivity and write access
 - `deploy/local/scripts/bootstrap-local.sh` - Integrated bootstrap with `--skip-nas` option
+- `scripts/secrets-manager.sh` - Centralized secrets encryption using Age
+
+### NAS Upload Support
+- NAS mounts at `/mnt/nas/all` with read-write access enabled
+- Symlink `/mnt/nas/networkshare` → `/mnt/nas/all` for Docker compatibility
+- Uploads via: `cp file.mkv /mnt/nas/networkshare/video/`
+- Plex volumes remain read-only for safety
+
+### Secrets Management
+- Documentation: `docs/deploy/SECRETS_MANAGEMENT.md`
+- Script: `scripts/secrets-manager.sh` (Age-based encryption)
+- Commands: `./scripts/secrets-manager.sh init|encrypt|decrypt|sync`
+
+### Home Assistant
+- URL: https://home.evindrake.net
+- Config includes `external_url` for reverse proxy support
+- Configuration template: `config/homeassistant/configuration.yaml`
 
 ### Deployment
 
