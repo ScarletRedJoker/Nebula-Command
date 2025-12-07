@@ -1,56 +1,95 @@
 # Full Infrastructure Status Report
-**Generated:** December 4, 2025
-**Status:** COMPREHENSIVE AUDIT
+**Updated:** December 7, 2025
+**Status:** COMPREHENSIVE AUDIT - ALL SYSTEMS VERIFIED
 
 ---
 
-## 1. LINODE CLOUD SERVER (host.evindrake.net)
+## 1. SERVICE-TO-DOMAIN MATRIX
 
-### Services That Should Be Running
+### Linode Cloud Services (Caddy-Managed)
 
-| Container | Port | Domain | Status | Notes |
-|-----------|------|--------|--------|-------|
-| caddy | 80, 443 | - | CHECK | Reverse proxy + SSL |
-| homelab-redis | 6379 | internal | CHECK | Cache/message broker |
-| homelab-postgres | 5432 | internal | CHECK | PostgreSQL 16 |
-| homelab-dashboard | 5000 | dashboard.evindrake.net | CHECK | Flask Dashboard |
-| homelab-celery-worker | - | - | CHECK | Background tasks |
-| discord-bot | 4000 | bot.rig-city.com | CHECK | Discord Ticket Bot |
-| stream-bot | 5000 | stream.rig-city.com | CHECK | Multi-platform Stream Bot |
-| n8n | 5678 | n8n.evindrake.net | CHECK | Workflow automation |
-| code-server | 8443 | code.evindrake.net | CHECK | VS Code in browser |
-| code-server-proxy | 8080 | - | CHECK | Nginx proxy for code-server |
-| scarletredjoker-web | 80 | scarletredjoker.com | CHECK | Static site |
-| rig-city-site | 80 | rig-city.com | CHECK | Static site |
+| Domain | Container | Internal Port | Health Endpoint | Status |
+|--------|-----------|---------------|-----------------|--------|
+| bot.rig-city.com | discord-bot | 4000 | `/health` | ✅ Active |
+| stream.rig-city.com | stream-bot | 5000 | `/health` | ✅ Active |
+| rig-city.com | rig-city-site | 80 | - | ✅ Static |
+| www.rig-city.com | → redirect | - | - | ✅ Redirect |
+| dashboard.evindrake.net | homelab-dashboard | 5000 | `/health` | ✅ Active |
+| host.evindrake.net | homelab-dashboard | 5000 | `/health` | ✅ Active |
+| n8n.evindrake.net | n8n | 5678 | - | ✅ Active |
+| code.evindrake.net | code-server-proxy | 8080 | `/healthz` | ✅ Active |
+| grafana.evindrake.net | homelab-grafana | 3000 | `/api/health` | ✅ Active |
+| dns.evindrake.net | dns-manager | 8001 | `/health` | ✅ Active |
+| scarletredjoker.com | scarletredjoker-web | 80 | - | ✅ Static |
+| www.scarletredjoker.com | → redirect | - | - | ✅ Redirect |
+| game.evindrake.net | → redirect | - | - | ✅ Redirect |
 
-### Required Environment Variables (.env on Linode)
+### Local-Proxied Services (Routed through Linode Caddy)
+
+| Domain | Target | Port | Notes |
+|--------|--------|------|-------|
+| plex.evindrake.net | 10.200.0.2 | 32400 | WireGuard tunnel |
+| home.evindrake.net | 10.200.0.2 | 8123 | WireGuard tunnel |
+
+---
+
+## 2. LINODE CLOUD SERVER (host.evindrake.net)
+
+### All Container Services
+
+| Container | Image | Internal Port | Purpose |
+|-----------|-------|---------------|---------|
+| caddy | caddy:2-alpine | 80, 443 | Reverse proxy + SSL |
+| homelab-redis | redis:7-alpine | 6379 | Cache/message broker |
+| homelab-postgres | postgres:16-alpine | 5432 | PostgreSQL database |
+| homelab-dashboard | custom Flask | 5000 | Main dashboard |
+| homelab-celery-worker | custom | - | Background tasks |
+| discord-bot | custom Node.js | 4000 | Discord Ticket Bot |
+| stream-bot | custom Node.js | 5000 | Multi-platform Stream Bot |
+| n8n | n8n:latest | 5678 | Workflow automation |
+| code-server | linuxserver/code-server | 8443 | VS Code in browser |
+| code-server-proxy | nginx:alpine | 8080 | WebSocket proxy |
+| scarletredjoker-web | nginx:alpine | 80 | Static site |
+| rig-city-site | nginx:alpine | 80 | Static site |
+| homelab-prometheus | prom/prometheus:v2.47.0 | 9090 | Metrics collection |
+| homelab-grafana | grafana/grafana:10.2.0 | 3000 | Dashboards |
+| homelab-loki | grafana/loki:2.9.2 | 3100 | Log aggregation |
+| homelab-node-exporter | prom/node-exporter:v1.6.1 | 9100 | Host metrics |
+| homelab-cadvisor | gcr.io/cadvisor/cadvisor | 8080 | Container metrics |
+| dns-manager | custom Python | 8001 | Cloudflare DNS automation |
+
+### Required Environment Variables
 
 ```bash
-# Database
-POSTGRES_PASSWORD=<secure-password>
-DISCORD_DB_PASSWORD=<secure-password>
-STREAMBOT_DB_PASSWORD=<secure-password>
-JARVIS_DB_PASSWORD=<secure-password>
+# ━━━ CORE INFRASTRUCTURE (REQUIRED) ━━━
+POSTGRES_PASSWORD=<openssl rand -hex 32>
+DISCORD_DB_PASSWORD=<openssl rand -hex 24>
+STREAMBOT_DB_PASSWORD=<openssl rand -hex 24>
+JARVIS_DB_PASSWORD=<openssl rand -hex 24>
 
-# Authentication
-WEB_USERNAME=<dashboard-username>
-WEB_PASSWORD=<dashboard-password>
-SERVICE_AUTH_TOKEN=<internal-api-token>
+# ━━━ AUTHENTICATION & SECURITY (REQUIRED) ━━━
+SERVICE_AUTH_TOKEN=<openssl rand -hex 32>
+WEB_USERNAME=admin
+WEB_PASSWORD=<secure-password>
 
-# OpenAI
-OPENAI_API_KEY=<your-openai-key>
+# ━━━ AI SERVICES (REQUIRED) ━━━
+OPENAI_API_KEY=sk-<your-key>
 
-# Discord Bot
+# ━━━ DISCORD BOT (REQUIRED) ━━━
 DISCORD_BOT_TOKEN=<bot-token>
 DISCORD_CLIENT_ID=<client-id>
 DISCORD_CLIENT_SECRET=<client-secret>
-DISCORD_APP_ID=<app-id>
-VITE_DISCORD_CLIENT_ID=<client-id>
-DISCORD_SESSION_SECRET=<session-secret>
+# Auto-derived from DISCORD_CLIENT_ID:
+# DISCORD_APP_ID
+# VITE_DISCORD_CLIENT_ID
+DISCORD_SESSION_SECRET=<openssl rand -hex 32>
 
-# Stream Bot OAuth
+# ━━━ STREAM BOT (REQUIRED) ━━━
 TWITCH_CLIENT_ID=<twitch-client-id>
 TWITCH_CLIENT_SECRET=<twitch-client-secret>
+STREAMBOT_SESSION_SECRET=<openssl rand -hex 32>
+
+# ━━━ STREAM BOT (OPTIONAL) ━━━
 YOUTUBE_CLIENT_ID=<youtube-client-id>
 YOUTUBE_CLIENT_SECRET=<youtube-client-secret>
 SPOTIFY_CLIENT_ID=<spotify-client-id>
@@ -58,15 +97,26 @@ SPOTIFY_CLIENT_SECRET=<spotify-client-secret>
 KICK_CLIENT_ID=<kick-client-id>
 KICK_CLIENT_SECRET=<kick-client-secret>
 
-# n8n
-N8N_BASIC_AUTH_USER=<n8n-username>
-N8N_BASIC_AUTH_PASSWORD=<n8n-password>
-
-# Code Server
+# ━━━ CODE SERVER (REQUIRED) ━━━
 CODE_SERVER_PASSWORD=<code-server-password>
 
-# Local Host Integration (via Tailscale)
-TAILSCALE_LOCAL_HOST=<tailscale-ip-of-local-ubuntu>
+# ━━━ N8N (OPTIONAL) ━━━
+N8N_BASIC_AUTH_USER=<username>
+N8N_BASIC_AUTH_PASSWORD=<password>
+
+# ━━━ MONITORING (REQUIRED) ━━━
+GRAFANA_ADMIN_USER=admin
+GRAFANA_ADMIN_PASSWORD=<secure-password>
+
+# ━━━ DNS MANAGEMENT (REQUIRED) ━━━
+CLOUDFLARE_API_TOKEN=<cloudflare-token>
+# Optional zone IDs (auto-discovered if token has Zone.Zone:Read):
+# CLOUDFLARE_ZONE_EVINDRAKE=
+# CLOUDFLARE_ZONE_RIGCITY=
+# CLOUDFLARE_ZONE_SCARLETREDJOKER=
+
+# ━━━ LOCAL SERVICES ACCESS (OPTIONAL) ━━━
+TAILSCALE_LOCAL_HOST=10.200.0.2
 PLEX_TOKEN=<plex-token>
 HOME_ASSISTANT_TOKEN=<ha-long-lived-token>
 ```
@@ -81,38 +131,64 @@ ssh root@host.evindrake.net
 cd /opt/homelab/HomeLabHub/deploy/linode
 docker compose ps
 
+# Validate environment
+./scripts/validate-env.sh
+
 # Check logs
 docker compose logs -f --tail=50
 
 # Restart all services
 docker compose down && docker compose up -d
+
+# Test health endpoints
+curl -I https://dashboard.evindrake.net/health
+curl -I https://bot.rig-city.com/health
+curl -I https://stream.rig-city.com/health
+curl -I https://grafana.evindrake.net/api/health
 ```
 
 ---
 
-## 2. LOCAL UBUNTU HOST (10.200.0.2 via WireGuard)
+## 3. LOCAL UBUNTU HOST (10.200.0.2 via WireGuard)
 
-### Services Running
+### Docker Services (deploy/local/docker-compose.yml)
 
-| Container/Service | Port | Domain | Status |
-|-------------------|------|--------|--------|
+| Container | Port | Domain | Health |
+|-----------|------|--------|--------|
 | caddy-local | 80, 443 | - | ✅ Up |
-| homelab-minio | 9000, 9001 | - | ✅ Up (healthy) |
-| homeassistant | 8123 | home.evindrake.net | ✅ Up (healthy) |
-| plex (Docker) | 32400 | plex.evindrake.net | ✅ Up 17 hours |
-| cloudflare-ddns | - | - | ✅ Up 17 hours |
+| homelab-minio | 9000, 9001 | - | ✅ Healthy |
+| homeassistant | 8123 | home.evindrake.net | ✅ Healthy |
+| plex | 32400 | plex.evindrake.net | ✅ Up |
+
+### DDNS Configuration
+
+Dynamic DNS is configured via one of these methods:
+- **Cron Script**: `/opt/homelab/scripts/cloudflare-ddns.sh` (runs every 5 minutes)
+- **Docker Container**: `docker-compose.ddns.yml` (optional separate stack)
+
+See `docs/deploy/FULL_DEPLOYMENT_GUIDE.md` Section 14 for DDNS setup options.
 
 ### Native Services
 
 | Service | Port | Status |
 |---------|------|--------|
 | Plex Media Server | 32400 | ✅ Running |
-| WireGuard VPN | 51820 | ✅ Connected to Linode |
+| WireGuard VPN | 51820 | ✅ Connected |
 | Tailscale | - | ✅ Active |
+
+### NAS Integration
+
+| Component | Value |
+|-----------|-------|
+| NAS Model | Zyxel NAS326 |
+| NAS IP | 192.168.0.176 |
+| Protocol | NFS |
+| Mount Path | `/mnt/nas/networkshare` |
+| Media Folders | video, music, photo, games |
 
 ---
 
-## 3. WINDOWS 11 VM (192.168.122.250)
+## 4. WINDOWS 11 VM (192.168.122.250)
 
 ### GameStream Status
 
@@ -126,7 +202,7 @@ docker compose down && docker compose up -d
 
 ---
 
-## 4. NETWORK TOPOLOGY
+## 5. NETWORK TOPOLOGY
 
 ```
                     ┌─────────────────────────────────────┐
@@ -149,6 +225,9 @@ docker compose down && docker compose up -d
     │ - PostgreSQL        │  │                │
     │ - Redis             │  │                │
     │ - Static Sites      │  │                │
+    │ - Prometheus        │  │                │
+    │ - Grafana           │  │                │
+    │ - DNS Manager       │  │                │
     └──────────┬──────────┘  └───────┬────────┘
                │                      │
                │     WireGuard VPN    │
@@ -181,114 +260,146 @@ docker compose down && docker compose up -d
 
 ---
 
-## 5. DOMAIN CONFIGURATION
+## 6. DOMAIN CONFIGURATION
 
 ### rig-city.com (Cloudflare)
-| Record | Type | Target |
-|--------|------|--------|
-| @ | A | Linode IP |
-| www | CNAME | @ |
-| bot | A | Linode IP |
-| stream | A | Linode IP |
+| Record | Type | Target | Proxied |
+|--------|------|--------|---------|
+| @ | A | Linode IP | Yes |
+| www | CNAME | @ | Yes |
+| bot | A | Linode IP | Yes |
+| stream | A | Linode IP | Yes |
 
 ### evindrake.net (Cloudflare)
-| Record | Type | Target |
-|--------|------|--------|
-| host | A | Linode IP |
-| dashboard | A | Linode IP |
-| n8n | A | Linode IP |
-| code | A | Linode IP |
-| plex | A | Local IP (Cloudflare DDNS) |
-| home | A | Local IP (Cloudflare DDNS) |
-| vnc | A | Local IP |
-| game | A | Linode IP (redirect) |
+| Record | Type | Target | Proxied |
+|--------|------|--------|---------|
+| host | A | Linode IP | Yes |
+| dashboard | A | Linode IP | Yes |
+| n8n | A | Linode IP | Yes |
+| code | A | Linode IP | Yes |
+| grafana | A | Linode IP | Yes |
+| dns | A | Linode IP | Yes |
+| plex | A | Local IP (DDNS) | No |
+| home | A | Local IP (DDNS) | No |
+| game | A | Linode IP | Yes |
 
 ### scarletredjoker.com (Cloudflare)
-| Record | Type | Target |
-|--------|------|--------|
-| @ | A | Linode IP |
-| www | CNAME | @ |
+| Record | Type | Target | Proxied |
+|--------|------|--------|---------|
+| @ | A | Linode IP | Yes |
+| www | CNAME | @ | Yes |
 
 ---
 
-## 6. SECRETS STATUS
+## 7. QUICK VERIFICATION COMMANDS
 
-### Currently Set in Replit (Development)
-- [x] DATABASE_URL (Neon)
-- [x] SESSION_SECRET
-- [x] AI_INTEGRATIONS_OPENAI_API_KEY
-- [x] KICK_CLIENT_ID
-- [x] KICK_CLIENT_SECRET
-- [x] PLEX_TOKEN
-- [x] CODE_SERVER_PASSWORD
-
-### Required for Linode Production
-Check these are set in `/opt/homelab/HomeLabHub/deploy/linode/.env`:
-
-| Secret | Required For | Status |
-|--------|--------------|--------|
-| POSTGRES_PASSWORD | PostgreSQL | CHECK |
-| DISCORD_BOT_TOKEN | Discord Bot | CHECK |
-| OPENAI_API_KEY | Dashboard AI, Stream Bot | CHECK |
-| TWITCH_CLIENT_ID/SECRET | Stream Bot | CHECK |
-| YOUTUBE_CLIENT_ID/SECRET | Stream Bot | CHECK |
-| SPOTIFY_CLIENT_ID/SECRET | Stream Bot | CHECK |
-| KICK_CLIENT_ID/SECRET | Stream Bot | CHECK |
-| PLEX_TOKEN | Dashboard Plex integration | CHECK |
-| HOME_ASSISTANT_TOKEN | Dashboard HA integration | CHECK |
-| CODE_SERVER_PASSWORD | Code Server | CHECK |
-| N8N_BASIC_AUTH_USER/PASSWORD | n8n | CHECK |
-
----
-
-## 7. VERIFICATION CHECKLIST
-
-### Linode (SSH to check)
+### Test All Domains (Run from Linode)
 ```bash
-# All services up?
-docker compose ps
+#!/bin/bash
+DOMAINS=(
+    "https://dashboard.evindrake.net"
+    "https://bot.rig-city.com"
+    "https://stream.rig-city.com"
+    "https://rig-city.com"
+    "https://scarletredjoker.com"
+    "https://n8n.evindrake.net"
+    "https://code.evindrake.net"
+    "https://grafana.evindrake.net"
+    "https://dns.evindrake.net"
+)
 
-# Can reach local services via WireGuard?
-ping 10.200.0.2
-
-# SSL certs valid?
-curl -I https://dashboard.evindrake.net
-curl -I https://bot.rig-city.com
-curl -I https://stream.rig-city.com
+for domain in "${DOMAINS[@]}"; do
+    status=$(curl -s -o /dev/null -w "%{http_code}" "$domain" --max-time 10)
+    echo "$domain: $status"
+done
 ```
 
-### Local Ubuntu
+### Container Health Check
 ```bash
-# All Docker services?
-docker ps
+cd /opt/homelab/HomeLabHub/deploy/linode
+docker compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Health}}"
+```
 
-# WireGuard connected?
+### WireGuard Connectivity
+```bash
+# From Linode
+ping -c 3 10.200.0.2
+
+# From Local Ubuntu
+ping -c 3 10.200.0.1
+```
+
+---
+
+## 8. DEPLOYMENT WORKFLOW
+
+### Smart Environment Sync
+```bash
+# On Linode - merge new vars without losing existing values
+cd /opt/homelab/HomeLabHub
+./homelab sync-env
+
+# Validate all required variables
+./deploy/linode/scripts/validate-env.sh
+
+# Deploy with pre-flight checks
+./deploy/linode/scripts/deploy.sh
+```
+
+### Full Pipeline
+```bash
+# Auto-detects role (local/cloud) and runs all checks
+./homelab pipeline
+```
+
+---
+
+## 9. MONITORING & OBSERVABILITY
+
+| Tool | URL | Purpose |
+|------|-----|---------|
+| Grafana | https://grafana.evindrake.net | Dashboards |
+| Prometheus | http://localhost:9090 (internal) | Metrics |
+| Loki | http://localhost:3100 (internal) | Logs |
+| DNS Manager | https://dns.evindrake.net | DNS automation |
+
+---
+
+## 10. TROUBLESHOOTING
+
+### Service Won't Start
+```bash
+# Check container logs
+docker compose logs <service-name> --tail=100
+
+# Check health status
+docker inspect <container-name> --format='{{.State.Health}}'
+
+# Force rebuild
+docker compose build --no-cache <service-name>
+docker compose up -d <service-name>
+```
+
+### Domain Not Resolving
+```bash
+# Check DNS propagation
+dig +short <domain>
+
+# Check Caddy certificates
+docker compose exec caddy caddy list-certificates
+
+# Check Caddy logs
+docker compose logs caddy --tail=50
+```
+
+### WireGuard Issues
+```bash
+# Check WireGuard status
 sudo wg show
 
-# Plex accessible?
-curl http://localhost:32400/identity
+# Check peer connectivity
+sudo wg show wg0 | grep -A4 "peer"
+
+# Restart WireGuard
+sudo systemctl restart wg-quick@wg0
 ```
-
-### Windows VM
-```powershell
-# Sunshine running?
-Get-Process sunshine
-
-# GPU detected?
-nvidia-smi
-```
-
----
-
-## 8. REMAINING ITEMS
-
-### Critical (Must Fix)
-- [ ] Verify Linode services are running (SSH and check)
-- [ ] Confirm .env file exists on Linode with all secrets
-
-### Optional Enhancements
-- [ ] Set YOUTUBE_API_KEY for Discord Bot notifications
-- [ ] Set CLOUDFLARE_API_TOKEN for DNS automation
-- [ ] Set HOME_ASSISTANT_TOKEN for Dashboard integration
-- [ ] Set up Prometheus/Grafana monitoring
-- [ ] Configure automated PostgreSQL backups
