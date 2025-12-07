@@ -2,109 +2,192 @@
 # Start Local Ubuntu Services
 # Run from: /opt/homelab/HomeLabHub/deploy/local
 
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-echo "═══════════════════════════════════════════════════════════════"
-echo "  Starting Local Homelab Services"
-echo "═══════════════════════════════════════════════════════════════"
-echo ""
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m'
 
-# Check NAS mounts first
-if [ -f "${SCRIPT_DIR}/scripts/check-nas-health.sh" ]; then
-    echo "Checking NAS connectivity..."
-    if ! "${SCRIPT_DIR}/scripts/check-nas-health.sh" 2>/dev/null; then
+print_header() {
+    echo ""
+    echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
+    echo -e "${BLUE}  $1${NC}"
+    echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
+}
+
+print_section() {
+    echo ""
+    echo -e "${CYAN}━━━ $1 ━━━${NC}"
+}
+
+log_ok() { echo -e "  ${GREEN}[OK]${NC} $*"; }
+log_wait() { echo -e "  ${YELLOW}[WAIT]${NC} $*"; }
+log_warn() { echo -e "  ${YELLOW}[WARN]${NC} $*"; }
+log_error() { echo -e "  ${RED}[ERROR]${NC} $*"; }
+log_info() { echo -e "  ${CYAN}[INFO]${NC} $*"; }
+
+cd "$SCRIPT_DIR"
+
+print_header "Starting Local Homelab Services"
+
+print_section "Pre-flight Checks"
+
+if [ -x "${SCRIPT_DIR}/scripts/env-doctor.sh" ]; then
+    echo "Running environment doctor..."
+    if ! "${SCRIPT_DIR}/scripts/env-doctor.sh" --check-only; then
         echo ""
-        echo "[WARN] NAS not mounted. To set up NAS media for Plex:"
-        echo "       sudo ${SCRIPT_DIR}/scripts/setup-nas-mounts.sh"
+        log_warn "Environment issues detected."
         echo ""
+        echo "  To auto-fix fixable issues:"
+        echo "    ./scripts/env-doctor.sh --fix"
+        echo ""
+        echo "  To continue anyway, set: FORCE_START=1"
+        echo ""
+        if [[ "${FORCE_START:-}" != "1" ]]; then
+            read -p "  Continue anyway? [y/N] " -n 1 -r
+            echo ""
+            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                exit 1
+            fi
+        fi
+    fi
+else
+    if [ ! -f ".env" ]; then
+        log_info "Creating .env from template..."
+        cp .env.example .env
+        log_warn ".env created from template - please configure it"
+        echo ""
+        echo "  Run: ./scripts/env-doctor.sh --fix"
+        exit 1
     fi
 fi
 
-# Check if .env exists
-if [ ! -f ".env" ]; then
-    echo "Creating .env from template..."
-    cp .env.example .env
+print_section "NAS Mount Check"
+
+NAS_MOUNT_PATH="/mnt/nas/networkshare"
+NAS_ALL_PATH="/mnt/nas/all"
+
+if mountpoint -q "$NAS_ALL_PATH" 2>/dev/null; then
+    log_ok "NAS is mounted at $NAS_ALL_PATH"
     
-    # Generate a random password for MinIO
-    MINIO_PASSWORD=$(openssl rand -base64 24)
-    sed -i "s/your_secure_minio_password_here/$MINIO_PASSWORD/" .env
+    if [ -L "$NAS_MOUNT_PATH" ]; then
+        log_ok "Docker compatibility symlink exists: $NAS_MOUNT_PATH"
+    else
+        log_warn "Missing symlink: $NAS_MOUNT_PATH -> $NAS_ALL_PATH"
+        echo "       Run: sudo ${SCRIPT_DIR}/scripts/setup-nas-mounts.sh"
+    fi
     
-    echo "Generated MinIO password. Check .env file for credentials."
+    for folder in video music photo games; do
+        if [ -d "${NAS_MOUNT_PATH}/${folder}" ] || [ -d "${NAS_ALL_PATH}/${folder}" ]; then
+            log_ok "Media folder available: ${folder}"
+        else
+            log_warn "Media folder missing: ${folder}"
+        fi
+    done
+else
+    log_warn "NAS not mounted"
+    echo "       To set up NAS media for Plex:"
+    echo "       sudo ${SCRIPT_DIR}/scripts/setup-nas-mounts.sh"
+    echo ""
+    echo "       Plex will start but media libraries will be empty."
 fi
 
-# Verify .env has MINIO_ROOT_PASSWORD
-if ! grep -q "MINIO_ROOT_PASSWORD=." .env 2>/dev/null || grep -q "MINIO_ROOT_PASSWORD=$" .env 2>/dev/null; then
-    echo "ERROR: MINIO_ROOT_PASSWORD is not set in .env"
-    echo "Please edit .env and set a secure password"
+print_section "Docker Compose"
+
+echo "Pulling latest images..."
+if docker compose pull 2>&1; then
+    log_ok "Images pulled successfully"
+else
+    log_warn "Some images may not have pulled correctly (continuing anyway)"
+fi
+
+echo ""
+echo "Starting services..."
+if ! docker compose up -d 2>&1; then
+    log_error "Failed to start services"
     exit 1
 fi
 
-echo "Pulling latest images..."
-docker compose pull
-
-echo "Starting services..."
-docker compose up -d
-
 echo ""
-echo "Waiting for services to start..."
-sleep 10
+echo "Waiting for services to initialize (15s)..."
+sleep 15
 
-echo ""
-echo "=== Service Status ==="
-docker compose ps
+print_section "Service Health Checks"
 
-echo ""
-echo "=== Health Checks ==="
+check_http_service() {
+    local name=$1
+    local url=$2
+    local port=$3
+    
+    if curl -sf "$url" > /dev/null 2>&1; then
+        log_ok "$name is running on port $port"
+        return 0
+    else
+        log_wait "$name is still starting..."
+        return 1
+    fi
+}
 
-# Check Plex
-if curl -sf http://localhost:32400/identity > /dev/null 2>&1; then
-    echo "[OK] Plex is running on port 32400"
-else
-    echo "[WAIT] Plex is still starting..."
+check_http_service "Plex" "http://localhost:32400/identity" "32400"
+check_http_service "MinIO API" "http://localhost:9000/minio/health/live" "9000"
+check_http_service "Home Assistant" "http://localhost:8123/" "8123"
+
+NOVNC_PORT="${NOVNC_PORT:-6080}"
+if docker compose ps novnc 2>/dev/null | grep -q "running"; then
+    check_http_service "noVNC" "http://localhost:${NOVNC_PORT}/" "$NOVNC_PORT" || true
 fi
 
-# Check MinIO
-if curl -sf http://localhost:9000/minio/health/live > /dev/null 2>&1; then
-    echo "[OK] MinIO is running on port 9000 (API) and 9001 (Console)"
-else
-    echo "[WAIT] MinIO is still starting..."
+if docker compose ps sunshine 2>/dev/null | grep -q "running"; then
+    log_info "Sunshine GameStream container running (use Moonlight client to connect)"
 fi
 
-# Check Home Assistant
-if curl -sf http://localhost:8123/ > /dev/null 2>&1; then
-    echo "[OK] Home Assistant is running on port 8123"
-else
-    echo "[WAIT] Home Assistant is still starting..."
+print_section "Container Status"
+docker compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || docker compose ps
+
+print_header "Access URLs"
+echo ""
+echo "  Local Access:"
+echo "    Plex:           http://localhost:32400/web"
+echo "    MinIO Console:  http://localhost:9001"
+echo "    Home Assistant: http://localhost:8123"
+
+if docker compose ps novnc 2>/dev/null | grep -q "running"; then
+    echo "    noVNC Desktop:  http://localhost:${NOVNC_PORT}"
 fi
 
 echo ""
-echo "═══════════════════════════════════════════════════════════════"
-echo "  Access URLs"
-echo "═══════════════════════════════════════════════════════════════"
+echo "  Via WireGuard from Linode:"
+echo "    Plex:           http://10.200.0.2:32400"
+echo "    MinIO:          http://10.200.0.2:9000"
+echo "    Home Assistant: http://10.200.0.2:8123"
+
+print_header "NAS Media Paths (for Plex libraries)"
 echo ""
-echo "Local Access:"
-echo "  Plex:           http://localhost:32400/web"
-echo "  MinIO Console:  http://localhost:9001"
-echo "  Home Assistant: http://localhost:8123"
-echo ""
-echo "Via WireGuard from Linode:"
-echo "  Plex:           http://10.200.0.2:32400"
-echo "  MinIO:          http://10.200.0.2:9000"
-echo "  Home Assistant: http://10.200.0.2:8123"
-echo ""
-echo "═══════════════════════════════════════════════════════════════"
-echo "  NAS Media Paths (for Plex libraries)"
-echo "═══════════════════════════════════════════════════════════════"
-echo ""
-if mountpoint -q /mnt/nas/all 2>/dev/null; then
-    echo "  Video:  /mnt/nas/video"
-    echo "  Music:  /mnt/nas/music"
-    echo "  Photos: /mnt/nas/photo"
-    echo "  Games:  /mnt/nas/games"
+
+if mountpoint -q "$NAS_ALL_PATH" 2>/dev/null; then
+    echo "  In Plex container, use these paths:"
+    echo "    Video:  /nas/video"
+    echo "    Music:  /nas/music"
+    echo "    Photos: /nas/photo"
+    echo "    Games:  /nas/games"
+    echo ""
+    echo "  On host system:"
+    echo "    Video:  ${NAS_MOUNT_PATH}/video"
+    echo "    Music:  ${NAS_MOUNT_PATH}/music"
+    echo "    Photos: ${NAS_MOUNT_PATH}/photo"
+    echo "    Games:  ${NAS_MOUNT_PATH}/games"
 else
     echo "  [NAS not mounted]"
-    echo "  Run: sudo ./scripts/setup-nas-mounts.sh"
+    echo ""
+    echo "  To mount NAS:"
+    echo "    sudo ./scripts/setup-nas-mounts.sh"
 fi
+
+echo ""
+log_ok "Local services startup complete!"
 echo ""

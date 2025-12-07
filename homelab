@@ -1262,21 +1262,28 @@ deploy_pipeline() {
             fi
         fi
         
-        # Check NAS mount for local
+        # Check NAS mount for local (with timeout to prevent stale mount hangs)
         echo "  Checking NAS mounts..."
-        if mountpoint -q /mnt/nas/all 2>/dev/null; then
+        nas_check_result=$(timeout 5 bash -c 'mountpoint -q /mnt/nas/all 2>/dev/null && echo "mounted" || echo "not_mounted"' 2>/dev/null || echo "timeout")
+        
+        if [ "$nas_check_result" = "mounted" ]; then
             echo -e "  ${GREEN}✓${NC} NAS is mounted at /mnt/nas/all"
             
-            # Test write access
-            if touch /mnt/nas/all/.write_test_$$ 2>/dev/null; then
+            # Test write access with timeout
+            if timeout 3 touch /mnt/nas/all/.write_test_$$ 2>/dev/null; then
                 rm -f /mnt/nas/all/.write_test_$$ 2>/dev/null
                 echo -e "  ${GREEN}✓${NC} NAS write access confirmed"
             else
-                echo -e "  ${YELLOW}⚠${NC} NAS is read-only"
+                echo -e "  ${YELLOW}⚠${NC} NAS is read-only or slow"
                 warnings=$((warnings + 1))
             fi
+        elif [ "$nas_check_result" = "timeout" ]; then
+            echo -e "  ${YELLOW}⚠${NC} NAS check timed out (stale mount?) - skipping"
+            echo -e "      Fix: sudo umount -l /mnt/nas/all; sudo ./deploy/local/scripts/setup-nas-mounts.sh"
+            warnings=$((warnings + 1))
         else
             echo -e "  ${YELLOW}⚠${NC} NAS not mounted (Plex may have limited content)"
+            echo -e "      Setup: sudo ./deploy/local/scripts/setup-nas-mounts.sh"
             warnings=$((warnings + 1))
         fi
     else

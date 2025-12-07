@@ -9,6 +9,8 @@ volumes:
   homeassistant_config:
   plex_config:
   plex_transcode:
+  novnc_data:
+  sunshine_config:
 
 services:
   caddy:
@@ -25,6 +27,11 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+    healthcheck:
+      test: ["CMD", "caddy", "version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   minio:
     image: minio/minio:latest
@@ -47,9 +54,6 @@ services:
       timeout: 20s
       retries: 3
 
-  # Plex Media Server
-  # Uses Docker for isolation and consistent deployments
-  # NAS must be mounted first: sudo ./scripts/setup-nas-mounts.sh
   plex:
     image: lscr.io/linuxserver/plex:latest
     container_name: plex
@@ -58,15 +62,12 @@ services:
     environment:
       - PUID=1000
       - PGID=1000
-      - TZ=America/New_York
+      - TZ=${TZ:-America/New_York}
       - VERSION=docker
       - PLEX_CLAIM=${PLEX_CLAIM:-}
     volumes:
       - plex_config:/config
       - plex_transcode:/transcode
-      # NAS Media Mounts (Zyxel NAS326 at 192.168.0.176)
-      # The NAS exports /nfs/networkshare mounted at /mnt/nas/networkshare on host
-      # Plex libraries should point to /nas/video, /nas/music, /nas/photo
       - /mnt/nas/networkshare/video:/nas/video:ro
       - /mnt/nas/networkshare/music:/nas/music:ro
       - /mnt/nas/networkshare/photo:/nas/photo:ro
@@ -88,7 +89,7 @@ services:
     networks:
       - homelab
     environment:
-      - TZ=America/New_York
+      - TZ=${TZ:-America/New_York}
     volumes:
       - homeassistant_config:/config
       - ./config/homeassistant:/config-templates:ro
@@ -107,3 +108,58 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
+
+  novnc:
+    image: theasp/novnc:latest
+    container_name: novnc
+    restart: unless-stopped
+    profiles:
+      - vnc
+    networks:
+      - homelab
+    environment:
+      - DISPLAY_WIDTH=1920
+      - DISPLAY_HEIGHT=1080
+      - RUN_XTERM=yes
+      - VNC_PASSWORD=${VNC_PASSWORD:-}
+    ports:
+      - "${NOVNC_PORT:-6080}:8080"
+    volumes:
+      - novnc_data:/home/user
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  sunshine:
+    image: lizardbyte/sunshine:latest
+    container_name: sunshine
+    restart: unless-stopped
+    profiles:
+      - gamestream
+    network_mode: host
+    privileged: true
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ:-America/New_York}
+      - SUNSHINE_LOG_LEVEL=info
+    volumes:
+      - sunshine_config:/config
+      - /dev/dri:/dev/dri
+      - /dev/uinput:/dev/uinput
+      - /run/udev:/run/udev:ro
+      - /tmp/.X11-unix:/tmp/.X11-unix:ro
+    devices:
+      - /dev/dri:/dev/dri
+    cap_add:
+      - SYS_ADMIN
+      - NET_ADMIN
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f -k https://localhost:47990/api/apps || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 120s

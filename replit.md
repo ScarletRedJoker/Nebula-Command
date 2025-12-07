@@ -115,6 +115,45 @@ Exit codes: `0` = All passed, `1` = Some failed, `2` = Critical infrastructure f
 
 Steps: Environment validation → Pre-flight checks → Deploy services (includes smoke test) → Health checks → Log summary.
 
+### Local Ubuntu Deployment
+
+The local Ubuntu host runs services that need direct hardware access or local network visibility:
+
+| Service | Port | Purpose |
+|---------|------|---------|
+| Plex | 32400 | Media streaming with NAS access |
+| MinIO | 9000/9001 | S3-compatible object storage |
+| Home Assistant | 8123 | Smart home hub |
+| noVNC | 6080 | Remote desktop (optional profile) |
+| Sunshine | 47990 | GameStream server (optional profile) |
+
+**Quick Start:**
+```bash
+cd deploy/local
+./scripts/env-doctor.sh --fix    # Smart fix missing env vars
+./start-local-services.sh        # Start all services
+```
+
+**Environment Doctor (`env-doctor.sh`):**
+- Auto-generates passwords for MinIO, VNC, Sunshine
+- Detects placeholder values and reports what needs manual action
+- Supports `--fix` for auto-apply, `--check-only` for validation
+- Never wipes existing valid values
+
+**NAS Setup for Plex:**
+```bash
+sudo ./scripts/setup-nas-mounts.sh                    # Auto-detect NAS
+sudo ./scripts/setup-nas-mounts.sh --nas-ip=192.168.x.x  # Specific IP
+sudo ./scripts/setup-nas-mounts.sh --smb-share=nfs   # Force SMB (better write access)
+```
+
+**Optional Services (Profiles):**
+```bash
+docker compose --profile vnc up -d        # Start noVNC
+docker compose --profile gamestream up -d # Start Sunshine
+docker compose --profile vnc --profile gamestream up -d  # Start both
+```
+
 ## Documentation Reference
 
 - `docs/deploy/FULL_INFRASTRUCTURE_STATUS.md` - Complete infrastructure audit and service matrix
