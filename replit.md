@@ -185,6 +185,31 @@ nano .env  # Fill in all required secrets
 
 See `docs/runbooks/LINODE_DEPLOYMENT.md` for complete deployment runbook.
 
+#### Unified Deployment Pipeline
+
+The `./homelab pipeline` command provides a "one script to rule them all" deployment experience:
+
+```bash
+# Run complete deployment with auto-fix (auto-detects local vs cloud)
+./homelab pipeline
+
+# Features:
+#   1. Auto-detects role (local Ubuntu vs Linode cloud)
+#   2. Validates environment and pre-flight checks
+#   3. Auto-creates .env from template if missing
+#   4. Attempts Docker start if not running
+#   5. Provides NAS write access guidance
+#   6. Runs health checks after deployment
+#   7. Shows log summary at the end
+```
+
+The pipeline runs 5 steps automatically:
+1. Environment validation
+2. Pre-flight checks
+3. Deploy services
+4. Health checks
+5. Log summary
+
 ### Desktop Integration (Gaming & Media)
 
 The Ubuntu desktop provides seamless integration for gaming and media management:
