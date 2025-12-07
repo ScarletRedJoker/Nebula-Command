@@ -81,11 +81,15 @@ plex.evindrake.net {
     reverse_proxy 10.200.0.2:32400 {
         header_up Host {host}
         header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
         header_up X-Plex-Client-Identifier {http.request.header.X-Plex-Client-Identifier}
         header_up X-Plex-Token {http.request.header.X-Plex-Token}
+        header_up Upgrade {http.request.header.Upgrade}
+        header_up Connection {http.request.header.Connection}
         transport http {
-            read_timeout 120s
-            write_timeout 120s
+            read_timeout 300s
+            write_timeout 300s
         }
     }
 }
