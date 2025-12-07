@@ -546,17 +546,17 @@ export default function PanelEmbedManager() {
   });
 
   // Queries
-  const { data: panelSettings, isLoading: isLoadingPanel } = useQuery({
+  const { data: panelSettings, isLoading: isLoadingPanel } = useQuery<PanelSettings | null>({
     queryKey: [`/api/panel-settings/${selectedServerId}`],
     enabled: !!selectedServerId,
   });
 
-  const { data: categories = [], isLoading: isLoadingCategories } = useQuery({
+  const { data: categories = [], isLoading: isLoadingCategories } = useQuery<any[]>({
     queryKey: [`/api/categories/server/${selectedServerId}`],
     enabled: !!selectedServerId,
   });
 
-  const { data: templates = [], isLoading: isLoadingTemplates } = useQuery({
+  const { data: templates = [], isLoading: isLoadingTemplates } = useQuery<any[]>({
     queryKey: [`/api/templates/${selectedServerId}`],
     enabled: !!selectedServerId && activeSubTab === 'templates',
   });
@@ -616,73 +616,57 @@ export default function PanelEmbedManager() {
       
       if (editingTemplateId) {
         // Update existing template
-        const response = await apiRequest(`/api/templates/${editingTemplateId}`, {
-          method: 'PATCH',
-          body: JSON.stringify(templateData),
-        });
+        const response = await apiRequest('PATCH', `/api/templates/${editingTemplateId}`, templateData);
         
         // Delete existing fields and buttons, then recreate
-        const existingTemplate: any = await apiRequest(`/api/templates/detail/${editingTemplateId}`);
+        const existingTemplateRes = await apiRequest('GET', `/api/templates/detail/${editingTemplateId}`);
+        const existingTemplate: any = await existingTemplateRes.json();
         
         // Delete old fields
         await Promise.all(
           (existingTemplate.fields || []).map((f: any) => 
-            apiRequest(`/api/templates/fields/${f.id}`, { method: 'DELETE' })
+            apiRequest('DELETE', `/api/templates/fields/${f.id}`)
           )
         );
         
         // Delete old buttons
         await Promise.all(
           (existingTemplate.buttons || []).map((b: any) => 
-            apiRequest(`/api/templates/buttons/${b.id}`, { method: 'DELETE' })
+            apiRequest('DELETE', `/api/templates/buttons/${b.id}`)
           )
         );
         
         // Create new fields
         await Promise.all(
           fields.map((field, idx) => 
-            apiRequest(`/api/templates/${editingTemplateId}/fields`, {
-              method: 'POST',
-              body: JSON.stringify({ ...field, sortOrder: idx }),
-            })
+            apiRequest('POST', `/api/templates/${editingTemplateId}/fields`, { ...field, sortOrder: idx })
           )
         );
         
         // Create new buttons
         await Promise.all(
           buttons.map((button) => 
-            apiRequest(`/api/templates/${editingTemplateId}/buttons`, {
-              method: 'POST',
-              body: JSON.stringify(button),
-            })
+            apiRequest('POST', `/api/templates/${editingTemplateId}/buttons`, button)
           )
         );
         
         return response;
       } else {
         // Create new template
-        const response: any = await apiRequest('/api/templates', {
-          method: 'POST',
-          body: JSON.stringify({ serverId: selectedServerId, ...templateData }),
-        });
+        const responseData = await apiRequest('POST', '/api/templates', { serverId: selectedServerId, ...templateData });
+        const response: any = await responseData.json();
         
         // Create fields
         await Promise.all(
           fields.map((field, idx) => 
-            apiRequest(`/api/templates/${response.id}/fields`, {
-              method: 'POST',
-              body: JSON.stringify({ ...field, sortOrder: idx }),
-            })
+            apiRequest('POST', `/api/templates/${response.id}/fields`, { ...field, sortOrder: idx })
           )
         );
         
         // Create buttons
         await Promise.all(
           buttons.map((button) => 
-            apiRequest(`/api/templates/${response.id}/buttons`, {
-              method: 'POST',
-              body: JSON.stringify(button),
-            })
+            apiRequest('POST', `/api/templates/${response.id}/buttons`, button)
           )
         );
         
@@ -710,7 +694,7 @@ export default function PanelEmbedManager() {
 
   const deleteTemplateMutation = useMutation({
     mutationFn: async (id: number) => {
-      await apiRequest(`/api/templates/${id}`, { method: 'DELETE' });
+      await apiRequest('DELETE', `/api/templates/${id}`);
     },
     onSuccess: () => {
       toast({ title: 'Template deleted', description: 'Template has been deleted successfully.' });
@@ -723,7 +707,8 @@ export default function PanelEmbedManager() {
 
   const duplicateTemplateMutation = useMutation({
     mutationFn: async (id: number) => {
-      return await apiRequest(`/api/templates/${id}/duplicate`, { method: 'POST' });
+      const res = await apiRequest('POST', `/api/templates/${id}/duplicate`);
+      return await res.json();
     },
     onSuccess: (data: any) => {
       toast({ title: 'Template duplicated', description: 'Template has been duplicated successfully.' });
@@ -761,11 +746,8 @@ export default function PanelEmbedManager() {
 
   const deployTemplateMutation = useMutation({
     mutationFn: async ({ templateId, channelId }: { templateId: number; channelId: string }) => {
-      const response = await apiRequest(`/api/templates/${templateId}/deploy`, {
-        method: 'POST',
-        body: JSON.stringify({ channelId }),
-      });
-      return response;
+      const response = await apiRequest('POST', `/api/templates/${templateId}/deploy`, { channelId });
+      return await response.json();
     },
     onSuccess: () => {
       toast({ title: 'Success!', description: 'Template deployed successfully to the channel' });
@@ -814,7 +796,8 @@ export default function PanelEmbedManager() {
 
   const loadTemplateForEdit = async (template: any) => {
     // Fetch full template details with fields and buttons
-    const fullTemplate: any = await apiRequest(`/api/templates/detail/${template.id}`);
+    const fullTemplateRes = await apiRequest('GET', `/api/templates/detail/${template.id}`);
+    const fullTemplate: any = await fullTemplateRes.json();
     
     setEditingTemplateId(template.id);
     setTemplateView('edit');
@@ -1631,7 +1614,7 @@ export default function PanelEmbedManager() {
                                       <Label className="text-sm font-medium">Button Style (Discord Colors)</Label>
                                       <ButtonStyleSelector
                                         value={templateForm.watch(`buttons.${index}.style`)}
-                                        onChange={(style) => templateForm.setValue(`buttons.${index}.style`, style)}
+                                        onChange={(style) => templateForm.setValue(`buttons.${index}.style`, style as "Primary" | "Secondary" | "Success" | "Danger" | "Link")}
                                       />
                                       <p className="text-xs text-muted-foreground">
                                         ⓘ Discord only supports 5 preset button styles. Custom hex colors are not available.

@@ -584,7 +584,7 @@ export async function handlePresenceUpdate(
         // Try to send notification
         const success = await sendStreamNotification(
           newPresence.guild,
-          member,
+          member as GuildMember,
           state,
           settings,
           storage,
@@ -601,7 +601,7 @@ export async function handlePresenceUpdate(
           });
         } else {
           // Queue for retry
-          console.log(`[Notification Queue] Queueing notification for ${member.displayName}`);
+          console.log(`[Notification Queue] Queueing notification for ${(member as GuildMember).displayName}`);
           notificationQueue.push({
             serverId,
             userId,

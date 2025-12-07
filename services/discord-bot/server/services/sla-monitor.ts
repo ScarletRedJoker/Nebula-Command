@@ -43,8 +43,8 @@ async function checkSlaBreaches(): Promise<void> {
       const responseDeadline = tracking.responseDeadline ? new Date(tracking.responseDeadline) : null;
       const resolutionDeadline = tracking.resolutionDeadline ? new Date(tracking.resolutionDeadline) : null;
 
-      let responseBreached = tracking.responseBreached;
-      let resolutionBreached = tracking.resolutionBreached;
+      let responseBreached = tracking.responseBreached ?? false;
+      let resolutionBreached = tracking.resolutionBreached ?? false;
       let needsNotification = false;
 
       if (responseDeadline && !tracking.firstRespondedAt && now > responseDeadline && !responseBreached) {

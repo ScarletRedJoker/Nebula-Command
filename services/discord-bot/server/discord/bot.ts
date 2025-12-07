@@ -165,8 +165,8 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
 
     // Handle interaction create events (slash commands, button clicks, modals)
     client.on(Events.InteractionCreate, async (interaction) => {
-      // Handle slash commands
-      if (interaction.isCommand()) {
+      // Handle slash commands (only chat input commands)
+      if (interaction.isChatInputCommand()) {
         const command = commands.get(interaction.commandName);
         if (!command) return;
         

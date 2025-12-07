@@ -1183,6 +1183,135 @@ export class MemStorage implements IStorage {
     // No-op for in-memory implementation
     console.log('[MemStorage] cleanupOldInteractionLocks called - no-op for in-memory storage');
   }
+  
+  // Discord user atomic operations
+  async findOrCreateDiscordUserAtomic(discordId: string, createData: InsertDiscordUser): Promise<{ user: DiscordUser; created: boolean }> {
+    const existingUser = await this.getDiscordUser(discordId);
+    if (existingUser) {
+      return { user: existingUser, created: false };
+    }
+    const newUser = await this.createDiscordUser(createData);
+    return { user: newUser, created: true };
+  }
+  
+  // Stream notification settings - In-memory stubs
+  private streamNotificationSettings: Map<string, StreamNotificationSettings> = new Map();
+  private streamTrackedUsers: Map<string, StreamTrackedUser[]> = new Map();
+  private streamNotificationLogs: StreamNotificationLog[] = [];
+  private currentStreamSettingsId: number = 1;
+  private currentStreamTrackedUserId: number = 1;
+  private currentStreamLogId: number = 1;
+  
+  async getStreamNotificationSettings(serverId: string): Promise<StreamNotificationSettings | null> {
+    return this.streamNotificationSettings.get(serverId) || null;
+  }
+  
+  async createStreamNotificationSettings(settings: InsertStreamNotificationSettings): Promise<StreamNotificationSettings> {
+    const id = this.currentStreamSettingsId++;
+    const now = new Date();
+    const newSettings: StreamNotificationSettings = {
+      id,
+      serverId: settings.serverId,
+      notificationChannelId: settings.notificationChannelId || null,
+      isEnabled: settings.isEnabled ?? true,
+      mentionRole: settings.mentionRole || null,
+      customMessage: settings.customMessage || null,
+      autoDetectEnabled: settings.autoDetectEnabled ?? false,
+      autoSyncIntervalMinutes: settings.autoSyncIntervalMinutes ?? 30,
+      lastAutoSyncAt: settings.lastAutoSyncAt || null,
+      createdAt: now,
+      updatedAt: now
+    };
+    this.streamNotificationSettings.set(settings.serverId, newSettings);
+    return newSettings;
+  }
+  
+  async updateStreamNotificationSettings(serverId: string, updates: UpdateStreamNotificationSettings): Promise<StreamNotificationSettings | null> {
+    const settings = this.streamNotificationSettings.get(serverId);
+    if (!settings) return null;
+    
+    const updatedSettings: StreamNotificationSettings = {
+      ...settings,
+      ...updates,
+      updatedAt: new Date()
+    };
+    this.streamNotificationSettings.set(serverId, updatedSettings);
+    return updatedSettings;
+  }
+  
+  async getStreamTrackedUsers(serverId: string): Promise<StreamTrackedUser[]> {
+    return this.streamTrackedUsers.get(serverId) || [];
+  }
+  
+  async addStreamTrackedUser(user: InsertStreamTrackedUser): Promise<StreamTrackedUser> {
+    const id = this.currentStreamTrackedUserId++;
+    const now = new Date();
+    const newUser: StreamTrackedUser = {
+      id,
+      serverId: user.serverId,
+      userId: user.userId,
+      username: user.username || null,
+      isActive: user.isActive ?? true,
+      lastNotifiedAt: user.lastNotifiedAt || null,
+      autoDetected: user.autoDetected ?? false,
+      connectedPlatforms: user.connectedPlatforms || null,
+      platformUsernames: user.platformUsernames || null,
+      createdAt: now,
+      updatedAt: now
+    };
+    
+    const existingUsers = this.streamTrackedUsers.get(user.serverId) || [];
+    existingUsers.push(newUser);
+    this.streamTrackedUsers.set(user.serverId, existingUsers);
+    return newUser;
+  }
+  
+  async removeStreamTrackedUser(serverId: string, userId: string): Promise<boolean> {
+    const users = this.streamTrackedUsers.get(serverId) || [];
+    const filteredUsers = users.filter(u => u.userId !== userId);
+    if (filteredUsers.length === users.length) return false;
+    this.streamTrackedUsers.set(serverId, filteredUsers);
+    return true;
+  }
+  
+  async updateStreamTrackedUser(serverId: string, userId: string, updates: Partial<StreamTrackedUser>): Promise<StreamTrackedUser | null> {
+    const users = this.streamTrackedUsers.get(serverId) || [];
+    const userIndex = users.findIndex(u => u.userId === userId);
+    if (userIndex === -1) return null;
+    
+    const updatedUser: StreamTrackedUser = {
+      ...users[userIndex],
+      ...updates,
+      updatedAt: new Date()
+    };
+    users[userIndex] = updatedUser;
+    this.streamTrackedUsers.set(serverId, users);
+    return updatedUser;
+  }
+  
+  async createStreamNotificationLog(log: InsertStreamNotificationLog): Promise<StreamNotificationLog> {
+    const id = this.currentStreamLogId++;
+    const now = new Date();
+    const newLog: StreamNotificationLog = {
+      id,
+      serverId: log.serverId,
+      userId: log.userId,
+      streamTitle: log.streamTitle || null,
+      streamUrl: log.streamUrl || null,
+      platform: log.platform || null,
+      messageId: log.messageId || null,
+      notifiedAt: now
+    };
+    this.streamNotificationLogs.push(newLog);
+    return newLog;
+  }
+  
+  async getStreamNotificationLogs(serverId: string, limit?: number): Promise<StreamNotificationLog[]> {
+    const logs = this.streamNotificationLogs
+      .filter(log => log.serverId === serverId)
+      .sort((a, b) => new Date(b.notifiedAt!).getTime() - new Date(a.notifiedAt!).getTime());
+    return limit ? logs.slice(0, limit) : logs;
+  }
 }
 
 export const storage = new MemStorage();

@@ -63,7 +63,7 @@ export class TicketChannelManager {
 
       this.activeTicketsCategoryCache.set(guild.id, newCategory.id);
       console.log(`[TicketChannelManager] Created "Active Tickets" category in ${guild.name}`);
-      return newCategory;
+      return newCategory as unknown as CategoryChannel;
     } catch (error) {
       console.error('[TicketChannelManager] Failed to create Active Tickets category:', error);
       return null;
@@ -103,7 +103,7 @@ export class TicketChannelManager {
 
       this.archiveCategoryCache.set(guild.id, newCategory.id);
       console.log(`[TicketChannelManager] Created "Ticket Archive" category in ${guild.name}`);
-      return newCategory;
+      return newCategory as unknown as CategoryChannel;
     } catch (error) {
       console.error('[TicketChannelManager] Failed to create Archive category:', error);
       return null;
@@ -335,7 +335,7 @@ export class TicketChannelManager {
       }
 
       // Cache ticket category channels
-      const allCategories = await this.config.storage.getAllTicketCategories(this.config.serverId);
+      const allCategories = await this.config.storage.getTicketCategoriesByServerId(this.config.serverId);
       let cachedChannels = 0;
       
       for (const category of allCategories) {
