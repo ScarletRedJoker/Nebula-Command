@@ -73,6 +73,9 @@ class Config:
     SUNSHINE_API_KEY = os.environ.get('SUNSHINE_API_KEY', '')
     SUNSHINE_AUTO_DISCOVER = os.environ.get('SUNSHINE_AUTO_DISCOVER', 'true').lower() == 'true'
     
+    # Tailscale IP for remote gaming (connects to Ubuntu host which forwards to Windows VM)
+    TAILSCALE_GAMING_IP = os.environ.get('TAILSCALE_GAMING_IP', os.environ.get('TAILSCALE_LOCAL_HOST', '10.200.0.2'))
+    
     # Database Administration
     DB_ADMIN_ALLOWED_HOSTS = os.environ.get('DB_ADMIN_ALLOWED_HOSTS', 'discord-bot-db,localhost').split(',')
     DB_BACKUP_RETENTION_DAYS = int(os.environ.get('DB_BACKUP_RETENTION_DAYS', '30'))

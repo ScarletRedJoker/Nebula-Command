@@ -18,7 +18,7 @@
         <span class="hex-led"></span>
     </div>
     <div class="led-group">
-        <div class="led-label">TWINGATE</div>
+        <div class="led-label">TAILSCALE</div>
         <span class="status-led active blink"></span>
     </div>
 </div>
@@ -31,9 +31,9 @@
                 <h3 style="margin: 0; font-weight: 600;">WINDOWS 11 GAMING VM</h3>
             </div>
             <div style="padding: 24px;">
-                <div class="alert alert-info mb-4">
-                    <i class="bi bi-info-circle"></i> 
-                    <strong>Best Performance:</strong> Connect directly via Twingate VPN or your local network for lowest latency (&lt;5ms).
+                <div class="alert alert-success mb-4">
+                    <i class="bi bi-globe"></i> 
+                    <strong>Play From Anywhere!</strong> Connect via Tailscale VPN from any device - phone, laptop, or another PC - and stream games with low latency.
                 </div>
 
                 <div class="row g-4">
@@ -55,12 +55,30 @@
                         <div class="metric-display glow-border">
                             <div style="flex: 1; text-align: center;">
                                 <div class="metric-label">CONNECTION ADDRESS</div>
-                                <div class="data-readout" style="font-size: 1.2rem; margin-top: 12px; color: var(--accent-blue);">
-                                    {{ windows_kvm_ip }}
+                                <div style="margin-top: 12px;">
+                                    <div style="margin-bottom: 8px;">
+                                        <span style="font-size: 0.75rem; color: var(--accent-green);">
+                                            <i class="bi bi-globe"></i> Remote (Tailscale):
+                                        </span>
+                                        <div class="data-readout" style="font-size: 1.1rem; color: var(--accent-green);">
+                                            {{ tailscale_gaming_ip }}
+                                        </div>
+                                        <button class="control-btn" style="font-size: 0.7rem; padding: 4px 12px;" onclick="copyToClipboard('{{ tailscale_gaming_ip }}')">
+                                            <i class="bi bi-clipboard"></i> Copy
+                                        </button>
+                                    </div>
+                                    <div>
+                                        <span style="font-size: 0.75rem; color: var(--accent-blue);">
+                                            <i class="bi bi-hdd-network"></i> Local LAN:
+                                        </span>
+                                        <div class="data-readout" style="font-size: 1.1rem; color: var(--accent-blue);">
+                                            {{ windows_kvm_ip }}
+                                        </div>
+                                        <button class="control-btn" style="font-size: 0.7rem; padding: 4px 12px;" onclick="copyToClipboard('{{ windows_kvm_ip }}')">
+                                            <i class="bi bi-clipboard"></i> Copy
+                                        </button>
+                                    </div>
                                 </div>
-                                <button class="control-btn" style="margin-top: 12px; font-size: 0.8rem;" onclick="copyToClipboard('{{ windows_kvm_ip }}')">
-                                    <i class="bi bi-clipboard"></i> Copy IP
-                                </button>
                             </div>
                             <span class="status-led active blink"></span>
                         </div>
@@ -115,15 +133,38 @@
                     </div>
                 </div>
 
-                <h5 style="color: var(--accent-green); margin-bottom: 16px;">Step 2: Connect via Twingate VPN</h5>
+                <h5 style="color: var(--accent-green); margin-bottom: 16px;">Step 2: Connect via Tailscale VPN</h5>
                 <div class="diagnostic-panel mb-4">
                     <div style="padding: 16px;">
                         <p style="margin: 0;">
                             <i class="bi bi-shield-check" style="color: var(--accent-green);"></i> 
-                            Make sure Twingate VPN is connected for secure, low-latency access.
+                            Install Tailscale on your device for secure, low-latency access from anywhere.
                         </p>
-                        <p style="margin: 8px 0 0 0; font-size: 0.9rem; color: var(--text-secondary);">
-                            This provides direct LAN-like access with &lt;5ms latency.
+                        <div class="row g-2 mt-3">
+                            <div class="col-6 col-md-3">
+                                <a href="https://tailscale.com/download/windows" target="_blank" rel="noopener noreferrer" class="control-btn" style="font-size: 0.75rem; width: 100%;">
+                                    <i class="bi bi-windows"></i> Windows
+                                </a>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <a href="https://tailscale.com/download/mac" target="_blank" rel="noopener noreferrer" class="control-btn" style="font-size: 0.75rem; width: 100%;">
+                                    <i class="bi bi-apple"></i> macOS
+                                </a>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <a href="https://tailscale.com/download/ios" target="_blank" rel="noopener noreferrer" class="control-btn" style="font-size: 0.75rem; width: 100%;">
+                                    <i class="bi bi-phone"></i> iOS
+                                </a>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <a href="https://tailscale.com/download/android" target="_blank" rel="noopener noreferrer" class="control-btn" style="font-size: 0.75rem; width: 100%;">
+                                    <i class="bi bi-android2"></i> Android
+                                </a>
+                            </div>
+                        </div>
+                        <p style="margin: 12px 0 0 0; font-size: 0.9rem; color: var(--text-secondary);">
+                            <i class="bi bi-lightning-charge" style="color: var(--accent-yellow);"></i>
+                            Once connected, you'll have direct LAN-like access with &lt;10ms latency from anywhere in the world.
                         </p>
                     </div>
                 </div>
@@ -133,9 +174,14 @@
                     <div style="padding: 16px;">
                         <ol style="margin: 0; padding-left: 20px;">
                             <li>Open Moonlight client</li>
-                            <li>Click "Add PC"</li>
-                            <li>Enter IP: <code style="background: rgba(96, 165, 250, 0.1); padding: 2px 8px; border-radius: 4px;">{{ windows_kvm_ip }}</code></li>
-                            <li>Pair with PIN from Sunshine Web UI</li>
+                            <li>Click "Add PC" (or "+" button)</li>
+                            <li>Enter IP based on your connection:
+                                <ul style="margin-top: 4px;">
+                                    <li><strong>Remote (via Tailscale):</strong> <code style="background: rgba(52, 211, 153, 0.2); padding: 2px 8px; border-radius: 4px; color: var(--accent-green);">{{ tailscale_gaming_ip }}</code></li>
+                                    <li><strong>Local (same network):</strong> <code style="background: rgba(96, 165, 250, 0.1); padding: 2px 8px; border-radius: 4px;">{{ windows_kvm_ip }}</code></li>
+                                </ul>
+                            </li>
+                            <li>Enter the 4-digit PIN shown in Sunshine Web UI to pair</li>
                         </ol>
                     </div>
                 </div>
@@ -147,11 +193,20 @@
                             <i class="bi bi-gear" style="color: var(--accent-yellow);"></i> 
                             Access Sunshine Web UI to add games and configure streaming settings:
                         </p>
-                        <a href="http://{{ windows_kvm_ip }}:47990" target="_blank" rel="noopener noreferrer" class="control-btn" style="margin-top: 12px;">
-                            <i class="bi bi-box-arrow-up-right"></i> Open Sunshine Web UI
-                        </a>
+                        <div class="row g-2 mt-3">
+                            <div class="col-md-6">
+                                <a href="https://game.evindrake.net" target="_blank" rel="noopener noreferrer" class="control-btn" style="width: 100%;">
+                                    <i class="bi bi-globe"></i> Remote Access (via Caddy)
+                                </a>
+                            </div>
+                            <div class="col-md-6">
+                                <a href="https://{{ windows_kvm_ip }}:47990" target="_blank" rel="noopener noreferrer" class="control-btn" style="width: 100%;">
+                                    <i class="bi bi-hdd-network"></i> Direct LAN Access
+                                </a>
+                            </div>
+                        </div>
                         <p style="margin: 12px 0 0 0; font-size: 0.85rem; color: var(--text-secondary);">
-                            Default credentials: admin / admin (change immediately!)
+                            <i class="bi bi-info-circle"></i> Default credentials: admin / admin (change immediately!)
                         </p>
                     </div>
                 </div>
@@ -176,7 +231,7 @@
                                     <li>FPS: 120</li>
                                     <li>Bitrate: 10-15 Mbps</li>
                                     <li>Quality: Balanced</li>
-                                    <li>Latency: &lt;5ms via Twingate</li>
+                                    <li>Latency: &lt;10ms via Tailscale</li>
                                 </ul>
                             </div>
                         </div>

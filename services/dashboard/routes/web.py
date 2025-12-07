@@ -154,8 +154,8 @@ def domains():
 @web_bp.route('/game-connect')
 def game_connect():
     response = make_response(render_template('game_connect.html',
-                          windows_kvm_ip=Config.WINDOWS_KVM_IP))
-    # Add proper cache headers to prevent Caddy caching
+                          windows_kvm_ip=Config.WINDOWS_KVM_IP,
+                          tailscale_gaming_ip=Config.TAILSCALE_GAMING_IP))
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'

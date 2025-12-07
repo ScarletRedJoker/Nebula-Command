@@ -104,7 +104,22 @@ home.evindrake.net {
 }
 
 game.evindrake.net {
-    redir https://dashboard.evindrake.net/game-connect permanent
+    handle /connect {
+        redir https://dashboard.evindrake.net/game-connect permanent
+    }
+    
+    handle {
+        reverse_proxy 10.200.0.2:47990 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+            transport http {
+                tls
+                tls_insecure_skip_verify
+            }
+        }
+    }
 }
 
 grafana.evindrake.net {
