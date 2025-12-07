@@ -3,6 +3,11 @@
 
 default_config:
 
+# Configure external and internal URLs for reverse proxy
+homeassistant:
+  external_url: "https://home.evindrake.net"
+  internal_url: "http://localhost:8123"
+
 # Configure HTTP access
 http:
   use_x_forwarded_for: true
