@@ -134,7 +134,7 @@ services:
       start_period: 30s
 
   sunshine:
-    image: lizardbyte/sunshine:latest
+    image: lizardbyte/sunshine:latest-ubuntu-24.04
     container_name: sunshine
     restart: unless-stopped
     profiles:
