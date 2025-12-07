@@ -327,13 +327,14 @@ class EnhancedModerationService {
       checkViolation('violence', scores.violence || 0, settings.violenceSensitivity);
       checkViolation('self_harm', scores['self-harm'] || 0, settings.selfHarmSensitivity);
 
-      if (maxViolation) {
-        const confidence = Math.round(maxViolation.score * 100);
+      if (maxViolation !== null) {
+        const violation = maxViolation as { type: ViolationType; score: number; threshold: number };
+        const confidence = Math.round(violation.score * 100);
         return {
           allowed: false,
           action: this.determineAction(confidence, settings),
-          reason: `Content flagged for ${maxViolation.type} (${confidence}% confidence)`,
-          violationType: maxViolation.type,
+          reason: `Content flagged for ${violation.type} (${confidence}% confidence)`,
+          violationType: violation.type,
           confidence,
           details,
           processingTimeMs: Date.now() - startTime,

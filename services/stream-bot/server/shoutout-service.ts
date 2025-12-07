@@ -110,7 +110,7 @@ export class ShoutoutService {
     return await storage.createShoutoutHistory({
       userId: data.userId,
       targetUsername: data.targetUsername,
-      platform: data.platform,
+      platform: data.platform as "twitch" | "youtube" | "kick",
       shoutoutType: data.shoutoutType,
       message: data.message,
     });
@@ -141,14 +141,13 @@ export class ShoutoutService {
       // Increment usage count
       return await storage.updateShoutout(userId, existing.id, {
         usageCount: (existing.usageCount || 0) + 1,
-        lastUsedAt: new Date(),
       });
     } else {
       // Create new shoutout record
       return await storage.createShoutout(userId, {
         userId,
         targetUsername,
-        targetPlatform,
+        targetPlatform: targetPlatform as "twitch" | "youtube" | "kick",
         usageCount: 1,
       });
     }

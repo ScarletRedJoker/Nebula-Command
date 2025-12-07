@@ -87,7 +87,7 @@ export class AlertsService {
         alertType,
         username: data.username,
         message,
-        platform,
+        platform: platform as "twitch" | "youtube" | "kick",
         metadata: data,
       });
 
@@ -153,14 +153,14 @@ export class AlertsService {
       }
 
       // Check if this milestone was already achieved
-      const existing = await this.storage.getMilestone(userId, milestoneType, achievedMilestone);
+      const existing = await this.storage.getMilestone(milestoneType, achievedMilestone);
       if (existing?.achieved) {
         return null;
       }
 
       // Mark milestone as achieved
       if (existing) {
-        await this.storage.updateMilestone(userId, existing.id, {
+        await this.storage.updateMilestone(existing.id, {
           achieved: true,
           achievedAt: new Date(),
         });
@@ -204,7 +204,7 @@ export class AlertsService {
     limit: number = 50
   ) {
     try {
-      return await this.storage.getAlertHistory(userId, alertType, limit);
+      return await this.storage.getAlertHistory(alertType, limit);
     } catch (error) {
       console.error(`[AlertsService] Error getting alert history:`, error);
       return [];
@@ -223,7 +223,7 @@ export class AlertsService {
       }
 
       const thresholds = settings.milestoneThresholds || [];
-      const achieved = await this.storage.getMilestones(userId, milestoneType);
+      const achieved = await this.storage.getMilestones(milestoneType);
 
       // For demo purposes, we'll use achieved milestones count as current count
       // In production, this would come from the actual platform API

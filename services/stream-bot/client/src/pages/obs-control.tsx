@@ -149,8 +149,9 @@ export default function OBSControl() {
   const fetchCurrentScene = async () => {
     try {
       const response = await apiRequest("GET", "/api/obs/scenes/current");
-      setCurrentScene(response.currentScene);
-      setSelectedScene(response.currentScene);
+      const data = await response.json() as { currentScene: string };
+      setCurrentScene(data.currentScene);
+      setSelectedScene(data.currentScene);
     } catch (error) {
       console.error("Failed to fetch current scene:", error);
     }

@@ -59,13 +59,9 @@ export function SpotifyCardMultiUser() {
 
   // Generate overlay token mutation
   const generateToken = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest<OverlayTokenResponse>('/api/overlay/generate-token', {
-        method: 'POST',
-        body: JSON.stringify({ platform: 'spotify', expiresIn: 86400 * 7 }), // 7 days
-        headers: { 'Content-Type': 'application/json' },
-      });
-      return res;
+    mutationFn: async (): Promise<OverlayTokenResponse> => {
+      const res = await apiRequest('POST', '/api/overlay/generate-token', { platform: 'spotify', expiresIn: 86400 * 7 });
+      return await res.json();
     },
     onSuccess: (data) => {
       setOverlayUrl(`${window.location.origin}${data.overlayUrl}`);

@@ -170,6 +170,11 @@ export class BotWorker {
           customPrompt: null,
           lastFactPostedAt: null,
           bannedWords: [],
+          aiPromptTemplate: null,
+          aiTemperature: 0.7,
+          autoShoutoutOnRaid: false,
+          autoShoutoutOnHost: false,
+          shoutoutMessageTemplate: null,
           createdAt: new Date(),
           updatedAt: new Date(),
         } as BotConfig;
@@ -1729,7 +1734,7 @@ export class BotWorker {
     }
   }
 
-  private async postToPlatform(platform: string, message: string) {
+  async postToPlatform(platform: string, message: string) {
     const connection = await this.storage.getPlatformConnectionByPlatform(platform);
 
     if (!connection?.isConnected) {

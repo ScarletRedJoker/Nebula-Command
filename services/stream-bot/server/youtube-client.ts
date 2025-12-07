@@ -7,7 +7,7 @@ import { decryptToken } from './crypto-utils';
 import { getYouTubeConfig } from '../src/config/environment';
 
 interface YouTubeAuthResult {
-  client: ReturnType<typeof google.auth.OAuth2>;
+  client: InstanceType<typeof google.auth.OAuth2>;
   accessToken: string;
 }
 

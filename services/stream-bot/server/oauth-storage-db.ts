@@ -212,13 +212,13 @@ export class OAuthStorageDB {
         FROM ${oauthSessions}
       `);
 
-      const stats = result.rows?.[0] || { total: 0, expired: 0, used: 0, active: 0 };
+      const row = result.rows?.[0] as { total?: unknown; expired?: unknown; used?: unknown; active?: unknown } | undefined;
 
       return {
-        total: stats.total || 0,
-        expired: stats.expired || 0,
-        used: stats.used || 0,
-        active: stats.active || 0,
+        total: Number(row?.total ?? 0),
+        expired: Number(row?.expired ?? 0),
+        used: Number(row?.used ?? 0),
+        active: Number(row?.active ?? 0),
       };
     } catch (error) {
       console.error('[OAuthStorageDB] Error getting session stats:', error);

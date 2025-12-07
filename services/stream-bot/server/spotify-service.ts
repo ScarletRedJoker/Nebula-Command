@@ -99,7 +99,13 @@ export class SpotifyService {
         return { isPlaying: false };
       }
 
-      const track = currentlyPlaying.item;
+      const track = currentlyPlaying.item as {
+        name: string;
+        duration_ms: number;
+        artists: { name: string }[];
+        album: { name: string; images: { url: string }[] };
+        external_urls: { spotify: string };
+      };
       const progressPercent = currentlyPlaying.progress_ms && track.duration_ms 
         ? (currentlyPlaying.progress_ms / track.duration_ms) * 100 
         : 0;
@@ -107,7 +113,7 @@ export class SpotifyService {
       return {
         isPlaying: currentlyPlaying.is_playing,
         title: track.name,
-        artist: track.artists.map((a) => a.name).join(', '),
+        artist: track.artists.map((a: { name: string }) => a.name).join(', '),
         album: track.album.name,
         albumImageUrl: track.album.images[0]?.url,
         songUrl: track.external_urls.spotify,

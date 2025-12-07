@@ -43,7 +43,7 @@ export class PollsService {
       question,
       options,
       duration,
-      platform,
+      platform: platform as "twitch" | "youtube" | "kick",
       status: "pending",
     };
 
@@ -126,7 +126,7 @@ export class PollsService {
       pollId,
       username,
       option,
-      platform,
+      platform: platform as "twitch" | "youtube" | "kick",
     };
 
     await this.storage.createPollVote(voteData);
@@ -217,16 +217,16 @@ export class PollsService {
         percentage: totalVotes > 0 ? Math.round((v.count / totalVotes) * 100) : 0,
       })),
       totalVotes,
-      winner: poll.winner,
+      winner: poll.winner ?? undefined,
     };
   }
 
   async getActivePoll(userId: string, platform?: string): Promise<Poll | null> {
-    return await this.storage.getActivePoll(userId, platform);
+    return await this.storage.getActivePoll(platform);
   }
 
   async getPollHistory(userId: string, limit: number = 20): Promise<Poll[]> {
-    return await this.storage.getPollHistory(userId, limit);
+    return await this.storage.getPollHistory(limit);
   }
 
   async createPrediction(
@@ -241,7 +241,7 @@ export class PollsService {
       title,
       outcomes,
       duration,
-      platform,
+      platform: platform as "twitch" | "youtube" | "kick",
       status: "pending",
     };
 
@@ -363,9 +363,10 @@ export class PollsService {
     }
 
     // Check if user has enough points
-    const balance = await currencyService.getBalance(prediction.userId, username, platform);
-    if (balance < points) {
-      return { success: false, message: `Insufficient points. You have ${balance} points.` };
+    const balanceResult = await currencyService.getBalance(prediction.userId, username, platform);
+    const userBalance = typeof balanceResult === 'number' ? balanceResult : (balanceResult?.balance ?? 0);
+    if (userBalance < points) {
+      return { success: false, message: `Insufficient points. You have ${userBalance} points.` };
     }
 
     // Deduct points from user
@@ -382,7 +383,7 @@ export class PollsService {
       username,
       outcome,
       points,
-      platform,
+      platform: platform as "twitch" | "youtube" | "kick",
     };
 
     await this.storage.createPredictionBet(betData);
@@ -562,11 +563,11 @@ export class PollsService {
   }
 
   async getActivePrediction(userId: string, platform?: string): Promise<Prediction | null> {
-    return await this.storage.getActivePrediction(userId, platform);
+    return await this.storage.getActivePrediction(platform);
   }
 
   async getPredictionHistory(userId: string, limit: number = 20): Promise<Prediction[]> {
-    return await this.storage.getPredictionHistory(userId, limit);
+    return await this.storage.getPredictionHistory(limit);
   }
 
   // Twitch API methods

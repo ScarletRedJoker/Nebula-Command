@@ -122,7 +122,7 @@ Keep questions clear and answers concise (1-3 words). Make it fun and engaging!`
       await this.storage.createActiveTriviaQuestion({
         userId,
         player,
-        platform,
+        platform: platform as "twitch" | "youtube" | "kick",
         question,
         correctAnswer: answer.toLowerCase(),
         difficulty,
@@ -148,7 +148,7 @@ Keep questions clear and answers concise (1-3 words). Make it fun and engaging!`
   }
 
   async checkTriviaAnswer(player: string, userId: string, platform: string, answer: string): Promise<GameResult | null> {
-    const activeQuestion = await this.storage.getActiveTriviaQuestion(userId, player, platform);
+    const activeQuestion = await this.storage.getActiveTriviaQuestion(player, platform);
     
     if (!activeQuestion) {
       return null;
@@ -304,22 +304,22 @@ Keep questions clear and answers concise (1-3 words). Make it fun and engaging!`
   ): Promise<void> {
     try {
       await this.storage.createGameHistory({
-        userId: this.storage.userId,
+        userId: this.storage['userId'],
         gameType,
         player,
-        opponent: opponent || null,
+        opponent: opponent ?? undefined,
         outcome,
         pointsAwarded,
         details: details || null,
-        platform,
+        platform: platform as "twitch" | "youtube" | "kick",
       });
 
       // Update aggregated game stats
       await this.storage.upsertGameStats({
-        userId: this.storage.userId,
+        userId: this.storage['userId'],
         username: player,
         gameName: gameType,
-        platform,
+        platform: platform as "twitch" | "youtube" | "kick",
         wins: outcome === "win" ? 1 : 0,
         losses: outcome === "loss" ? 1 : 0,
         neutral: outcome === "neutral" ? 1 : 0,
@@ -351,10 +351,15 @@ Keep questions clear and answers concise (1-3 words). Make it fun and engaging!`
       for (const game of history) {
         if (byGame[game.gameType]) {
           byGame[game.gameType].plays++;
-          byGame[game.gameType][game.outcome]++;
+          const outcomeKey = game.outcome as "win" | "loss" | "neutral";
+          if (outcomeKey === "win") byGame[game.gameType].wins++;
+          else if (outcomeKey === "loss") byGame[game.gameType].losses++;
+          else byGame[game.gameType].neutral++;
           
           total.plays++;
-          total[game.outcome]++;
+          if (outcomeKey === "win") total.wins++;
+          else if (outcomeKey === "loss") total.losses++;
+          else total.neutral++;
         }
       }
 

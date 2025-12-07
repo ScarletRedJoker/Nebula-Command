@@ -5,7 +5,7 @@ import {
   type SpeechToTextQueue,
   type Transcription
 } from "@shared/schema";
-import { eq, desc, and, lte, or } from "drizzle-orm";
+import { eq, desc, and, lte, or, sql } from "drizzle-orm";
 
 export type AudioFormat = 'wav' | 'mp3' | 'webm' | 'ogg' | 'm4a' | 'flac';
 export type QueueStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
@@ -175,7 +175,7 @@ class SpeechToTextService {
 
     if (error) {
       updates.lastError = error;
-      updates.retryCount = db.sql`${speechToTextQueue.retryCount} + 1`;
+      updates.retryCount = sql`${speechToTextQueue.retryCount} + 1`;
     }
 
     await db

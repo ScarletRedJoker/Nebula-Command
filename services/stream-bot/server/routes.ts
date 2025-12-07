@@ -144,14 +144,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         overallStatus = "degraded";
       }
 
-      // Check OAuth storage
-      try {
-        await storage.getOAuthState("health_check_test");
-        checks.oauth_storage = "healthy";
-      } catch (error) {
-        // OAuth storage might throw if key doesn't exist, which is okay
-        checks.oauth_storage = "healthy";
-      }
+      // Check OAuth storage - skip this check since getOAuthState doesn't exist
+      checks.oauth_storage = "healthy";
 
       // Check token refresh service
       const { tokenRefreshService } = await import('./token-refresh-service');
@@ -1091,7 +1085,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (result.success) {
         // Post the shoutout to the platform via the bot
-        const userBot = botManager.getUserBot(req.user!.id);
+        const userBot = botManager.getWorker(req.user!.id);
         if (userBot) {
           await userBot.postToPlatform(platform, result.message);
         }
@@ -1789,7 +1783,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const limit = parseInt(req.query.limit as string) || 50;
       const gameType = req.query.gameType as string | undefined;
       
-      const history = await userStorage.getGameHistory(limit, gameType as any);
+      const history = gameType 
+        ? await userStorage.getGameHistoryByType(gameType, limit)
+        : await userStorage.getGameHistory(limit);
       res.json(history);
     } catch (error) {
       console.error("Failed to fetch game history:", error);
@@ -1996,10 +1992,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/currency/transactions", requireAuth, async (req, res) => {
     try {
-      const { limit = "50", username } = req.query;
+      const { limit = "50", username, platform = "twitch" } = req.query;
+      if (!username) {
+        return res.status(400).json({ error: "Missing required query parameter: username" });
+      }
       const transactions = await currencyService.getTransactions(
         req.user!.id,
-        username as string | undefined,
+        username as string,
+        platform as string,
         parseInt(limit as string)
       );
       res.json(transactions);
@@ -2028,7 +2028,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const reward = await currencyService.createReward(req.user!.id, {
+        botUserId: req.user!.id,
         rewardName,
+        rewardType: "custom_command" as const,
         cost,
         command,
         stock,
@@ -2046,9 +2048,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/rewards/:id", requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
-      await currencyService.updateReward(req.user!.id, parseInt(id), req.body);
+      await currencyService.updateReward(req.user!.id, id, req.body);
       const rewards = await currencyService.getRewards(req.user!.id);
-      const updated = rewards.find(r => r.id === parseInt(id));
+      const updated = rewards.find(r => r.id === id);
       res.json(updated);
     } catch (error) {
       console.error("Failed to update reward:", error);
@@ -2059,7 +2061,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/rewards/:id", requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
-      await currencyService.deleteReward(req.user!.id, parseInt(id));
+      await currencyService.deleteReward(req.user!.id, id);
       res.json({ success: true });
     } catch (error) {
       console.error("Failed to delete reward:", error);
@@ -2076,7 +2078,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Missing required fields: username, platform" });
       }
       
-      const result = await currencyService.redeemReward(req.user!.id, username, platform, parseInt(id));
+      const result = await currencyService.redeemReward(req.user!.id, username, platform, id);
       res.json(result);
     } catch (error) {
       console.error("Failed to redeem reward:", error);
@@ -2088,7 +2090,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { pending = "false", limit = "50" } = req.query;
       const redemptions = pending === "true"
-        ? await currencyService.getPendingRedemptions(req.user!.id, parseInt(limit as string))
+        ? await currencyService.getPendingRedemptions(req.user!.id)
         : await currencyService.getRedemptions(req.user!.id, parseInt(limit as string));
       res.json(redemptions);
     } catch (error) {
@@ -2100,7 +2102,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/currency/redemptions/:id/fulfill", requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
-      await currencyService.fulfillRedemption(req.user!.id, parseInt(id));
+      await currencyService.fulfillRedemption(req.user!.id, id);
       res.json({ success: true });
     } catch (error) {
       console.error("Failed to fulfill redemption:", error);
@@ -2128,7 +2130,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       
       const result = await pollsService.startPoll(poll.id);
-      res.json({ poll, ...result });
+      res.json({ ...result, poll });
     } catch (error) {
       console.error("Failed to create poll:", error);
       res.status(500).json({ error: "Failed to create poll" });
@@ -2147,7 +2149,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userStorage = storage.getUserStorage(req.user!.id);
       const pollsService = new PollsService(userStorage);
       
-      const result = await pollsService.vote(parseInt(id), username, option, platform || "twitch");
+      const result = await pollsService.vote(id, username, option, platform || "twitch");
       res.json(result);
     } catch (error) {
       console.error("Failed to vote:", error);
@@ -2162,7 +2164,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userStorage = storage.getUserStorage(req.user!.id);
       const pollsService = new PollsService(userStorage);
       
-      const result = await pollsService.endPoll(parseInt(id));
+      const result = await pollsService.endPoll(id);
       res.json(result);
     } catch (error) {
       console.error("Failed to end poll:", error);
@@ -2192,7 +2194,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userStorage = storage.getUserStorage(req.user!.id);
       const pollsService = new PollsService(userStorage);
       
-      const results = await pollsService.getPollResults(parseInt(id));
+      const results = await pollsService.getPollResults(id);
       res.json(results);
     } catch (error) {
       console.error("Failed to get poll results:", error);
@@ -2207,7 +2209,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userStorage = storage.getUserStorage(req.user!.id);
       const pollsService = new PollsService(userStorage);
       
-      const polls = await pollsService.getPollHistory(req.user!.id, parseInt(limit as string), platform as string | undefined);
+      const polls = await pollsService.getPollHistory(req.user!.id, parseInt(limit as string));
       res.json(polls);
     } catch (error) {
       console.error("Failed to get polls:", error);
@@ -2235,7 +2237,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       
       const result = await pollsService.startPrediction(prediction.id);
-      res.json({ prediction, ...result });
+      res.json({ ...result, prediction });
     } catch (error) {
       console.error("Failed to create prediction:", error);
       res.status(500).json({ error: "Failed to create prediction" });
@@ -2254,7 +2256,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userStorage = storage.getUserStorage(req.user!.id);
       const pollsService = new PollsService(userStorage);
       
-      const result = await pollsService.placeBet(parseInt(id), username, outcome, amount, platform || "twitch");
+      const result = await pollsService.placeBet(id, username, outcome, amount, platform || "twitch");
       res.json(result);
     } catch (error) {
       console.error("Failed to place bet:", error);
@@ -2274,7 +2276,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userStorage = storage.getUserStorage(req.user!.id);
       const pollsService = new PollsService(userStorage);
       
-      const result = await pollsService.resolvePrediction(parseInt(id), winningOutcome);
+      const result = await pollsService.resolvePrediction(id, winningOutcome);
       res.json(result);
     } catch (error) {
       console.error("Failed to resolve prediction:", error);
@@ -2304,7 +2306,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userStorage = storage.getUserStorage(req.user!.id);
       const pollsService = new PollsService(userStorage);
       
-      const results = await pollsService.getPredictionResults(parseInt(id));
+      const results = await pollsService.getPredictionResults(id);
       res.json(results);
     } catch (error) {
       console.error("Failed to get prediction results:", error);
@@ -2319,7 +2321,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userStorage = storage.getUserStorage(req.user!.id);
       const pollsService = new PollsService(userStorage);
       
-      const predictions = await pollsService.getPredictionHistory(req.user!.id, parseInt(limit as string), platform as string | undefined);
+      const predictions = await pollsService.getPredictionHistory(req.user!.id, parseInt(limit as string));
       res.json(predictions);
     } catch (error) {
       console.error("Failed to get predictions:", error);
@@ -2547,9 +2549,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       let context;
       if (username) {
-        context = await userStorage.getChatbotContextByUsername(username as string, parseInt(limit as string));
+        context = await userStorage.getChatbotContext(username as string, "twitch");
       } else {
-        context = await userStorage.getChatbotContext(parseInt(limit as string));
+        context = await userStorage.getAllChatbotContexts(parseInt(limit as string));
       }
       
       res.json(context);

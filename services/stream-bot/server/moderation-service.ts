@@ -153,7 +153,7 @@ class ModerationService {
       severity = "medium";
     }
 
-    const shouldTrigger = this.checkSeverityThreshold(severity, rule.severity);
+    const shouldTrigger = this.checkSeverityThreshold(severity, rule.severity as "low" | "medium" | "high");
     
     if (!shouldTrigger) {
       return { allow: true, action: "allow" };
@@ -161,7 +161,7 @@ class ModerationService {
 
     return {
       allow: false,
-      action: rule.action,
+      action: rule.action as "warn" | "allow" | "timeout" | "ban",
       ruleTriggered: "toxic",
       severity,
       reason: `Toxic content detected: ${triggeredCategories.join(", ")}`,
@@ -195,9 +195,9 @@ class ModerationService {
       if (uniqueMessages.size <= 2) {
         return {
           allow: false,
-          action: rule.action,
+          action: rule.action as "warn" | "allow" | "timeout" | "ban",
           ruleTriggered: "spam",
-          severity: rule.severity,
+          severity: rule.severity as "low" | "medium" | "high",
           reason: "Repetitive messages detected",
           timeoutDuration: rule.timeoutDuration || 60
         };
@@ -211,9 +211,9 @@ class ModerationService {
     if (emojiCount > 10) {
       return {
         allow: false,
-        action: rule.action,
+        action: rule.action as "warn" | "allow" | "timeout" | "ban",
         ruleTriggered: "spam",
-        severity: rule.severity,
+        severity: rule.severity as "low" | "medium" | "high",
         reason: "Excessive emojis detected",
         timeoutDuration: rule.timeoutDuration || 60
       };
@@ -260,9 +260,9 @@ class ModerationService {
       if (!isWhitelisted) {
         return {
           allow: false,
-          action: rule.action,
+          action: rule.action as "warn" | "allow" | "timeout" | "ban",
           ruleTriggered: "links",
-          severity: rule.severity,
+          severity: rule.severity as "low" | "medium" | "high",
           reason: `Unauthorized link detected: ${domain}`,
           timeoutDuration: rule.timeoutDuration || 60
         };
@@ -317,9 +317,9 @@ class ModerationService {
     if (capsPercentage > 50) {
       return {
         allow: false,
-        action: rule.action,
+        action: rule.action as "warn" | "allow" | "timeout" | "ban",
         ruleTriggered: "caps",
-        severity: rule.severity,
+        severity: rule.severity as "low" | "medium" | "high",
         reason: `Excessive caps detected (${Math.round(capsPercentage)}%)`,
         timeoutDuration: rule.timeoutDuration || 60
       };
@@ -338,9 +338,9 @@ class ModerationService {
     if (matches && matches.length > 0) {
       return {
         allow: false,
-        action: rule.action,
+        action: rule.action as "warn" | "allow" | "timeout" | "ban",
         ruleTriggered: "symbols",
-        severity: rule.severity,
+        severity: rule.severity as "low" | "medium" | "high",
         reason: "Repeated characters/symbol spam detected",
         timeoutDuration: rule.timeoutDuration || 60
       };
@@ -354,9 +354,9 @@ class ModerationService {
     if (totalChars > 0 && (symbolCount / totalChars) > 0.3) {
       return {
         allow: false,
-        action: rule.action,
+        action: rule.action as "warn" | "allow" | "timeout" | "ban",
         ruleTriggered: "symbols",
-        severity: rule.severity,
+        severity: rule.severity as "low" | "medium" | "high",
         reason: "Excessive symbols detected",
         timeoutDuration: rule.timeoutDuration || 60
       };

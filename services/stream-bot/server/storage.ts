@@ -27,6 +27,10 @@ import {
   chatbotResponses,
   chatbotContext,
   chatbotPersonalities,
+  polls,
+  pollVotes,
+  predictions,
+  predictionBets,
   type PlatformConnection,
   type BotConfig,
   type MessageHistory,
@@ -53,6 +57,10 @@ import {
   type ChatbotResponse,
   type ChatbotContext,
   type ChatbotPersonality,
+  type Poll,
+  type PollVote,
+  type Prediction,
+  type PredictionBet,
   type InsertPlatformConnection,
   type InsertBotConfig,
   type InsertMessageHistory,
@@ -79,6 +87,10 @@ import {
   type InsertChatbotResponse,
   type InsertChatbotContext,
   type InsertChatbotPersonality,
+  type InsertPoll,
+  type InsertPollVote,
+  type InsertPrediction,
+  type InsertPredictionBet,
   type UpdateBotConfig,
   type UpdatePlatformConnection,
   type UpdateCustomCommand,
@@ -92,13 +104,18 @@ import {
   type UpdateCurrencyReward,
   type UpdateAlertSettings,
   type UpdateMilestone,
-  type UpdateChatbotSettings,
-  type UpdateChatbotResponse,
-  type UpdateChatbotContext,
-  type UpdateChatbotPersonality,
+  type UpdatePoll,
+  type UpdatePrediction,
+  type UpdatePredictionBet,
 } from "@shared/schema";
+
+type UpdateChatbotSettings = Partial<Omit<ChatbotSettings, 'id' | 'userId' | 'createdAt'>>;
+type UpdateChatbotResponse = Partial<Omit<ChatbotResponse, 'id' | 'userId' | 'createdAt'>>;
+type UpdateChatbotContext = Partial<Omit<ChatbotContext, 'id' | 'userId' | 'createdAt'>>;
+type UpdateChatbotPersonality = Partial<Omit<ChatbotPersonality, 'id' | 'userId' | 'createdAt'>>;
 import { db } from "./db";
-import { eq, desc, gte, sql, and } from "drizzle-orm";
+import { eq, desc, gte, lt, sql, and } from "drizzle-orm";
+import { UserStorage } from "./user-storage";
 
 export interface IStorage {
   // Platform Connections
@@ -1247,13 +1264,6 @@ export class DatabaseStorage implements IStorage {
       .where(eq(activeTriviaQuestions.id, id));
   }
 
-  async cleanupExpiredTriviaQuestions(): Promise<void> {
-    const now = new Date();
-    await db
-      .delete(activeTriviaQuestions)
-      .where(gte(now, activeTriviaQuestions.expiresAt));
-  }
-
   // Game Stats
   async getGameStats(userId: string, limit: number = 100): Promise<GameStats[]> {
     return await db
@@ -1765,6 +1775,287 @@ export class DatabaseStorage implements IStorage {
       .update(users)
       .set({ ...data, updatedAt: new Date() })
       .where(eq(users.id, userId));
+  }
+
+  getUserStorage(userId: string): UserStorage {
+    return new UserStorage(userId);
+  }
+
+  async upsertPlatformConnection(userId: string, platform: string, data: Partial<InsertPlatformConnection>): Promise<PlatformConnection> {
+    const existing = await this.getPlatformConnectionByPlatform(userId, platform);
+    if (existing) {
+      return await this.updatePlatformConnection(userId, existing.id, data as UpdatePlatformConnection);
+    }
+    return await this.createPlatformConnection(userId, { platform, ...data } as InsertPlatformConnection);
+  }
+
+  async getPolls(userId: string, limit?: number): Promise<Poll[]> {
+    const query = db
+      .select()
+      .from(polls)
+      .where(eq(polls.userId, userId))
+      .orderBy(desc(polls.createdAt));
+    
+    if (limit) {
+      return await query.limit(limit);
+    }
+    return await query;
+  }
+
+  async getPoll(userId: string, id: string): Promise<Poll | undefined> {
+    const [poll] = await db
+      .select()
+      .from(polls)
+      .where(
+        and(
+          eq(polls.userId, userId),
+          eq(polls.id, id)
+        )
+      );
+    return poll || undefined;
+  }
+
+  async getActivePoll(userId: string, platform?: string): Promise<Poll | null> {
+    const conditions = [
+      eq(polls.userId, userId),
+      eq(polls.status, "active")
+    ];
+    if (platform) {
+      conditions.push(eq(polls.platform, platform));
+    }
+    const [poll] = await db
+      .select()
+      .from(polls)
+      .where(and(...conditions))
+      .limit(1);
+    return poll || null;
+  }
+
+  async getPollHistory(userId: string, limit?: number): Promise<Poll[]> {
+    const query = db
+      .select()
+      .from(polls)
+      .where(
+        and(
+          eq(polls.userId, userId),
+          eq(polls.status, "ended")
+        )
+      )
+      .orderBy(desc(polls.endedAt));
+    
+    if (limit) {
+      return await query.limit(limit);
+    }
+    return await query;
+  }
+
+  async createPoll(userId: string, data: InsertPoll): Promise<Poll> {
+    const [poll] = await db
+      .insert(polls)
+      .values({ ...data, userId })
+      .returning();
+    return poll;
+  }
+
+  async updatePoll(userId: string, id: string, data: UpdatePoll): Promise<Poll> {
+    const [poll] = await db
+      .update(polls)
+      .set({ ...data, updatedAt: new Date() })
+      .where(
+        and(
+          eq(polls.userId, userId),
+          eq(polls.id, id)
+        )
+      )
+      .returning();
+    return poll;
+  }
+
+  async incrementPollVotes(userId: string, pollId: string): Promise<void> {
+    await db
+      .update(polls)
+      .set({
+        totalVotes: sql`${polls.totalVotes} + 1`,
+        updatedAt: new Date()
+      })
+      .where(
+        and(
+          eq(polls.userId, userId),
+          eq(polls.id, pollId)
+        )
+      );
+  }
+
+  async getPollVotes(userId: string, pollId: string): Promise<PollVote[]> {
+    return await db
+      .select()
+      .from(pollVotes)
+      .where(eq(pollVotes.pollId, pollId))
+      .orderBy(desc(pollVotes.votedAt));
+  }
+
+  async getPollVoteByUser(userId: string, pollId: string, username: string, platform: string): Promise<PollVote | undefined> {
+    const [vote] = await db
+      .select()
+      .from(pollVotes)
+      .where(
+        and(
+          eq(pollVotes.pollId, pollId),
+          eq(pollVotes.username, username),
+          eq(pollVotes.platform, platform)
+        )
+      );
+    return vote || undefined;
+  }
+
+  async createPollVote(userId: string, data: InsertPollVote): Promise<PollVote> {
+    const [vote] = await db
+      .insert(pollVotes)
+      .values(data)
+      .returning();
+    return vote;
+  }
+
+  async getPredictions(userId: string, limit?: number): Promise<Prediction[]> {
+    const query = db
+      .select()
+      .from(predictions)
+      .where(eq(predictions.userId, userId))
+      .orderBy(desc(predictions.createdAt));
+    
+    if (limit) {
+      return await query.limit(limit);
+    }
+    return await query;
+  }
+
+  async getPrediction(userId: string, id: string): Promise<Prediction | undefined> {
+    const [prediction] = await db
+      .select()
+      .from(predictions)
+      .where(
+        and(
+          eq(predictions.userId, userId),
+          eq(predictions.id, id)
+        )
+      );
+    return prediction || undefined;
+  }
+
+  async getActivePrediction(userId: string, platform?: string): Promise<Prediction | null> {
+    const conditions = [
+      eq(predictions.userId, userId),
+      eq(predictions.status, "active")
+    ];
+    if (platform) {
+      conditions.push(eq(predictions.platform, platform));
+    }
+    const [prediction] = await db
+      .select()
+      .from(predictions)
+      .where(and(...conditions))
+      .limit(1);
+    return prediction || null;
+  }
+
+  async getPredictionHistory(userId: string, limit?: number): Promise<Prediction[]> {
+    const query = db
+      .select()
+      .from(predictions)
+      .where(
+        and(
+          eq(predictions.userId, userId),
+          eq(predictions.status, "resolved")
+        )
+      )
+      .orderBy(desc(predictions.endedAt));
+    
+    if (limit) {
+      return await query.limit(limit);
+    }
+    return await query;
+  }
+
+  async createPrediction(userId: string, data: InsertPrediction): Promise<Prediction> {
+    const [prediction] = await db
+      .insert(predictions)
+      .values({ ...data, userId })
+      .returning();
+    return prediction;
+  }
+
+  async updatePrediction(userId: string, id: string, data: UpdatePrediction): Promise<Prediction> {
+    const [prediction] = await db
+      .update(predictions)
+      .set({ ...data, updatedAt: new Date() })
+      .where(
+        and(
+          eq(predictions.userId, userId),
+          eq(predictions.id, id)
+        )
+      )
+      .returning();
+    return prediction;
+  }
+
+  async incrementPredictionStats(userId: string, predictionId: string, points: number): Promise<void> {
+    await db
+      .update(predictions)
+      .set({
+        totalPoints: sql`${predictions.totalPoints} + ${points}`,
+        totalBets: sql`${predictions.totalBets} + 1`,
+        updatedAt: new Date()
+      })
+      .where(
+        and(
+          eq(predictions.userId, userId),
+          eq(predictions.id, predictionId)
+        )
+      );
+  }
+
+  async getPredictionBets(userId: string, predictionId: string): Promise<PredictionBet[]> {
+    return await db
+      .select()
+      .from(predictionBets)
+      .where(eq(predictionBets.predictionId, predictionId))
+      .orderBy(desc(predictionBets.placedAt));
+  }
+
+  async getPredictionBetByUser(userId: string, predictionId: string, username: string, platform: string): Promise<PredictionBet | undefined> {
+    const [bet] = await db
+      .select()
+      .from(predictionBets)
+      .where(
+        and(
+          eq(predictionBets.predictionId, predictionId),
+          eq(predictionBets.username, username),
+          eq(predictionBets.platform, platform)
+        )
+      );
+    return bet || undefined;
+  }
+
+  async createPredictionBet(userId: string, data: InsertPredictionBet): Promise<PredictionBet> {
+    const [bet] = await db
+      .insert(predictionBets)
+      .values(data)
+      .returning();
+    return bet;
+  }
+
+  async updatePredictionBet(userId: string, betId: string, data: { payout: number }): Promise<PredictionBet> {
+    const [bet] = await db
+      .update(predictionBets)
+      .set(data)
+      .where(eq(predictionBets.id, betId))
+      .returning();
+    return bet;
+  }
+
+  async cleanupExpiredTriviaQuestions(): Promise<void> {
+    const now = new Date();
+    await db.delete(activeTriviaQuestions).where(lt(activeTriviaQuestions.expiresAt, now));
   }
 }
 
