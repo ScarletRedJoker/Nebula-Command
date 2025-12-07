@@ -95,9 +95,12 @@ if [ ! -f "$ENV_FILE" ]; then
     echo ""
     echo "Quick setup:"
     if [ "$ROLE" = "cloud" ]; then
+        echo "  ./homelab sync-env    # Smart merge: adds new vars, keeps existing values"
+        echo ""
+        echo "  Or manual setup:"
         echo "  cd $PROJECT_ROOT/deploy/linode"
         echo "  cp .env.example .env"
-        echo "  nano .env  # Update your credentials"
+        echo "  nano .env"
     else
         echo "  cp .env.example .env"
         echo "  nano .env  # Update your credentials"
@@ -2806,6 +2809,20 @@ case "${1:-help}" in
     validate-env)
         validate_env
         ;;
+    sync-env)
+        # Smart .env sync - merges new variables without overwriting existing values
+        if [ "$ROLE" = "cloud" ]; then
+            if [ -x "$PROJECT_ROOT/deploy/linode/scripts/sync-env.sh" ]; then
+                "$PROJECT_ROOT/deploy/linode/scripts/sync-env.sh"
+            else
+                echo -e "${RED}ERROR: sync-env.sh not found${NC}"
+                exit 1
+            fi
+        else
+            echo -e "${YELLOW}sync-env is for cloud deployments.${NC}"
+            echo "For local setup, copy .env.example to .env if needed."
+        fi
+        ;;
     backup)
         shift
         backup "$@"
@@ -2992,6 +3009,7 @@ HEALTH & DIAGNOSTICS:
   health --json         - Output diagnostics as JSON
   doctor [human|json]   - Full system diagnostics with JSON report
   validate-env          - Check .env has all required variables
+  sync-env              - Smart merge: update .env without losing existing values
   check-deps            - Verify all system dependencies
   debug                 - Show detailed debugging info
   test                  - Run integration tests on all services
@@ -3029,6 +3047,7 @@ EXAMPLES:
   ./homelab health --full          # Run comprehensive diagnostics
   ./homelab doctor json            # Generate JSON diagnostic report
   ./homelab validate-env           # Check environment variables
+  ./homelab sync-env               # Update .env with new vars (keeps existing)
   ./homelab backup                 # Backup databases
   ./homelab backup --full          # Full system backup (DB + configs)
   ./homelab restore backup.sql     # Restore from backup

@@ -161,26 +161,30 @@ See `docs/deploy/LOCAL_UBUNTU_SETUP.md` for detailed instructions.
 
 ```bash
 # On Linode server:
-cd /opt/homelab/HomeLabHub/deploy/linode
+cd /opt/homelab/HomeLabHub
 
-# First time setup
-cp .env.example .env
-nano .env  # Fill in all required secrets
+# Smart .env setup (preserves existing values, adds new vars)
+./homelab sync-env
+nano deploy/linode/.env  # Fill in any new variables
+
+# Or manual setup (first time only):
+# cp deploy/linode/.env.example deploy/linode/.env
+# nano deploy/linode/.env
 
 # Validate environment
-./scripts/validate-env.sh
+./deploy/linode/scripts/validate-env.sh
 
 # Run pre-flight checks
-./scripts/preflight.sh
+./deploy/linode/scripts/preflight.sh
 
 # Deploy (with all safety checks)
-./scripts/deploy.sh
+./deploy/linode/scripts/deploy.sh
 
 # Or preview first
-./scripts/deploy.sh --dry-run
+./deploy/linode/scripts/deploy.sh --dry-run
 
 # Rollback if needed
-./scripts/rollback.sh
+./deploy/linode/scripts/rollback.sh
 ```
 
 See `docs/runbooks/LINODE_DEPLOYMENT.md` for complete deployment runbook.
