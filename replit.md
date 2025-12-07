@@ -59,11 +59,40 @@ The core system leverages Docker Compose for orchestrating services across a spl
 
 ### NAS Media Storage
 - **NAS Model**: Zyxel NAS326
+- **NAS IP**: 192.168.0.176
 - **Hostname**: NAS326.local
 - **Protocol**: NFS (via /nfs/networkshare) or SMB/CIFS
 - **Media Folders**: video, music, photo, games
-- **Mount Base**: /mnt/nas on Ubuntu host
-- **Plex Library Paths**: /mnt/nas/video, /mnt/nas/music, /mnt/nas/photo
+- **Host Mount Path**: `/mnt/nas/networkshare` (mounted from NAS)
+
+### Plex Media Server
+- **Access URL**: https://plex.evindrake.net
+- **Container Image**: `lscr.io/linuxserver/plex:latest`
+- **Network Mode**: host
+- **Config Volume**: `/var/lib/plex/config:/config`
+- **Media Volumes** (read-only):
+  - `/mnt/nas/networkshare/video:/nas/video:ro`
+  - `/mnt/nas/networkshare/music:/nas/music:ro`
+  - `/mnt/nas/networkshare/photo:/nas/photo:ro`
+- **Plex Library Paths** (inside container): `/nas/video`, `/nas/music`, `/nas/photo`
+- **Environment**: PUID=1000, PGID=1000, TZ=America/New_York
+
+#### Docker Run Command
+```bash
+docker run -d \
+  --name=plex \
+  --net=host \
+  -e PUID=1000 \
+  -e PGID=1000 \
+  -e TZ=America/New_York \
+  -e VERSION=docker \
+  -v /var/lib/plex/config:/config \
+  -v /mnt/nas/networkshare/video:/nas/video:ro \
+  -v /mnt/nas/networkshare/music:/nas/music:ro \
+  -v /mnt/nas/networkshare/photo:/nas/photo:ro \
+  --restart unless-stopped \
+  lscr.io/linuxserver/plex:latest
+```
 
 #### NAS Auto-Discovery
 The local setup includes automatic NAS discovery that scans for NFS and SMB shares on the network:
