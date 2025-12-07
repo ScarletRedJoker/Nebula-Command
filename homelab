@@ -68,7 +68,14 @@ if [ "$ROLE" = "local" ]; then
     TOTAL_SERVICES=4
     ROLE_NAME="Local (Ubuntu Host)"
 else
-    ENV_FILE="$PROJECT_ROOT/.env"
+    # Cloud deployment uses deploy/linode/.env for secrets
+    if [ -f "$PROJECT_ROOT/deploy/linode/.env" ]; then
+        ENV_FILE="$PROJECT_ROOT/deploy/linode/.env"
+    elif [ -f "$PROJECT_ROOT/.env" ]; then
+        ENV_FILE="$PROJECT_ROOT/.env"
+    else
+        ENV_FILE="$PROJECT_ROOT/deploy/linode/.env"
+    fi
     COMPOSE_FILE="$PROJECT_ROOT/docker-compose.yml"
     ALL_SERVICES=(
         "homelab-postgres" "homelab-redis"
@@ -84,12 +91,17 @@ fi
 
 # Verify files exist
 if [ ! -f "$ENV_FILE" ]; then
-    echo -e "${RED}ERROR: .env file not found${NC}"
+    echo -e "${RED}ERROR: .env file not found at $ENV_FILE${NC}"
     echo ""
     echo "Quick setup:"
-    echo "  cp .env.example .env"
-    echo "  nano .env  # Update your credentials"
-    echo "  ./deploy/scripts/bootstrap.sh --role $ROLE"
+    if [ "$ROLE" = "cloud" ]; then
+        echo "  cd $PROJECT_ROOT/deploy/linode"
+        echo "  cp .env.example .env"
+        echo "  nano .env  # Update your credentials"
+    else
+        echo "  cp .env.example .env"
+        echo "  nano .env  # Update your credentials"
+    fi
     echo ""
     exit 1
 fi
