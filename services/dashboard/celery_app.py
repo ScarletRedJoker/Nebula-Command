@@ -117,6 +117,7 @@ celery_app.conf.update(
         'autonomous.security_scan': {'queue': 'autonomous'},
         'autonomous.efficiency_report': {'queue': 'autonomous'},
         'autonomous.security_summary': {'queue': 'autonomous'},
+        'autonomous.self_heal': {'queue': 'autonomous'},
     },
     task_default_queue='default',
     task_default_exchange='tasks',
@@ -145,6 +146,10 @@ celery_app.conf.update(
         'security-summary-daily': {
             'task': 'autonomous.security_summary',
             'schedule': crontab(hour=3, minute=0),
+        },
+        'self-heal-every-10-minutes': {
+            'task': 'autonomous.self_heal',
+            'schedule': 600.0,
         },
     },
 )
