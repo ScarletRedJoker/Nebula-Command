@@ -80,16 +80,25 @@ www.scarletredjoker.com {
 plex.evindrake.net {
     # Proxy through WireGuard tunnel to home Plex server
     # Home server WireGuard IP: 10.200.0.2
-    # IMPORTANT: Do NOT override X-Plex-* headers - clients send tokens in query strings
-    # and injecting empty headers causes 401 auth failures
+    # 
+    # CRITICAL for Plex auth: 
+    # - Pass X-Real-IP and X-Forwarded-For so Plex sees the real client IP
+    # - Plex binds auth tokens to client IPs - without these headers, token validation fails (401)
+    # - Do NOT set X-Plex-* headers manually - let them pass through naturally
+    #   (setting them to empty values breaks auth since clients send tokens in query strings)
     reverse_proxy 10.200.0.2:32400 {
-        # Let Caddy handle headers naturally - no overrides needed
-        # WebSocket support for real-time updates
+        # Pass real client IP for Plex token/IP binding
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+        
+        # Timeouts for large media files
         transport http {
             read_timeout 300s
             write_timeout 300s
         }
-        # Flush immediately for streaming
+        
+        # Flush immediately for streaming - no buffering
         flush_interval -1
     }
 }
