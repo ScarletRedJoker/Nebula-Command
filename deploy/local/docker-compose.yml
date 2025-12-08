@@ -66,15 +66,14 @@ services:
       - PLEX_CLAIM=${PLEX_CLAIM:-}
     volumes:
       - plex_config:/config
-      # Local cache (fast SSD) - Plex prioritizes these
-      - /opt/plex-cache/movies:/cache/movies:ro
-      - /opt/plex-cache/shows:/cache/shows:ro
-      - /opt/plex-cache/music:/cache/music:ro
-      # NAS storage (slower, but complete library)
-      - /mnt/nas/networkshare/video:/nas/video:ro
-      - /mnt/nas/networkshare/music:/nas/music:ro
-      - /mnt/nas/networkshare/photo:/nas/photo:ro
-      - /mnt/nas/networkshare/games:/nas/games:ro
+      # MergerFS unified paths (cache + NAS merged, cache takes priority)
+      # This serves cached content from SSD first, falls back to NAS
+      - /opt/plex-media/movies:/media/movies:ro
+      - /opt/plex-media/shows:/media/shows:ro
+      - /opt/plex-media/music:/media/music:ro
+      # Additional NAS content (photos, games - not cached)
+      - /mnt/nas/networkshare/photo:/media/photo:ro
+      - /mnt/nas/networkshare/games:/media/games:ro
     tmpfs:
       - /transcode:size=4G
     devices:
