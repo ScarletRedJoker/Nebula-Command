@@ -9,6 +9,7 @@ volumes:
   homeassistant_config:
   plex_config:
   novnc_data:
+  plex_cache_data:
 
 services:
   caddy:
@@ -112,6 +113,36 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
+
+  plex-auto-cache:
+    build:
+      context: ./services/plex-auto-cache
+      dockerfile: Dockerfile
+    container_name: plex-auto-cache
+    restart: unless-stopped
+    networks:
+      - homelab
+    environment:
+      - CACHE_BASE=/opt/plex-cache
+      - NAS_BASE=/mnt/nas/networkshare
+      - CACHE_MAX_SIZE_GB=${PLEX_CACHE_MAX_GB:-100}
+      - CACHE_BUFFER_GB=${PLEX_CACHE_BUFFER_GB:-10}
+      - SESSION_PROTECT_MINUTES=${PLEX_SESSION_PROTECT_MINUTES:-60}
+      - DB_PATH=/data/cache_metadata.db
+      - PORT=5055
+      - TZ=${TZ:-America/New_York}
+    volumes:
+      - /opt/plex-cache:/opt/plex-cache
+      - /mnt/nas/networkshare:/mnt/nas/networkshare:ro
+      - plex_cache_data:/data
+    ports:
+      - "5055:5055"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5055/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
 
   novnc:
     image: theasp/novnc:latest

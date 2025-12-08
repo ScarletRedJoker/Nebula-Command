@@ -189,6 +189,37 @@ sudo ./deploy/local/scripts/plex-cache.sh add music "Artist"  # Cache music
 ```
 Cache location: `/opt/plex-cache/{movies,shows,music}` - Add to Plex as libraries for prioritized playback.
 
+**Plex Auto-Cache (intelligent automatic caching):**
+
+Automatically caches content when you start watching, with smart disk management:
+
+```bash
+# Start the auto-cache service
+docker compose up -d --build plex-auto-cache
+
+# Check cache status
+curl http://localhost:5055/status
+
+# View cached items
+curl http://localhost:5055/cached
+```
+
+Setup Plex webhook: Plex Settings → Webhooks → Add `http://YOUR_IP:5055/webhook`
+
+Configuration (in `.env`):
+- `PLEX_CACHE_MAX_GB=100` - Maximum cache size (default 100GB)
+- `PLEX_CACHE_BUFFER_GB=10` - Buffer space to keep free
+- `PLEX_SESSION_PROTECT_MINUTES=60` - Time to protect paused content from eviction
+
+Features:
+- Automatic caching on playback start
+- LRU eviction (least-recently-watched content removed first)
+- Session protection (never removes content being watched)
+- Watch completion tracking (finished content evicted first)
+- Seamless fallback to NAS when content is evicted
+
+See `docs/troubleshooting/PLEX_AUTO_CACHE.md` for detailed setup guide.
+
 ## Documentation Reference
 
 - `docs/deploy/FULL_INFRASTRUCTURE_STATUS.md` - Complete infrastructure audit and service matrix
