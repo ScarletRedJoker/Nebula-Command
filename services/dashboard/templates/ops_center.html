@@ -146,6 +146,253 @@
 .resource-bar-fill.cpu { background: linear-gradient(90deg, #6366f1, #8b5cf6); }
 .resource-bar-fill.ram { background: linear-gradient(90deg, #10b981, #34d399); }
 .resource-bar-fill.disk { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+
+.remediation-card {
+    background: linear-gradient(135deg, rgba(30, 30, 50, 0.9) 0%, rgba(20, 20, 40, 0.9) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 12px;
+    transition: all 0.3s ease;
+}
+.remediation-card:hover {
+    border-color: rgba(99, 102, 241, 0.5);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+.remediation-card.severity-critical {
+    border-left: 4px solid #ef4444;
+}
+.remediation-card.severity-high {
+    border-left: 4px solid #f97316;
+}
+.remediation-card.severity-medium {
+    border-left: 4px solid #eab308;
+}
+.remediation-card.severity-low {
+    border-left: 4px solid #22c55e;
+}
+.severity-badge {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+.severity-badge.critical { background: #ef4444; color: white; }
+.severity-badge.high { background: #f97316; color: white; }
+.severity-badge.medium { background: #eab308; color: black; }
+.severity-badge.low { background: #22c55e; color: white; }
+
+.action-btn-group {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.action-btn {
+    padding: 4px 10px;
+    font-size: 0.75rem;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.05);
+    color: #d1d5db;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.action-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.3);
+    color: white;
+}
+.action-btn.btn-restart { border-color: #f59e0b; color: #f59e0b; }
+.action-btn.btn-restart:hover { background: rgba(245, 158, 11, 0.2); }
+.action-btn.btn-stop { border-color: #ef4444; color: #ef4444; }
+.action-btn.btn-stop:hover { background: rgba(239, 68, 68, 0.2); }
+.action-btn.btn-start { border-color: #10b981; color: #10b981; }
+.action-btn.btn-start:hover { background: rgba(16, 185, 129, 0.2); }
+.action-btn.btn-logs { border-color: #60a5fa; color: #60a5fa; }
+.action-btn.btn-logs:hover { background: rgba(96, 165, 250, 0.2); }
+.action-btn.btn-diagnose { border-color: #a855f7; color: #a855f7; }
+.action-btn.btn-diagnose:hover { background: rgba(168, 85, 247, 0.2); }
+.action-btn.btn-plan { border-color: #6366f1; color: #6366f1; }
+.action-btn.btn-plan:hover { background: rgba(99, 102, 241, 0.2); }
+.action-btn.btn-execute { border-color: #10b981; color: #10b981; }
+.action-btn.btn-execute:hover { background: rgba(16, 185, 129, 0.2); }
+.action-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.cosmic-modal .modal-content {
+    background: linear-gradient(135deg, rgba(30, 30, 50, 0.98) 0%, rgba(15, 15, 35, 0.98) 100%);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    border-radius: 16px;
+    backdrop-filter: blur(20px);
+}
+.cosmic-modal .modal-header {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 16px 20px;
+}
+.cosmic-modal .modal-title {
+    color: #e0e0ff;
+    font-weight: 600;
+}
+.cosmic-modal .modal-body {
+    padding: 20px;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+.cosmic-modal .modal-footer {
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 16px 20px;
+}
+.cosmic-modal .btn-close {
+    filter: invert(1);
+}
+.modal-logs-content {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 0.75rem;
+    background: #0a0e1a;
+    color: #d1d5db;
+    padding: 15px;
+    border-radius: 8px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 50vh;
+    overflow-y: auto;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.diagnosis-section {
+    background: rgba(168, 85, 247, 0.1);
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+}
+.plan-section {
+    background: rgba(99, 102, 241, 0.1);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+}
+
+.history-timeline {
+    position: relative;
+    padding-left: 30px;
+}
+.history-timeline::before {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(180deg, rgba(99, 102, 241, 0.5) 0%, rgba(168, 85, 247, 0.5) 100%);
+}
+.history-item {
+    position: relative;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 12px 15px;
+    margin-bottom: 12px;
+    transition: all 0.2s ease;
+}
+.history-item:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(99, 102, 241, 0.3);
+}
+.history-item::before {
+    content: '';
+    position: absolute;
+    left: -26px;
+    top: 16px;
+    width: 12px;
+    height: 12px;
+    background: #6366f1;
+    border-radius: 50%;
+    border: 2px solid #1a1a2e;
+}
+.history-item.success::before { background: #10b981; }
+.history-item.failed::before { background: #ef4444; }
+.history-item.dry-run::before { background: #f59e0b; }
+.history-time {
+    font-size: 0.7rem;
+    color: #9ca3af;
+}
+.history-service {
+    font-weight: 600;
+    color: #60a5fa;
+}
+.history-actions {
+    font-size: 0.8rem;
+    color: #d1d5db;
+}
+
+.service-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 12px 15px;
+    margin-bottom: 8px;
+    transition: all 0.2s ease;
+}
+.service-card:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(99, 102, 241, 0.3);
+}
+.service-card .service-info {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+}
+.service-card .service-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.loading-spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-radius: 50%;
+    border-top-color: #fff;
+    animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.failure-summary {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+.failure-stat {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 12px 20px;
+    text-align: center;
+}
+.failure-stat .count {
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+.failure-stat .label {
+    font-size: 0.75rem;
+    color: #9ca3af;
+    text-transform: uppercase;
+}
+.failure-stat.critical .count { color: #ef4444; }
+.failure-stat.high .count { color: #f97316; }
+.failure-stat.medium .count { color: #eab308; }
+.failure-stat.healthy .count { color: #10b981; }
 </style>
 {% endblock %}
 
@@ -189,6 +436,11 @@
                     <li class="nav-item">
                         <button class="nav-link" data-bs-toggle="tab" data-bs-target="#health-tab" type="button">
                             <i class="bi bi-heart-pulse"></i> Service Health
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#remediation-tab" type="button">
+                            <i class="bi bi-bandaid"></i> Remediation
                         </button>
                     </li>
                 </ul>
@@ -278,7 +530,118 @@
                             <p class="text-secondary text-center py-5">Select a host and click "Refresh Health Status" to view service health</p>
                         </div>
                     </div>
+                    
+                    <div class="tab-pane fade" id="remediation-tab">
+                        <div class="row mb-3">
+                            <div class="col">
+                                <div class="d-flex gap-2 flex-wrap">
+                                    <button class="btn btn-primary" onclick="detectFailures()" id="btn-detect-failures">
+                                        <i class="bi bi-search"></i> Detect Failures
+                                    </button>
+                                    <button class="btn btn-outline-secondary" onclick="loadRemediationHistory()" id="btn-load-history">
+                                        <i class="bi bi-clock-history"></i> Load History
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-lg-7">
+                                <h6 class="mb-3"><i class="bi bi-exclamation-triangle me-2"></i>Detected Failures</h6>
+                                <div id="failures-container">
+                                    <p class="text-secondary text-center py-4">Click "Detect Failures" to scan for service issues</p>
+                                </div>
+                            </div>
+                            <div class="col-lg-5">
+                                <h6 class="mb-3"><i class="bi bi-clock-history me-2"></i>Remediation History</h6>
+                                <div id="history-container">
+                                    <p class="text-secondary text-center py-4">Click "Load History" to view past remediations</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade cosmic-modal" id="logsModal" tabindex="-1" aria-labelledby="logsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="logsModalLabel">
+                    <i class="bi bi-terminal me-2"></i>Container Logs
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="modal-logs-content" class="modal-logs-content">
+                    Loading logs...
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="refreshModalLogs()">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade cosmic-modal" id="diagnosisModal" tabindex="-1" aria-labelledby="diagnosisModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="diagnosisModalLabel">
+                    <i class="bi bi-activity me-2"></i>Service Diagnosis
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="modal-diagnosis-content">
+                    <div class="text-center py-4">
+                        <div class="spinner-border"></div>
+                        <p class="mt-2 text-secondary">Running diagnosis...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="btn-generate-plan-modal" onclick="generatePlanFromModal()" disabled>
+                    <i class="bi bi-file-earmark-text"></i> Generate Plan
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade cosmic-modal" id="planModal" tabindex="-1" aria-labelledby="planModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="planModalLabel">
+                    <i class="bi bi-file-earmark-text me-2"></i>Remediation Plan
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="modal-plan-content">
+                    <div class="text-center py-4">
+                        <div class="spinner-border"></div>
+                        <p class="mt-2 text-secondary">Generating remediation plan...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-warning" id="btn-dry-run-modal" onclick="executeFromModal(true)" disabled>
+                    <i class="bi bi-eye"></i> Dry Run
+                </button>
+                <button type="button" class="btn btn-success" id="btn-execute-modal" onclick="executeFromModal(false)" disabled>
+                    <i class="bi bi-play-fill"></i> Execute
+                </button>
             </div>
         </div>
     </div>
@@ -291,6 +654,10 @@ let selectedHost = null;
 let envData = null;
 let showSecrets = false;
 let editMode = false;
+let currentLogsContainer = null;
+let currentDiagnosisService = null;
+let currentPlanService = null;
+let currentPlanData = null;
 
 async function refreshHosts() {
     const container = document.getElementById('hosts-container');
@@ -697,12 +1064,34 @@ async function loadServiceHealth() {
         
         for (const service of services) {
             const isHealthy = service.healthy;
+            const isRunning = service.state === 'running';
+            const containerName = service.name;
+            
             html += `
                 <div class="col-md-6 col-lg-4">
-                    <div class="service-health-row">
-                        <span class="status-indicator ${isHealthy ? 'online' : 'offline'}"></span>
-                        <span class="service-name">${service.name}</span>
-                        <span class="badge bg-${isHealthy ? 'success' : 'danger'}">${service.state}</span>
+                    <div class="service-card">
+                        <div class="service-info">
+                            <span class="status-indicator ${isHealthy ? 'online' : 'offline'}"></span>
+                            <span class="service-name">${containerName}</span>
+                            <span class="badge bg-${isHealthy ? 'success' : 'danger'} ms-auto">${service.state}</span>
+                        </div>
+                        <div class="service-actions">
+                            ${isRunning ? `
+                                <button class="action-btn btn-restart" onclick="restartContainer('${containerName}')" title="Restart">
+                                    <i class="bi bi-arrow-repeat"></i> Restart
+                                </button>
+                                <button class="action-btn btn-stop" onclick="stopContainer('${containerName}')" title="Stop">
+                                    <i class="bi bi-stop-fill"></i> Stop
+                                </button>
+                            ` : `
+                                <button class="action-btn btn-start" onclick="startContainer('${containerName}')" title="Start">
+                                    <i class="bi bi-play-fill"></i> Start
+                                </button>
+                            `}
+                            <button class="action-btn btn-logs" onclick="viewContainerLogs('${containerName}')" title="View Logs">
+                                <i class="bi bi-terminal"></i> Logs
+                            </button>
+                        </div>
                     </div>
                 </div>`;
         }
@@ -713,6 +1102,503 @@ async function loadServiceHealth() {
     } catch (error) {
         console.error('Failed to load health:', error);
         container.innerHTML = `<div class="alert alert-danger">Failed to load service health: ${error.message}</div>`;
+    }
+}
+
+async function restartContainer(containerName) {
+    if (!confirm(`Are you sure you want to restart ${containerName}?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/docker/containers/${containerName}/restart`, {
+            method: 'POST',
+            credentials: 'include'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert(`Container ${containerName} restarted successfully`);
+            loadServiceHealth();
+        } else {
+            alert(`Failed to restart ${containerName}: ${result.message}`);
+        }
+    } catch (error) {
+        console.error('Failed to restart container:', error);
+        alert(`Error restarting container: ${error.message}`);
+    }
+}
+
+async function stopContainer(containerName) {
+    if (!confirm(`Are you sure you want to stop ${containerName}? The service will be unavailable until started again.`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/docker/containers/${containerName}/stop`, {
+            method: 'POST',
+            credentials: 'include'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert(`Container ${containerName} stopped successfully`);
+            loadServiceHealth();
+        } else {
+            alert(`Failed to stop ${containerName}: ${result.message}`);
+        }
+    } catch (error) {
+        console.error('Failed to stop container:', error);
+        alert(`Error stopping container: ${error.message}`);
+    }
+}
+
+async function startContainer(containerName) {
+    try {
+        const response = await fetch(`/api/docker/containers/${containerName}/start`, {
+            method: 'POST',
+            credentials: 'include'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert(`Container ${containerName} started successfully`);
+            loadServiceHealth();
+        } else {
+            alert(`Failed to start ${containerName}: ${result.message}`);
+        }
+    } catch (error) {
+        console.error('Failed to start container:', error);
+        alert(`Error starting container: ${error.message}`);
+    }
+}
+
+async function viewContainerLogs(containerName) {
+    currentLogsContainer = containerName;
+    
+    const modal = new bootstrap.Modal(document.getElementById('logsModal'));
+    document.getElementById('logsModalLabel').innerHTML = `<i class="bi bi-terminal me-2"></i>Logs: ${containerName}`;
+    document.getElementById('modal-logs-content').innerHTML = '<div class="text-center py-4"><div class="spinner-border"></div><p class="mt-2 text-secondary">Loading logs...</p></div>';
+    modal.show();
+    
+    await refreshModalLogs();
+}
+
+async function refreshModalLogs() {
+    if (!currentLogsContainer) return;
+    
+    const logsContent = document.getElementById('modal-logs-content');
+    
+    try {
+        const response = await fetch(`/api/docker/logs/${currentLogsContainer}?lines=100`, {
+            credentials: 'include'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            const logs = result.data?.logs || 'No logs available';
+            logsContent.textContent = logs;
+            logsContent.scrollTop = logsContent.scrollHeight;
+        } else {
+            logsContent.innerHTML = `<div class="text-danger">Failed to load logs: ${result.message}</div>`;
+        }
+    } catch (error) {
+        console.error('Failed to load logs:', error);
+        logsContent.innerHTML = `<div class="text-danger">Error loading logs: ${error.message}</div>`;
+    }
+}
+
+async function detectFailures() {
+    const container = document.getElementById('failures-container');
+    container.innerHTML = '<div class="text-center py-4"><div class="spinner-border"></div><p class="mt-2 text-secondary">Scanning for failures...</p></div>';
+    
+    try {
+        const response = await fetch('/api/remediation/failures', {
+            credentials: 'include'
+        });
+        
+        const result = await response.json();
+        
+        if (!result.success) {
+            container.innerHTML = `<div class="alert alert-danger">${result.message}</div>`;
+            return;
+        }
+        
+        const data = result.data;
+        const failures = data.failures || [];
+        
+        if (failures.length === 0) {
+            container.innerHTML = `
+                <div class="text-center py-4">
+                    <i class="bi bi-check-circle-fill display-4 text-success"></i>
+                    <p class="mt-3 text-success">All services are healthy!</p>
+                </div>`;
+            return;
+        }
+        
+        const criticalCount = failures.filter(f => f.severity === 'critical').length;
+        const highCount = failures.filter(f => f.severity === 'high').length;
+        const mediumCount = failures.filter(f => f.severity === 'medium').length;
+        
+        let html = `
+            <div class="failure-summary">
+                <div class="failure-stat critical">
+                    <div class="count">${criticalCount}</div>
+                    <div class="label">Critical</div>
+                </div>
+                <div class="failure-stat high">
+                    <div class="count">${highCount}</div>
+                    <div class="label">High</div>
+                </div>
+                <div class="failure-stat medium">
+                    <div class="count">${mediumCount}</div>
+                    <div class="label">Medium</div>
+                </div>
+            </div>`;
+        
+        for (const failure of failures) {
+            const severity = failure.severity || 'medium';
+            const serviceName = failure.service || failure.name || 'Unknown';
+            const issue = failure.issue || failure.error || 'Service unhealthy';
+            
+            html += `
+                <div class="remediation-card severity-${severity}">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <div>
+                            <span class="severity-badge ${severity}">${severity}</span>
+                            <strong class="ms-2">${escapeHtml(serviceName)}</strong>
+                        </div>
+                        <span class="text-secondary small">${failure.state || 'unhealthy'}</span>
+                    </div>
+                    <p class="text-secondary small mb-3">${escapeHtml(issue)}</p>
+                    <div class="action-btn-group">
+                        <button class="action-btn btn-diagnose" onclick="diagnoseService('${serviceName}')">
+                            <i class="bi bi-activity"></i> Diagnose
+                        </button>
+                        <button class="action-btn btn-plan" onclick="generatePlan('${serviceName}', '${escapeHtml(issue).replace(/'/g, "\\'")}')">
+                            <i class="bi bi-file-earmark-text"></i> Generate Plan
+                        </button>
+                        <button class="action-btn btn-execute" onclick="executeRemediation('${serviceName}', false)">
+                            <i class="bi bi-play-fill"></i> Execute
+                        </button>
+                    </div>
+                </div>`;
+        }
+        
+        container.innerHTML = html;
+        
+    } catch (error) {
+        console.error('Failed to detect failures:', error);
+        container.innerHTML = `<div class="alert alert-danger">Error detecting failures: ${error.message}</div>`;
+    }
+}
+
+async function diagnoseService(serviceName) {
+    currentDiagnosisService = serviceName;
+    
+    const modal = new bootstrap.Modal(document.getElementById('diagnosisModal'));
+    document.getElementById('diagnosisModalLabel').innerHTML = `<i class="bi bi-activity me-2"></i>Diagnosing: ${serviceName}`;
+    document.getElementById('modal-diagnosis-content').innerHTML = '<div class="text-center py-4"><div class="spinner-border"></div><p class="mt-2 text-secondary">Running AI-powered diagnosis...</p></div>';
+    document.getElementById('btn-generate-plan-modal').disabled = true;
+    modal.show();
+    
+    try {
+        const response = await fetch(`/api/remediation/diagnose/${serviceName}`, {
+            method: 'POST',
+            credentials: 'include'
+        });
+        
+        const result = await response.json();
+        
+        if (!result.success) {
+            document.getElementById('modal-diagnosis-content').innerHTML = `<div class="alert alert-danger">${result.message}</div>`;
+            return;
+        }
+        
+        const data = result.data;
+        const diagnosis = data.diagnosis || 'No diagnosis available';
+        const health = data.health || {};
+        const stats = data.stats || {};
+        
+        let html = `
+            <div class="diagnosis-section">
+                <h6 class="mb-3"><i class="bi bi-cpu me-2"></i>Service Status</h6>
+                <div class="row">
+                    <div class="col-md-6">
+                        <p class="mb-1"><strong>State:</strong> ${health.status || 'Unknown'}</p>
+                        <p class="mb-1"><strong>Running:</strong> ${health.running ? 'Yes' : 'No'}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p class="mb-1"><strong>CPU:</strong> ${stats.cpu_percent || 'N/A'}%</p>
+                        <p class="mb-1"><strong>Memory:</strong> ${stats.memory_usage || 'N/A'}</p>
+                    </div>
+                </div>
+            </div>
+            <div class="diagnosis-section">
+                <h6 class="mb-3"><i class="bi bi-robot me-2"></i>AI Diagnosis</h6>
+                <div class="modal-logs-content" style="max-height: 300px;">${escapeHtml(diagnosis)}</div>
+            </div>`;
+        
+        if (data.logs_analyzed) {
+            html += `<p class="text-secondary small mb-0"><i class="bi bi-file-text me-1"></i>Analyzed ${data.logs_analyzed} log lines</p>`;
+        }
+        
+        document.getElementById('modal-diagnosis-content').innerHTML = html;
+        document.getElementById('btn-generate-plan-modal').disabled = false;
+        
+    } catch (error) {
+        console.error('Failed to diagnose:', error);
+        document.getElementById('modal-diagnosis-content').innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+    }
+}
+
+async function generatePlanFromModal() {
+    if (!currentDiagnosisService) return;
+    
+    const diagModal = bootstrap.Modal.getInstance(document.getElementById('diagnosisModal'));
+    diagModal.hide();
+    
+    await generatePlan(currentDiagnosisService, null);
+}
+
+async function generatePlan(serviceName, issueDescription) {
+    currentPlanService = serviceName;
+    currentPlanData = null;
+    
+    const modal = new bootstrap.Modal(document.getElementById('planModal'));
+    document.getElementById('planModalLabel').innerHTML = `<i class="bi bi-file-earmark-text me-2"></i>Plan for: ${serviceName}`;
+    document.getElementById('modal-plan-content').innerHTML = '<div class="text-center py-4"><div class="spinner-border"></div><p class="mt-2 text-secondary">Generating remediation plan...</p></div>';
+    document.getElementById('btn-dry-run-modal').disabled = true;
+    document.getElementById('btn-execute-modal').disabled = true;
+    modal.show();
+    
+    try {
+        const body = issueDescription ? { issue_description: issueDescription } : {};
+        
+        const response = await fetch(`/api/remediation/plan/${serviceName}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(body)
+        });
+        
+        const result = await response.json();
+        
+        if (!result.success) {
+            document.getElementById('modal-plan-content').innerHTML = `<div class="alert alert-danger">${result.message}</div>`;
+            return;
+        }
+        
+        const data = result.data;
+        currentPlanData = data.plan;
+        const plan = data.plan || {};
+        const diagnosis = data.diagnosis || '';
+        
+        let html = '';
+        
+        if (diagnosis) {
+            html += `
+                <div class="diagnosis-section">
+                    <h6 class="mb-2"><i class="bi bi-activity me-2"></i>Diagnosis Summary</h6>
+                    <p class="small mb-0">${escapeHtml(diagnosis)}</p>
+                </div>`;
+        }
+        
+        html += `
+            <div class="plan-section">
+                <h6 class="mb-3"><i class="bi bi-list-check me-2"></i>Remediation Steps</h6>`;
+        
+        if (plan.steps && Array.isArray(plan.steps)) {
+            html += '<ol class="mb-0">';
+            for (const step of plan.steps) {
+                html += `<li class="mb-2">${escapeHtml(typeof step === 'string' ? step : step.description || JSON.stringify(step))}</li>`;
+            }
+            html += '</ol>';
+        } else if (plan.actions && Array.isArray(plan.actions)) {
+            html += '<ol class="mb-0">';
+            for (const action of plan.actions) {
+                html += `<li class="mb-2">${escapeHtml(typeof action === 'string' ? action : action.description || JSON.stringify(action))}</li>`;
+            }
+            html += '</ol>';
+        } else if (typeof plan === 'string') {
+            html += `<div class="modal-logs-content" style="max-height: 200px;">${escapeHtml(plan)}</div>`;
+        } else {
+            html += `<pre class="modal-logs-content" style="max-height: 200px;">${escapeHtml(JSON.stringify(plan, null, 2))}</pre>`;
+        }
+        
+        html += '</div>';
+        
+        html += `<p class="text-warning small mb-0"><i class="bi bi-exclamation-triangle me-1"></i>Review the plan carefully before executing. Use "Dry Run" to simulate without making changes.</p>`;
+        
+        document.getElementById('modal-plan-content').innerHTML = html;
+        document.getElementById('btn-dry-run-modal').disabled = false;
+        document.getElementById('btn-execute-modal').disabled = false;
+        
+    } catch (error) {
+        console.error('Failed to generate plan:', error);
+        document.getElementById('modal-plan-content').innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+    }
+}
+
+async function executeFromModal(dryRun) {
+    if (!currentPlanService) return;
+    
+    await executeRemediation(currentPlanService, dryRun, currentPlanData);
+}
+
+async function executeRemediation(serviceName, dryRun, plan = null) {
+    const actionText = dryRun ? 'dry run' : 'execute remediation';
+    
+    if (!dryRun && !confirm(`Are you sure you want to ${actionText} for ${serviceName}? This may restart or modify the service.`)) {
+        return;
+    }
+    
+    const planModal = bootstrap.Modal.getInstance(document.getElementById('planModal'));
+    if (planModal) {
+        document.getElementById('modal-plan-content').innerHTML = `<div class="text-center py-4"><div class="spinner-border"></div><p class="mt-2 text-secondary">${dryRun ? 'Running dry run...' : 'Executing remediation...'}</p></div>`;
+        document.getElementById('btn-dry-run-modal').disabled = true;
+        document.getElementById('btn-execute-modal').disabled = true;
+    }
+    
+    try {
+        const body = { dry_run: dryRun };
+        if (plan) {
+            body.plan = plan;
+        }
+        
+        const response = await fetch(`/api/remediation/execute/${serviceName}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(body)
+        });
+        
+        const result = await response.json();
+        const data = result.data || {};
+        
+        let html = '';
+        
+        if (result.success) {
+            html = `
+                <div class="alert alert-success">
+                    <h6 class="mb-2"><i class="bi bi-check-circle me-2"></i>${dryRun ? 'Dry Run Completed' : 'Remediation Executed'}</h6>
+                    <p class="mb-0">${result.message}</p>
+                </div>`;
+        } else {
+            html = `
+                <div class="alert alert-danger">
+                    <h6 class="mb-2"><i class="bi bi-x-circle me-2"></i>${dryRun ? 'Dry Run Failed' : 'Remediation Failed'}</h6>
+                    <p class="mb-0">${result.message}</p>
+                </div>`;
+        }
+        
+        if (data.actions_taken && data.actions_taken.length > 0) {
+            html += `
+                <div class="plan-section">
+                    <h6 class="mb-2"><i class="bi bi-list-task me-2"></i>Actions ${dryRun ? 'Simulated' : 'Taken'}</h6>
+                    <ul class="mb-0">`;
+            for (const action of data.actions_taken) {
+                const actionText = typeof action === 'string' ? action : (action.action || action.description || JSON.stringify(action));
+                const actionResult = action.result || action.status || '';
+                html += `<li>${escapeHtml(actionText)} ${actionResult ? `<span class="text-secondary">- ${escapeHtml(actionResult)}</span>` : ''}</li>`;
+            }
+            html += '</ul></div>';
+        }
+        
+        if (data.health_after) {
+            const healthClass = data.health_after.running ? 'success' : 'warning';
+            html += `
+                <div class="mt-3">
+                    <span class="badge bg-${healthClass}">
+                        <i class="bi bi-heart-pulse me-1"></i>
+                        Health After: ${data.health_after.status || 'Unknown'}
+                    </span>
+                </div>`;
+        }
+        
+        if (planModal) {
+            document.getElementById('modal-plan-content').innerHTML = html;
+            document.getElementById('btn-dry-run-modal').disabled = false;
+            document.getElementById('btn-execute-modal').disabled = false;
+        } else {
+            alert(result.success ? `${dryRun ? 'Dry run' : 'Remediation'} completed: ${result.message}` : `Failed: ${result.message}`);
+        }
+        
+        if (!dryRun) {
+            detectFailures();
+            loadRemediationHistory();
+        }
+        
+    } catch (error) {
+        console.error('Failed to execute remediation:', error);
+        const errorHtml = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+        
+        if (planModal) {
+            document.getElementById('modal-plan-content').innerHTML = errorHtml;
+            document.getElementById('btn-dry-run-modal').disabled = false;
+            document.getElementById('btn-execute-modal').disabled = false;
+        } else {
+            alert(`Error: ${error.message}`);
+        }
+    }
+}
+
+async function loadRemediationHistory() {
+    const container = document.getElementById('history-container');
+    container.innerHTML = '<div class="text-center py-4"><div class="spinner-border"></div></div>';
+    
+    try {
+        const response = await fetch('/api/remediation/history?limit=10', {
+            credentials: 'include'
+        });
+        
+        const result = await response.json();
+        
+        if (!result.success) {
+            container.innerHTML = `<div class="alert alert-danger">${result.message}</div>`;
+            return;
+        }
+        
+        const data = result.data;
+        const history = data.history || [];
+        
+        if (history.length === 0) {
+            container.innerHTML = '<p class="text-secondary text-center py-4">No remediation history found</p>';
+            return;
+        }
+        
+        let html = '<div class="history-timeline">';
+        
+        for (const item of history) {
+            const statusClass = item.success ? 'success' : (item.dry_run ? 'dry-run' : 'failed');
+            const timestamp = item.completed_at || item.timestamp || 'Unknown time';
+            const serviceName = item.service_name || item.service || 'Unknown';
+            const actionsCount = item.actions_count || (item.actions_taken ? item.actions_taken.length : 0);
+            
+            html += `
+                <div class="history-item ${statusClass}">
+                    <div class="d-flex justify-content-between align-items-start mb-1">
+                        <span class="history-service">${escapeHtml(serviceName)}</span>
+                        <span class="history-time">${escapeHtml(timestamp)}</span>
+                    </div>
+                    <div class="history-actions">
+                        ${item.dry_run ? '<span class="badge bg-warning me-1">Dry Run</span>' : ''}
+                        ${item.success ? '<span class="badge bg-success me-1">Success</span>' : '<span class="badge bg-danger me-1">Failed</span>'}
+                        <span class="text-secondary">${actionsCount} action${actionsCount !== 1 ? 's' : ''}</span>
+                    </div>
+                </div>`;
+        }
+        
+        html += '</div>';
+        container.innerHTML = html;
+        
+    } catch (error) {
+        console.error('Failed to load history:', error);
+        container.innerHTML = `<div class="alert alert-danger">Error loading history: ${error.message}</div>`;
     }
 }
 
