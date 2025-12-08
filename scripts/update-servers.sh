@@ -170,8 +170,6 @@ update_local_server() {
         return 1
     fi
     
-    cd "$local_deploy_dir"
-    
     if [[ "$RESTART_ONLY" != "true" ]]; then
         pull_latest_code
     fi
@@ -181,12 +179,15 @@ update_local_server() {
         return 0
     fi
     
+    cd "$local_deploy_dir"
+    log_info "Working directory: $(pwd)"
+    
     log_step "Checking NAS mount status..."
     if mountpoint -q /mnt/nas/all 2>/dev/null; then
         log_ok "NAS is mounted"
     else
         log_warn "NAS is not mounted - Plex media may be unavailable"
-        echo "    To fix: sudo ./scripts/setup-nas-mounts.sh"
+        echo "    To fix: sudo ${local_deploy_dir}/scripts/setup-nas-mounts.sh"
     fi
     
     if [[ "$PULL_IMAGES" == "true" ]]; then
@@ -247,8 +248,6 @@ update_linode_server() {
         return 1
     fi
     
-    cd "$linode_deploy_dir"
-    
     if [[ "$RESTART_ONLY" != "true" ]]; then
         pull_latest_code
     fi
@@ -257,6 +256,9 @@ update_linode_server() {
         log_info "Pull only mode - skipping service restart"
         return 0
     fi
+    
+    cd "$linode_deploy_dir"
+    log_info "Working directory: $(pwd)"
     
     if [[ "$PULL_IMAGES" == "true" ]]; then
         log_step "Pulling latest Docker images..."
