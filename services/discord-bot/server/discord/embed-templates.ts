@@ -522,13 +522,8 @@ export function createMainHelpEmbed(): EmbedBuilder {
         inline: true
       },
       {
-        name: '🛠️ Utilities',
-        value: 'Bot status, latency checks, and server configuration tools.',
-        inline: true
-      },
-      {
-        name: '🔧 Admin Tools',
-        value: 'Server management and configuration commands for staff.',
+        name: '🛠️ Utilities & Admin',
+        value: 'Bot status, health checks, permissions, and server configuration tools.',
         inline: true
       }
     )
