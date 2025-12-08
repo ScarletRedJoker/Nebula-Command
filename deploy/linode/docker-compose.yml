@@ -428,10 +428,10 @@ services:
     environment:
       - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
       - MANAGED_DOMAINS=evindrake.net,rig-city.com,scarletredjoker.com
-      - SERVICE_CATALOG_PATH=/config/services.yaml
+      - SERVICE_CATALOG_PATH=/orchestration/services.yaml
       - SYNC_INTERVAL=300
     volumes:
-      - ../../config:/config:ro
+      - ../../orchestration:/orchestration:ro
     healthcheck:
       test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8001/health || exit 1"]
       interval: 30s
