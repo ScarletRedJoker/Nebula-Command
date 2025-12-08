@@ -543,7 +543,7 @@ def list_cached():
     c = conn.cursor()
     
     c.execute("""
-        SELECT title, media_type, folder_name, size_bytes, last_watched, watch_progress, watch_count
+        SELECT plex_key, title, media_type, folder_name, size_bytes, last_watched, watch_progress, watch_count
         FROM media_items WHERE is_cached = 1
         ORDER BY last_watched DESC
     """)
@@ -552,11 +552,51 @@ def list_cached():
     for row in c.fetchall():
         item = dict(row)
         item["size_gb"] = round(bytes_to_gb(item["size_bytes"]), 2)
-        item["protected"] = is_session_protected(row["folder_name"])
+        item["protected"] = is_session_protected(row["plex_key"])
         items.append(item)
     
     conn.close()
     return jsonify({"items": items, "count": len(items)})
+
+
+def get_or_create_session_key(plex_key, player):
+    """
+    Get a stable session key for the player/media combination.
+    Falls back to plex_key if Player.uuid is not available.
+    When no uuid, uses plex_key directly to avoid orphaned sessions.
+    """
+    player_uuid = player.get("uuid", "")
+    if player_uuid:
+        return player_uuid
+    return f"plex-{plex_key}"
+
+
+def update_session_by_key_or_plex(session_key, plex_key, state):
+    """Update session by session_key, falling back to plex_key if not found."""
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("""
+        UPDATE active_sessions SET last_update = CURRENT_TIMESTAMP, state = ?
+        WHERE session_key = ?
+    """, (state, session_key))
+    if c.rowcount == 0:
+        c.execute("""
+            UPDATE active_sessions SET last_update = CURRENT_TIMESTAMP, state = ?
+            WHERE plex_key = ?
+        """, (state, plex_key))
+    conn.commit()
+    conn.close()
+
+
+def delete_session_by_key_or_plex(session_key, plex_key):
+    """Delete session by session_key, falling back to plex_key if not found."""
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("DELETE FROM active_sessions WHERE session_key = ?", (session_key,))
+    if c.rowcount == 0:
+        c.execute("DELETE FROM active_sessions WHERE plex_key = ?", (plex_key,))
+    conn.commit()
+    conn.close()
 
 
 @app.route("/webhook", methods=["POST"])
@@ -582,7 +622,7 @@ def plex_webhook():
         if media_type == "episode" and grandparent_title:
             title = f"{grandparent_title} - {title}"
         
-        session_key = player.get("uuid", "") or f"{plex_key}-{player.get('title', 'unknown')}"
+        session_key = get_or_create_session_key(plex_key, player)
         
         file_path = None
         if "Media" in metadata and metadata["Media"]:
@@ -592,7 +632,7 @@ def plex_webhook():
         
         folder_name = extract_folder_name(file_path, media_type) if file_path else None
         
-        app.logger.info(f"Webhook: {event} - {title} ({media_type}) - folder: {folder_name}")
+        app.logger.info(f"Webhook: {event} - {title} ({media_type}) - session: {session_key[:20]}...")
         
         if event == "media.play":
             conn = get_db()
@@ -608,34 +648,20 @@ def plex_webhook():
                 queue_cache_job(plex_key, folder_name, media_type, title, priority=1)
         
         elif event == "media.resume":
-            conn = get_db()
-            c = conn.cursor()
-            c.execute("""
-                UPDATE active_sessions SET last_update = CURRENT_TIMESTAMP, state = 'playing'
-                WHERE session_key = ?
-            """, (session_key,))
-            conn.commit()
-            conn.close()
+            update_session_by_key_or_plex(session_key, plex_key, 'playing')
         
         elif event == "media.pause":
-            conn = get_db()
-            c = conn.cursor()
-            c.execute("""
-                UPDATE active_sessions SET last_update = CURRENT_TIMESTAMP, state = 'paused'
-                WHERE session_key = ?
-            """, (session_key,))
-            conn.commit()
-            conn.close()
+            update_session_by_key_or_plex(session_key, plex_key, 'paused')
         
         elif event == "media.stop":
             view_offset = metadata.get("viewOffset", 0)
             duration = metadata.get("duration", 1)
             progress = view_offset / duration if duration > 0 else 0
             
+            delete_session_by_key_or_plex(session_key, plex_key)
+            
             conn = get_db()
             c = conn.cursor()
-            c.execute("DELETE FROM active_sessions WHERE session_key = ?", (session_key,))
-            
             c.execute("""
                 UPDATE media_items 
                 SET last_watched = CURRENT_TIMESTAMP, 

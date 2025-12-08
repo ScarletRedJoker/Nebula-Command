@@ -120,8 +120,7 @@ services:
       dockerfile: Dockerfile
     container_name: plex-auto-cache
     restart: unless-stopped
-    networks:
-      - homelab
+    network_mode: host
     environment:
       - CACHE_BASE=/opt/plex-cache
       - NAS_BASE=/mnt/nas/networkshare
@@ -135,8 +134,6 @@ services:
       - /opt/plex-cache:/opt/plex-cache
       - /mnt/nas/networkshare:/mnt/nas/networkshare:ro
       - plex_cache_data:/data
-    ports:
-      - "5055:5055"
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:5055/health || exit 1"]
       interval: 30s

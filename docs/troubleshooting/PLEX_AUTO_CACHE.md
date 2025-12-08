@@ -61,8 +61,9 @@ docker compose logs plex-auto-cache
 
 1. Open Plex Web App → **Settings** → **Webhooks**
 2. Click **Add Webhook**
-3. Enter URL: `http://YOUR_SERVER_IP:5055/webhook`
-   - Replace `YOUR_SERVER_IP` with your Ubuntu server's IP (e.g., `192.168.0.177`)
+3. Enter URL: `http://localhost:5055/webhook`
+   - Both Plex and plex-auto-cache run on host networking, so `localhost` works
+   - Alternatively, use your server's IP: `http://YOUR_SERVER_IP:5055/webhook`
 4. Click **Save Changes**
 
 ### 3. Verify It's Working
