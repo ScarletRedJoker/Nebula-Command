@@ -29,7 +29,9 @@ import {
 import {
   createAdminNotificationEmbed,
   createTicketActionButtons,
-  createClosedTicketActionButtons
+  createClosedTicketActionButtons,
+  createPlexInviteEmbed,
+  createPlexInviteButton
 } from './embed-templates';
 
 // Extended PanelTemplate type with fields and buttons
@@ -1463,6 +1465,61 @@ commands.set('stream-untrack', streamUntrackCommand);
 commands.set('stream-list', streamListCommand);
 
 console.log('[Discord] Registered stream notification commands:', ['stream-setup', 'stream-track', 'stream-untrack', 'stream-list'].join(', '));
+
+// /plex command - Plex server invite
+const plexCommand: Command = {
+  data: new SlashCommandBuilder()
+    .setName('plex')
+    .setDescription('Plex server commands')
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('invite')
+        .setDescription('Send a Plex server invite to a friend')
+        .addUserOption(option =>
+          option.setName('user')
+            .setDescription('The user to invite (optional - sends to channel if not specified)')
+            .setRequired(false)
+        )
+    ),
+  execute: async (interaction, { storage }) => {
+    if (!interaction.isCommand()) return;
+    
+    try {
+      await interaction.deferReply();
+    } catch (error) {
+      console.error('Failed to defer Plex command interaction:', error);
+      return;
+    }
+    
+    const subcommand = interaction.options.data[0]?.name || '';
+    
+    if (subcommand === 'invite') {
+      try {
+        const options = interaction.options.data[0]?.options || [];
+        const targetUser = options.find(opt => opt.name === 'user')?.user as User | undefined;
+        
+        const recipientMention = targetUser ? `<@${targetUser.id}>` : undefined;
+        
+        const embed = createPlexInviteEmbed(interaction.user.username, recipientMention);
+        const buttons = createPlexInviteButton();
+        
+        await interaction.editReply({
+          embeds: [embed],
+          components: [buttons]
+        });
+        
+        console.log(`[Discord] Plex invite sent by ${interaction.user.username}${targetUser ? ` to ${targetUser.username}` : ''}`);
+        
+      } catch (error) {
+        console.error('Error sending Plex invite:', error);
+        await interaction.editReply('❌ Failed to send Plex invite. Please try again.');
+      }
+    }
+  }
+};
+
+commands.set('plex', plexCommand);
+console.log('[Discord] Registered Plex command');
 
 // Register developer commands (imported in bot.ts and registered there)
 // Developer commands will be imported and added to the collection in bot.ts

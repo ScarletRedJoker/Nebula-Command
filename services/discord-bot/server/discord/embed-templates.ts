@@ -18,6 +18,7 @@ export const EMBED_COLORS = {
   CLOSED: 0xED4245,       // Red - ticket closed
   REOPENED: 0xFEE75C,     // Yellow - ticket reopened
   ADMIN_NOTIFICATION: 0xFFD700, // Gold - admin notifications
+  PLEX: 0xE5A00D,         // Plex orange
 };
 
 /**
@@ -400,4 +401,77 @@ export function createAdminNotificationEmbed(
   }
 
   return embed;
+}
+
+/**
+ * Create Plex invite embed for sending invitations to friends
+ */
+export function createPlexInviteEmbed(
+  inviterUsername: string,
+  recipientMention?: string
+): EmbedBuilder {
+  const embed = new EmbedBuilder()
+    .setTitle("🎬 You've Been Invited to Evin's Plex Server!")
+    .setDescription(
+      recipientMention 
+        ? `${recipientMention}, you've been invited to join **Evin's Plex Server**!\n\nGet ready for unlimited movies, TV shows, and more - all streaming in high quality.`
+        : `You've been invited to join **Evin's Plex Server**!\n\nGet ready for unlimited movies, TV shows, and more - all streaming in high quality.`
+    )
+    .addFields(
+      { 
+        name: '🌐 Server URL', 
+        value: '[plex.evindrake.net](https://plex.evindrake.net)', 
+        inline: true 
+      },
+      { 
+        name: '👤 Invited By', 
+        value: inviterUsername, 
+        inline: true 
+      },
+      { 
+        name: '\u200B', 
+        value: '\u200B', 
+        inline: true 
+      },
+      { 
+        name: '📋 How to Join', 
+        value: [
+          '**1.** Create a free [Plex account](https://www.plex.tv/sign-up/)',
+          '**2.** Let the inviter know your Plex username/email',
+          '**3.** Accept the server invite in your Plex app',
+          '**4.** Start streaming!'
+        ].join('\n'),
+        inline: false 
+      },
+      {
+        name: '📱 Get the App',
+        value: 'Download Plex on [iOS](https://apps.apple.com/app/plex/id383457673) • [Android](https://play.google.com/store/apps/details?id=com.plexapp.android) • [Smart TV](https://www.plex.tv/apps-devices/) • [Web](https://app.plex.tv)',
+        inline: false
+      }
+    )
+    .setColor(EMBED_COLORS.PLEX)
+    .setThumbnail('https://www.plex.tv/wp-content/uploads/2018/01/pmp-icon-1.png')
+    .setFooter({ text: 'Evin\'s Plex Server • Powered by Plex Media Server' })
+    .setTimestamp();
+
+  return embed;
+}
+
+/**
+ * Create action button for Plex invite
+ */
+export function createPlexInviteButton(): ActionRowBuilder<ButtonBuilder> {
+  return new ActionRowBuilder<ButtonBuilder>()
+    .addComponents(
+      new ButtonBuilder()
+        .setLabel('Open Plex')
+        .setEmoji('🎬')
+        .setStyle(ButtonStyle.Link)
+        .setURL('https://plex.evindrake.net'),
+      new ButtonBuilder()
+        .setLabel('Create Plex Account')
+        .setEmoji('👤')
+        .setStyle(ButtonStyle.Link)
+        .setURL('https://www.plex.tv/sign-up/')
+    );
 }
