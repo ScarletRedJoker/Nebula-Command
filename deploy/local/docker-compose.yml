@@ -18,11 +18,11 @@ services:
     container_name: cloudflared
     restart: unless-stopped
     network_mode: host
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
-    environment:
-      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN:-}
+    # Uses config file with ingress rules - mount user's .cloudflared at same path
+    command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run plex-tunnel
     volumes:
-      - ./config/cloudflared:/etc/cloudflared:ro
+      # Mount user's cloudflared directory to /etc/cloudflared
+      - /home/evin/.cloudflared:/etc/cloudflared:ro
     healthcheck:
       test: ["CMD-SHELL", "pgrep cloudflared || exit 1"]
       interval: 60s
