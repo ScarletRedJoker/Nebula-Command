@@ -18,13 +18,13 @@ services:
     container_name: cloudflared
     restart: unless-stopped
     network_mode: host
-    command: tunnel run
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
     environment:
       - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN:-}
     volumes:
       - ./config/cloudflared:/etc/cloudflared:ro
     healthcheck:
-      test: ["CMD", "cloudflared", "tunnel", "info"]
+      test: ["CMD-SHELL", "pgrep cloudflared || exit 1"]
       interval: 60s
       timeout: 10s
       retries: 3
