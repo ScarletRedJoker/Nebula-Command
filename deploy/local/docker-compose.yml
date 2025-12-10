@@ -84,11 +84,11 @@ services:
       - PLEX_CLAIM=${PLEX_CLAIM:-}
     volumes:
       - plex_config:/config
-      - /opt/plex-media/movies:/media/movies:ro
-      - /opt/plex-media/shows:/media/shows:ro
-      - /opt/plex-media/music:/media/music:ro
-      - /mnt/nas/networkshare/photo:/media/photo:ro
-      - /mnt/nas/networkshare/games:/media/games:ro
+      # Direct NAS paths - mount via automount, Plex handles missing gracefully
+      - /media/movies:/media/movies:ro
+      - /media/shows:/media/shows:ro
+      - /media/music:/media/music:ro
+      - /media/photo:/media/photo:ro
     tmpfs:
       - /transcode:size=4G
     devices:
