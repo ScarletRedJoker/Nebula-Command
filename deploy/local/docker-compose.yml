@@ -186,12 +186,15 @@ services:
       timeout: 10s
       retries: 3
 
+  # NOTE: For Ubuntu host desktop access, use setup-host-vnc.sh instead
+  # This creates x11vnc + noVNC systemd services on the host
+  # The Docker container below is kept for isolated virtual desktop use only
   novnc:
     image: theasp/novnc:latest
     container_name: novnc
     restart: unless-stopped
     profiles:
-      - vnc
+      - vnc-sandbox  # Changed profile - use for sandboxed desktop only
     networks:
       - homelab
     environment:
