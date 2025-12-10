@@ -1,0 +1,21 @@
+tunnel: YOUR_TUNNEL_ID
+credentials-file: /etc/cloudflared/credentials.json
+
+ingress:
+  - hostname: plex.evindrake.net
+    service: http://localhost:32400
+    originRequest:
+      noTLSVerify: true
+      connectTimeout: 30s
+
+  - hostname: home.evindrake.net
+    service: http://localhost:8123
+    originRequest:
+      noTLSVerify: true
+
+  - hostname: minio.evindrake.net
+    service: http://localhost:9001
+    originRequest:
+      noTLSVerify: true
+
+  - service: http_status:404

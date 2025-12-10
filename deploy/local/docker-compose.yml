@@ -10,8 +10,26 @@ volumes:
   plex_config:
   novnc_data:
   plex_cache_data:
+  smartctl_data:
 
 services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    restart: unless-stopped
+    network_mode: host
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN:-}
+    volumes:
+      - ./config/cloudflared:/etc/cloudflared:ro
+    healthcheck:
+      test: ["CMD", "cloudflared", "tunnel", "info"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
   caddy:
     image: caddy:2-alpine
     container_name: caddy-local
@@ -66,12 +84,9 @@ services:
       - PLEX_CLAIM=${PLEX_CLAIM:-}
     volumes:
       - plex_config:/config
-      # MergerFS unified paths (cache + NAS merged, cache takes priority)
-      # This serves cached content from SSD first, falls back to NAS
       - /opt/plex-media/movies:/media/movies:ro
       - /opt/plex-media/shows:/media/shows:ro
       - /opt/plex-media/music:/media/music:ro
-      # Additional NAS content (photos, games - not cached)
       - /mnt/nas/networkshare/photo:/media/photo:ro
       - /mnt/nas/networkshare/games:/media/games:ro
     tmpfs:
@@ -113,32 +128,59 @@ services:
       retries: 3
       start_period: 60s
 
-  plex-auto-cache:
-    build:
-      context: ./services/plex-auto-cache
-      dockerfile: Dockerfile
-    container_name: plex-auto-cache
+  smartctl-exporter:
+    image: prometheuscommunity/smartctl-exporter:latest
+    container_name: smartctl-exporter
     restart: unless-stopped
-    network_mode: host
-    environment:
-      - CACHE_BASE=/opt/plex-cache
-      - NAS_BASE=/mnt/nas/networkshare
-      - CACHE_MAX_SIZE_GB=${PLEX_CACHE_MAX_GB:-100}
-      - CACHE_BUFFER_GB=${PLEX_CACHE_BUFFER_GB:-10}
-      - SESSION_PROTECT_MINUTES=${PLEX_SESSION_PROTECT_MINUTES:-60}
-      - DB_PATH=/data/cache_metadata.db
-      - PORT=5055
-      - TZ=${TZ:-America/New_York}
+    privileged: true
+    profiles:
+      - monitoring
+    networks:
+      - homelab
+    ports:
+      - "9633:9633"
     volumes:
-      - /opt/plex-cache:/opt/plex-cache
-      - /mnt/nas/networkshare:/mnt/nas/networkshare:ro
-      - plex_cache_data:/data
+      - /dev:/dev:ro
+      - smartctl_data:/data
+    command:
+      - '--smartctl.path=/usr/sbin/smartctl'
+      - '--smartctl.interval=60s'
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:5055/health || exit 1"]
-      interval: 30s
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:9633/metrics || exit 1"]
+      interval: 60s
       timeout: 10s
       retries: 3
-      start_period: 15s
+
+  storage-monitor:
+    build:
+      context: ./services/storage-monitor
+      dockerfile: Dockerfile
+    container_name: storage-monitor
+    restart: unless-stopped
+    privileged: true
+    profiles:
+      - monitoring
+    networks:
+      - homelab
+    environment:
+      - TZ=${TZ:-America/New_York}
+      - DISCORD_WEBHOOK_URL=${STORAGE_ALERT_DISCORD_WEBHOOK:-}
+      - EMAIL_ALERTS=${STORAGE_ALERT_EMAIL:-}
+      - CHECK_INTERVAL=${STORAGE_CHECK_INTERVAL:-3600}
+      - SMART_THRESHOLD_REALLOCATED=${SMART_THRESHOLD_REALLOCATED:-5}
+      - SMART_THRESHOLD_PENDING=${SMART_THRESHOLD_PENDING:-1}
+      - ZFS_ENABLED=${ZFS_ENABLED:-false}
+    volumes:
+      - /dev:/dev:ro
+      - /sys:/sys:ro
+      - /run/udev:/run/udev:ro
+    ports:
+      - "9634:9634"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9634/health || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
 
   novnc:
     image: theasp/novnc:latest
@@ -163,3 +205,24 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+
+  gamestream:
+    image: lscr.io/linuxserver/sunshine:latest
+    container_name: sunshine
+    restart: unless-stopped
+    profiles:
+      - gamestream
+    network_mode: host
+    privileged: true
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ:-America/New_York}
+    volumes:
+      - ./config/sunshine:/config
+    devices:
+      - /dev/dri:/dev/dri
+      - /dev/uinput:/dev/uinput
+    cap_add:
+      - SYS_ADMIN
+      - NET_ADMIN
