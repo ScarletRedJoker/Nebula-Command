@@ -149,10 +149,65 @@ sudo ./scripts/setup-nas-mounts.sh --smb-share=nfs   # Force SMB (better write a
 
 **Optional Services (Profiles):**
 ```bash
-docker compose --profile vnc up -d        # Start noVNC
-docker compose --profile gamestream up -d # Start Sunshine
+docker compose --profile vnc up -d         # Start noVNC
+docker compose --profile gamestream up -d  # Start Sunshine
+docker compose --profile monitoring up -d  # Start storage monitor
 docker compose --profile vnc --profile gamestream up -d  # Start both
 ```
+
+### Cloudflare Tunnel (Recommended for Plex)
+
+Cloudflare Tunnel exposes local services to the internet without port forwarding, firewall configuration, or static IP:
+
+```bash
+# One-time setup
+cloudflared tunnel login
+cloudflared tunnel create homelab-tunnel
+cloudflared tunnel route dns homelab-tunnel plex.evindrake.net
+
+# Copy config
+cp config/cloudflared/config.yml.example config/cloudflared/config.yml
+# Edit config.yml with your tunnel ID
+
+# Copy credentials
+cp ~/.cloudflared/TUNNEL_ID.json config/cloudflared/credentials.json
+
+# Start tunnel
+docker compose up -d cloudflared
+```
+
+Benefits:
+- Works behind any NAT/firewall (no port forwarding needed)
+- Survives ISP IP changes automatically
+- DDoS protection built-in
+- Automatic SSL certificates
+
+See `docs/deploy/CLOUDFLARE_TUNNEL.md` for full setup guide.
+
+### Storage Health Monitoring
+
+Monitor disk health with SMART monitoring and ZFS pool status:
+
+```bash
+# Quick check
+./deploy/local/scripts/storage-health.sh
+
+# Disk inventory
+./deploy/local/scripts/disk-inventory.sh
+
+# Start monitoring service (with Discord alerts)
+docker compose --profile monitoring up -d storage-monitor
+
+# View status
+curl http://localhost:9634/status
+```
+
+Environment variables for alerts:
+- `STORAGE_ALERT_DISCORD_WEBHOOK` - Discord webhook URL for alerts
+- `ZFS_ENABLED=true` - Enable ZFS pool monitoring
+- `STORAGE_CHECK_INTERVAL=3600` - Check interval in seconds
+
+See `docs/runbooks/STORAGE_HEALTH.md` for troubleshooting and ZFS migration guide.
 
 ## Server Update Commands
 
@@ -224,7 +279,9 @@ See `docs/troubleshooting/PLEX_AUTO_CACHE.md` for detailed setup guide.
 
 - `docs/deploy/FULL_INFRASTRUCTURE_STATUS.md` - Complete infrastructure audit and service matrix
 - `docs/deploy/LOCAL_UBUNTU_SETUP.md` - Local Ubuntu server setup guide
+- `docs/deploy/CLOUDFLARE_TUNNEL.md` - Cloudflare Tunnel setup for Plex/services
 - `docs/runbooks/LINODE_DEPLOYMENT.md` - Linode deployment runbook
+- `docs/runbooks/STORAGE_HEALTH.md` - Storage monitoring and ZFS migration guide
 - `docs/deploy/SUNSHINE_SETUP.md` - GameStream/Sunshine configuration
 - `docs/deploy/SECRETS_MANAGEMENT.md` - Secrets encryption guide
 - `docs/troubleshooting/PLEX_BUFFERING.md` - Plex buffering diagnosis and fixes

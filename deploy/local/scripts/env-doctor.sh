@@ -319,6 +319,59 @@ check_nas_password() {
     log_optional "NAS_PASSWORD" "NAS password for mounting"
 }
 
+check_cloudflare_tunnel_token() {
+    local token=$(get_var_value "CLOUDFLARE_TUNNEL_TOKEN")
+    local tunnel_id=$(get_var_value "CLOUDFLARE_TUNNEL_ID")
+    
+    if is_valid_value "$token"; then
+        log_ok "CLOUDFLARE_TUNNEL_TOKEN" "$token"
+        return 0
+    fi
+    
+    if is_valid_value "$tunnel_id"; then
+        if [[ -f "${DEPLOY_DIR}/config/cloudflared/credentials.json" ]]; then
+            log_ok "CLOUDFLARE_TUNNEL_ID" "$tunnel_id (using credentials file)"
+            return 0
+        else
+            log_manual "CLOUDFLARE_TUNNEL_ID" "Set, but missing credentials.json. Copy from ~/.cloudflared/${tunnel_id}.json"
+            return 1
+        fi
+    fi
+    
+    log_optional "CLOUDFLARE_TUNNEL_TOKEN" "Cloudflare Tunnel for external access (see docs/deploy/CLOUDFLARE_TUNNEL.md)"
+}
+
+check_storage_discord_webhook() {
+    local value=$(get_var_value "STORAGE_ALERT_DISCORD_WEBHOOK")
+    
+    if is_valid_value "$value"; then
+        if [[ "$value" == https://discord.com/api/webhooks/* ]] || [[ "$value" == https://discordapp.com/api/webhooks/* ]]; then
+            log_ok "STORAGE_ALERT_DISCORD_WEBHOOK" "$value"
+        else
+            log_manual "STORAGE_ALERT_DISCORD_WEBHOOK" "Invalid webhook URL format"
+        fi
+        return 0
+    fi
+    
+    log_optional "STORAGE_ALERT_DISCORD_WEBHOOK" "Discord alerts for storage health issues"
+}
+
+check_zfs_enabled() {
+    local value=$(get_var_value "ZFS_ENABLED")
+    
+    if [[ "$value" == "true" ]] || [[ "$value" == "false" ]]; then
+        log_ok "ZFS_ENABLED" "$value"
+        return 0
+    fi
+    
+    if [[ "$AUTO_FIX" == "true" ]]; then
+        set_var_value "ZFS_ENABLED" "false"
+        log_fixed "ZFS_ENABLED"
+    else
+        log_fixable "ZFS_ENABLED" "Not set (defaulting to false)"
+    fi
+}
+
 check_timezone() {
     local value=$(get_var_value "TZ")
     
@@ -398,6 +451,13 @@ run_diagnosis() {
     check_nas_host
     check_nas_user
     check_nas_password
+    
+    print_section "Cloudflare Tunnel (Recommended)"
+    check_cloudflare_tunnel_token
+    
+    print_section "Storage Monitoring (Optional)"
+    check_zfs_enabled
+    check_storage_discord_webhook
     
     print_section "System"
     check_timezone
