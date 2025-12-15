@@ -124,9 +124,11 @@ run_windows_script() {
             "powershell -ExecutionPolicy Bypass -File C:\\Scripts\\set-mode.ps1 -Mode $mode" 2>/dev/null && return 0
     fi
     
-    if command -v winrm &>/dev/null && nc -z -w 2 "$VM_IP" 5985 2>/dev/null; then
-        log "Using WinRM..."
-        return 0
+    if nc -z -w 2 "$VM_IP" 5985 2>/dev/null; then
+        if command -v pwsh &>/dev/null; then
+            log "Using PowerShell remoting..."
+            pwsh -Command "Invoke-Command -ComputerName ${VM_IP} -ScriptBlock { powershell -ExecutionPolicy Bypass -File C:\\Scripts\\set-mode.ps1 -Mode $mode }" 2>/dev/null && return 0
+        fi
     fi
     
     warn "Cannot connect to Windows VM via SSH or WinRM"
