@@ -38,8 +38,9 @@ sudo iptables -t nat -C POSTROUTING -d ${VM_IP} -j MASQUERADE 2>/dev/null || \
 # Enable IP forwarding
 sudo sysctl -w net.ipv4.ip_forward=1
 
-# Save rules
-sudo iptables-save | sudo tee /etc/iptables/rules.v4 > /dev/null
+# NOTE: We do NOT save iptables rules here because libvirt manages its own chains.
+# Saving with iptables-save captures libvirt's LIBVIRT_* chains and breaks network on restart.
+# These forwarding rules are re-applied by switch-kvm-mode.sh when entering gaming mode.
 
 echo "Done! Moonlight clients can now connect to $(hostname -I | awk '{print $1}')"
 echo "Windows VM IP: ${VM_IP}"
