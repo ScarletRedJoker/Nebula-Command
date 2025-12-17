@@ -49,3 +49,20 @@ home.evindrake.net {
 game.evindrake.net {
     redir https://dashboard.evindrake.net/game-connect permanent
 }
+
+dashboard.evindrake.net {
+    reverse_proxy homelab-dashboard:5000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+        header_up Upgrade {http.request.header.Upgrade}
+        header_up Connection {http.request.header.Connection}
+    }
+    
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    }
+}

@@ -213,6 +213,39 @@ services:
       retries: 3
       start_period: 30s
 
+  dashboard:
+    build:
+      context: ../../services/dashboard
+      dockerfile: Dockerfile
+    container_name: homelab-dashboard
+    restart: unless-stopped
+    networks:
+      - homelab
+    environment:
+      - FLASK_ENV=production
+      - WEB_USERNAME=${WEB_USERNAME:-evin}
+      - WEB_PASSWORD=${WEB_PASSWORD}
+      - DATABASE_URL=${DATABASE_URL}
+      - DASHBOARD_API_KEY=${DASHBOARD_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
+      - TZ=${TZ:-America/New_York}
+      # Fleet Manager SSH settings
+      - TAILSCALE_LOCAL_HOST=${TAILSCALE_LOCAL_HOST:-192.168.0.177}
+      - TAILSCALE_LINODE_HOST=${TAILSCALE_LINODE_HOST:-}
+      - SSH_USER=${SSH_USER:-evin}
+      - SSH_KEY_PATH=/app/ssh/id_rsa
+    volumes:
+      - ~/.ssh:/app/ssh:ro
+    ports:
+      - "5000:5000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
   gamestream:
     image: lscr.io/linuxserver/sunshine:latest
     container_name: sunshine
