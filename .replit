@@ -93,3 +93,7 @@ TWITCH_REDIRECT_URI = "https://3acc42cf-91e9-40f1-90e8-761e2c391cdf-00-17v3bbf5u
 YOUTUBE_REDIRECT_URI = "https://3acc42cf-91e9-40f1-90e8-761e2c391cdf-00-17v3bbf5unhyf.picard.replit.dev/api/auth/youtube/callback"
 SPOTIFY_REDIRECT_URI = "https://3acc42cf-91e9-40f1-90e8-761e2c391cdf-00-17v3bbf5unhyf.picard.replit.dev/api/auth/spotify/callback"
 KICK_REDIRECT_URI = "https://3acc42cf-91e9-40f1-90e8-761e2c391cdf-00-17v3bbf5unhyf.picard.replit.dev/api/auth/kick/callback"
+
+[deployment]
+deploymentTarget = "autoscale"
+run = ["bash", "-c", "cd services/dashboard && gunicorn --config gunicorn.conf.py app:app"]
