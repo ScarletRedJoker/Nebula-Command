@@ -47,9 +47,7 @@ def upgrade():
         op.create_index('ix_org_active', 'organizations', ['is_active'])
 
     # Create organization_members table if not exists
-    # Note: user_id references users table - make it nullable without FK if users table missing
     if not table_exists('organization_members'):
-        has_users = table_exists('users')
         columns = [
             sa.Column('id', sa.String(36), primary_key=True),
             sa.Column('org_id', sa.String(36), sa.ForeignKey('organizations.id', ondelete='CASCADE'), nullable=False),
@@ -65,14 +63,8 @@ def upgrade():
         ]
         op.create_table('organization_members', *columns)
         
-        # Add FK constraint only if users table exists
-        if has_users:
-            op.create_foreign_key(
-                'fk_org_member_user_id',
-                'organization_members', 'users',
-                ['user_id'], ['id'],
-                ondelete='CASCADE'
-            )
+        # Skip FK constraint - user_id is VARCHAR but users.id may be INTEGER
+        # Soft reference maintained at application level instead
         
         op.create_index('ix_org_member_org_id', 'organization_members', ['org_id'])
         op.create_index('ix_org_member_user_id', 'organization_members', ['user_id'])
@@ -82,7 +74,6 @@ def upgrade():
 
     # Create api_keys table if not exists
     if not table_exists('api_keys'):
-        has_users = table_exists('users')
         op.create_table(
             'api_keys',
             sa.Column('id', sa.String(36), primary_key=True),
@@ -104,14 +95,8 @@ def upgrade():
             sa.Column('usage_count', sa.Integer, server_default='0'),
         )
         
-        # Add FK constraint only if users table exists
-        if has_users:
-            op.create_foreign_key(
-                'fk_api_key_user_id',
-                'api_keys', 'users',
-                ['user_id'], ['id'],
-                ondelete='SET NULL'
-            )
+        # Skip FK constraint - user_id is VARCHAR but users.id may be INTEGER
+        # Soft reference maintained at application level instead
         
         op.create_index('ix_api_key_org', 'api_keys', ['org_id'])
         op.create_index('ix_api_key_hash', 'api_keys', ['key_hash'])
