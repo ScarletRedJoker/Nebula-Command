@@ -47,7 +47,7 @@ class NotificationService:
         if channels:
             logger.info(f"Notification service initialized with channels: {', '.join(channels)}")
         else:
-            logger.warning("No notification channels configured. Set DISCORD_WEBHOOK_URL, NOTIFICATION_EMAIL, or GENERIC_WEBHOOK_URL")
+            logger.debug("No notification channels configured (optional: set DISCORD_WEBHOOK_URL, NOTIFICATION_EMAIL, or GENERIC_WEBHOOK_URL)")
     
     @property
     def gmail_service(self):

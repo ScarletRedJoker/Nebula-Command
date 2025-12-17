@@ -66,21 +66,7 @@ class HomeAssistantService:
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         
         if not self.enabled:
-            logger.warning("╔══════════════════════════════════════════════════════════════╗")
-            logger.warning("║ Home Assistant Service - DISABLED                            ║")
-            logger.warning("╠══════════════════════════════════════════════════════════════╣")
-            logger.warning("║ No access token configured                                   ║")
-            logger.warning("║                                                              ║")
-            logger.warning("║ To enable Home Assistant integration:                        ║")
-            logger.warning("║   1. Set HOME_ASSISTANT_URL (e.g., https://home.example.com) ║")
-            logger.warning("║   2. Set HOME_ASSISTANT_TOKEN (long-lived access token)      ║")
-            logger.warning("║                                                              ║")
-            logger.warning("║ Optional settings:                                           ║")
-            logger.warning("║   - HOME_ASSISTANT_VERIFY_SSL=False (default for internal)   ║")
-            logger.warning("║   - HOME_ASSISTANT_TIMEOUT_CONNECT=10 (seconds)              ║")
-            logger.warning("║   - HOME_ASSISTANT_TIMEOUT_READ=30 (seconds)                 ║")
-            logger.warning("║   - HOME_ASSISTANT_HEALTH_CHECK_INTERVAL=300 (5 minutes)     ║")
-            logger.warning("╚══════════════════════════════════════════════════════════════╝")
+            logger.info("Home Assistant integration disabled (no HOME_ASSISTANT_TOKEN configured)")
         else:
             logger.info("╔══════════════════════════════════════════════════════════════╗")
             logger.info("║ Home Assistant Service - INITIALIZING                        ║")
@@ -102,13 +88,10 @@ class HomeAssistantService:
                     self.connection_state = ConnectionState.CONNECTED
                     self._start_health_check_thread()
                 else:
-                    logger.warning("⚠ Home Assistant not configured yet or unreachable")
-                    logger.info(f"  Error: {self.last_error}")
-                    logger.info("  This is OK - configure Home Assistant later in dashboard settings")
+                    logger.info(f"Home Assistant not reachable: {self.last_error}")
                     self.connection_state = ConnectionState.DISCONNECTED
             except Exception as e:
-                logger.warning(f"⚠ Home Assistant connection test failed: {e}")
-                logger.info("  This is OK - configure Home Assistant later in dashboard settings")
+                logger.info(f"Home Assistant connection deferred: {e}")
                 self.connection_state = ConnectionState.DISCONNECTED
     
     def _suggest_troubleshooting(self):

@@ -48,7 +48,7 @@ class JarvisCodebaseService:
         self.enabled = self.project_root.exists()
         
         if not self.enabled:
-            logger.warning(f"Codebase access disabled - project root not found: {self.project_root}")
+            logger.debug(f"Codebase access disabled - project root not found: {self.project_root}")
         else:
             logger.info(f"Jarvis Codebase Service initialized at {self.project_root}")
     

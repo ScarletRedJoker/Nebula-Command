@@ -53,8 +53,8 @@ class FleetManager:
     }
     
     def __init__(self):
-        self.ssh_timeout = 10
-        self.command_timeout = 60
+        self.ssh_timeout = int(os.environ.get('FLEET_SSH_TIMEOUT', '30'))
+        self.command_timeout = int(os.environ.get('FLEET_COMMAND_TIMEOUT', '120'))
         self._ssh_clients: Dict[str, paramiko.SSHClient] = {}
         self.ssh_key_path = os.environ.get('FLEET_SSH_KEY_PATH', os.path.expanduser('~/.ssh/id_rsa'))
     

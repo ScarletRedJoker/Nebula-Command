@@ -106,6 +106,9 @@ services:
       - FLEET_SSH_KEY_PATH=/root/.ssh/id_rsa
       - FLEET_LOCAL_SSH_USER=evin
       - FLEET_LINODE_SSH_USER=root
+      - FLEET_SSH_TIMEOUT=30
+      - FLEET_COMMAND_TIMEOUT=120
+      - HOMELAB_PROJECT_ROOT=/app
       - SESSION_SECRET=${SESSION_SECRET:-NebulaCommandDash2024SecureSessionKey}
     volumes:
       - ./services/dashboard/logs:/app/logs

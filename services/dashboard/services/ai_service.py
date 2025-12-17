@@ -42,7 +42,7 @@ class AIService:
             if self.ollama.enabled:
                 logger.info("Ollama service available")
             else:
-                logger.warning("Ollama service not available")
+                logger.debug("Ollama service not available (optional)")
         except Exception as e:
             logger.error(f"Failed to initialize Ollama service: {e}")
             self.ollama = None
