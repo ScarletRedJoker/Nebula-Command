@@ -101,8 +101,14 @@ services:
       - PLEX_TOKEN=${PLEX_TOKEN}
       - HOME_ASSISTANT_URL=${TAILSCALE_LOCAL_HOST}:8123
       - HOME_ASSISTANT_TOKEN=${HOME_ASSISTANT_TOKEN}
+      - TAILSCALE_LOCAL_HOST=${TAILSCALE_LOCAL_HOST}
+      - TAILSCALE_LINODE_HOST=${TAILSCALE_LINODE_HOST}
+      - FLEET_SSH_KEY_PATH=/root/.ssh/id_rsa
+      - FLEET_LOCAL_SSH_USER=evin
+      - FLEET_LINODE_SSH_USER=root
     volumes:
       - ./services/dashboard/logs:/app/logs
+      - /root/.ssh:/root/.ssh:ro
 
   homelab-celery-worker:
     build:
