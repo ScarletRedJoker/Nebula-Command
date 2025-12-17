@@ -40,17 +40,34 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "  Database Orchestration (wait_for_schema.py)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-# Always run migrations in the entrypoint (once at startup)
-ENTRYPOINT_RUN_MIGRATIONS=true
-SCHEMA_WAIT_TIMEOUT=${SCHEMA_WAIT_TIMEOUT:-180}
-
-export RUN_MIGRATIONS=$ENTRYPOINT_RUN_MIGRATIONS
-export SCHEMA_WAIT_TIMEOUT
-
-if ! python /app/wait_for_schema.py; then
-    echo "❌ ERROR: Database schema not ready after timeout"
-    echo "   Check PostgreSQL logs and migration status"
-    exit 1
+# Check if we're running as celery worker/beat (skip migrations)
+if [[ "$1" == *"celery"* ]] || [[ "${RUN_MIGRATIONS:-true}" == "false" ]]; then
+    echo "⏭ Skipping migrations (celery worker or RUN_MIGRATIONS=false)"
+    # Just wait for database to be ready without running migrations
+    python -c "
+import time
+import psycopg2
+import os
+for i in range(30):
+    try:
+        conn = psycopg2.connect(os.environ['JARVIS_DATABASE_URL'])
+        conn.close()
+        print('✓ Database connection verified')
+        break
+    except:
+        time.sleep(2)
+" || echo "⚠ Database connection check completed"
+else
+    # Run migrations only for main dashboard
+    SCHEMA_WAIT_TIMEOUT=${SCHEMA_WAIT_TIMEOUT:-180}
+    export RUN_MIGRATIONS=true
+    export SCHEMA_WAIT_TIMEOUT
+    
+    if ! python /app/wait_for_schema.py; then
+        echo "❌ ERROR: Database schema not ready after timeout"
+        echo "   Check PostgreSQL logs and migration status"
+        exit 1
+    fi
 fi
 
 echo ""
