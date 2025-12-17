@@ -14,6 +14,8 @@ NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+NAS_IP="${NAS_IP:-192.168.0.198}"
+
 print_header() {
     echo ""
     echo -e "${CYAN}╔══════════════════════════════════════════════════════════════╗${NC}"
@@ -45,8 +47,7 @@ check_mount_status() {
     local mounts=(
         "/"
         "/home"
-        "/mnt/nas"
-        "/media"
+        "/srv/media"
         "/opt"
     )
     
@@ -64,64 +65,77 @@ check_mount_status() {
 }
 
 check_nas_status() {
-    print_section "NAS Status"
+    print_section "NAS Status (ZyXEL NAS326 at ${NAS_IP})"
     
     # Check fstab for NAS entries
     echo -e "${CYAN}NAS entries in fstab:${NC}"
-    grep -E "(nfs|cifs|smb)" /etc/fstab 2>/dev/null || echo "  (none configured)"
+    grep -E "(cifs|smb)" /etc/fstab 2>/dev/null || echo "  (none configured)"
     
     echo ""
-    echo -e "${CYAN}Active NAS mounts:${NC}"
-    mount | grep -E "(nfs|cifs)" 2>/dev/null || echo "  (none active)"
+    echo -e "${CYAN}Active CIFS/SMB mounts:${NC}"
+    mount | grep -E "cifs" 2>/dev/null || echo "  (none active)"
     
-    # Check if /mnt/nas has content
+    # Check NAS connectivity
     echo ""
-    echo -e "${CYAN}NAS mount point content:${NC}"
-    if [[ -d "/mnt/nas" ]]; then
-        local count=$(ls -A /mnt/nas 2>/dev/null | wc -l)
-        if [[ $count -gt 0 ]]; then
-            echo -e "  ${GREEN}✓ /mnt/nas has $count items${NC}"
-            ls -la /mnt/nas 2>/dev/null | head -5
+    echo -e "${CYAN}NAS connectivity:${NC}"
+    if ping -c 1 -W 2 "$NAS_IP" &>/dev/null; then
+        echo -e "  ${GREEN}✓ NAS reachable at $NAS_IP${NC}"
+    else
+        echo -e "  ${RED}✗ NAS unreachable at $NAS_IP${NC}"
+    fi
+    
+    # Check /srv/media mount point
+    echo ""
+    echo -e "${CYAN}Media mount point (/srv/media):${NC}"
+    if [[ -d "/srv/media" ]]; then
+        if mountpoint -q "/srv/media" 2>/dev/null; then
+            local count=$(timeout 5 ls -A /srv/media 2>/dev/null | wc -l)
+            if [[ $count -gt 0 ]]; then
+                echo -e "  ${GREEN}✓ /srv/media is mounted with $count items${NC}"
+                echo "  Contents:"
+                timeout 5 ls -la /srv/media 2>/dev/null | head -8 | sed 's/^/    /'
+            else
+                echo -e "  ${YELLOW}○ /srv/media is mounted but empty${NC}"
+            fi
         else
-            echo -e "  ${YELLOW}○ /mnt/nas is empty (NAS may be offline)${NC}"
+            local count=$(ls -A /srv/media 2>/dev/null | wc -l)
+            if [[ $count -gt 0 ]]; then
+                echo -e "  ${YELLOW}○ /srv/media exists with $count items (not a mount point)${NC}"
+            else
+                echo -e "  ${YELLOW}○ /srv/media exists but is empty (NAS may be offline)${NC}"
+            fi
         fi
     else
-        echo -e "  ${RED}✗ /mnt/nas does not exist${NC}"
+        echo -e "  ${RED}✗ /srv/media does not exist${NC}"
     fi
 }
 
 check_media_paths() {
     print_section "Media Paths for Plex"
     
-    local paths=(
-        "/media/movies"
-        "/media/shows"
-        "/media/music"
-        "/media/photo"
-        "/opt/plex-media/movies"
-        "/opt/plex-media/shows"
-        "/opt/plex-media/music"
-    )
+    echo -e "${CYAN}Checking /srv/media (host) -> /media (container):${NC}"
     
-    for path in "${paths[@]}"; do
-        if [[ -L "$path" ]]; then
-            local target=$(readlink -f "$path")
-            if [[ -d "$target" ]] && [[ -n "$(ls -A "$target" 2>/dev/null)" ]]; then
-                echo -e "  ${GREEN}✓ $path -> $target (accessible)${NC}"
-            else
-                echo -e "  ${YELLOW}○ $path -> $target (link exists, target empty/missing)${NC}"
-            fi
-        elif [[ -d "$path" ]]; then
-            local count=$(ls -A "$path" 2>/dev/null | wc -l)
-            if [[ $count -gt 0 ]]; then
-                echo -e "  ${GREEN}✓ $path ($count items)${NC}"
-            else
-                echo -e "  ${YELLOW}○ $path (empty directory)${NC}"
-            fi
+    if [[ -d "/srv/media" ]]; then
+        local count=$(timeout 5 ls -A /srv/media 2>/dev/null | wc -l)
+        if [[ $count -gt 0 ]]; then
+            echo -e "  ${GREEN}✓ /srv/media has $count top-level items${NC}"
+            echo ""
+            echo -e "${CYAN}User-created subfolders:${NC}"
+            for item in /srv/media/*/; do
+                if [[ -d "$item" ]]; then
+                    local subcount=$(timeout 3 ls -A "$item" 2>/dev/null | wc -l)
+                    local name=$(basename "$item")
+                    echo -e "    ${GREEN}✓ $name${NC} ($subcount items)"
+                fi
+            done 2>/dev/null || echo "    (no subfolders or NAS timeout)"
         else
-            echo -e "  ${RED}✗ $path (does not exist)${NC}"
+            echo -e "  ${YELLOW}○ /srv/media is empty${NC}"
+            echo "    Create your own folders: video, music, photo, etc."
         fi
-    done
+    else
+        echo -e "  ${RED}✗ /srv/media does not exist${NC}"
+        echo "    Run: sudo mkdir -p /srv/media && sudo chown 1000:1000 /srv/media"
+    fi
 }
 
 check_docker_status() {
@@ -139,7 +153,8 @@ check_docker_status() {
     echo -e "${CYAN}Plex container:${NC}"
     if docker ps --format "{{.Names}}" 2>/dev/null | grep -q plex; then
         echo -e "  ${GREEN}✓ Plex is running${NC}"
-        docker inspect plex --format '{{range .Mounts}}{{.Source}} -> {{.Destination}}{{"\n"}}{{end}}' 2>/dev/null | head -10
+        echo "  Volume mounts:"
+        docker inspect plex --format '{{range .Mounts}}    {{.Source}} -> {{.Destination}}{{"\n"}}{{end}}' 2>/dev/null | head -10
     else
         echo -e "  ${YELLOW}○ Plex is not running${NC}"
     fi
@@ -219,29 +234,43 @@ show_recommendations() {
     echo -e "${CYAN}Based on verification:${NC}"
     echo ""
     
-    # Check if NAS is configured but not accessible
-    if grep -qE "(nfs|cifs)" /etc/fstab 2>/dev/null; then
-        if ! mount | grep -qE "(nfs|cifs)"; then
-            echo -e "${YELLOW}• NAS is configured but not mounted. Check if NAS is powered on.${NC}"
-            echo -e "  Try: sudo mount -a"
+    # Check if NAS is reachable but not mounted
+    if ping -c 1 -W 2 "$NAS_IP" &>/dev/null; then
+        if ! mountpoint -q /srv/media 2>/dev/null; then
+            echo -e "${YELLOW}• NAS is online but not mounted. Try:${NC}"
+            echo -e "  sudo mount /srv/media"
+            echo ""
         fi
     else
-        echo -e "${YELLOW}• NAS not configured in fstab. Run:${NC}"
-        echo -e "  sudo ./scripts/setup-nas-mounts-hardened.sh"
+        echo -e "${YELLOW}• NAS at $NAS_IP is not responding.${NC}"
+        echo -e "  Check if NAS is powered on and connected to network."
+        echo ""
+    fi
+    
+    # Check if mount is configured
+    if ! grep -qE "cifs" /etc/fstab 2>/dev/null; then
+        echo -e "${YELLOW}• NAS mount not configured in fstab. Run:${NC}"
+        echo -e "  sudo ./deploy/local/scripts/setup-nas-resilient.sh"
+        echo ""
     fi
     
     # Check Plex
     if ! curl -s --max-time 2 http://localhost:32400/identity &>/dev/null; then
         echo -e "${YELLOW}• Plex not responding. Start with:${NC}"
         echo -e "  docker compose up -d plex"
+        echo ""
     fi
     
-    # Check media paths
-    if [[ ! -d "/media/movies" ]] || [[ -z "$(ls -A /media/movies 2>/dev/null)" ]]; then
-        echo -e "${YELLOW}• Media paths empty. After NAS mount, symlinks should work.${NC}"
+    # Check media content
+    if [[ -d "/srv/media" ]]; then
+        local count=$(timeout 3 ls -A /srv/media 2>/dev/null | wc -l)
+        if [[ $count -eq 0 ]]; then
+            echo -e "${YELLOW}• /srv/media is empty.${NC}"
+            echo -e "  Create folders for your media: video, music, photo, etc."
+            echo -e "  Plex will see these as /media inside the container."
+            echo ""
+        fi
     fi
-    
-    echo ""
 }
 
 main() {

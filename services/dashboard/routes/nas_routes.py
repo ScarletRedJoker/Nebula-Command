@@ -13,13 +13,8 @@ logger = logging.getLogger(__name__)
 
 nas_bp = Blueprint('nas', __name__, url_prefix='/nas')
 
-NAS_IP = "192.168.0.176"
-MOUNT_POINTS = {
-    'video': '/srv/media/video',
-    'music': '/srv/media/music',
-    'photo': '/srv/media/photo',
-    'games': '/srv/media/games'
-}
+NAS_IP = "192.168.0.198"
+MOUNT_POINT = '/srv/media'
 
 
 @nas_bp.route('/')
@@ -89,24 +84,20 @@ def list_mounts():
         nas_service = NASService()
         mounts = nas_service.list_mounts()
         
-        # Get pagination parameters
         page = int(request.args.get('page', 1))
         per_page = min(int(request.args.get('per_page', 50)), 100)
         
         with db_service.get_session() as db:
-            # Get total count from both sources
             db_count = db.query(func.count(NASMount.id)).scalar()
             system_mounts_count = len(mounts) if mounts else 0
             total = db_count + system_mounts_count
             
-            # Get paginated DB mounts
             db_mounts = db.query(NASMount)\
                 .order_by(NASMount.created_at.desc())\
                 .offset((page - 1) * per_page)\
                 .limit(per_page)\
                 .all()
         
-            # Apply pagination offset to system mounts
             start_idx = (page - 1) * per_page
             end_idx = start_idx + per_page
             mounts_with_info = []
@@ -283,7 +274,7 @@ def create_backup():
                 status='pending'
             )
             db.add(backup_job)
-            db.flush()  # Ensure ID is generated
+            db.flush()
             job_id = backup_job.id
 
         from workers.nas_worker import run_nas_backup
@@ -429,7 +420,7 @@ def get_plex_paths():
     Get NAS paths formatted for Plex container access
     
     Returns paths that can be used when configuring Plex libraries
-    (maps to /nas inside the Plex container)
+    (maps to /media inside the Plex container)
     """
     try:
         nas_service = NASService()
@@ -440,9 +431,9 @@ def get_plex_paths():
         
         plex_paths = {
             'mount_info': {
-                'host_mount': result.get('mount_base'),
-                'container_mount': '/nas',
-                'description': 'NAS is mounted at /mnt/nas on host, accessible as /nas inside Plex container'
+                'host_mount': MOUNT_POINT,
+                'container_mount': '/media',
+                'description': 'NAS networkshare is mounted at /srv/media on host, accessible as /media inside Plex container'
             },
             'library_suggestions': result.get('plex_library_suggestions', []),
             'all_folders': result.get('folders', {})
@@ -469,8 +460,11 @@ def get_mount_status():
         status = {
             'nas_ip': NAS_IP,
             'nas_reachable': False,
-            'mounts': {},
-            'nfs_mount_active': False,
+            'mount_point': MOUNT_POINT,
+            'is_mounted': False,
+            'has_content': False,
+            'file_count': 0,
+            'cifs_mount_active': False,
             'timestamp': datetime.now().isoformat()
         }
         
@@ -484,62 +478,50 @@ def get_mount_status():
         
         mount_result = fleet_manager.execute_command(
             'local',
-            'mount | grep -E "(nas|nfs)" || echo "no_mounts"',
+            'mount | grep -E "(cifs|' + NAS_IP + ')" || echo "no_mounts"',
             timeout=10,
             bypass_whitelist=True
         )
         if mount_result.get('success'):
             mount_output = mount_result.get('output', '')
-            status['nfs_mount_active'] = 'nfs' in mount_output.lower() and 'no_mounts' not in mount_output
+            status['cifs_mount_active'] = 'cifs' in mount_output.lower() and 'no_mounts' not in mount_output
             status['raw_mounts'] = mount_output.strip()
         
-        for share_name, mount_path in MOUNT_POINTS.items():
-            mount_info = {
-                'path': mount_path,
-                'status': 'unknown',
-                'is_mounted': False,
-                'has_content': False,
-                'file_count': 0,
-                'error': None
-            }
+        mountpoint_result = fleet_manager.execute_command(
+            'local',
+            f'mountpoint -q {MOUNT_POINT} && echo "mounted" || echo "not_mounted"',
+            timeout=5,
+            bypass_whitelist=True
+        )
+        
+        if mountpoint_result.get('success'):
+            is_mounted = 'mounted' in mountpoint_result.get('output', '') and 'not_mounted' not in mountpoint_result.get('output', '')
+            status['is_mounted'] = is_mounted
             
-            mountpoint_result = fleet_manager.execute_command(
-                'local',
-                f'mountpoint -q {mount_path} && echo "mounted" || echo "not_mounted"',
-                timeout=5,
-                bypass_whitelist=True
-            )
-            
-            if mountpoint_result.get('success'):
-                is_mounted = 'mounted' in mountpoint_result.get('output', '') and 'not_mounted' not in mountpoint_result.get('output', '')
-                mount_info['is_mounted'] = is_mounted
+            if is_mounted:
+                ls_result = fleet_manager.execute_command(
+                    'local',
+                    f'timeout 3 ls -1 {MOUNT_POINT} 2>/dev/null | head -20 | wc -l',
+                    timeout=10,
+                    bypass_whitelist=True
+                )
                 
-                if is_mounted:
-                    ls_result = fleet_manager.execute_command(
-                        'local',
-                        f'timeout 3 ls -1 {mount_path} 2>/dev/null | head -20 | wc -l',
-                        timeout=10,
-                        bypass_whitelist=True
-                    )
-                    
-                    if ls_result.get('success'):
-                        try:
-                            file_count = int(ls_result.get('output', '0').strip())
-                            mount_info['file_count'] = file_count
-                            mount_info['has_content'] = file_count > 0
-                            mount_info['status'] = 'mounted_with_content' if file_count > 0 else 'mounted_empty'
-                        except ValueError:
-                            mount_info['status'] = 'mounted_unknown'
-                    else:
-                        mount_info['status'] = 'stale'
-                        mount_info['error'] = 'Mount may be stale - unable to list contents'
+                if ls_result.get('success'):
+                    try:
+                        file_count = int(ls_result.get('output', '0').strip())
+                        status['file_count'] = file_count
+                        status['has_content'] = file_count > 0
+                        status['status'] = 'mounted_with_content' if file_count > 0 else 'mounted_empty'
+                    except ValueError:
+                        status['status'] = 'mounted_unknown'
                 else:
-                    mount_info['status'] = 'not_mounted'
+                    status['status'] = 'stale'
+                    status['error'] = 'Mount may be stale - unable to list contents'
             else:
-                mount_info['status'] = 'error'
-                mount_info['error'] = mountpoint_result.get('error', 'Failed to check mount status')
-            
-            status['mounts'][share_name] = mount_info
+                status['status'] = 'not_mounted'
+        else:
+            status['status'] = 'error'
+            status['error'] = mountpoint_result.get('error', 'Failed to check mount status')
         
         return jsonify({
             'success': True,
@@ -558,29 +540,29 @@ def get_mount_status():
 @require_auth
 @require_permission(Permission.MANAGE_DOCKER)
 def remount_nas():
-    """Remount NAS shares via Fleet Manager"""
+    """Remount NAS share via Fleet Manager"""
     try:
         logs = []
         
         logs.append("Starting NAS remount process...")
         
-        stop_result = fleet_manager.execute_command(
+        umount_result = fleet_manager.execute_command(
             'local',
-            'sudo /usr/local/bin/nas-bind-mounts.sh stop 2>&1',
+            f'sudo umount -l {MOUNT_POINT} 2>&1 || true',
             timeout=30,
             bypass_whitelist=True
         )
-        logs.append(f"Stop bind mounts: {stop_result.get('output', stop_result.get('error', 'No output'))}")
+        logs.append(f"Unmount: {umount_result.get('output', umount_result.get('error', 'No output'))}")
         
-        start_result = fleet_manager.execute_command(
+        mount_result = fleet_manager.execute_command(
             'local',
-            'sudo /usr/local/bin/nas-bind-mounts.sh start 2>&1',
+            f'sudo mount {MOUNT_POINT} 2>&1',
             timeout=60,
             bypass_whitelist=True
         )
-        logs.append(f"Start bind mounts: {start_result.get('output', start_result.get('error', 'No output'))}")
+        logs.append(f"Mount: {mount_result.get('output', mount_result.get('error', 'No output'))}")
         
-        success = start_result.get('success', False)
+        success = mount_result.get('success', False)
         
         return jsonify({
             'success': success,
@@ -604,7 +586,7 @@ def setup_nas_mounts():
     try:
         logs = []
         
-        logs.append("Running NAS resilient mount setup script...")
+        logs.append("Running NAS CIFS mount setup script...")
         logs.append("This may take a minute...")
         
         result = fleet_manager.execute_command(
@@ -660,84 +642,93 @@ def diagnose_nas():
             'output': ping_result.get('output', ping_result.get('error', 'No output'))[:500]
         })
         
-        nfs_result = fleet_manager.execute_command(
+        smb_result = fleet_manager.execute_command(
             'local',
-            'showmount -e ' + NAS_IP + ' 2>&1 || echo "NFS exports check failed"',
+            f'smbclient -L //{NAS_IP} -N 2>&1 || echo "SMB check failed"',
             timeout=15,
             bypass_whitelist=True
         )
         diagnostics['checks'].append({
-            'name': 'NFS Exports',
-            'description': f'Check NFS exports from {NAS_IP}',
-            'passed': nfs_result.get('success', False) and 'failed' not in nfs_result.get('output', '').lower(),
-            'output': nfs_result.get('output', nfs_result.get('error', 'No output'))[:500]
+            'name': 'SMB Shares',
+            'description': f'Check SMB shares from {NAS_IP}',
+            'passed': smb_result.get('success', False) and 'failed' not in smb_result.get('output', '').lower(),
+            'output': smb_result.get('output', smb_result.get('error', 'No output'))[:500]
         })
         
         mount_result = fleet_manager.execute_command(
             'local',
-            'mount | grep -E "(nas|nfs|' + NAS_IP + ')" 2>&1 || echo "No NAS mounts found"',
+            'mount | grep -E "(cifs|' + NAS_IP + ')" 2>&1 || echo "No NAS mounts found"',
             timeout=10,
             bypass_whitelist=True
         )
         has_mounts = mount_result.get('success', False) and 'No NAS mounts found' not in mount_result.get('output', '')
         diagnostics['checks'].append({
-            'name': 'Active NFS Mounts',
-            'description': 'Check for active NAS/NFS mounts',
+            'name': 'Active CIFS Mounts',
+            'description': 'Check for active NAS/CIFS mounts',
             'passed': has_mounts,
             'output': mount_result.get('output', mount_result.get('error', 'No output'))[:500]
         })
         
-        for share_name, mount_path in MOUNT_POINTS.items():
-            ls_result = fleet_manager.execute_command(
-                'local',
-                f'timeout 5 ls -la {mount_path} 2>&1 | head -10',
-                timeout=15,
-                bypass_whitelist=True
-            )
-            diagnostics['checks'].append({
-                'name': f'Mount Point: {share_name}',
-                'description': f'List contents of {mount_path}',
-                'passed': ls_result.get('success', False),
-                'output': ls_result.get('output', ls_result.get('error', 'No output'))[:300]
-            })
+        mount_info = {
+            'path': MOUNT_POINT,
+            'status': 'unknown',
+            'is_mounted': False,
+            'has_content': False,
+            'file_count': 0,
+            'error': None
+        }
         
-        bind_script_result = fleet_manager.execute_command(
+        mountpoint_result = fleet_manager.execute_command(
             'local',
-            'test -x /usr/local/bin/nas-bind-mounts.sh && echo "Script exists and is executable" || echo "Script missing or not executable"',
+            f'mountpoint -q {MOUNT_POINT} && echo "mounted" || echo "not_mounted"',
             timeout=5,
             bypass_whitelist=True
         )
+        
+        if mountpoint_result.get('success'):
+            is_mounted = 'mounted' in mountpoint_result.get('output', '') and 'not_mounted' not in mountpoint_result.get('output', '')
+            mount_info['is_mounted'] = is_mounted
+            
+            if is_mounted:
+                ls_result = fleet_manager.execute_command(
+                    'local',
+                    f'timeout 3 ls -1 {MOUNT_POINT} 2>/dev/null | head -20 | wc -l',
+                    timeout=10,
+                    bypass_whitelist=True
+                )
+                
+                if ls_result.get('success'):
+                    try:
+                        file_count = int(ls_result.get('output', '0').strip())
+                        mount_info['file_count'] = file_count
+                        mount_info['has_content'] = file_count > 0
+                        mount_info['status'] = 'healthy' if file_count > 0 else 'mounted_empty'
+                    except ValueError:
+                        mount_info['status'] = 'unknown'
+                else:
+                    mount_info['status'] = 'stale'
+                    mount_info['error'] = 'Mount may be stale'
+            else:
+                mount_info['status'] = 'not_mounted'
+        
         diagnostics['checks'].append({
-            'name': 'Bind Mount Script',
-            'description': 'Check if nas-bind-mounts.sh exists',
-            'passed': 'exists and is executable' in bind_script_result.get('output', ''),
-            'output': bind_script_result.get('output', bind_script_result.get('error', 'No output'))
+            'name': 'Mount Point Check',
+            'description': f'Check {MOUNT_POINT} mount status',
+            'passed': mount_info['status'] == 'healthy',
+            'output': f"Status: {mount_info['status']}, Files: {mount_info['file_count']}"
         })
         
-        log_result = fleet_manager.execute_command(
-            'local',
-            'tail -20 /var/log/nas-bind-mounts.log 2>/dev/null || echo "No mount log found"',
-            timeout=10,
-            bypass_whitelist=True
-        )
-        diagnostics['checks'].append({
-            'name': 'Recent Mount Logs',
-            'description': 'Last 20 lines of NAS bind mount log',
-            'passed': 'No mount log found' not in log_result.get('output', ''),
-            'output': log_result.get('output', log_result.get('error', 'No output'))[:1000]
-        })
+        diagnostics['mount_info'] = mount_info
         
         passed_count = sum(1 for check in diagnostics['checks'] if check['passed'])
-        total_count = len(diagnostics['checks'])
+        total_checks = len(diagnostics['checks'])
         
-        if passed_count == total_count:
+        if passed_count == total_checks:
             diagnostics['overall_status'] = 'healthy'
-        elif passed_count >= total_count * 0.6:
+        elif passed_count >= total_checks / 2:
             diagnostics['overall_status'] = 'degraded'
         else:
             diagnostics['overall_status'] = 'unhealthy'
-        
-        diagnostics['summary'] = f"{passed_count}/{total_count} checks passed"
         
         return jsonify({
             'success': True,
@@ -746,53 +737,6 @@ def diagnose_nas():
 
     except Exception as e:
         logger.error(f"Error running diagnostics: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-
-@nas_bp.route('/api/mount-logs', methods=['GET'])
-@require_auth
-def get_mount_logs():
-    """Get NAS mount logs"""
-    try:
-        lines = request.args.get('lines', 50, type=int)
-        lines = min(lines, 500)
-        
-        logs = {}
-        
-        bind_log_result = fleet_manager.execute_command(
-            'local',
-            f'tail -{lines} /var/log/nas-bind-mounts.log 2>/dev/null || echo "Log file not found"',
-            timeout=10,
-            bypass_whitelist=True
-        )
-        logs['bind_mounts'] = bind_log_result.get('output', bind_log_result.get('error', 'Failed to retrieve'))
-        
-        watchdog_result = fleet_manager.execute_command(
-            'local',
-            f'tail -{lines} /var/log/nas-watchdog.log 2>/dev/null || echo "Log file not found"',
-            timeout=10,
-            bypass_whitelist=True
-        )
-        logs['watchdog'] = watchdog_result.get('output', watchdog_result.get('error', 'Failed to retrieve'))
-        
-        systemd_result = fleet_manager.execute_command(
-            'local',
-            f'journalctl -u mnt-nas-all.mount -n {lines} --no-pager 2>/dev/null || echo "No systemd logs available"',
-            timeout=15,
-            bypass_whitelist=True
-        )
-        logs['systemd_mount'] = systemd_result.get('output', systemd_result.get('error', 'Failed to retrieve'))
-        
-        return jsonify({
-            'success': True,
-            'logs': logs
-        })
-
-    except Exception as e:
-        logger.error(f"Error getting mount logs: {e}")
         return jsonify({
             'success': False,
             'error': str(e)

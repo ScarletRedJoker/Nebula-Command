@@ -1,11 +1,15 @@
 #!/bin/bash
 # Plex Health Gate Entrypoint
-# Waits for media mounts to be available, starts Plex with graceful handling
-# If mounts aren't available, Plex starts anyway but logs a warning
+# Waits for media mount to be available, starts Plex with graceful handling
+# If mount isn't available, Plex starts anyway but logs a warning
+#
+# User mounts single NAS share (networkshare) to /srv/media on host
+# Docker binds /srv/media:/media, so Plex sees /media
+# User creates their own subfolders and points Plex libraries wherever they want
 
 set -euo pipefail
 
-MEDIA_PATHS=${MEDIA_PATHS:-"/media/movies /media/shows /media/music"}
+MEDIA_PATHS=${MEDIA_PATHS:-"/media"}
 WAIT_TIMEOUT=${WAIT_TIMEOUT:-30}
 LOG_PREFIX="[plex-healthgate]"
 
@@ -48,7 +52,9 @@ check_mount() {
         return 0
     fi
     
-    return 1
+    # Directory exists but is empty - still OK for startup
+    # User will add content or NAS will mount later
+    return 0
 }
 
 wait_for_mounts() {
@@ -84,18 +90,23 @@ wait_for_mounts() {
     # Report final status
     log_info "Media mount status:"
     for path in $MEDIA_PATHS; do
-        if check_mount "$path"; then
-            log_info "  ✓ $path - available"
+        if [[ -d "$path" ]]; then
+            local count=$(ls -A "$path" 2>/dev/null | wc -l)
+            if [[ $count -gt 0 ]]; then
+                log_info "  ✓ $path - available ($count items)"
+            else
+                log_warn "  ○ $path - exists but empty (NAS may be offline)"
+            fi
         else
             log_warn "  ✗ $path - NOT available"
         fi
     done
     
     if $all_ready; then
-        log_info "All media mounts are ready!"
+        log_info "Media mount is ready!"
         return 0
     else
-        log_warn "Starting Plex with some mounts unavailable."
+        log_warn "Starting Plex with mount unavailable."
         log_warn "Libraries may show empty until NAS is online."
         return 0  # Still return success to allow Plex to start
     fi
@@ -105,6 +116,7 @@ main() {
     log_info "Plex Health Gate starting..."
     log_info "Configured media paths: $MEDIA_PATHS"
     log_info "Wait timeout: ${WAIT_TIMEOUT}s"
+    log_info "Note: User manages subfolders inside /media"
     
     wait_for_mounts
     

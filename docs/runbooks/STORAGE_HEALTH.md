@@ -116,9 +116,6 @@ sudo zpool create \
 
 # Create datasets
 sudo zfs create nas-pool/media
-sudo zfs create nas-pool/media/movies
-sudo zfs create nas-pool/media/shows
-sudo zfs create nas-pool/media/music
 sudo zfs create nas-pool/backups
 ```
 
@@ -182,33 +179,86 @@ sudo journalctl --vacuum-time=7d
 df -h /transcode
 ```
 
-## NAS Health Checks
+## NAS Health Checks (ZyXEL NAS326)
+
+### Configuration
+
+The NAS is configured as follows:
+- **Device:** ZyXEL NAS326
+- **IP Address:** 192.168.0.198
+- **Share:** networkshare (single SMB/CIFS share)
+- **Mount Point:** /srv/media
+- **Protocol:** CIFS/SMB 3.0 with guest access
+- **Subfolders:** User-managed (video, music, photo, etc.)
 
 ### Check NAS Mount Status
 
 ```bash
-# View NAS mounts
-mount | grep -E "(nfs|cifs)"
+# View CIFS mounts
+mount | grep cifs
 
-# Test NAS connectivity
-ping -c 3 $NAS_HOST
+# Check if NAS is reachable
+ping -c 3 192.168.0.198
+
+# Check mount point
+mountpoint /srv/media
+
+# List contents
+ls -la /srv/media
 
 # Check mount is writable
-touch /mnt/nas/networkshare/.homelab-test && rm /mnt/nas/networkshare/.homelab-test
+touch /srv/media/.homelab-test && rm /srv/media/.homelab-test
 ```
 
-### Remount NAS
+### Mount/Remount NAS
 
 ```bash
-# Unmount
-sudo umount /mnt/nas/networkshare
+# Manual mount
+sudo mount /srv/media
 
-# Remount
+# Remount (unmount + mount)
+sudo umount /srv/media
+sudo mount /srv/media
+
+# Or use mount -a to mount all fstab entries
 sudo mount -a
 
-# Or run setup script
-sudo ./deploy/local/scripts/setup-nas-mounts.sh
+# Emergency unmount (if stale)
+sudo umount -l /srv/media
 ```
+
+### Setup NAS Mounts
+
+```bash
+# Run the setup script (configures fstab, systemd, watchdog)
+sudo ./deploy/local/scripts/setup-nas-resilient.sh
+```
+
+### fstab Entry
+
+The NAS is mounted via this fstab entry:
+```
+//192.168.0.198/networkshare /srv/media cifs guest,uid=1000,gid=1000,vers=3.0,_netdev,nofail 0 0
+```
+
+### Troubleshooting NAS Issues
+
+**NAS not mounting:**
+1. Check if NAS is powered on and connected to network
+2. Verify IP: `ping 192.168.0.198`
+3. Check SMB shares: `smbclient -L //192.168.0.198 -N`
+4. Check fstab entry: `grep cifs /etc/fstab`
+5. Try manual mount: `sudo mount -t cifs //192.168.0.198/networkshare /srv/media -o guest,uid=1000,gid=1000,vers=3.0`
+
+**Mount is stale (commands hang):**
+1. Force lazy unmount: `sudo umount -l /srv/media`
+2. Wait a few seconds
+3. Remount: `sudo mount /srv/media`
+
+**Docker containers can't access media:**
+1. Check mount is active: `mountpoint /srv/media`
+2. Check permissions: `ls -la /srv/media`
+3. Restart container: `docker restart plex`
 
 ## Prometheus Metrics
 

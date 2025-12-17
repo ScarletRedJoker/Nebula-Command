@@ -1,14 +1,13 @@
 #!/bin/bash
 set -euo pipefail
 
-# NAS Resilient Mount Setup
-# Creates fail-fast NFS mounts that won't hang when NAS is offline
-# Uses soft timeouts + local fallback directories
+# NAS Resilient Mount Setup for ZyXEL NAS326
+# Mounts single SMB share "networkshare" via CIFS to /srv/media
+# User creates their own subfolders (video, music, photo, etc.)
 
-NAS_IP="${NAS_IP:-192.168.0.176}"
-NAS_SHARES=("video" "music" "photo" "games")
-MOUNT_BASE="/mnt/nas"
-MEDIA_BASE="/srv/media"
+NAS_IP="${NAS_IP:-192.168.0.198}"
+NAS_SHARE="networkshare"
+MOUNT_POINT="/srv/media"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -27,64 +26,71 @@ check_root() {
 }
 
 create_directories() {
-    log_info "Creating local media directories..."
+    log_info "Creating mount point directory..."
     
-    # Create NAS mount points
-    mkdir -p "${MOUNT_BASE}/all"
-    for share in "${NAS_SHARES[@]}"; do
-        mkdir -p "${MOUNT_BASE}/${share}"
-    done
+    mkdir -p "${MOUNT_POINT}"
+    chown 1000:1000 "${MOUNT_POINT}"
     
-    # Create local /srv/media directories (these always exist)
-    mkdir -p "${MEDIA_BASE}"
-    for share in "${NAS_SHARES[@]}"; do
-        mkdir -p "${MEDIA_BASE}/${share}"
-    done
-    
-    # Set ownership
-    chown -R 1000:1000 "${MEDIA_BASE}"
-    
-    log_info "Created directories at ${MEDIA_BASE}"
+    log_info "Created mount point at ${MOUNT_POINT}"
 }
 
-install_nfs_utils() {
-    if ! command -v mount.nfs &> /dev/null; then
-        log_info "Installing NFS utilities..."
-        apt-get update && apt-get install -y nfs-common
+install_cifs_utils() {
+    if ! command -v mount.cifs &> /dev/null; then
+        log_info "Installing CIFS utilities..."
+        apt-get update && apt-get install -y cifs-utils
+    else
+        log_info "CIFS utilities already installed"
     fi
 }
 
-create_systemd_mounts() {
-    log_info "Creating systemd mount units with fail-fast options..."
+setup_fstab() {
+    log_info "Configuring /etc/fstab for CIFS mount..."
     
-    # Main NAS mount with soft timeout (fails fast instead of hanging)
-    cat > /etc/systemd/system/mnt-nas-all.mount << EOF
+    # Backup fstab
+    cp /etc/fstab /etc/fstab.backup.$(date +%Y%m%d%H%M%S)
+    
+    # Remove any existing NAS entries
+    sed -i "/${NAS_IP}/d" /etc/fstab
+    sed -i '/\/srv\/media.*cifs/d' /etc/fstab
+    sed -i '/\/mnt\/nas/d' /etc/fstab
+    
+    # Add new CIFS mount entry
+    echo "//${NAS_IP}/${NAS_SHARE} ${MOUNT_POINT} cifs guest,uid=1000,gid=1000,vers=3.0,_netdev,nofail 0 0" >> /etc/fstab
+    
+    log_info "Added fstab entry for //${NAS_IP}/${NAS_SHARE} -> ${MOUNT_POINT}"
+}
+
+create_systemd_mount() {
+    log_info "Creating systemd mount unit for CIFS..."
+    
+    # Create systemd mount unit (escaped path: srv-media.mount)
+    cat > /etc/systemd/system/srv-media.mount << EOF
 [Unit]
-Description=NAS All Share (Fail-Fast)
+Description=ZyXEL NAS326 networkshare (CIFS)
 After=network-online.target
 Wants=network-online.target
 DefaultDependencies=no
 
 [Mount]
-What=${NAS_IP}:/volume1/all
-Where=/mnt/nas/all
-Type=nfs
-Options=soft,timeo=30,retrans=2,vers=4.2,_netdev,noauto,x-systemd.automount,x-systemd.idle-timeout=300,x-systemd.mount-timeout=30
+What=//${NAS_IP}/${NAS_SHARE}
+Where=${MOUNT_POINT}
+Type=cifs
+Options=guest,uid=1000,gid=1000,vers=3.0,_netdev,nofail,soft,timeo=30
 TimeoutSec=60
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-    # Automount unit - mounts on demand, unmounts when idle
-    cat > /etc/systemd/system/mnt-nas-all.automount << EOF
+    # Create automount unit for on-demand mounting
+    cat > /etc/systemd/system/srv-media.automount << EOF
 [Unit]
-Description=NAS All Share Automount
+Description=ZyXEL NAS326 networkshare Automount
 After=network-online.target
-ConditionPathExists=/mnt/nas/all
+ConditionPathExists=${MOUNT_POINT}
 
 [Automount]
-Where=/mnt/nas/all
+Where=${MOUNT_POINT}
 TimeoutIdleSec=300
 DirectoryMode=0755
 
@@ -92,82 +98,10 @@ DirectoryMode=0755
 WantedBy=multi-user.target
 EOF
 
-    # Reload systemd
     systemctl daemon-reload
+    systemctl enable srv-media.automount
     
-    # Enable automount (not the mount itself - automount triggers it)
-    systemctl enable mnt-nas-all.automount
-    
-    log_info "Systemd mount units created"
-}
-
-create_bind_mounts() {
-    log_info "Setting up bind mounts from NAS to /srv/media..."
-    
-    # Create bind mount service that links NAS to /srv/media when available
-    # This service runs when the NAS mount activates (via BindsTo)
-    cat > /etc/systemd/system/srv-media-bind.service << EOF
-[Unit]
-Description=Bind NAS shares to /srv/media
-After=mnt-nas-all.mount
-BindsTo=mnt-nas-all.mount
-PartOf=mnt-nas-all.mount
-
-[Service]
-Type=oneshot
-RemainAfterExit=yes
-ExecStart=/usr/local/bin/nas-bind-mounts.sh start
-ExecStop=/usr/local/bin/nas-bind-mounts.sh stop
-
-[Install]
-WantedBy=mnt-nas-all.mount
-EOF
-
-    # Create the bind mount script
-    cat > /usr/local/bin/nas-bind-mounts.sh << 'SCRIPT'
-#!/bin/bash
-ACTION="${1:-start}"
-SHARES=("video" "music" "photo" "games")
-LOG_FILE="/var/log/nas-bind-mounts.log"
-
-log() { echo "$(date '+%Y-%m-%d %H:%M:%S') $1" >> "$LOG_FILE"; }
-
-case "$ACTION" in
-    start)
-        log "Starting bind mounts..."
-        # Wait briefly for mount to stabilize
-        sleep 2
-        for share in "${SHARES[@]}"; do
-            # Skip if already mounted
-            if mountpoint -q "/srv/media/${share}" 2>/dev/null; then
-                log "Already bound: ${share}"
-                continue
-            fi
-            # Check if NAS share is accessible (with timeout)
-            if timeout 5 test -d "/mnt/nas/all/${share}" 2>/dev/null; then
-                mount --bind "/mnt/nas/all/${share}" "/srv/media/${share}" 2>/dev/null && \
-                    log "Bound: ${share}" || log "Failed to bind: ${share}"
-            else
-                log "NAS share not accessible: ${share}"
-            fi
-        done
-        ;;
-    stop)
-        log "Stopping bind mounts..."
-        for share in "${SHARES[@]}"; do
-            umount "/srv/media/${share}" 2>/dev/null && log "Unbound: ${share}" || true
-        done
-        ;;
-esac
-SCRIPT
-    
-    chmod +x /usr/local/bin/nas-bind-mounts.sh
-    systemctl daemon-reload
-    
-    # Enable the service to auto-run when NAS mounts
-    systemctl enable srv-media-bind.service
-    
-    log_info "Bind mount service created and enabled"
+    log_info "Systemd mount units created and enabled"
 }
 
 create_watchdog() {
@@ -175,9 +109,9 @@ create_watchdog() {
     
     cat > /usr/local/bin/nas-watchdog.sh << 'WATCHDOG'
 #!/bin/bash
-# NAS Mount Watchdog - Detects and recovers stale mounts
+# NAS Mount Watchdog - Detects and recovers stale CIFS mounts
 
-MOUNT_PATH="/mnt/nas/all"
+MOUNT_PATH="/srv/media"
 LOG_FILE="/var/log/nas-watchdog.log"
 DISCORD_WEBHOOK="${STORAGE_ALERT_DISCORD_WEBHOOK:-}"
 
@@ -211,20 +145,14 @@ recover_mount() {
     # Force lazy unmount to clear stale state
     umount -l "$MOUNT_PATH" 2>/dev/null || true
     
-    # Clear any zombie bind mounts
-    for share in video music photo games; do
-        umount -l "/srv/media/${share}" 2>/dev/null || true
-    done
+    # Wait briefly
+    sleep 2
     
-    # Let systemd automount handle reconnection
-    systemctl restart mnt-nas-all.automount 2>/dev/null || true
+    # Remount via systemd
+    systemctl restart srv-media.automount 2>/dev/null || true
     
-    # Wait briefly then try to re-establish bind mounts if NAS is back
-    sleep 5
-    if timeout 5 stat "$MOUNT_PATH" > /dev/null 2>&1; then
-        log "NAS is back online, re-establishing bind mounts..."
-        /usr/local/bin/nas-bind-mounts.sh start 2>/dev/null || true
-    fi
+    # Or try direct mount
+    mount -a 2>/dev/null || true
     
     log "Mount recovery attempted"
 }
@@ -268,63 +196,82 @@ EOF
     log_info "Watchdog timer installed and started"
 }
 
-remove_fstab_entries() {
-    log_info "Removing any NAS entries from /etc/fstab..."
+cleanup_old_mounts() {
+    log_info "Cleaning up old NFS mount configurations..."
     
-    # Backup fstab
-    cp /etc/fstab /etc/fstab.backup.$(date +%Y%m%d)
+    # Stop and disable old services if they exist
+    systemctl stop mnt-nas-all.automount 2>/dev/null || true
+    systemctl disable mnt-nas-all.automount 2>/dev/null || true
+    systemctl stop srv-media-bind.service 2>/dev/null || true
+    systemctl disable srv-media-bind.service 2>/dev/null || true
     
-    # Remove NAS mount lines
-    sed -i '/\/mnt\/nas/d' /etc/fstab
-    sed -i "/${NAS_IP}/d" /etc/fstab
+    # Remove old systemd units
+    rm -f /etc/systemd/system/mnt-nas-all.mount
+    rm -f /etc/systemd/system/mnt-nas-all.automount
+    rm -f /etc/systemd/system/srv-media-bind.service
+    rm -f /usr/local/bin/nas-bind-mounts.sh
     
-    log_info "fstab cleaned"
+    # Unmount old mount points
+    umount -l /mnt/nas/all 2>/dev/null || true
+    umount -l /mnt/nas/video 2>/dev/null || true
+    umount -l /mnt/nas/music 2>/dev/null || true
+    umount -l /mnt/nas/photo 2>/dev/null || true
+    umount -l /mnt/nas/games 2>/dev/null || true
+    
+    systemctl daemon-reload
+    
+    log_info "Old configurations cleaned up"
 }
 
 test_mount() {
     log_info "Testing NAS mount..."
     
-    # Try to trigger automount
-    if timeout 10 ls "${MOUNT_BASE}/all" > /dev/null 2>&1; then
-        log_info "NAS mount successful!"
-        
-        # Start bind mounts if NAS is available
-        systemctl start srv-media-bind.service 2>/dev/null || true
-        
-        return 0
-    else
-        log_warn "NAS not currently available (this is OK - system will work without it)"
-        return 0
+    # Try to mount
+    if mount "${MOUNT_POINT}" 2>/dev/null || mount -a 2>/dev/null; then
+        if timeout 10 ls "${MOUNT_POINT}" > /dev/null 2>&1; then
+            log_info "NAS mount successful!"
+            local count=$(ls -A "${MOUNT_POINT}" 2>/dev/null | wc -l)
+            log_info "Found ${count} items in ${MOUNT_POINT}"
+            return 0
+        fi
     fi
+    
+    log_warn "NAS not currently available (this is OK - system will work without it)"
+    log_warn "The mount will activate when NAS comes online"
+    return 0
 }
 
 main() {
-    log_info "=== NAS Resilient Mount Setup ==="
+    log_info "=== ZyXEL NAS326 CIFS Mount Setup ==="
     log_info "NAS IP: ${NAS_IP}"
+    log_info "Share: ${NAS_SHARE}"
+    log_info "Mount Point: ${MOUNT_POINT}"
     
     check_root
-    install_nfs_utils
+    install_cifs_utils
+    cleanup_old_mounts
     create_directories
-    remove_fstab_entries
-    create_systemd_mounts
-    create_bind_mounts
+    setup_fstab
+    create_systemd_mount
     create_watchdog
     test_mount
     
     echo ""
     log_info "=== Setup Complete ==="
     echo ""
-    echo "Key changes:"
-    echo "  - NAS mounts use soft timeout (won't hang if offline)"
-    echo "  - Local /srv/media directories always exist"
-    echo "  - Docker containers mount /srv/media (never hangs)"
-    echo "  - Watchdog clears stale mounts every 2 minutes"
+    echo "Configuration:"
+    echo "  NAS: //${NAS_IP}/${NAS_SHARE}"
+    echo "  Mount: ${MOUNT_POINT}"
+    echo "  Protocol: CIFS/SMB 3.0 (guest access)"
     echo ""
-    echo "Docker containers should now use:"
-    echo "  /srv/media/video:/media/video"
-    echo "  /srv/media/music:/media/music"
-    echo "  /srv/media/photo:/media/photo"
-    echo "  /srv/media/games:/media/games"
+    echo "Mount will auto-activate on access or at boot."
+    echo "Create your own folders inside /srv/media (video, music, photo, etc.)"
+    echo ""
+    echo "Docker containers should use:"
+    echo "  /srv/media:/media"
+    echo ""
+    echo "Plex sees /media inside the container."
+    echo "Point libraries to wherever you want inside /media."
 }
 
 main "$@"

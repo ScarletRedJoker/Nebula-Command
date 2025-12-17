@@ -48,7 +48,7 @@ The core system uses Docker Compose for orchestrating services across a split de
 - **Environment Management:** Centralized configuration via a single `.env` file.
 - **Modular Architecture:** Designed for scalability and easy service expansion.
 - **Deployment Automation:** Enhanced automation scripts for Tailscale, SSH key management, cross-host health checks, and a unified `./homelab pipeline` command for automated deployment across local and cloud environments.
-- **NAS Integration:** Resilient NAS mounts using systemd automount with fail-fast timeouts and local `/srv/media` directories, with Docker containers mounting local paths bind-mounted to NAS when available.
+- **NAS Integration:** ZyXEL NAS326 at 192.168.0.198 with single SMB share "networkshare" mounted via CIFS to /srv/media. User creates their own subfolders (video, music, photo, etc.). Docker containers mount /srv/media:/media, so Plex sees /media and user points libraries wherever they want. Systemd automount with fail-fast timeouts ensures system doesn't hang when NAS is offline.
 - **Secrets Management:** Age-based encryption for centralized secrets using `scripts/secrets-manager.sh`.
 - **Desktop Integration:** Scripts for integrating NAS folders into the Ubuntu desktop and mode switching for gaming (Sunshine) and productivity (RDP for WinApps).
 - **Gamestream Forwarding:** Windows KVM VM with GPU passthrough, streaming to Moonlight clients via iptables forwarding through Ubuntu host.
