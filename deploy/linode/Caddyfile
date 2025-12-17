@@ -160,3 +160,7 @@ dns.evindrake.net {
         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
     }
 }
+
+dash.evindrake.net {
+    reverse_proxy homelab-dashboard:5000
+}
