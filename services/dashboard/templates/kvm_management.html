@@ -1,0 +1,752 @@
+{% extends "base.html" %}
+
+{% block title %}KVM Gaming - Nebula Command{% endblock %}
+{% block page_title %}KVM Gaming Control{% endblock %}
+
+{% block extra_css %}
+<style>
+.kvm-card {
+    background: linear-gradient(145deg, rgba(31, 41, 55, 0.9) 0%, rgba(17, 24, 39, 0.95) 100%);
+    border: 1px solid rgba(139, 92, 246, 0.2);
+    border-radius: 16px;
+    padding: 24px;
+    height: 100%;
+    transition: all 0.3s ease;
+}
+.kvm-card:hover {
+    border-color: rgba(139, 92, 246, 0.4);
+    box-shadow: 0 8px 32px rgba(139, 92, 246, 0.15);
+}
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+.status-running {
+    background: linear-gradient(135deg, rgba(52, 211, 153, 0.2), rgba(16, 185, 129, 0.1));
+    color: #34d399;
+    border: 1px solid rgba(52, 211, 153, 0.3);
+}
+.status-stopped {
+    background: linear-gradient(135deg, rgba(248, 113, 113, 0.2), rgba(239, 68, 68, 0.1));
+    color: #f87171;
+    border: 1px solid rgba(248, 113, 113, 0.3);
+}
+.status-paused {
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(245, 158, 11, 0.1));
+    color: #fbbf24;
+    border: 1px solid rgba(251, 191, 36, 0.3);
+}
+.status-unknown {
+    background: linear-gradient(135deg, rgba(156, 163, 175, 0.2), rgba(107, 114, 128, 0.1));
+    color: #9ca3af;
+    border: 1px solid rgba(156, 163, 175, 0.3);
+}
+.mode-toggle {
+    display: flex;
+    gap: 16px;
+    margin-top: 20px;
+}
+.mode-btn {
+    flex: 1;
+    padding: 20px;
+    border-radius: 12px;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-align: center;
+}
+.mode-btn.gaming {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(168, 85, 247, 0.05));
+    border-color: rgba(139, 92, 246, 0.3);
+}
+.mode-btn.gaming:hover, .mode-btn.gaming.active {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.3), rgba(168, 85, 247, 0.2));
+    border-color: #8b5cf6;
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.3);
+}
+.mode-btn.productivity {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(96, 165, 250, 0.05));
+    border-color: rgba(59, 130, 246, 0.3);
+}
+.mode-btn.productivity:hover, .mode-btn.productivity.active {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.3), rgba(96, 165, 250, 0.2));
+    border-color: #3b82f6;
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+}
+.mode-btn i {
+    font-size: 2rem;
+    margin-bottom: 10px;
+    display: block;
+}
+.mode-btn h5 {
+    margin: 0;
+    font-weight: 600;
+}
+.mode-btn p {
+    margin: 5px 0 0;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+.gpu-stat {
+    text-align: center;
+    padding: 15px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 10px;
+}
+.gpu-stat-value {
+    font-size: 1.8rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #60a5fa, #a78bfa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+.gpu-stat-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 5px;
+}
+.gpu-bar {
+    height: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 8px;
+}
+.gpu-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.5s ease;
+}
+.gpu-bar-fill.temp { background: linear-gradient(90deg, #34d399, #fbbf24, #f87171); }
+.gpu-bar-fill.util { background: linear-gradient(90deg, #8b5cf6, #ec4899); }
+.gpu-bar-fill.mem { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+.gpu-bar-fill.power { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+.diag-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    margin-bottom: 8px;
+}
+.diag-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+}
+.diag-icon.ok { background: rgba(52, 211, 153, 0.2); color: #34d399; }
+.diag-icon.warning { background: rgba(251, 191, 36, 0.2); color: #fbbf24; }
+.diag-icon.error { background: rgba(248, 113, 113, 0.2); color: #f87171; }
+.diag-content {
+    flex: 1;
+}
+.diag-name {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+.diag-detail {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    word-break: break-all;
+}
+.action-btn {
+    padding: 12px 20px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.action-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+.action-btn.danger:hover {
+    background: rgba(248, 113, 113, 0.2);
+    border-color: rgba(248, 113, 113, 0.4);
+    color: #f87171;
+}
+.action-btn.success:hover {
+    background: rgba(52, 211, 153, 0.2);
+    border-color: rgba(52, 211, 153, 0.4);
+    color: #34d399;
+}
+.logs-container {
+    background: #0d1117;
+    border-radius: 8px;
+    padding: 16px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 0.8rem;
+    max-height: 300px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: #c9d1d9;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-lg-4 col-md-6 mb-4">
+        <div class="kvm-card">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+                <div>
+                    <h5 class="mb-1"><i class="bi bi-pc-display me-2"></i>Windows 11 VM</h5>
+                    <p class="text-secondary small mb-0">win11 - KVM/QEMU</p>
+                </div>
+                <div id="vm-status-badge" class="status-badge status-unknown">
+                    <i class="bi bi-circle-fill"></i>
+                    <span>Loading...</span>
+                </div>
+            </div>
+            
+            <div class="d-flex gap-2 flex-wrap mt-4">
+                <button class="action-btn success" onclick="startVM()" id="btn-start">
+                    <i class="bi bi-play-fill"></i> Start
+                </button>
+                <button class="action-btn" onclick="stopVM()" id="btn-stop">
+                    <i class="bi bi-stop-fill"></i> Stop
+                </button>
+                <button class="action-btn" onclick="restartVM()" id="btn-restart">
+                    <i class="bi bi-arrow-clockwise"></i> Restart
+                </button>
+                <button class="action-btn danger" onclick="forceStopVM()" id="btn-force-stop">
+                    <i class="bi bi-x-octagon"></i> Force Stop
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-8 col-md-6 mb-4">
+        <div class="kvm-card">
+            <h5 class="mb-3"><i class="bi bi-gpu-card me-2"></i>GPU Telemetry - RTX 3060</h5>
+            <div class="row" id="gpu-stats">
+                <div class="col-md-3 col-6 mb-3">
+                    <div class="gpu-stat">
+                        <div class="gpu-stat-value" id="gpu-temp">--</div>
+                        <div class="gpu-stat-label">Temperature °C</div>
+                        <div class="gpu-bar"><div class="gpu-bar-fill temp" id="gpu-temp-bar" style="width: 0%"></div></div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-6 mb-3">
+                    <div class="gpu-stat">
+                        <div class="gpu-stat-value" id="gpu-util">--</div>
+                        <div class="gpu-stat-label">GPU Usage %</div>
+                        <div class="gpu-bar"><div class="gpu-bar-fill util" id="gpu-util-bar" style="width: 0%"></div></div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-6 mb-3">
+                    <div class="gpu-stat">
+                        <div class="gpu-stat-value" id="gpu-mem">--</div>
+                        <div class="gpu-stat-label">Memory GB</div>
+                        <div class="gpu-bar"><div class="gpu-bar-fill mem" id="gpu-mem-bar" style="width: 0%"></div></div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-6 mb-3">
+                    <div class="gpu-stat">
+                        <div class="gpu-stat-value" id="gpu-power">--</div>
+                        <div class="gpu-stat-label">Power W</div>
+                        <div class="gpu-bar"><div class="gpu-bar-fill power" id="gpu-power-bar" style="width: 0%"></div></div>
+                    </div>
+                </div>
+            </div>
+            <div class="d-flex align-items-center gap-3 mt-2">
+                <span class="text-secondary small"><i class="bi bi-info-circle me-1"></i>VFIO Status:</span>
+                <span id="vfio-status" class="badge bg-secondary">Checking...</span>
+                <span class="text-secondary small ms-auto" id="gpu-name">--</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-lg-6 mb-4">
+        <div class="kvm-card">
+            <h5 class="mb-3"><i class="bi bi-toggles me-2"></i>Mode Switcher</h5>
+            <p class="text-secondary small">Switch between Gaming (Sunshine/Moonlight) and Productivity (RDP) modes</p>
+            
+            <div class="mode-toggle">
+                <div class="mode-btn gaming" id="mode-gaming" onclick="switchToGaming()">
+                    <i class="bi bi-controller"></i>
+                    <h5>Gaming Mode</h5>
+                    <p>Sunshine + Moonlight streaming</p>
+                </div>
+                <div class="mode-btn productivity" id="mode-productivity" onclick="switchToProductivity()">
+                    <i class="bi bi-laptop"></i>
+                    <h5>Productivity Mode</h5>
+                    <p>RDP remote desktop</p>
+                </div>
+            </div>
+            
+            <div class="mt-3 p-3 rounded" style="background: rgba(0,0,0,0.2);">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="text-secondary">Current Mode:</span>
+                    <span id="current-mode" class="badge bg-secondary">Checking...</span>
+                    <span id="mode-details" class="text-secondary small ms-auto"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-6 mb-4">
+        <div class="kvm-card">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0"><i class="bi bi-stethoscope me-2"></i>Diagnostics</h5>
+                <button class="btn btn-sm btn-outline-primary" onclick="runDiagnostics()">
+                    <i class="bi bi-arrow-clockwise"></i> Run Check
+                </button>
+            </div>
+            <div id="diagnostics-results">
+                <p class="text-secondary text-center py-4">Click "Run Check" to diagnose gaming freeze issues</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="kvm-card">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0"><i class="bi bi-terminal me-2"></i>VM Logs</h5>
+                <button class="btn btn-sm btn-outline-secondary" onclick="loadVMLogs()">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
+            </div>
+            <div id="vm-logs" class="logs-container">
+                Click refresh to load VM logs...
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let refreshInterval;
+
+async function loadVMStatus() {
+    try {
+        const response = await fetch('/kvm/api/status', { credentials: 'include' });
+        const result = await response.json();
+        
+        const badge = document.getElementById('vm-status-badge');
+        
+        if (result.success && result.data) {
+            const status = result.data.status;
+            badge.className = 'status-badge status-' + status;
+            
+            let icon = 'bi-circle-fill';
+            let text = status.charAt(0).toUpperCase() + status.slice(1);
+            
+            if (status === 'running') {
+                icon = 'bi-check-circle-fill';
+            } else if (status === 'stopped') {
+                icon = 'bi-x-circle-fill';
+                text = 'Stopped';
+            } else if (status === 'paused') {
+                icon = 'bi-pause-circle-fill';
+            }
+            
+            badge.innerHTML = `<i class="bi ${icon}"></i><span>${text}</span>`;
+            
+            updateActionButtons(status);
+        } else {
+            badge.className = 'status-badge status-unknown';
+            badge.innerHTML = '<i class="bi bi-question-circle-fill"></i><span>Unknown</span>';
+        }
+    } catch (error) {
+        console.error('Error loading VM status:', error);
+    }
+}
+
+function updateActionButtons(status) {
+    const btnStart = document.getElementById('btn-start');
+    const btnStop = document.getElementById('btn-stop');
+    const btnRestart = document.getElementById('btn-restart');
+    const btnForceStop = document.getElementById('btn-force-stop');
+    
+    if (status === 'running') {
+        btnStart.disabled = true;
+        btnStop.disabled = false;
+        btnRestart.disabled = false;
+        btnForceStop.disabled = false;
+    } else if (status === 'stopped' || status === 'not_found') {
+        btnStart.disabled = false;
+        btnStop.disabled = true;
+        btnRestart.disabled = true;
+        btnForceStop.disabled = true;
+    } else {
+        btnStart.disabled = false;
+        btnStop.disabled = false;
+        btnRestart.disabled = false;
+        btnForceStop.disabled = false;
+    }
+}
+
+async function loadGPUStatus() {
+    try {
+        const response = await fetch('/kvm/api/gpu-status', { credentials: 'include' });
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            const gpu = result.data;
+            
+            document.getElementById('gpu-temp').textContent = gpu.temperature || '--';
+            document.getElementById('gpu-temp-bar').style.width = Math.min(gpu.temperature, 100) + '%';
+            
+            document.getElementById('gpu-util').textContent = gpu.gpu_utilization || '--';
+            document.getElementById('gpu-util-bar').style.width = (gpu.gpu_utilization || 0) + '%';
+            
+            const memUsedGB = (gpu.memory_used_mb / 1024).toFixed(1);
+            const memTotalGB = (gpu.memory_total_mb / 1024).toFixed(1);
+            document.getElementById('gpu-mem').textContent = memUsedGB;
+            document.getElementById('gpu-mem-bar').style.width = ((gpu.memory_used_mb / gpu.memory_total_mb) * 100) + '%';
+            
+            document.getElementById('gpu-power').textContent = Math.round(gpu.power_draw_w) || '--';
+            document.getElementById('gpu-power-bar').style.width = Math.min((gpu.power_draw_w / 200) * 100, 100) + '%';
+            
+            document.getElementById('gpu-name').textContent = gpu.name || 'Unknown GPU';
+            
+            const vfioStatus = document.getElementById('vfio-status');
+            if (gpu.vfio_bound) {
+                vfioStatus.className = 'badge bg-warning';
+                vfioStatus.textContent = 'Bound to VFIO';
+            } else if (gpu.available) {
+                vfioStatus.className = 'badge bg-success';
+                vfioStatus.textContent = 'Available (nvidia driver)';
+            } else {
+                vfioStatus.className = 'badge bg-secondary';
+                vfioStatus.textContent = 'Unknown';
+            }
+        }
+    } catch (error) {
+        console.error('Error loading GPU status:', error);
+    }
+}
+
+async function loadCurrentMode() {
+    try {
+        const response = await fetch('/kvm/api/mode', { credentials: 'include' });
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            const mode = result.data.mode;
+            const modeBadge = document.getElementById('current-mode');
+            const modeDetails = document.getElementById('mode-details');
+            
+            document.getElementById('mode-gaming').classList.remove('active');
+            document.getElementById('mode-productivity').classList.remove('active');
+            
+            if (mode === 'gaming') {
+                modeBadge.className = 'badge bg-purple';
+                modeBadge.textContent = 'Gaming';
+                document.getElementById('mode-gaming').classList.add('active');
+                modeDetails.textContent = result.data.moonlight_connected ? 'Moonlight connected' : 'Sunshine ready';
+            } else if (mode === 'productivity') {
+                modeBadge.className = 'badge bg-primary';
+                modeBadge.textContent = 'Productivity';
+                document.getElementById('mode-productivity').classList.add('active');
+                modeDetails.textContent = 'RDP connected';
+            } else {
+                modeBadge.className = 'badge bg-secondary';
+                modeBadge.textContent = 'Idle';
+                modeDetails.textContent = 'No active connections';
+            }
+        }
+    } catch (error) {
+        console.error('Error loading current mode:', error);
+    }
+}
+
+async function startVM() {
+    if (!confirm('Start the Windows 11 VM?')) return;
+    
+    try {
+        const response = await fetch('/kvm/api/start', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast('VM starting...', 'success');
+            setTimeout(loadVMStatus, 2000);
+        } else {
+            showToast(result.message || 'Failed to start VM', 'error');
+        }
+    } catch (error) {
+        showToast('Error starting VM: ' + error.message, 'error');
+    }
+}
+
+async function stopVM() {
+    if (!confirm('Gracefully shutdown the Windows 11 VM?')) return;
+    
+    try {
+        const response = await fetch('/kvm/api/stop', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast('VM shutdown initiated...', 'success');
+            setTimeout(loadVMStatus, 3000);
+        } else {
+            showToast(result.message || 'Failed to stop VM', 'error');
+        }
+    } catch (error) {
+        showToast('Error stopping VM: ' + error.message, 'error');
+    }
+}
+
+async function restartVM() {
+    if (!confirm('Restart the Windows 11 VM?')) return;
+    
+    try {
+        const response = await fetch('/kvm/api/restart', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast('VM reboot initiated...', 'success');
+            setTimeout(loadVMStatus, 5000);
+        } else {
+            showToast(result.message || 'Failed to restart VM', 'error');
+        }
+    } catch (error) {
+        showToast('Error restarting VM: ' + error.message, 'error');
+    }
+}
+
+async function forceStopVM() {
+    if (!confirm('FORCE STOP the Windows 11 VM? This may cause data loss!')) return;
+    
+    try {
+        const response = await fetch('/kvm/api/force-stop', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast('VM force stopped', 'success');
+            setTimeout(loadVMStatus, 1000);
+        } else {
+            showToast(result.message || 'Failed to force stop VM', 'error');
+        }
+    } catch (error) {
+        showToast('Error force stopping VM: ' + error.message, 'error');
+    }
+}
+
+async function switchToGaming() {
+    if (!confirm('Switch to Gaming Mode? This will enable Sunshine and configure for Moonlight streaming.')) return;
+    
+    showToast('Switching to Gaming Mode...', 'info');
+    
+    try {
+        const response = await fetch('/kvm/api/mode/gaming', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast('Switched to Gaming Mode!', 'success');
+            loadCurrentMode();
+        } else {
+            showToast(result.message || 'Failed to switch mode', 'error');
+        }
+    } catch (error) {
+        showToast('Error switching mode: ' + error.message, 'error');
+    }
+}
+
+async function switchToProductivity() {
+    if (!confirm('Switch to Productivity Mode? This will enable RDP and stop Sunshine.')) return;
+    
+    showToast('Switching to Productivity Mode...', 'info');
+    
+    try {
+        const response = await fetch('/kvm/api/mode/productivity', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast('Switched to Productivity Mode!', 'success');
+            loadCurrentMode();
+        } else {
+            showToast(result.message || 'Failed to switch mode', 'error');
+        }
+    } catch (error) {
+        showToast('Error switching mode: ' + error.message, 'error');
+    }
+}
+
+async function runDiagnostics() {
+    const container = document.getElementById('diagnostics-results');
+    container.innerHTML = '<div class="text-center py-4"><div class="spinner-border spinner-border-sm"></div> Running diagnostics...</div>';
+    
+    try {
+        const response = await fetch('/kvm/api/diagnose', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            let html = '';
+            const data = result.data;
+            
+            data.errors.forEach(item => {
+                html += `<div class="diag-item">
+                    <div class="diag-icon error"><i class="bi bi-x-lg"></i></div>
+                    <div class="diag-content">
+                        <div class="diag-name">${item.name}</div>
+                        <div class="diag-detail">${item.detail}</div>
+                    </div>
+                </div>`;
+            });
+            
+            data.warnings.forEach(item => {
+                html += `<div class="diag-item">
+                    <div class="diag-icon warning"><i class="bi bi-exclamation-triangle"></i></div>
+                    <div class="diag-content">
+                        <div class="diag-name">${item.name}</div>
+                        <div class="diag-detail">${item.detail}</div>
+                    </div>
+                </div>`;
+            });
+            
+            data.checks.forEach(item => {
+                html += `<div class="diag-item">
+                    <div class="diag-icon ok"><i class="bi bi-check-lg"></i></div>
+                    <div class="diag-content">
+                        <div class="diag-name">${item.name}</div>
+                        <div class="diag-detail">${item.detail}</div>
+                    </div>
+                </div>`;
+            });
+            
+            if (!html) {
+                html = '<p class="text-secondary text-center py-4">No diagnostic results</p>';
+            }
+            
+            container.innerHTML = html;
+        } else {
+            container.innerHTML = `<div class="alert alert-danger">${result.message || 'Failed to run diagnostics'}</div>`;
+        }
+    } catch (error) {
+        container.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+    }
+}
+
+async function loadVMLogs() {
+    const container = document.getElementById('vm-logs');
+    container.textContent = 'Loading logs...';
+    
+    try {
+        const response = await fetch('/kvm/api/logs', { credentials: 'include' });
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            container.textContent = result.data.logs || 'No logs available';
+        } else {
+            container.textContent = 'Failed to load logs: ' + (result.message || 'Unknown error');
+        }
+    } catch (error) {
+        container.textContent = 'Error loading logs: ' + error.message;
+    }
+}
+
+function showToast(message, type = 'info') {
+    const colors = {
+        success: '#34d399',
+        error: '#f87171',
+        warning: '#fbbf24',
+        info: '#60a5fa'
+    };
+    
+    const toast = document.createElement('div');
+    toast.style.cssText = `
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: ${colors[type]};
+        color: #000;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-weight: 500;
+        z-index: 9999;
+        animation: slideIn 0.3s ease;
+    `;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.style.animation = 'slideOut 0.3s ease';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadVMStatus();
+    loadGPUStatus();
+    loadCurrentMode();
+    
+    refreshInterval = setInterval(() => {
+        loadVMStatus();
+        loadGPUStatus();
+        loadCurrentMode();
+    }, 10000);
+});
+
+window.addEventListener('beforeunload', function() {
+    if (refreshInterval) clearInterval(refreshInterval);
+});
+</script>
+
+<style>
+@keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+@keyframes slideOut {
+    from { transform: translateX(0); opacity: 1; }
+    to { transform: translateX(100%); opacity: 0; }
+}
+.bg-purple {
+    background: linear-gradient(135deg, #8b5cf6, #a78bfa) !important;
+}
+</style>
+{% endblock %}
