@@ -5,10 +5,10 @@ import logging
 import time
 from datetime import datetime
 
-from services.dashboard.services.autonomous_monitor import AutonomousMonitor
-from services.dashboard.services.continuous_optimizer import ContinuousOptimizer
-from services.dashboard.services.autonomous_security import AutonomousSecurity
-from services.dashboard.services.jarvis_remediator import jarvis_remediator
+from services.autonomous_monitor import AutonomousMonitor
+from services.continuous_optimizer import ContinuousOptimizer
+from services.autonomous_security import AutonomousSecurity
+from services.jarvis_remediator import jarvis_remediator
 
 logger = logging.getLogger(__name__)
 
