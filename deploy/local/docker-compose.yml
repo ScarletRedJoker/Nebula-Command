@@ -123,13 +123,10 @@ services:
       - PLEX_CLAIM=${PLEX_CLAIM:-}
     volumes:
       - plex_config:/config
-      # Use /srv/media - local directories that always exist
-      # When NAS is online, these are bind-mounted to NAS shares
-      # When NAS is offline, these are empty but Docker never hangs
+      # NAS media shares - mounted via CIFS at /srv/media/*
       - /srv/media/video:/media/video:rw
       - /srv/media/music:/media/music:rw
       - /srv/media/photo:/media/photo:ro
-      - /srv/media/games:/media/games:ro
       # Local storage for Plex optimized versions (faster than NAS)
       - /opt/plex-optimized:/optimized:rw
     tmpfs:
