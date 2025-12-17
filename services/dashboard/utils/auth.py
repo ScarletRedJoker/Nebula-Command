@@ -125,9 +125,10 @@ def require_auth(f):
             from services.activity_service import activity_service
             
             ip_address = request.remote_addr or 'unknown'
+            api_key_header = request.headers.get('X-API-Key', '')
             result = security_monitor.log_failed_login(
                 ip_address=ip_address,
-                username=request.headers.get('X-API-Key', 'unknown')[:20] if api_key else 'api_key_auth',
+                username=api_key_header[:20] if api_key_header else 'api_auth',
                 service='dashboard'
             )
             

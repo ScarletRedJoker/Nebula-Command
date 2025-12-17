@@ -106,6 +106,7 @@ services:
       - FLEET_SSH_KEY_PATH=/root/.ssh/id_rsa
       - FLEET_LOCAL_SSH_USER=evin
       - FLEET_LINODE_SSH_USER=root
+      - SESSION_SECRET=${SESSION_SECRET:-NebulaCommandDash2024SecureSessionKey}
     volumes:
       - ./services/dashboard/logs:/app/logs
       - /root/.ssh:/root/.ssh:ro
