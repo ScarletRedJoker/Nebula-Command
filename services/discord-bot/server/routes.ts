@@ -39,6 +39,7 @@ import homelabhubRoutes from "./routes/homelabhub-routes";
 import streamNotificationsRoutes from "./routes/stream-notifications";
 import slaEscalationRoutes from "./routes/sla-escalation-routes";
 import webhookRoutes from "./routes/webhook-routes";
+import analyticsRoutes from "./routes/analytics-routes";
 import { setReady } from "./routes/health-routes";
 import guildProvisioningRoutes from "./routes/guild-provisioning-routes";
 import { isDeveloperMiddleware } from "./middleware/developerAuth";
@@ -1108,6 +1109,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const validatedData = insertTicketMessageSchema.parse(messageData);
       const message = await storage.createTicketMessage(validatedData);
+      
+      // Set first_response_at if this is the first staff response (not from ticket creator)
+      if (user.id !== ticket.creatorId && !ticket.firstResponseAt) {
+        await storage.updateTicket(ticketId, { firstResponseAt: new Date() });
+        console.log(`[Ticket] Set first_response_at for ticket ${ticketId}`);
+      }
       
       // Sync message to Discord thread if bidirectional sync is enabled
       try {
@@ -3252,6 +3259,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Mount guild provisioning routes
   app.use('/api', guildProvisioningRoutes);
+
+  // Mount analytics routes
+  app.use('/api/analytics', analyticsRoutes);
 
   // Start background services
   startRetentionService();

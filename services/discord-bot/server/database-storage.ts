@@ -1002,6 +1002,23 @@ export class DatabaseStorage implements IStorage {
       .orderBy(streamNotificationLog.notifiedAt)
       .limit(limit);
   }
+
+  async getServersTrackingUser(userId: string): Promise<{ serverId: string; settings: StreamNotificationSettings }[]> {
+    const trackedUserRecords = await db.select()
+      .from(streamTrackedUsers)
+      .where(eq(streamTrackedUsers.userId, userId));
+    
+    const results: { serverId: string; settings: StreamNotificationSettings }[] = [];
+    
+    for (const record of trackedUserRecords) {
+      const settings = await this.getStreamNotificationSettings(record.serverId);
+      if (settings && settings.isEnabled && settings.notificationChannelId) {
+        results.push({ serverId: record.serverId, settings });
+      }
+    }
+    
+    return results;
+  }
   
   // Interaction lock operations (deduplication)
   async createInteractionLock(interactionId: string, userId: string, actionType: string): Promise<boolean> {

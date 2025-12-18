@@ -737,7 +737,7 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
           }
           
           // Update ticket status to closed
-          const updatedTicket = await storage.updateTicket(ticketId, { status: 'closed' });
+          const updatedTicket = await storage.updateTicket(ticketId, { status: 'closed', closedAt: new Date() });
           
           // Add a resolution entry with review notes
           await storage.createTicketResolution({
@@ -882,7 +882,7 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
           }
           
           // Update ticket status to closed
-          const updatedTicket = await storage.updateTicket(ticketId, { status: 'closed' });
+          const updatedTicket = await storage.updateTicket(ticketId, { status: 'closed', closedAt: new Date() });
           
           // Create audit log
           await storage.createTicketAuditLog({
@@ -1051,7 +1051,7 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
           }
           
           // Update ticket status to closed
-          const updatedTicket = await storage.updateTicket(ticketId, { status: 'closed' });
+          const updatedTicket = await storage.updateTicket(ticketId, { status: 'closed', closedAt: new Date() });
           
           // Create resolution with type "punished"
           await storage.createTicketResolution({
@@ -1154,7 +1154,7 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
           }
           
           // Update ticket status to closed
-          const updatedTicket = await storage.updateTicket(ticketId, { status: 'closed' });
+          const updatedTicket = await storage.updateTicket(ticketId, { status: 'closed', closedAt: new Date() });
           
           // Create resolution with type "warned"
           await storage.createTicketResolution({
@@ -1558,7 +1558,7 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
           }
           
           // Update ticket status to closed
-          const updatedTicket = await storage.updateTicket(ticketId, { status: 'closed' });
+          const updatedTicket = await storage.updateTicket(ticketId, { status: 'closed', closedAt: new Date() });
           
           // Create resolution if provided
           if (resolution) {

@@ -581,7 +581,7 @@ const createTicketCommand: Command = {
           return;
         }
         
-        const updatedTicket = await storage.updateTicket(ticketId, { status: 'closed' });
+        const updatedTicket = await storage.updateTicket(ticketId, { status: 'closed', closedAt: new Date() });
         
         // Notify all connected clients about the updated ticket
         broadcast({ type: 'TICKET_UPDATED', data: updatedTicket });
@@ -1693,7 +1693,7 @@ export function registerCommands(client: Client, storage: IStorage, broadcast: (
           return;
         }
         
-        await storage.updateTicket(id, { status: 'closed' });
+        await storage.updateTicket(id, { status: 'closed', closedAt: new Date() });
         
         // Create a system message for the closure
         await storage.createTicketMessage({

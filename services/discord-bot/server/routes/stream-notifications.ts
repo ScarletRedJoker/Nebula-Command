@@ -2,8 +2,19 @@ import { Router, Request, Response } from "express";
 import { dbStorage as storage } from "../database-storage";
 import { z } from "zod";
 import { isAuthenticated } from "../auth";
+import { EmbedBuilder, TextChannel } from "discord.js";
 
 const router = Router();
+
+const externalNotificationSchema = z.object({
+  userId: z.string(),
+  platform: z.enum(["twitch", "youtube", "kick"]),
+  streamUrl: z.string().url(),
+  streamTitle: z.string(),
+  game: z.string().optional(),
+  thumbnailUrl: z.string().url().optional(),
+  viewerCount: z.number().optional(),
+});
 
 // Validation schemas
 const streamSettingsSchema = z.object({
@@ -232,6 +243,163 @@ router.post("/scan/:serverId", isAuthenticated, async (req: Request, res: Respon
   } catch (error) {
     console.error("Failed to trigger manual scan:", error);
     res.status(500).json({ error: "Failed to trigger manual scan" });
+  }
+});
+
+function getPlatformColor(platform: string): number {
+  switch (platform.toLowerCase()) {
+    case 'twitch':
+      return 0x9146FF;
+    case 'youtube':
+      return 0xFF0000;
+    case 'kick':
+      return 0x53FC18;
+    default:
+      return 0x9146FF;
+  }
+}
+
+router.post("/external", async (req: Request, res: Response) => {
+  try {
+    const webhookSecret = req.headers['x-stream-bot-secret'] as string;
+    const expectedSecret = process.env.STREAM_BOT_WEBHOOK_SECRET;
+    
+    if (!expectedSecret) {
+      console.error("[External Stream Notification] STREAM_BOT_WEBHOOK_SECRET not configured");
+      return res.status(500).json({ error: "Webhook secret not configured" });
+    }
+    
+    if (!webhookSecret || webhookSecret !== expectedSecret) {
+      console.warn("[External Stream Notification] Invalid or missing webhook secret");
+      return res.status(401).json({ error: "Invalid or missing webhook secret" });
+    }
+
+    const validatedData = externalNotificationSchema.parse(req.body);
+    const { userId, platform, streamUrl, streamTitle, game, thumbnailUrl, viewerCount } = validatedData;
+
+    console.log(`[External Stream Notification] Received go-live notification for user ${userId} on ${platform}`);
+
+    const serversTracking = await storage.getServersTrackingUser(userId);
+    
+    if (serversTracking.length === 0) {
+      console.log(`[External Stream Notification] No servers tracking user ${userId}`);
+      return res.json({ success: true, notificationsSent: 0, message: "No servers tracking this user" });
+    }
+
+    const { getDiscordClient } = await import("../discord/bot");
+    const client = getDiscordClient();
+    
+    if (!client || !client.isReady()) {
+      console.error("[External Stream Notification] Discord bot is not ready");
+      return res.status(503).json({ error: "Discord bot is not connected" });
+    }
+
+    let notificationsSent = 0;
+    const errors: string[] = [];
+
+    for (const { serverId, settings } of serversTracking) {
+      try {
+        const guild = client.guilds.cache.get(serverId);
+        if (!guild) {
+          errors.push(`Server ${serverId}: Bot not in server`);
+          continue;
+        }
+
+        const channel = await guild.channels.fetch(settings.notificationChannelId!);
+        if (!channel || !(channel instanceof TextChannel)) {
+          errors.push(`Server ${serverId}: Channel not found or not a text channel`);
+          continue;
+        }
+
+        let member;
+        try {
+          member = await guild.members.fetch(userId);
+        } catch (e) {
+          errors.push(`Server ${serverId}: User not found in server`);
+          continue;
+        }
+
+        const embed = new EmbedBuilder()
+          .setColor(getPlatformColor(platform))
+          .setTitle(`🔴 ${member.displayName} is now LIVE!`)
+          .setURL(streamUrl)
+          .setTimestamp()
+          .setFooter({ text: `${platform.charAt(0).toUpperCase() + platform.slice(1)} Stream Notification` });
+
+        if (streamTitle) {
+          embed.setDescription(`**${streamTitle}**`);
+        }
+
+        embed.setThumbnail(member.user.displayAvatarURL({ size: 256 }));
+
+        if (thumbnailUrl) {
+          embed.setImage(thumbnailUrl);
+        }
+
+        if (game) {
+          embed.addFields({
+            name: '🎮 Game/Category',
+            value: game,
+            inline: true
+          });
+        }
+
+        if (viewerCount !== undefined && viewerCount > 0) {
+          embed.addFields({
+            name: '👀 Viewers',
+            value: viewerCount.toLocaleString(),
+            inline: true
+          });
+        }
+
+        embed.addFields({
+          name: '📺 Platform',
+          value: platform.charAt(0).toUpperCase() + platform.slice(1),
+          inline: true
+        });
+
+        let messageTemplate = settings.customMessage || `{user} just went live!`;
+        const content = messageTemplate
+          .replace(/{user}/g, member.toString())
+          .replace(/{game}/g, game || 'Unknown Game')
+          .replace(/{platform}/g, platform.charAt(0).toUpperCase() + platform.slice(1));
+
+        const message = await channel.send({
+          content,
+          embeds: [embed]
+        });
+
+        await storage.createStreamNotificationLog({
+          serverId,
+          userId,
+          streamTitle,
+          streamUrl,
+          platform,
+          messageId: message.id
+        });
+
+        notificationsSent++;
+        console.log(`[External Stream Notification] ✓ Sent notification to ${guild.name}`);
+      } catch (serverError) {
+        console.error(`[External Stream Notification] Error sending to server ${serverId}:`, serverError);
+        errors.push(`Server ${serverId}: ${serverError instanceof Error ? serverError.message : 'Unknown error'}`);
+      }
+    }
+
+    console.log(`[External Stream Notification] Completed: ${notificationsSent}/${serversTracking.length} notifications sent`);
+
+    res.json({
+      success: true,
+      notificationsSent,
+      totalServers: serversTracking.length,
+      errors: errors.length > 0 ? errors : undefined
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: "Invalid request data", details: error.errors });
+    }
+    console.error("[External Stream Notification] Failed to process notification:", error);
+    res.status(500).json({ error: "Failed to process stream notification" });
   }
 });
 

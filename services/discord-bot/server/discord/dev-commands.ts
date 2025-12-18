@@ -464,7 +464,7 @@ export const devTicketCommand = {
         console.log(`[DEV] Displayed details for ticket #${ticketId}`);
         
       } else if (action === 'close') {
-        await context.storage.updateTicket(ticketId, { status: 'closed' });
+        await context.storage.updateTicket(ticketId, { status: 'closed', closedAt: new Date() });
         await interaction.editReply({ content: `✅ Ticket #${ticketId} has been force closed.` });
         console.log(`[DEV] Force closed ticket #${ticketId}`);
         

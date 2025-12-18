@@ -365,7 +365,8 @@ export async function autoCloseInactiveTickets(
           
           // Update ticket status
           await storage.updateTicket(ticket.id, {
-            status: 'closed'
+            status: 'closed',
+            closedAt: new Date()
           });
           
           // Create resolution

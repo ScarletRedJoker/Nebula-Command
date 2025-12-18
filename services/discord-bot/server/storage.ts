@@ -183,6 +183,7 @@ export interface IStorage {
   
   createStreamNotificationLog(log: InsertStreamNotificationLog): Promise<StreamNotificationLog>;
   getStreamNotificationLogs(serverId: string, limit?: number): Promise<StreamNotificationLog[]>;
+  getServersTrackingUser(userId: string): Promise<{ serverId: string; settings: StreamNotificationSettings }[]>;
   
   // Interaction lock operations (deduplication)
   createInteractionLock(interactionId: string, userId: string, actionType: string): Promise<boolean>;
@@ -1311,6 +1312,22 @@ export class MemStorage implements IStorage {
       .filter(log => log.serverId === serverId)
       .sort((a, b) => new Date(b.notifiedAt!).getTime() - new Date(a.notifiedAt!).getTime());
     return limit ? logs.slice(0, limit) : logs;
+  }
+
+  async getServersTrackingUser(userId: string): Promise<{ serverId: string; settings: StreamNotificationSettings }[]> {
+    const results: { serverId: string; settings: StreamNotificationSettings }[] = [];
+    
+    for (const [serverId, users] of this.streamTrackedUsers.entries()) {
+      const isTracked = users.some(u => u.userId === userId);
+      if (isTracked) {
+        const settings = await this.getStreamNotificationSettings(serverId);
+        if (settings && settings.isEnabled && settings.notificationChannelId) {
+          results.push({ serverId, settings });
+        }
+      }
+    }
+    
+    return results;
   }
 }
 

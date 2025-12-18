@@ -4,6 +4,7 @@ import { createClient } from "@retconned/kick-js";
 import { UserStorage } from "./user-storage";
 import { generatePersonalizedFact, type FactGenerationConfig } from "./openai";
 import { sendYouTubeChatMessageForUser, getActiveYouTubeLivestreamForUser } from "./youtube-client";
+import { notifyStreamGoLive } from "./discord-notification-service";
 import { parseCommandVariables, type CommandContext } from "./command-variables";
 import { moderationService } from "./moderation-service";
 import { giveawayService } from "./giveaway-service";
@@ -1465,6 +1466,18 @@ export class BotWorker {
       }
       
       console.log(`[BotWorker] Twitch bot connected for user ${this.userId} (${connection.platformUsername})`);
+
+      // Send Discord go-live notification for Twitch
+      if (connection.platformUsername) {
+        const streamUrl = `https://twitch.tv/${connection.platformUsername}`;
+        await notifyStreamGoLive(
+          this.userId,
+          "twitch",
+          streamUrl,
+          `${connection.platformUsername}'s Live Stream`
+        );
+      }
+
       return true;
     } catch (error: any) {
       console.error(`[BotWorker] Failed to start Twitch client for user ${this.userId}:`, error?.message || error);
@@ -1487,6 +1500,21 @@ export class BotWorker {
       if (livestream?.liveChatId) {
         this.youtubeActiveLiveChatId = livestream.liveChatId;
         console.log(`[BotWorker] YouTube bot ready for user ${this.userId} (Chat ID: ${this.youtubeActiveLiveChatId})`);
+
+        // Send Discord go-live notification
+        const streamUrl = livestream.videoId 
+          ? `https://www.youtube.com/watch?v=${livestream.videoId}`
+          : `https://www.youtube.com/channel/${connection.platformUserId}/live`;
+        
+        await notifyStreamGoLive(
+          this.userId,
+          "youtube",
+          streamUrl,
+          livestream.title || "Live Stream",
+          {
+            thumbnailUrl: livestream.thumbnailUrl,
+          }
+        );
       } else {
         console.log(`[BotWorker] No active YouTube livestream for user ${this.userId}`);
       }
@@ -1592,7 +1620,7 @@ export class BotWorker {
     if (!this.kickClient) return;
 
     // Ready event - connection successful
-    this.kickClient.on("ready", () => {
+    this.kickClient.on("ready", async () => {
       this.kickClientReady = true;
       this.kickReconnectAttempts = 0; // Reset on successful connection
       console.log(`[BotWorker] Kick: ✅ Connected and ready for user ${this.userId} (${this.kickChannelSlug})`);
@@ -1605,6 +1633,17 @@ export class BotWorker {
         }
       } catch (e) {
         // Ignore errors accessing user info
+      }
+
+      // Send Discord go-live notification for Kick
+      if (this.kickChannelSlug) {
+        const streamUrl = `https://kick.com/${this.kickChannelSlug}`;
+        await notifyStreamGoLive(
+          this.userId,
+          "kick",
+          streamUrl,
+          `${this.kickChannelSlug}'s Live Stream`
+        );
       }
     });
 

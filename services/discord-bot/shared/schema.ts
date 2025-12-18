@@ -89,6 +89,10 @@ export const tickets = pgTable("tickets", {
   serverId: text("server_id"), // Associated server ID
   mediationActions: text("mediation_actions"), // Actions taken by moderators/admins
   userActions: text("user_actions"), // Actions taken by or expected from the user
+  firstResponseAt: timestamp("first_response_at"), // When staff first responded
+  closedAt: timestamp("closed_at"), // When ticket was closed
+  satisfactionRating: integer("satisfaction_rating"), // 1-5 star rating
+  satisfactionFeedback: text("satisfaction_feedback"), // Optional feedback text
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

@@ -69,6 +69,13 @@ export async function syncThreadMessageToDashboard(
     const createdMessage = await service.storage.createTicketMessage(ticketMessage);
     console.log(`[Thread Sync] Created ticket message ${createdMessage.id} for ticket ${mapping.ticketId}`);
 
+    // Set first_response_at if this is the first staff response (not from ticket creator)
+    const ticket = await service.storage.getTicket(mapping.ticketId);
+    if (ticket && message.author.id !== ticket.creatorId && !ticket.firstResponseAt) {
+      await service.storage.updateTicket(mapping.ticketId, { firstResponseAt: new Date() });
+      console.log(`[Thread Sync] Set first_response_at for ticket ${mapping.ticketId}`);
+    }
+
     // Update last synced timestamp
     await service.storage.updateThreadMapping(thread.id, {
       lastSyncedAt: new Date()
