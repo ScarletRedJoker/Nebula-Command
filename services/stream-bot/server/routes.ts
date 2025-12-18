@@ -775,8 +775,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/settings", requireAuth, async (req, res) => {
     try {
+      console.log('[Settings PATCH] Request body:', JSON.stringify(req.body));
       const validated = updateBotConfigSchema.parse(req.body);
+      console.log('[Settings PATCH] Validated:', JSON.stringify(validated));
       const settings = await storage.updateBotSettings(req.user!.id, validated);
+      console.log('[Settings PATCH] Updated settings for user:', req.user!.id);
       
       // Start/stop/restart user's bot based on settings
       if (settings.isActive) {
@@ -787,10 +790,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(settings);
     } catch (error: any) {
+      console.error('[Settings PATCH] Error:', error.message, error.stack);
       if (error.name === "ZodError") {
+        console.error('[Settings PATCH] Validation error:', JSON.stringify(error.errors));
         return res.status(400).json({ error: "Invalid settings data", details: error.errors });
       }
-      res.status(500).json({ error: "Failed to update settings" });
+      res.status(500).json({ error: "Failed to update settings", message: error.message });
     }
   });
 
