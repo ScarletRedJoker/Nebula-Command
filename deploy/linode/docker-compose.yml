@@ -115,6 +115,11 @@ services:
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://100.110.227.25:11434}
       - SESSION_SECRET=${SESSION_SECRET:-NebulaCommandDash2024SecureSessionKey}
       - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT:-http://100.110.227.25:9000}
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-admin}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
+      - MINIO_BUCKET_NAME=${MINIO_BUCKET_NAME:-homelab-uploads}
+      - MINIO_USE_SSL=${MINIO_USE_SSL:-false}
     volumes:
       - ./services/dashboard/logs:/app/logs
       - /root/.ssh:/root/.ssh:ro

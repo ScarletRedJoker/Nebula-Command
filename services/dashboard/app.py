@@ -377,6 +377,8 @@ if db_service.is_available:
                 ('setup.fleet_ssh.local_user', os.environ.get('FLEET_LOCAL_SSH_USER', 'evin')),
                 ('setup.tailscale.linode_ip', os.environ.get('TAILSCALE_LINODE_HOST', '')),
                 ('setup.tailscale.local_ip', os.environ.get('TAILSCALE_LOCAL_HOST', '')),
+                ('setup.cloud_storage.endpoint', os.environ.get('MINIO_ENDPOINT', '')),
+                ('setup.cloud_storage.provider', 'minio'),
             ]
             
             for key, value in settings_to_init:
