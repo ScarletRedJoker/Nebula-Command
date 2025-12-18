@@ -334,7 +334,7 @@ class JarvisToolExecutor:
     def _in_docker(self) -> bool:
         """Check if running inside Docker"""
         import os
-        return os.path.exists('/.dockerenv') or os.environ.get('DOCKER_CONTAINER')
+        return os.path.exists('/.dockerenv') or bool(os.environ.get('DOCKER_CONTAINER'))
     
     def _truncate_output(self, output: str) -> str:
         """Truncate output to max length"""
@@ -373,18 +373,11 @@ class JarvisToolExecutor:
         show_all = args.get('all', True)
         host = args.get('host', 'local')
         
-        if host == 'local' and self.docker_service:
-            try:
-                containers = self.docker_service.list_containers()
-                output = "CONTAINER NAME | STATUS | IMAGE\n"
-                output += "-" * 60 + "\n"
-                for c in containers:
-                    output += f"{c.get('name', 'N/A')} | {c.get('status', 'N/A')} | {c.get('image', 'N/A')}\n"
-                return ToolResult(success=True, output=output, host=host)
-            except Exception as e:
-                return ToolResult(success=False, output="", error=str(e))
-        elif host in ['linode', 'ubuntu'] and self.fleet_manager:
-            return self._fleet_command({'host': host, 'command': 'docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"'})
+        if host in ['linode', 'ubuntu'] and self.fleet_manager:
+            cmd = 'docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"'
+            if show_all:
+                cmd = 'docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"'
+            return self._fleet_command({'host': host, 'command': cmd})
         else:
             cmd = ['docker', 'ps', '--format', 'table {{.Names}}\t{{.Status}}\t{{.Image}}']
             if show_all:
