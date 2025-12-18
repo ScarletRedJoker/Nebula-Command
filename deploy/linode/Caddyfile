@@ -13,6 +13,26 @@ stream.rig-city.com {
     reverse_proxy stream-bot:5000 {
         header_up Host {host}
         header_up X-Real-IP {remote_host}
+        header_up Upgrade {http.request.header.Upgrade}
+        header_up Connection {http.request.header.Connection}
+    }
+}
+
+discord.rig-city.com {
+    reverse_proxy discord-bot:4000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up Upgrade {http.request.header.Upgrade}
+        header_up Connection {http.request.header.Connection}
+    }
+}
+
+dashboard.rig-city.com {
+    reverse_proxy homelab-dashboard:5000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up Upgrade {http.request.header.Upgrade}
+        header_up Connection {http.request.header.Connection}
     }
 }
 
