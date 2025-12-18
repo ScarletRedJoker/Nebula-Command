@@ -1,7 +1,7 @@
 import tmi from "tmi.js";
 import * as cron from "node-cron";
 import { storage } from "./storage";
-import { generateSnappleFact } from "./openai";
+import { generatePersonalizedFact, type FactGenerationConfig } from "./openai";
 import { WebSocket } from "ws";
 
 const DEMO_USER_ID = "demo-user";
@@ -188,8 +188,31 @@ export class BotService {
     const settings = await storage.getBotSettings(DEMO_USER_ID);
     const model = settings?.aiModel || "gpt-4o";
 
-    // ALWAYS use topic rotation for variety - ignore stored prompts
-    return await generateSnappleFact(undefined, model);
+    // Get recent facts from message history to avoid duplicates
+    let recentFacts: string[] = [];
+    try {
+      const messages = await storage.getRecentMessages(DEMO_USER_ID, 10);
+      recentFacts = messages
+        .filter(m => m.factContent && m.factContent.length > 0)
+        .map(m => m.factContent as string)
+        .slice(0, 5);
+    } catch (e) {
+      // If we can't get recent facts, proceed without dedup
+    }
+
+    // Build personalized config
+    const factConfig: FactGenerationConfig = {
+      userId: DEMO_USER_ID,
+      model,
+      customPrompt: (settings as any)?.customPrompt || null,
+      aiPromptTemplate: settings?.aiPromptTemplate || null,
+      aiTemperature: settings?.aiTemperature ?? 9,
+      streamerName: null, // Demo user doesn't have a streamer name
+      channelTheme: (settings as any)?.channelTheme || null,
+      recentFacts,
+    };
+
+    return await generatePersonalizedFact(factConfig);
   }
 
   private async generateAndPostFact(

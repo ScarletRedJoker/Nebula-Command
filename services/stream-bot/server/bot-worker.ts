@@ -2,7 +2,7 @@ import tmi from "tmi.js";
 import * as cron from "node-cron";
 import { createClient } from "@retconned/kick-js";
 import { UserStorage } from "./user-storage";
-import { generateSnappleFact } from "./openai";
+import { generatePersonalizedFact, type FactGenerationConfig } from "./openai";
 import { sendYouTubeChatMessageForUser, getActiveYouTubeLivestreamForUser } from "./youtube-client";
 import { parseCommandVariables, type CommandContext } from "./command-variables";
 import { moderationService } from "./moderation-service";
@@ -17,6 +17,7 @@ import { AlertsService } from "./alerts-service";
 import { ChatbotService } from "./chatbot-service";
 import { shoutoutService } from "./shoutout-service";
 import { refreshTwitchToken } from "./oauth-twitch";
+import { decryptToken } from "./crypto-utils";
 import type { BotConfig, PlatformConnection, CustomCommand, ModerationRule, LinkWhitelist } from "@shared/schema";
 
 type BotEvent = {
@@ -26,6 +27,37 @@ type BotEvent = {
 };
 
 type KickClient = ReturnType<typeof createClient>;
+
+// Anti-spam rate limiting configuration per platform (ToS-compliant)
+const RATE_LIMITS = {
+  twitch: {
+    modMaxMessages: 20,           // Max messages for moderators
+    modWindowMs: 30000,           // 30 second window
+    nonModMinIntervalMs: 1500,    // 1.5 seconds between messages for non-mods
+    factCooldownMs: 30000,        // 30 second minimum between fact posts per channel
+  },
+  youtube: {
+    maxMessages: 200,             // Max 200 messages per minute
+    windowMs: 60000,              // 1 minute window
+    factCooldownMs: 30000,        // 30 second minimum between fact posts
+  },
+  kick: {
+    maxMessages: 5,               // Conservative limit: 5 messages per minute
+    windowMs: 60000,              // 1 minute window
+    factCooldownMs: 60000,        // 1 minute minimum between fact posts
+  },
+} as const;
+
+// Message deduplication settings
+const DEDUP_CONFIG = {
+  recentFactsToTrack: 50,         // Number of recent facts to remember for deduplication
+  factExpirationMs: 3600000,      // Expire facts after 1 hour
+} as const;
+
+interface MessageTimestamp {
+  timestamp: number;
+  message?: string;
+}
 
 export class BotWorker {
   private twitchClient: tmi.Client | null = null;
@@ -52,6 +84,12 @@ export class BotWorker {
   private pollsService: PollsService;
   private alertsService: AlertsService;
   private chatbotService: ChatbotService;
+
+  // Anti-spam rate limiting state
+  private platformMessageHistory: Map<string, MessageTimestamp[]> = new Map(); // platform -> timestamps
+  private channelFactCooldowns: Map<string, number> = new Map(); // "platform:channel" -> last fact timestamp
+  private recentPostedFacts: Map<string, number> = new Map(); // factHash -> timestamp (for deduplication)
+  private isBotModerator: boolean = false; // Whether bot has mod privileges (affects Twitch rate limits)
 
   constructor(
     private userId: string,
@@ -191,7 +229,8 @@ export class BotWorker {
 
       // Connect Twitch client for posting
       let twitchConnection = await this.storage.getPlatformConnectionByPlatform("twitch");
-      console.log(`[BotWorker] Twitch connection status: ${twitchConnection ? `id=${twitchConnection.id}, isConnected=${twitchConnection.isConnected}, hasToken=${!!twitchConnection.accessToken}` : 'NOT FOUND'}`);
+      // SECURITY: Don't log token presence - only log connection status
+      console.log(`[BotWorker] Twitch connection status: ${twitchConnection ? `id=${twitchConnection.id}, isConnected=${twitchConnection.isConnected}` : 'NOT FOUND'}`);
       if (twitchConnection?.isConnected) {
         console.log(`[BotWorker] Connecting Twitch for manual posting...`);
         try {
@@ -216,7 +255,8 @@ export class BotWorker {
 
       // Connect YouTube client for posting
       const youtubeConnection = await this.storage.getPlatformConnectionByPlatform("youtube");
-      console.log(`[BotWorker] YouTube connection status: ${youtubeConnection ? `id=${youtubeConnection.id}, isConnected=${youtubeConnection.isConnected}, hasToken=${!!youtubeConnection.accessToken}` : 'NOT FOUND'}`);
+      // SECURITY: Don't log token presence - only log connection status
+      console.log(`[BotWorker] YouTube connection status: ${youtubeConnection ? `id=${youtubeConnection.id}, isConnected=${youtubeConnection.isConnected}` : 'NOT FOUND'}`);
       if (youtubeConnection?.isConnected) {
         try {
           await this.startYouTubeClient(youtubeConnection, []);
@@ -229,7 +269,8 @@ export class BotWorker {
 
       // Connect Kick client for posting
       const kickConnection = await this.storage.getPlatformConnectionByPlatform("kick");
-      console.log(`[BotWorker] Kick connection status: ${kickConnection ? `id=${kickConnection.id}, isConnected=${kickConnection.isConnected}, hasToken=${!!kickConnection.accessToken}` : 'NOT FOUND'}`);
+      // SECURITY: Don't log token presence - only log connection status
+      console.log(`[BotWorker] Kick connection status: ${kickConnection ? `id=${kickConnection.id}, isConnected=${kickConnection.isConnected}` : 'NOT FOUND'}`);
       if (kickConnection?.isConnected) {
         try {
           await this.startKickClient(kickConnection, []);
@@ -321,6 +362,12 @@ export class BotWorker {
 
       // Reset stream start time
       this.streamStartTime = null;
+
+      // Clear rate limiting state
+      this.platformMessageHistory.clear();
+      this.channelFactCooldowns.clear();
+      this.recentPostedFacts.clear();
+      this.isBotModerator = false;
 
       // End sessions for all active platforms
       for (const platform of Array.from(this.activePlatforms)) {
@@ -1484,13 +1531,34 @@ export class BotWorker {
       // Set up event handlers BEFORE login
       this.setupKickEventHandlers(keywords);
 
-      // Get credentials for authentication
+      // Get credentials for authentication - SECURITY: Decrypt encrypted tokens
       const connectionData = connection.connectionData as any;
-      const bearerToken = connectionData?.bearerToken || connection.accessToken;
-      const cookies = connectionData?.cookies || "";
+      let bearerToken = connectionData?.bearerToken || connection.accessToken;
+      let cookies = connectionData?.cookies || "";
+
+      // SECURITY: Decrypt tokens if they are in encrypted format (iv:authTag:encrypted)
+      if (bearerToken && bearerToken.includes(':')) {
+        try {
+          bearerToken = decryptToken(bearerToken);
+        } catch (decryptError) {
+          console.error(`[BotWorker] Kick: Failed to decrypt bearer token for user ${this.userId}`);
+          this.handleKickConnectionFailure(new Error('Token decryption failed'));
+          return;
+        }
+      }
+      if (cookies && cookies.includes(':')) {
+        try {
+          cookies = decryptToken(cookies);
+        } catch (decryptError) {
+          console.error(`[BotWorker] Kick: Failed to decrypt cookies for user ${this.userId}`);
+          this.handleKickConnectionFailure(new Error('Cookie decryption failed'));
+          return;
+        }
+      }
 
       if (bearerToken) {
-        console.log(`[BotWorker] Kick: Authenticating with bearer token for user ${this.userId} (token length: ${bearerToken.length}, cookies length: ${cookies.length})`);
+        // SECURITY: Don't log token lengths or any token-related info
+        console.log(`[BotWorker] Kick: Authenticating for user ${this.userId}`);
         
         try {
           // Login with tokens - @retconned/kick-js v0.5.4 API
@@ -1503,12 +1571,13 @@ export class BotWorker {
           });
           console.log(`[BotWorker] Kick: Login initiated for user ${this.userId}`);
         } catch (loginError: any) {
-          console.error(`[BotWorker] Kick: Login error for user ${this.userId}:`, loginError?.message || loginError);
+          // SECURITY: Don't log error details that might contain tokens
+          console.error(`[BotWorker] Kick: Login error for user ${this.userId}`);
           this.handleKickConnectionFailure(loginError);
           return;
         }
       } else {
-        console.warn(`[BotWorker] Kick: No bearer token available for user ${this.userId} - running in read-only mode`);
+        console.warn(`[BotWorker] Kick: No credentials available for user ${this.userId} - running in read-only mode`);
         // Client will still connect for reading, just can't send messages
       }
 
@@ -1815,26 +1884,52 @@ export class BotWorker {
   }
 
   async generateFact(): Promise<string> {
-    const config = await this.storage.getBotConfig();
-    const model = config?.aiModel || "gpt-4o";
+    const botConfig = await this.storage.getBotConfig();
+    const model = botConfig?.aiModel || "gpt-4o";
     
-    // ALWAYS use topic rotation for variety - ignore stored prompts
-    // Pass undefined for customPrompt to trigger topic rotation in openai.ts
-
-    // Get recent facts to avoid duplicates
+    // Get recent facts to avoid duplicates - check messageHistory table
     let recentFacts: string[] = [];
     try {
-      const messages = await this.storage.getRecentMessages(10);
+      const messages = await this.storage.getRecentMessages(15);
       recentFacts = messages
-        .filter(m => m.factContent)
+        .filter(m => m.factContent && m.factContent.length > 0)
         .map(m => m.factContent as string)
-        .slice(0, 5);
+        .slice(0, 10); // Keep more recent facts to avoid repeats
     } catch (e) {
-      // If we can't get recent facts, proceed without dedup
+      console.log(`[BotWorker] Could not fetch recent facts for dedup: ${e}`);
     }
 
-    // Pass undefined for customPrompt to use topic rotation
-    return await generateSnappleFact(undefined, model, recentFacts);
+    // Get streamer name from primary platform connection
+    let streamerName: string | null = null;
+    try {
+      // Try Twitch first, then YouTube, then Kick
+      const twitchConn = await this.storage.getPlatformConnectionByPlatform("twitch");
+      const youtubeConn = await this.storage.getPlatformConnectionByPlatform("youtube");
+      const kickConn = await this.storage.getPlatformConnectionByPlatform("kick");
+      
+      streamerName = twitchConn?.platformUsername 
+        || youtubeConn?.platformUsername 
+        || kickConn?.platformUsername 
+        || null;
+    } catch (e) {
+      // No streamer name available
+    }
+
+    // Build personalized config from botConfigs table
+    const factConfig: FactGenerationConfig = {
+      userId: this.userId,
+      model,
+      customPrompt: (botConfig as any)?.customPrompt || null,
+      aiPromptTemplate: botConfig?.aiPromptTemplate || null,
+      aiTemperature: botConfig?.aiTemperature ?? 9, // Default 0.9 (stored as 9)
+      streamerName,
+      channelTheme: (botConfig as any)?.channelTheme || null,
+      recentFacts,
+    };
+
+    console.log(`[BotWorker] Generating personalized fact for user ${this.userId} with ${recentFacts.length} recent facts to avoid`);
+    
+    return await generatePersonalizedFact(factConfig);
   }
 
   private async generateAndPostFact(
@@ -1843,40 +1938,99 @@ export class BotWorker {
     triggerUser?: string
   ): Promise<string | null> {
     try {
-      const fact = await this.generateFact();
-
-      // Post to each platform
+      // Check fact cooldowns for each platform before generating
+      const platformsOnCooldown: string[] = [];
+      const platformsReady: string[] = [];
+      
       for (const platform of platforms) {
-        await this.postToPlatform(platform, fact);
+        const cooldownCheck = this.checkFactCooldown(platform);
+        if (!cooldownCheck.allowed) {
+          platformsOnCooldown.push(platform);
+          console.log(`[BotWorker] Skipping ${platform} - fact cooldown active (${Math.ceil(cooldownCheck.waitMs / 1000)}s remaining)`);
+        } else {
+          platformsReady.push(platform);
+        }
+      }
+      
+      // If all platforms are on cooldown, skip posting entirely
+      if (platformsReady.length === 0) {
+        console.log(`[BotWorker] All platforms on cooldown for user ${this.userId}, skipping fact generation`);
+        return null;
+      }
 
-        // Log message
-        await this.storage.createMessage({
+      // Generate the fact
+      let fact = await this.generateFact();
+      
+      // Check for duplicate fact and regenerate if necessary (up to 3 attempts)
+      let attempts = 0;
+      const maxAttempts = 3;
+      while (this.isDuplicateFact(fact) && attempts < maxAttempts) {
+        attempts++;
+        console.log(`[BotWorker] Duplicate fact detected, regenerating (attempt ${attempts}/${maxAttempts})`);
+        fact = await this.generateFact();
+      }
+      
+      if (this.isDuplicateFact(fact)) {
+        console.log(`[BotWorker] Could not generate unique fact after ${maxAttempts} attempts, posting anyway`);
+      }
+
+      // Post to each ready platform with rate limiting
+      const successfulPlatforms: string[] = [];
+      for (const platform of platformsReady) {
+        try {
+          await this.postToPlatform(platform, fact);
+          
+          // Record fact posted for cooldown tracking
+          this.recordFactPosted(platform);
+          successfulPlatforms.push(platform);
+
+          // Log message
+          await this.storage.createMessage({
+            userId: this.userId,
+            platform,
+            triggerType,
+            triggerUser,
+            factContent: fact,
+            status: "success",
+          });
+        } catch (platformError) {
+          console.error(`[BotWorker] Failed to post fact to ${platform}:`, platformError);
+          await this.storage.createMessage({
+            userId: this.userId,
+            platform,
+            triggerType,
+            triggerUser,
+            factContent: fact,
+            status: "failed",
+            errorMessage: String(platformError),
+          });
+        }
+      }
+      
+      // Record the fact for deduplication if it was posted to at least one platform
+      if (successfulPlatforms.length > 0) {
+        this.recordPostedFact(fact);
+      }
+
+      // Emit event if we posted to any platform
+      if (successfulPlatforms.length > 0) {
+        this.emitEvent({
+          type: "new_message",
           userId: this.userId,
-          platform,
-          triggerType,
-          triggerUser,
-          factContent: fact,
-          status: "success",
+          data: {
+            platforms: successfulPlatforms,
+            fact,
+            triggerType,
+          },
+        });
+
+        // Update last posted time
+        await this.storage.updateBotConfig({
+          lastFactPostedAt: new Date(),
         });
       }
 
-      // Emit event
-      this.emitEvent({
-        type: "new_message",
-        userId: this.userId,
-        data: {
-          platforms,
-          fact,
-          triggerType,
-        },
-      });
-
-      // Update last posted time
-      await this.storage.updateBotConfig({
-        lastFactPostedAt: new Date(),
-      });
-
-      return fact;
+      return successfulPlatforms.length > 0 ? fact : null;
     } catch (error) {
       console.error(`[BotWorker] Error generating/posting fact for user ${this.userId}:`, error);
 
@@ -1903,11 +2057,188 @@ export class BotWorker {
     }
   }
 
+  // ===== Anti-Spam Rate Limiting Helper Methods =====
+
+  private createFactHash(fact: string): string {
+    const normalized = fact.toLowerCase().trim().replace(/\s+/g, ' ');
+    let hash = 0;
+    for (let i = 0; i < normalized.length; i++) {
+      const char = normalized.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    return hash.toString(36);
+  }
+
+  private isDuplicateFact(fact: string): boolean {
+    const now = Date.now();
+    const hash = this.createFactHash(fact);
+    
+    for (const [storedHash, timestamp] of this.recentPostedFacts.entries()) {
+      if (now - timestamp > DEDUP_CONFIG.factExpirationMs) {
+        this.recentPostedFacts.delete(storedHash);
+      }
+    }
+    
+    if (this.recentPostedFacts.has(hash)) {
+      console.log(`[BotWorker] Duplicate fact detected for user ${this.userId}`);
+      return true;
+    }
+    
+    return false;
+  }
+
+  private recordPostedFact(fact: string): void {
+    const hash = this.createFactHash(fact);
+    this.recentPostedFacts.set(hash, Date.now());
+    
+    if (this.recentPostedFacts.size > DEDUP_CONFIG.recentFactsToTrack) {
+      const oldest = Array.from(this.recentPostedFacts.entries())
+        .sort((a, b) => a[1] - b[1])[0];
+      if (oldest) {
+        this.recentPostedFacts.delete(oldest[0]);
+      }
+    }
+  }
+
+  private checkPlatformRateLimit(platform: string): { allowed: boolean; waitMs: number } {
+    const now = Date.now();
+    const history = this.platformMessageHistory.get(platform) || [];
+    
+    const cleanedHistory = history.filter(entry => {
+      const windowMs = this.getRateLimitWindow(platform);
+      return now - entry.timestamp < windowMs;
+    });
+    this.platformMessageHistory.set(platform, cleanedHistory);
+    
+    switch (platform) {
+      case "twitch": {
+        const limits = RATE_LIMITS.twitch;
+        if (this.isBotModerator) {
+          if (cleanedHistory.length >= limits.modMaxMessages) {
+            const oldestInWindow = cleanedHistory[0]?.timestamp || now;
+            const waitMs = limits.modWindowMs - (now - oldestInWindow);
+            console.log(`[BotWorker] Twitch mod rate limit hit for user ${this.userId} (${cleanedHistory.length}/${limits.modMaxMessages} in window)`);
+            return { allowed: false, waitMs: Math.max(0, waitMs) };
+          }
+        } else {
+          const lastMessage = cleanedHistory[cleanedHistory.length - 1];
+          if (lastMessage && now - lastMessage.timestamp < limits.nonModMinIntervalMs) {
+            const waitMs = limits.nonModMinIntervalMs - (now - lastMessage.timestamp);
+            console.log(`[BotWorker] Twitch non-mod rate limit hit for user ${this.userId}`);
+            return { allowed: false, waitMs: Math.max(0, waitMs) };
+          }
+        }
+        break;
+      }
+      
+      case "youtube": {
+        const limits = RATE_LIMITS.youtube;
+        if (cleanedHistory.length >= limits.maxMessages) {
+          const oldestInWindow = cleanedHistory[0]?.timestamp || now;
+          const waitMs = limits.windowMs - (now - oldestInWindow);
+          console.log(`[BotWorker] YouTube rate limit hit for user ${this.userId} (${cleanedHistory.length}/${limits.maxMessages} in window)`);
+          return { allowed: false, waitMs: Math.max(0, waitMs) };
+        }
+        break;
+      }
+      
+      case "kick": {
+        const limits = RATE_LIMITS.kick;
+        if (cleanedHistory.length >= limits.maxMessages) {
+          const oldestInWindow = cleanedHistory[0]?.timestamp || now;
+          const waitMs = limits.windowMs - (now - oldestInWindow);
+          console.log(`[BotWorker] Kick rate limit hit for user ${this.userId} (${cleanedHistory.length}/${limits.maxMessages} in window)`);
+          return { allowed: false, waitMs: Math.max(0, waitMs) };
+        }
+        break;
+      }
+    }
+    
+    return { allowed: true, waitMs: 0 };
+  }
+
+  private getRateLimitWindow(platform: string): number {
+    switch (platform) {
+      case "twitch":
+        return this.isBotModerator ? RATE_LIMITS.twitch.modWindowMs : RATE_LIMITS.twitch.nonModMinIntervalMs * 2;
+      case "youtube":
+        return RATE_LIMITS.youtube.windowMs;
+      case "kick":
+        return RATE_LIMITS.kick.windowMs;
+      default:
+        return 60000;
+    }
+  }
+
+  private recordPlatformMessage(platform: string, message?: string): void {
+    const history = this.platformMessageHistory.get(platform) || [];
+    history.push({ timestamp: Date.now(), message });
+    this.platformMessageHistory.set(platform, history);
+  }
+
+  private checkFactCooldown(platform: string, channel?: string): { allowed: boolean; waitMs: number } {
+    const now = Date.now();
+    const key = `${platform}:${channel || 'default'}`;
+    const lastFactTime = this.channelFactCooldowns.get(key);
+    
+    if (!lastFactTime) {
+      return { allowed: true, waitMs: 0 };
+    }
+    
+    let cooldownMs: number;
+    switch (platform) {
+      case "twitch":
+        cooldownMs = RATE_LIMITS.twitch.factCooldownMs;
+        break;
+      case "youtube":
+        cooldownMs = RATE_LIMITS.youtube.factCooldownMs;
+        break;
+      case "kick":
+        cooldownMs = RATE_LIMITS.kick.factCooldownMs;
+        break;
+      default:
+        cooldownMs = 30000;
+    }
+    
+    const elapsed = now - lastFactTime;
+    if (elapsed < cooldownMs) {
+      const waitMs = cooldownMs - elapsed;
+      console.log(`[BotWorker] Fact cooldown active for ${platform}:${channel || 'default'} (${Math.ceil(waitMs / 1000)}s remaining)`);
+      return { allowed: false, waitMs };
+    }
+    
+    return { allowed: true, waitMs: 0 };
+  }
+
+  private recordFactPosted(platform: string, channel?: string): void {
+    const key = `${platform}:${channel || 'default'}`;
+    this.channelFactCooldowns.set(key, Date.now());
+  }
+
+  private async waitForRateLimit(platform: string): Promise<void> {
+    const check = this.checkPlatformRateLimit(platform);
+    if (!check.allowed && check.waitMs > 0) {
+      console.log(`[BotWorker] Waiting ${check.waitMs}ms for ${platform} rate limit to clear...`);
+      await new Promise(resolve => setTimeout(resolve, check.waitMs));
+    }
+  }
+
+  // ===== End Anti-Spam Rate Limiting Helper Methods =====
+
   async postToPlatform(platform: string, message: string) {
     const connection = await this.storage.getPlatformConnectionByPlatform(platform);
 
     if (!connection?.isConnected) {
       throw new Error(`Platform ${platform} is not connected`);
+    }
+
+    const rateCheck = this.checkPlatformRateLimit(platform);
+    if (!rateCheck.allowed) {
+      if (rateCheck.waitMs > 5000) {
+        throw new Error(`Rate limit exceeded for ${platform}. Please wait ${Math.ceil(rateCheck.waitMs / 1000)} seconds.`);
+      }
+      await new Promise(resolve => setTimeout(resolve, rateCheck.waitMs));
     }
 
     switch (platform) {
@@ -1922,12 +2253,14 @@ export class BotWorker {
         }
         console.log(`[BotWorker] Posting to Twitch channel ${connection.platformUsername}: ${message.substring(0, 50)}...`);
         await this.twitchClient.say(connection.platformUsername, message);
+        this.recordPlatformMessage("twitch", message);
         console.log(`[BotWorker] Successfully posted to Twitch for user ${this.userId}`);
         break;
 
       case "youtube":
         if (this.youtubeActiveLiveChatId) {
           await sendYouTubeChatMessageForUser(this.userId, this.youtubeActiveLiveChatId, message);
+          this.recordPlatformMessage("youtube", message);
         } else {
           throw new Error("YouTube live chat not available (no active livestream)");
         }
@@ -1939,6 +2272,7 @@ export class BotWorker {
           const reason = !this.kickClient ? "not connected" : !this.kickClientReady ? "not ready" : "message send failed";
           throw new Error(`Kick client not connected or not ready (${reason})`);
         }
+        this.recordPlatformMessage("kick", message);
         console.log(`[BotWorker] Successfully posted to Kick for user ${this.userId}`);
         break;
 

@@ -5,6 +5,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { botManager } from "./bot-manager";
 import { giveawayService } from "./giveaway-service";
+import { encryptToken } from "./crypto-utils";
 import {
   updateBotConfigSchema,
   insertCustomCommandSchema,
@@ -650,7 +651,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/platforms", requireAuth, async (req, res) => {
     try {
-      const platform = await storage.createPlatformConnection(req.user!.id, req.body);
+      const data = { ...req.body };
+      
+      // SECURITY: Encrypt Kick bearer token and cookies before storage
+      if (data.platform === 'kick' && data.connectionData) {
+        const connectionData = { ...data.connectionData };
+        if (connectionData.bearerToken) {
+          connectionData.bearerToken = encryptToken(connectionData.bearerToken);
+        }
+        if (connectionData.cookies) {
+          connectionData.cookies = encryptToken(connectionData.cookies);
+        }
+        data.connectionData = connectionData;
+      }
+      
+      // SECURITY: Encrypt accessToken if provided directly (Kick manual entry)
+      if (data.platform === 'kick' && data.accessToken) {
+        data.accessToken = encryptToken(data.accessToken);
+      }
+      
+      const platform = await storage.createPlatformConnection(req.user!.id, data);
       
       // Sanitize before returning to client
       const sanitized = {
@@ -666,17 +686,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(sanitized);
     } catch (error: any) {
-      console.error("Failed to create platform:", error);
-      res.status(500).json({ error: "Failed to create platform connection", details: error.message });
+      console.error("Failed to create platform connection");
+      res.status(500).json({ error: "Failed to create platform connection" });
     }
   });
 
   app.patch("/api/platforms/:id", requireAuth, async (req, res) => {
     try {
+      const data = { ...req.body };
+      
+      // Get existing connection to determine platform type
+      const existingConnection = await storage.getPlatformConnection(req.user!.id, req.params.id);
+      const platformType = existingConnection?.platform || data.platform;
+      
+      // SECURITY: Encrypt Kick bearer token and cookies before storage
+      if (platformType === 'kick' && data.connectionData) {
+        const connectionData = { ...data.connectionData };
+        if (connectionData.bearerToken) {
+          connectionData.bearerToken = encryptToken(connectionData.bearerToken);
+        }
+        if (connectionData.cookies) {
+          connectionData.cookies = encryptToken(connectionData.cookies);
+        }
+        data.connectionData = connectionData;
+      }
+      
+      // SECURITY: Encrypt accessToken if provided directly (Kick manual entry)
+      if (platformType === 'kick' && data.accessToken) {
+        data.accessToken = encryptToken(data.accessToken);
+      }
+      
       const platform = await storage.updatePlatformConnection(
         req.user!.id,
         req.params.id,
-        req.body
+        data
       );
       
       // Sanitize before returning to client

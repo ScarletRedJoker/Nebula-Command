@@ -71,8 +71,10 @@ export const botConfigs = pgTable("bot_configs", {
   
   // AI settings
   aiModel: text("ai_model").default("gpt-4o").notNull(),
-  aiPromptTemplate: text("ai_prompt_template"),
-  aiTemperature: integer("ai_temperature").default(1), // Stored as integer, divided by 10 in app
+  aiPromptTemplate: text("ai_prompt_template"), // Full custom prompt template with variables like {streamer}, {theme}, {topic}
+  customPrompt: text("custom_prompt"), // Simple custom prompt override
+  aiTemperature: integer("ai_temperature").default(9), // Stored as integer, divided by 10 in app (9 = 0.9)
+  channelTheme: text("channel_theme"), // User's channel theme for personalized facts (e.g., "gaming", "cooking", "tech")
   
   // Trigger settings
   enableChatTriggers: boolean("enable_chat_triggers").default(true).notNull(),
