@@ -32,6 +32,11 @@ export class BotWorker {
   private kickClient: KickClient | null = null;
   private kickChannelSlug: string | null = null;
   private kickClientReady: boolean = false;
+  private kickReconnectAttempts: number = 0;
+  private kickMaxReconnectAttempts: number = 5;
+  private kickReconnectTimeout: NodeJS.Timeout | null = null;
+  private kickConnection: PlatformConnection | null = null;
+  private kickKeywords: string[] = [];
   private youtubeActiveLiveChatId: string | null = null;
   private cronJob: cron.ScheduledTask | null = null;
   private randomTimeout: NodeJS.Timeout | null = null;
@@ -271,12 +276,23 @@ export class BotWorker {
       // Stop YouTube client
       this.youtubeActiveLiveChatId = null;
 
-      // Stop Kick client
+      // Stop Kick client and cleanup reconnection state
+      if (this.kickReconnectTimeout) {
+        clearTimeout(this.kickReconnectTimeout);
+        this.kickReconnectTimeout = null;
+      }
       if (this.kickClient) {
-        // Kick client doesn't have explicit disconnect method, just nullify
+        try {
+          this.kickClient.removeAllListeners?.();
+        } catch (e) {
+          // Ignore cleanup errors
+        }
         this.kickClient = null;
         this.kickChannelSlug = null;
         this.kickClientReady = false;
+        this.kickConnection = null;
+        this.kickKeywords = [];
+        this.kickReconnectAttempts = 0;
       }
 
       // Stop cron job
@@ -426,10 +442,10 @@ export class BotWorker {
         }
         // Note: YouTube Live Chat API doesn't support direct timeout/ban actions
         // These would need to be handled via YouTube Studio API or manually
-      } else if (platform === "kick" && this.kickClient && this.kickClientReady) {
+      } else if (platform === "kick") {
         if (action === "warn") {
           const warningMessage = `@${username}, please follow chat rules. ${reason || "Your message violated moderation rules."}`;
-          await this.kickClient.sendMessage(warningMessage);
+          await this.sendKickMessage(warningMessage);
         }
         // Note: Kick API timeout/ban support would need to be implemented when available
       }
@@ -1433,114 +1449,267 @@ export class BotWorker {
     }
   }
 
-  private async startKickClient(connection: PlatformConnection, keywords: string[]) {
-    if (!connection.platformUsername) return;
+  private async startKickClient(connection: PlatformConnection, keywords: string[]): Promise<void> {
+    if (!connection.platformUsername) {
+      console.warn(`[BotWorker] Cannot start Kick client - no platform username for user ${this.userId}`);
+      return;
+    }
+
+    // Store connection and keywords for reconnection
+    this.kickConnection = connection;
+    this.kickKeywords = keywords;
+    this.kickReconnectAttempts = 0;
+
+    await this.connectKickClient();
+  }
+
+  private async connectKickClient(): Promise<void> {
+    const connection = this.kickConnection;
+    if (!connection?.platformUsername) {
+      console.warn(`[BotWorker] Cannot connect Kick client - no connection data for user ${this.userId}`);
+      return;
+    }
+
+    const keywords = this.kickKeywords;
+    const channelName = connection.platformUsername.toLowerCase();
+    this.kickChannelSlug = channelName;
+    this.kickClientReady = false;
+
+    console.log(`[BotWorker] Kick: Starting connection for user ${this.userId} (channel: ${channelName}), attempt ${this.kickReconnectAttempts + 1}/${this.kickMaxReconnectAttempts}`);
 
     try {
-      const channelName = connection.platformUsername.toLowerCase();
-      this.kickChannelSlug = channelName;
+      // Create the Kick client
       this.kickClient = createClient(channelName, { logger: false, readOnly: false });
 
-      // If we have credentials, login
+      // Set up event handlers BEFORE login
+      this.setupKickEventHandlers(keywords);
+
+      // Get credentials for authentication
       const connectionData = connection.connectionData as any;
-      if (connectionData?.bearerToken || connection.accessToken) {
-        const bearerToken = connectionData?.bearerToken || connection.accessToken;
-        const cookies = connectionData?.cookies || "";
-        
-        // Login with tokens (simplified - may need adjustment based on actual API)
-        this.kickClient.login({
-          type: "tokens" as const,
-          credentials: {
-            bearerToken,
-            cookies,
-            xsrfToken: "", // Add required field, may need to extract from cookies
-          }
-        });
-      }
+      const bearerToken = connectionData?.bearerToken || connection.accessToken;
+      const cookies = connectionData?.cookies || "";
 
-      this.kickClient.on("ready", () => {
-        this.kickClientReady = true;
-        console.log(`[BotWorker] Kick bot connected for user ${this.userId} (${channelName})`);
-      });
-
-      this.kickClient.on("ChatMessage", async (message: any) => {
-        const trimmedContent = message.content.trim();
-        const username = message.sender.username || "unknown";
+      if (bearerToken) {
+        console.log(`[BotWorker] Kick: Authenticating with bearer token for user ${this.userId} (token length: ${bearerToken.length}, cookies length: ${cookies.length})`);
         
-        // Track chat message for statistics
-        await statsService.trackChatMessage(this.userId, "kick", username);
-        
-        // Check moderation FIRST, before processing anything
-        const moderationResult = await this.checkModeration(trimmedContent, username, "kick");
-        
-        if (!moderationResult.allowed) {
-          // Execute moderation action (warn, timeout, or ban)
-          if (moderationResult.action) {
-            await this.executeModerationAction(
-              "kick",
-              username,
-              moderationResult.action,
-              moderationResult.reason,
-              moderationResult.timeoutDuration
-            );
-          }
-          
+        try {
+          // Login with tokens - @retconned/kick-js v0.5.4 API
+          this.kickClient.login({
+            type: "tokens" as const,
+            credentials: {
+              bearerToken,
+              cookies,
+            }
+          });
+          console.log(`[BotWorker] Kick: Login initiated for user ${this.userId}`);
+        } catch (loginError: any) {
+          console.error(`[BotWorker] Kick: Login error for user ${this.userId}:`, loginError?.message || loginError);
+          this.handleKickConnectionFailure(loginError);
           return;
         }
-        
-        // Check for custom commands (starts with !)
-        if (trimmedContent.startsWith("!")) {
-          const commandName = trimmedContent.split(" ")[0]; // Get first word
-          const response = await this.executeCustomCommand(commandName, message.sender.username);
-          
-          if (response && this.kickClient && this.kickClientReady && this.kickChannelSlug) {
-            await this.kickClient.sendMessage(response);
-            return; // Don't check keywords if command was executed
-          } else if (response && this.kickClient && !this.kickClientReady) {
-            console.log(`[BotWorker] Skipping Kick message send - client not ready yet (user ${this.userId})`);
-          }
+      } else {
+        console.warn(`[BotWorker] Kick: No bearer token available for user ${this.userId} - running in read-only mode`);
+        // Client will still connect for reading, just can't send messages
+      }
 
-          // Check for giveaway entry if no custom command matched
-          const isSubscriber = message.sender.badges?.some((b: any) => b.type === "subscriber") || false;
-          const giveawayResponse = await this.handleGiveawayEntry(
-            trimmedContent,
-            message.sender.username,
-            "kick",
-            isSubscriber
-          );
-          
-          if (giveawayResponse && this.kickClient && this.kickClientReady) {
-            await this.kickClient.sendMessage(giveawayResponse);
-            return; // Don't check keywords if giveaway entry was processed
-          }
-        }
-
-        // Check for Snapple fact keywords
-        const lowerMessage = trimmedContent.toLowerCase();
-        const hasKeyword = keywords.some((keyword) =>
-          lowerMessage.includes(keyword.toLowerCase())
-        );
-
-        if (hasKeyword) {
-          try {
-            // For Kick chat triggers, just generate the fact
-            // The response will be sent via the main postToPlatform method
-            await this.generateAndPostFact(
-              ["kick"],
-              "chat_command",
-              message.sender.username
-            );
-          } catch (error) {
-            console.error(`[BotWorker] Error posting fact from Kick chat command (user ${this.userId}):`, error);
-          }
-        }
-      });
-
-      console.log(`[BotWorker] Kick client starting for user ${this.userId} (${channelName})`);
-    } catch (error) {
-      console.error(`[BotWorker] Failed to start Kick client for user ${this.userId}:`, error);
-      this.kickClient = null;
+      console.log(`[BotWorker] Kick: Client initialized for user ${this.userId} (${channelName})`);
+    } catch (error: any) {
+      console.error(`[BotWorker] Kick: Failed to create client for user ${this.userId}:`, error?.message || error);
+      this.handleKickConnectionFailure(error);
     }
+  }
+
+  private setupKickEventHandlers(keywords: string[]): void {
+    if (!this.kickClient) return;
+
+    // Ready event - connection successful
+    this.kickClient.on("ready", () => {
+      this.kickClientReady = true;
+      this.kickReconnectAttempts = 0; // Reset on successful connection
+      console.log(`[BotWorker] Kick: ✅ Connected and ready for user ${this.userId} (${this.kickChannelSlug})`);
+      
+      // Log user info if available
+      try {
+        const user = (this.kickClient as any)?.user;
+        if (user) {
+          console.log(`[BotWorker] Kick: Logged in as ${user.tag || user.username || 'unknown'}`);
+        }
+      } catch (e) {
+        // Ignore errors accessing user info
+      }
+    });
+
+    // Error event handler
+    this.kickClient.on("error" as any, (error: any) => {
+      console.error(`[BotWorker] Kick: Error event for user ${this.userId}:`, error?.message || error);
+      this.handleKickConnectionFailure(error);
+    });
+
+    // Disconnect event handler (if supported by the library)
+    this.kickClient.on("disconnect" as any, (reason: any) => {
+      console.warn(`[BotWorker] Kick: Disconnected for user ${this.userId}, reason:`, reason);
+      this.kickClientReady = false;
+      
+      // Attempt reconnection if bot is still running
+      if (this.isRunning) {
+        this.scheduleKickReconnect();
+      }
+    });
+
+    // Chat message handler
+    this.kickClient.on("ChatMessage", async (message: any) => {
+      await this.handleKickChatMessage(message, keywords);
+    });
+  }
+
+  private async handleKickChatMessage(message: any, keywords: string[]): Promise<void> {
+    try {
+      const trimmedContent = message.content?.trim() || "";
+      const username = message.sender?.username || "unknown";
+      
+      // Track chat message for statistics
+      await statsService.trackChatMessage(this.userId, "kick", username);
+      
+      // Check moderation FIRST, before processing anything
+      const moderationResult = await this.checkModeration(trimmedContent, username, "kick");
+      
+      if (!moderationResult.allowed) {
+        if (moderationResult.action) {
+          await this.executeModerationAction(
+            "kick",
+            username,
+            moderationResult.action,
+            moderationResult.reason,
+            moderationResult.timeoutDuration
+          );
+        }
+        return;
+      }
+      
+      // Check for custom commands (starts with !)
+      if (trimmedContent.startsWith("!")) {
+        const commandName = trimmedContent.split(" ")[0];
+        const response = await this.executeCustomCommand(commandName, username);
+        
+        if (response) {
+          await this.sendKickMessage(response);
+          return;
+        }
+
+        // Check for giveaway entry if no custom command matched
+        const isSubscriber = message.sender?.badges?.some((b: any) => b.type === "subscriber") || false;
+        const giveawayResponse = await this.handleGiveawayEntry(
+          trimmedContent,
+          username,
+          "kick",
+          isSubscriber
+        );
+        
+        if (giveawayResponse) {
+          await this.sendKickMessage(giveawayResponse);
+          return;
+        }
+      }
+
+      // Check for Snapple fact keywords
+      const lowerMessage = trimmedContent.toLowerCase();
+      const hasKeyword = keywords.some((keyword) =>
+        lowerMessage.includes(keyword.toLowerCase())
+      );
+
+      if (hasKeyword) {
+        try {
+          await this.generateAndPostFact(
+            ["kick"],
+            "chat_command",
+            username
+          );
+        } catch (error) {
+          console.error(`[BotWorker] Kick: Error posting fact from chat command (user ${this.userId}):`, error);
+        }
+      }
+    } catch (error) {
+      console.error(`[BotWorker] Kick: Error handling chat message for user ${this.userId}:`, error);
+    }
+  }
+
+  private async sendKickMessage(message: string): Promise<boolean> {
+    if (!this.kickClient) {
+      console.warn(`[BotWorker] Kick: Cannot send message - client not initialized for user ${this.userId}`);
+      return false;
+    }
+    
+    if (!this.kickClientReady) {
+      console.warn(`[BotWorker] Kick: Cannot send message - client not ready for user ${this.userId}`);
+      return false;
+    }
+
+    try {
+      await this.kickClient.sendMessage(message);
+      console.log(`[BotWorker] Kick: Message sent for user ${this.userId}: ${message.substring(0, 50)}...`);
+      return true;
+    } catch (error: any) {
+      console.error(`[BotWorker] Kick: Failed to send message for user ${this.userId}:`, error?.message || error);
+      
+      // Check if this is an auth error that requires reconnection
+      if (error?.message?.includes('401') || error?.message?.includes('unauthorized') || error?.message?.includes('auth')) {
+        console.warn(`[BotWorker] Kick: Auth error detected, scheduling reconnection for user ${this.userId}`);
+        this.kickClientReady = false;
+        this.scheduleKickReconnect();
+      }
+      
+      return false;
+    }
+  }
+
+  private handleKickConnectionFailure(error: any): void {
+    this.kickClientReady = false;
+    console.error(`[BotWorker] Kick: Connection failure for user ${this.userId}:`, error?.message || error);
+    
+    if (this.isRunning) {
+      this.scheduleKickReconnect();
+    }
+  }
+
+  private scheduleKickReconnect(): void {
+    // Clear any existing reconnect timeout
+    if (this.kickReconnectTimeout) {
+      clearTimeout(this.kickReconnectTimeout);
+      this.kickReconnectTimeout = null;
+    }
+
+    this.kickReconnectAttempts++;
+
+    if (this.kickReconnectAttempts > this.kickMaxReconnectAttempts) {
+      console.error(`[BotWorker] Kick: Max reconnection attempts (${this.kickMaxReconnectAttempts}) reached for user ${this.userId}. Giving up.`);
+      this.emitEvent({
+        type: "error",
+        userId: this.userId,
+        data: { error: `Kick connection failed after ${this.kickMaxReconnectAttempts} attempts. Please check your Kick credentials.` },
+      });
+      return;
+    }
+
+    // Exponential backoff: 2^attempt * 1000ms (2s, 4s, 8s, 16s, 32s)
+    const backoffMs = Math.min(Math.pow(2, this.kickReconnectAttempts) * 1000, 60000);
+    console.log(`[BotWorker] Kick: Scheduling reconnection for user ${this.userId} in ${backoffMs / 1000}s (attempt ${this.kickReconnectAttempts}/${this.kickMaxReconnectAttempts})`);
+
+    this.kickReconnectTimeout = setTimeout(async () => {
+      console.log(`[BotWorker] Kick: Attempting reconnection for user ${this.userId}...`);
+      
+      // Clean up old client
+      if (this.kickClient) {
+        try {
+          // Remove all listeners to prevent memory leaks
+          this.kickClient.removeAllListeners?.();
+        } catch (e) {
+          // Ignore cleanup errors
+        }
+        this.kickClient = null;
+      }
+      
+      await this.connectKickClient();
+    }, backoffMs);
   }
 
   private setupFixedInterval(minutes: number) {
@@ -1765,13 +1934,12 @@ export class BotWorker {
         break;
 
       case "kick":
-        if (this.kickClient && this.kickClientReady && this.kickChannelSlug) {
-          await this.kickClient.sendMessage(message);
-        } else {
-          const reason = !this.kickClient ? "not connected" : !this.kickClientReady ? "not ready" : "missing channel slug";
-          console.log(`[BotWorker] Kick client ${reason} for user ${this.userId}`);
+        const kickSuccess = await this.sendKickMessage(message);
+        if (!kickSuccess) {
+          const reason = !this.kickClient ? "not connected" : !this.kickClientReady ? "not ready" : "message send failed";
           throw new Error(`Kick client not connected or not ready (${reason})`);
         }
+        console.log(`[BotWorker] Successfully posted to Kick for user ${this.userId}`);
         break;
 
       default:
