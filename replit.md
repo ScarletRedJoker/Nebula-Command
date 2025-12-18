@@ -18,6 +18,13 @@
 - **Database:** Shared PostgreSQL (Neon in dev, homelab-postgres in prod)
 - **Secrets:** .env file (never commit), Replit Secrets in dev
 
+### Deployment Preference
+When Evin asks to "deploy", this means:
+1. **Linode**: `ssh root@linode.evindrake.net` → `cd /opt/homelab/HomeLabHub/deploy/linode && ./deploy.sh`
+2. **Local Ubuntu**: `ssh evin@host.evindrake.net` → `cd /opt/homelab/HomeLabHub/deploy/local && ./deploy.sh`
+
+Each server deploys ONLY its own services. They are separate and independent.
+
 ---
 
 ## Architecture
