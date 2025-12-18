@@ -21,6 +21,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     openssh-client \
     iputils-ping \
     dnsutils \
+    procps \
+    sysstat \
+    net-tools \
     && install -m 0755 -d /etc/apt/keyrings \
     && curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc \
     && chmod a+r /etc/apt/keyrings/docker.asc \

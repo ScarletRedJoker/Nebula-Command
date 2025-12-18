@@ -433,13 +433,29 @@ class JarvisToolExecutor:
         service = args.get('service', 'dashboard')
         pattern = args.get('pattern', 'error|failed|exception')
         lines = args.get('lines', 100)
+        host = args.get('host', 'linode')
         
-        if self.fleet_manager:
-            host = 'linode'
-            cmd = f'docker logs --tail {lines} homelab-{service} 2>&1 | grep -iE "{pattern}" | tail -30'
+        container_map = {
+            'dashboard': 'homelab-dashboard',
+            'discord-bot': 'discord-bot',
+            'stream-bot': 'stream-bot',
+            'celery': 'homelab-celery-worker',
+            'redis': 'homelab-redis',
+            'postgres': 'homelab-postgres',
+            'caddy': 'caddy',
+        }
+        container = container_map.get(service, service)
+        
+        if host in ['linode', 'ubuntu'] and self.fleet_manager:
+            cmd = f'docker logs --tail {lines} {container} 2>&1 | grep -iE "{pattern}" | tail -30 || echo "No matches found for pattern: {pattern}"'
             return self._fleet_command({'host': host, 'command': cmd})
         else:
-            return self._run_command(['docker', 'logs', '--tail', str(lines), f'homelab-{service}'])
+            result = self._run_command(['docker', 'logs', '--tail', str(lines), container])
+            if result.success and pattern:
+                import re
+                filtered = [l for l in result.output.split('\n') if re.search(pattern, l, re.IGNORECASE)]
+                result.output = '\n'.join(filtered[-30:]) if filtered else f"No matches found for pattern: {pattern}"
+            return result
     
     def _system_resources(self, args: Dict) -> ToolResult:
         """Check system resources"""
@@ -450,7 +466,11 @@ class JarvisToolExecutor:
         if host in ['linode', 'ubuntu'] and self.fleet_manager:
             return self._fleet_command({'host': host, 'command': cmd})
         else:
-            return self._run_command(['bash', '-c', cmd])
+            container_cmd = (
+                "echo '=== DOCKER STATS ===' && docker stats --no-stream --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}' 2>/dev/null | head -15 && "
+                "echo '=== DISK ===' && df -h / 2>/dev/null || echo 'Disk info unavailable'"
+            )
+            return self._run_command(['bash', '-c', container_cmd])
     
     def _fleet_command(self, args: Dict) -> ToolResult:
         """Execute command on fleet host"""
