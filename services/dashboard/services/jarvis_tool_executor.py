@@ -22,9 +22,63 @@ class ToolResult:
     success: bool
     output: str
     error: Optional[str] = None
+    raw_error: Optional[str] = None
     execution_time: float = 0.0
     command: str = ""
     host: str = "local"
+
+ERROR_PATTERNS = {
+    r"command not found": {
+        "message": "The command '{cmd}' is not installed on {host}.",
+        "suggestion": "You may need to install it using the appropriate package manager.",
+        "extract": {"cmd": r"(\S+): command not found"}
+    },
+    r"No such container": {
+        "message": "Container '{name}' doesn't exist.",
+        "suggestion": "Check the container name with 'docker ps -a'.",
+        "extract": {"name": r"No such container[:\s]+(\S+)"}
+    },
+    r"permission denied": {
+        "message": "Permission denied.",
+        "suggestion": "The command may require elevated privileges (sudo) or correct file permissions.",
+        "extract": {}
+    },
+    r"[Cc]onnection refused": {
+        "message": "Cannot connect to {host}.",
+        "suggestion": "The service may be down or unreachable. Check if the service is running.",
+        "extract": {"host": r"connect to (\S+)"}
+    },
+    r"SSH client not available|ssh.*not found": {
+        "message": "SSH is not available.",
+        "suggestion": "Remote commands cannot be executed. Ensure SSH is installed and configured.",
+        "extract": {}
+    },
+    r"No such file or directory": {
+        "message": "File or path not found: {path}",
+        "suggestion": "Verify the path exists and check for typos.",
+        "extract": {"path": r"(?:open|stat|access)?\s*['\"]?([^'\":\n]+)['\"]?:\s*No such file or directory"}
+    },
+    r"[Aa]uthentication required|[Uu]nauthorized|401": {
+        "message": "Authentication failed.",
+        "suggestion": "Check credentials or tokens. You may need to re-authenticate.",
+        "extract": {}
+    },
+    r"timed?\s*out|timeout": {
+        "message": "Command timed out.",
+        "suggestion": "The operation may be taking longer than expected. Try increasing the timeout or check if the service is responsive.",
+        "extract": {}
+    },
+    r"Fleet manager not available": {
+        "message": "Fleet manager is not available.",
+        "suggestion": "Remote host management is not configured. Check SSH keys and fleet configuration.",
+        "extract": {}
+    },
+    r"Container.*not in allowed list": {
+        "message": "Container '{name}' is not in the allowed list.",
+        "suggestion": "Only approved containers can be restarted for safety. Add the container to the allowed list if needed.",
+        "extract": {"name": r"Container '([^']+)'"}
+    }
+}
 
 TOOL_DEFINITIONS = [
     {
@@ -300,10 +354,12 @@ class JarvisToolExecutor:
             
         except Exception as e:
             logger.error(f"Tool execution error for {tool_name}: {e}", exc_info=True)
+            normalized = self._normalize_error(str(e), context={"tool": tool_name})
             return ToolResult(
                 success=False,
                 output="",
-                error=str(e),
+                error=normalized,
+                raw_error=str(e),
                 execution_time=(datetime.now() - start_time).total_seconds()
             )
     
@@ -327,9 +383,17 @@ class JarvisToolExecutor:
                 command=" ".join(cmd)
             )
         except subprocess.TimeoutExpired:
-            return ToolResult(success=False, output="", error="Command timed out")
+            return self._make_error_result(
+                "Command timed out",
+                context={"command": " ".join(cmd)},
+                command=" ".join(cmd)
+            )
         except Exception as e:
-            return ToolResult(success=False, output="", error=str(e))
+            return self._make_error_result(
+                str(e),
+                context={"command": " ".join(cmd)},
+                command=" ".join(cmd)
+            )
     
     def _in_docker(self) -> bool:
         """Check if running inside Docker"""
@@ -352,6 +416,68 @@ class JarvisToolExecutor:
         for pattern, replacement in patterns:
             output = re.sub(pattern, replacement, output, flags=re.IGNORECASE)
         return output
+    
+    def _normalize_error(self, raw_error: str, context: Optional[Dict] = None) -> str:
+        """
+        Normalize raw technical errors into user-friendly messages.
+        
+        Args:
+            raw_error: The raw error message from command execution
+            context: Optional context dict with keys like 'host', 'container', 'command', 'path'
+            
+        Returns:
+            Formatted user-friendly error message with suggestion
+        """
+        if not raw_error:
+            return raw_error
+            
+        context = context or {}
+        
+        for pattern, error_info in ERROR_PATTERNS.items():
+            if re.search(pattern, raw_error, re.IGNORECASE):
+                message_template = error_info["message"]
+                suggestion = error_info.get("suggestion", "")
+                extractions = error_info.get("extract", {})
+                
+                format_vars = {
+                    "host": context.get("host", "the target host"),
+                    "cmd": context.get("command", "unknown").split()[0] if context.get("command") else "unknown",
+                    "name": context.get("container", "unknown"),
+                    "path": context.get("path", "unknown"),
+                }
+                
+                for var_name, extract_pattern in extractions.items():
+                    match = re.search(extract_pattern, raw_error, re.IGNORECASE)
+                    if match:
+                        format_vars[var_name] = match.group(1)
+                
+                try:
+                    friendly_message = message_template.format(**format_vars)
+                except KeyError:
+                    friendly_message = message_template
+                
+                result = friendly_message
+                if suggestion:
+                    result += f"\n\nSuggested fix: {suggestion}"
+                
+                result += f"\n\n<details>\n<summary>Technical details</summary>\n{raw_error}\n</details>"
+                
+                return result
+        
+        return f"An error occurred: {raw_error}"
+    
+    def _make_error_result(self, raw_error: str, context: Optional[Dict] = None, 
+                          host: str = "local", command: str = "") -> ToolResult:
+        """Create a ToolResult with normalized error"""
+        normalized = self._normalize_error(raw_error, context)
+        return ToolResult(
+            success=False,
+            output="",
+            error=normalized,
+            raw_error=raw_error,
+            host=host,
+            command=command
+        )
     
     def _git_status(self, args: Dict) -> ToolResult:
         """Execute git status"""
@@ -391,7 +517,10 @@ class JarvisToolExecutor:
         host = args.get('host', 'local')
         
         if not container:
-            return ToolResult(success=False, output="", error="Container name required")
+            return self._make_error_result(
+                "Container name required",
+                context={"host": host}
+            )
         
         if host in ['linode', 'ubuntu'] and self.fleet_manager:
             return self._fleet_command({'host': host, 'command': f'docker logs --tail {tail} {container}'})
@@ -426,7 +555,10 @@ class JarvisToolExecutor:
             
             return ToolResult(success=True, output=output)
         except Exception as e:
-            return ToolResult(success=False, output="", error=str(e))
+            return self._make_error_result(
+                str(e),
+                context={"service": service}
+            )
     
     def _analyze_logs(self, args: Dict) -> ToolResult:
         """Analyze logs for patterns"""
@@ -478,27 +610,48 @@ class JarvisToolExecutor:
         command = args.get('command')
         
         if not host or not command:
-            return ToolResult(success=False, output="", error="Host and command required")
+            return self._make_error_result(
+                "Host and command required",
+                context={"host": host or "unknown", "command": command or "unknown"}
+            )
         
         dangerous_patterns = ['rm -rf', 'mkfs', 'dd if=', ':(){', 'chmod 777', '> /dev/', 'shutdown', 'reboot']
         for pattern in dangerous_patterns:
             if pattern in command.lower():
-                return ToolResult(success=False, output="", error=f"Blocked dangerous command pattern: {pattern}")
+                return self._make_error_result(
+                    f"Blocked dangerous command pattern: {pattern}",
+                    context={"host": host, "command": command},
+                    host=host,
+                    command=command
+                )
         
         if self.fleet_manager:
             try:
                 result = self.fleet_manager.execute_command(host, command)
+                raw_err = result.get('error')
+                normalized_err = self._normalize_error(raw_err, {"host": host, "command": command}) if raw_err else None
                 return ToolResult(
                     success=result.get('success', False),
                     output=self._truncate_output(self._scrub_secrets(result.get('output', ''))),
-                    error=result.get('error'),
+                    error=normalized_err,
+                    raw_error=raw_err,
                     host=host,
                     command=command
                 )
             except Exception as e:
-                return ToolResult(success=False, output="", error=str(e), host=host)
+                return self._make_error_result(
+                    str(e),
+                    context={"host": host, "command": command},
+                    host=host,
+                    command=command
+                )
         else:
-            return ToolResult(success=False, output="", error="Fleet manager not available")
+            return self._make_error_result(
+                "Fleet manager not available",
+                context={"host": host, "command": command},
+                host=host,
+                command=command
+            )
     
     def _restart_container(self, args: Dict) -> ToolResult:
         """Restart a Docker container"""
@@ -506,7 +659,10 @@ class JarvisToolExecutor:
         host = args.get('host', 'local')
         
         if not container:
-            return ToolResult(success=False, output="", error="Container name required")
+            return self._make_error_result(
+                "Container name required",
+                context={"host": host}
+            )
         
         allowed_containers = [
             'homelab-dashboard', 'homelab-celery-worker', 'homelab-celery-beat',
@@ -514,7 +670,11 @@ class JarvisToolExecutor:
         ]
         
         if container not in allowed_containers and not container.startswith('homelab-'):
-            return ToolResult(success=False, output="", error=f"Container '{container}' not in allowed list")
+            return self._make_error_result(
+                f"Container '{container}' not in allowed list",
+                context={"container": container, "host": host},
+                host=host
+            )
         
         if host in ['linode', 'ubuntu'] and self.fleet_manager:
             return self._fleet_command({'host': host, 'command': f'docker restart {container}'})
