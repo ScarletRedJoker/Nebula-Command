@@ -1312,14 +1312,14 @@ async function saveConfig(service) {
                 local_ip: document.getElementById('tailscale-local-ip').value
             };
             break;
-        case 'ssh':
+        case 'fleet_ssh':
             config = {
                 key_path: document.getElementById('ssh-key-path').value,
                 linode_user: document.getElementById('ssh-linode-user').value,
                 local_user: document.getElementById('ssh-local-user').value
             };
             break;
-        case 'storage':
+        case 'cloud_storage':
             config = {
                 provider: document.getElementById('storage-provider').value,
                 endpoint: document.getElementById('storage-endpoint').value,
