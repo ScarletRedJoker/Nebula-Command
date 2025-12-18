@@ -82,7 +82,7 @@ Each server deploys **only its own services**. They do NOT deploy each other.
 ### Deploy Linode (Dashboard, Discord Bot, Stream Bot)
 
 ```bash
-ssh root@linode.evindrake.net
+ssh root@100.66.61.51
 cd /opt/homelab/HomeLabHub/deploy/linode
 ./deploy.sh
 ```
@@ -90,7 +90,7 @@ cd /opt/homelab/HomeLabHub/deploy/linode
 ### Deploy Local Ubuntu (Plex, MinIO, Home Assistant)
 
 ```bash
-ssh evin@host.evindrake.net
+ssh evin@100.110.227.25
 cd /opt/homelab/HomeLabHub/deploy/local
 ./deploy.sh
 ```
@@ -98,9 +98,9 @@ cd /opt/homelab/HomeLabHub/deploy/local
 ### Deploy Both (Run from Local Ubuntu)
 
 ```bash
-ssh evin@host.evindrake.net
+ssh evin@100.110.227.25
 cd /opt/homelab/HomeLabHub/deploy/local && ./deploy.sh
-ssh root@linode.evindrake.net "cd /opt/homelab/HomeLabHub/deploy/linode && ./deploy.sh"
+ssh root@100.66.61.51 "cd /opt/homelab/HomeLabHub/deploy/linode && ./deploy.sh"
 ```
 
 ### Rollback
