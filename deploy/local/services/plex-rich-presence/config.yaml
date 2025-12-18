@@ -1,0 +1,39 @@
+logging:
+  debug: false
+  writeToFile: true
+
+display:
+  duration: true
+  genres: true
+  album: true
+  albumImage: true
+  artist: true
+  artistImage: true
+  year: true
+  statusIcon: true
+  progressMode: bar
+  statusTextType:
+    watching: title
+    listening: artist
+  paused: true
+  posters:
+    enabled: true
+    imgurClientID: ""
+    maxSize: 256
+    fit: true
+  buttons:
+    - label: "View on Plex"
+      url: "{plex_web_url}"
+      mediaTypes:
+        - movie
+        - episode
+        - track
+
+users:
+  - token: "${PLEX_TOKEN}"
+    servers:
+      - name: "Evin's Plex Server"
+        listenForUser: ""
+        blacklistedLibraries: []
+        whitelistedLibraries: []
+        ipcPipeNumber: -1

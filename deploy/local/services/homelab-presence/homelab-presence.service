@@ -1,0 +1,18 @@
+[Unit]
+Description=Homelab Discord Rich Presence
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=evin
+WorkingDirectory=/opt/homelab/HomeLabHub/deploy/local/services/homelab-presence
+Environment="DISCORD_CLIENT_ID=YOUR_DISCORD_APP_ID"
+Environment="DASHBOARD_URL=http://localhost:5000"
+Environment="SERVICE_AUTH_TOKEN=YOUR_SERVICE_AUTH_TOKEN"
+ExecStart=/usr/bin/python3 homelab_presence.py
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

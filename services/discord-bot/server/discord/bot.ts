@@ -23,6 +23,7 @@ import {
 import { handlePresenceUpdate, initializeStreamTracking } from './stream-notifications';
 import { initializeAutoDetection, scheduleAutoDetectionScans } from './stream-auto-detection';
 import { TicketChannelManager, startThreadCleanupJob } from './ticket-channel-manager';
+import { initHomelabPresence, HomelabPresenceService } from './homelab-presence';
 
 // Discord bot instance
 let client: Client | null = null;
@@ -2107,6 +2108,17 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
         console.log('[Bot] ✅ SLA monitor started successfully');
       } catch (slaError) {
         console.error('[Bot] Failed to start SLA monitor:', slaError);
+      }
+      
+      // Start Homelab Presence service for dynamic bot status
+      console.log('[Bot] Starting Homelab Presence service...');
+      try {
+        const presenceService = initHomelabPresence(readyClient);
+        await presenceService.start();
+        console.log('[Bot] ✅ Homelab Presence service started successfully');
+      } catch (presenceError) {
+        console.error('[Bot] Failed to start Homelab Presence service:', presenceError);
+        console.log('[Bot] Bot will use default presence instead');
       }
     });
 
