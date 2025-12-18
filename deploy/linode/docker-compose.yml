@@ -123,6 +123,7 @@ services:
     volumes:
       - ./services/dashboard/logs:/app/logs
       - /root/.ssh:/root/.ssh:ro
+      - /var/run/docker.sock:/var/run/docker.sock
 
   homelab-celery-worker:
     build:
