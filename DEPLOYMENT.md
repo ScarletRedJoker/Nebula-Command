@@ -1,11 +1,39 @@
-# Homelab Deployment Guide
+# HomeLabHub Deployment Runbook
 
-> **DEPRECATED**: This guide is outdated. Please use the comprehensive guide at:
-> **[docs/deploy/FULL_DEPLOYMENT_GUIDE.md](docs/deploy/FULL_DEPLOYMENT_GUIDE.md)**
+## Quick Reference
+
+| Host | Tailscale IP | Hostname | SSH User | Path |
+|------|--------------|----------|----------|------|
+| **Local Ubuntu** | `100.110.227.25` | `host.evindrake.net` | `evin` | `/opt/homelab/HomeLabHub` |
+| **Linode Cloud** | `100.66.61.51` | `linode.evindrake.net` | `root` | `/opt/homelab/HomeLabHub` |
+
+## Quick Deploy (Copy-Paste)
+
+### Linode (Primary - runs dashboard, bots)
+```bash
+ssh root@100.66.61.51
+cd /opt/homelab/HomeLabHub
+git pull
+docker compose -f deploy/linode/docker-compose.yml up -d --build
+```
+
+### Local Ubuntu (Docker services, KVM, NAS)
+```bash
+ssh evin@100.110.227.25
+cd /opt/homelab/HomeLabHub
+git pull
+docker compose up -d --build
+```
+
+### Both at Once (from any machine)
+```bash
+ssh root@100.66.61.51 "cd /opt/homelab/HomeLabHub && git pull && docker compose -f deploy/linode/docker-compose.yml up -d --build"
+ssh evin@100.110.227.25 "cd /opt/homelab/HomeLabHub && git pull && docker compose up -d --build"
+```
 
 ---
 
-*Legacy content below for reference only*
+> For the full detailed guide, see: **[docs/deploy/FULL_DEPLOYMENT_GUIDE.md](docs/deploy/FULL_DEPLOYMENT_GUIDE.md)**
 
 Complete guide to deploy all 15 services to your Ubuntu 25.10 server at host.evindrake.net.
 
