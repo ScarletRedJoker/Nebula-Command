@@ -367,6 +367,147 @@ Provide specific troubleshooting steps and potential solutions."""
         
         return models
 
+    def chat_autonomous(self, message: str, conversation_history: Optional[List[Dict[str, Any]]] = None, 
+                         model: str = "gpt-4o", max_tool_calls: int = 5) -> Dict[str, Any]:
+        """
+        Autonomous chat with tool calling - Jarvis can execute real commands
+        Returns both the response and any tool execution results
+        """
+        if not self.enabled or self.client is None:
+            return {
+                "success": False,
+                "response": "AI service not available",
+                "tool_calls": []
+            }
+        
+        try:
+            from services.jarvis_tool_executor import jarvis_tool_executor, TOOL_DEFINITIONS
+            
+            system_prompt = self._get_autonomous_system_prompt()
+            messages = [{"role": "system", "content": system_prompt}]
+            
+            if conversation_history:
+                messages.extend(conversation_history)
+            
+            messages.append({"role": "user", "content": message})
+            
+            tool_results = []
+            iterations = 0
+            
+            while iterations < max_tool_calls:
+                iterations += 1
+                
+                response = self.client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    tools=TOOL_DEFINITIONS,
+                    tool_choice="auto",
+                    max_tokens=2048
+                )
+                
+                assistant_message = response.choices[0].message
+                
+                if not assistant_message.tool_calls:
+                    return {
+                        "success": True,
+                        "response": assistant_message.content or "Task completed.",
+                        "tool_calls": tool_results
+                    }
+                
+                messages.append({
+                    "role": "assistant",
+                    "content": assistant_message.content,
+                    "tool_calls": [
+                        {
+                            "id": tc.id,
+                            "type": "function",
+                            "function": {
+                                "name": tc.function.name,
+                                "arguments": tc.function.arguments
+                            }
+                        }
+                        for tc in assistant_message.tool_calls
+                    ]
+                })
+                
+                for tool_call in assistant_message.tool_calls:
+                    tool_name = tool_call.function.name
+                    try:
+                        arguments = json.loads(tool_call.function.arguments)
+                    except json.JSONDecodeError:
+                        arguments = {}
+                    
+                    logger.info(f"Executing tool: {tool_name} with args: {arguments}")
+                    result = jarvis_tool_executor.execute_tool(tool_name, arguments)
+                    
+                    tool_result_record = {
+                        "tool": tool_name,
+                        "arguments": arguments,
+                        "success": result.success,
+                        "output": result.output,
+                        "error": result.error,
+                        "execution_time": result.execution_time,
+                        "host": result.host
+                    }
+                    tool_results.append(tool_result_record)
+                    
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "content": json.dumps({
+                            "success": result.success,
+                            "output": result.output,
+                            "error": result.error
+                        })
+                    })
+            
+            return {
+                "success": True,
+                "response": "Maximum tool calls reached. Here are the results so far.",
+                "tool_calls": tool_results
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in autonomous chat: {e}", exc_info=True)
+            return {
+                "success": False,
+                "response": f"Error: {str(e)}",
+                "tool_calls": []
+            }
+    
+    def _get_autonomous_system_prompt(self) -> str:
+        """System prompt for autonomous mode with tool execution"""
+        return """You are Jarvis, an autonomous AI homelab assistant with REAL command execution capabilities.
+
+You have access to tools that let you ACTUALLY execute commands and gather information:
+- **git_status**: Check git repository status
+- **git_log**: View commit history
+- **docker_containers**: List running containers on any host
+- **docker_logs**: Get container logs
+- **check_service_health**: Check if services are healthy
+- **analyze_logs**: Search logs for errors/patterns
+- **system_resources**: Check CPU, memory, disk usage
+- **fleet_command**: Execute commands on remote hosts (linode, ubuntu)
+- **restart_container**: Restart a Docker container
+- **network_check**: Test network connectivity
+
+When a user asks you to check something, diagnose an issue, or gather information:
+1. USE THE TOOLS to actually execute commands and get real data
+2. Analyze the real output and provide insights
+3. If you find issues, explain them and suggest fixes
+4. For fixes that require action, use the appropriate tool
+
+DO NOT just describe what you would do - ACTUALLY DO IT using the tools.
+Be proactive: if checking one thing reveals another potential issue, investigate it.
+
+Available hosts:
+- local: The current server (Linode cloud)
+- linode: Linode cloud server (100.66.61.51)
+- ubuntu: Local Ubuntu server (100.110.227.25)
+
+Format your responses clearly with findings and recommendations."""
+
+
 def formatBytes(bytes):
     """Helper to format bytes to human readable"""
     gb = bytes / 1024 / 1024 / 1024

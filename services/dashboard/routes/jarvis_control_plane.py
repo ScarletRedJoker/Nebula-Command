@@ -19,6 +19,41 @@ jarvis_control_bp = Blueprint('jarvis_control', __name__, url_prefix='/api/jarvi
 ai_service = AIService()
 
 
+@jarvis_control_bp.route('/chat/autonomous', methods=['POST'])
+@require_auth
+def autonomous_chat():
+    """
+    POST /api/jarvis/control/chat/autonomous
+    Autonomous AI chat with real tool execution - Jarvis actually runs commands
+    """
+    try:
+        data = request.json
+        if not data:
+            return jsonify({'success': False, 'error': 'No data provided'}), 400
+        
+        message = data.get('message', '').strip()
+        conversation_history = data.get('conversation_history', [])
+        
+        if not message:
+            return jsonify({'success': False, 'error': 'Message required'}), 400
+        
+        result = ai_service.chat_autonomous(
+            message=message,
+            conversation_history=conversation_history
+        )
+        
+        return jsonify({
+            'success': result.get('success', False),
+            'response': result.get('response', ''),
+            'tool_calls': result.get('tool_calls', []),
+            'timestamp': datetime.utcnow().isoformat() + 'Z'
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error in autonomous chat: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @jarvis_control_bp.route('/services', methods=['GET'])
 @require_auth
 def list_services():

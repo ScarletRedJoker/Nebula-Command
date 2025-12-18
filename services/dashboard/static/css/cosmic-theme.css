@@ -835,6 +835,75 @@ code, pre, .code-block {
   border-bottom-left-radius: 4px;
 }
 
+/* Tool Execution Results - Autonomous Mode */
+.tool-execution-wrapper {
+  justify-content: flex-start;
+  width: 100%;
+}
+
+.tool-execution-bubble {
+  max-width: 90%;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(17, 24, 39, 0.9);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  margin-bottom: 8px;
+}
+
+.tool-execution-bubble.success {
+  border-color: rgba(34, 197, 94, 0.5);
+}
+
+.tool-execution-bubble.error {
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
+.tool-execution-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  font-size: 0.85rem;
+  color: #D1D5DB;
+  flex-wrap: wrap;
+}
+
+.tool-execution-header .tool-icon {
+  font-size: 1rem;
+}
+
+.tool-execution-header .tool-name {
+  font-weight: 600;
+  color: #8B5CF6;
+}
+
+.tool-execution-header .tool-host {
+  background: rgba(139, 92, 246, 0.2);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  color: #A78BFA;
+}
+
+.tool-execution-header .tool-time {
+  color: #9CA3AF;
+  font-size: 0.75rem;
+}
+
+.tool-output {
+  background: rgba(0, 0, 0, 0.4);
+  padding: 10px;
+  border-radius: 6px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.8rem;
+  color: #E5E7EB;
+  max-height: 200px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 0;
+}
+
 .message-content {
   line-height: 1.6;
   color: inherit !important;

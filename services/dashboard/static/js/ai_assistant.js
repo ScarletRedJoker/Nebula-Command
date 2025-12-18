@@ -3,6 +3,7 @@ let conversationHistory = [];
 let currentEventSource = null;
 let isStreaming = false;
 let useStreaming = true;
+let useAutonomousMode = true;  // Enable autonomous mode by default
 let currentModel = 'gpt-4o';
 
 // Get CSRF token from meta tag
@@ -34,15 +35,36 @@ function loadSettings() {
     const savedStreaming = localStorage.getItem('jarvis_use_streaming');
     if (savedStreaming !== null) {
         useStreaming = savedStreaming === 'true';
-        document.getElementById('useStreamingToggle').checked = useStreaming;
+        const streamToggle = document.getElementById('useStreamingToggle');
+        if (streamToggle) streamToggle.checked = useStreaming;
     }
+    
+    const savedAutonomous = localStorage.getItem('jarvis_autonomous_mode');
+    if (savedAutonomous !== null) {
+        useAutonomousMode = savedAutonomous === 'true';
+    } else {
+        useAutonomousMode = true;  // Default to enabled
+    }
+    const autoToggle = document.getElementById('autonomousModeToggle');
+    if (autoToggle) autoToggle.checked = useAutonomousMode;
     
     updateMessageCount();
 }
 
 function saveSettings() {
-    useStreaming = document.getElementById('useStreamingToggle').checked;
-    localStorage.setItem('jarvis_use_streaming', useStreaming.toString());
+    const streamToggle = document.getElementById('useStreamingToggle');
+    if (streamToggle) {
+        useStreaming = streamToggle.checked;
+        localStorage.setItem('jarvis_use_streaming', useStreaming.toString());
+    }
+}
+
+function toggleAutonomousMode() {
+    const toggle = document.getElementById('autonomousModeToggle');
+    if (toggle) {
+        useAutonomousMode = toggle.checked;
+        localStorage.setItem('jarvis_autonomous_mode', useAutonomousMode.toString());
+    }
 }
 
 function saveConversation() {
@@ -338,11 +360,101 @@ async function sendMessage() {
     
     const model = document.getElementById('modelSelector').value;
     
-    if (useStreaming) {
+    // Use autonomous mode for real command execution
+    if (useAutonomousMode) {
+        await sendMessageAutonomous(message, model);
+    } else if (useStreaming) {
         await sendMessageStream(message, model);
     } else {
         await sendMessageNonStream(message, model);
     }
+}
+
+async function sendMessageAutonomous(message, model) {
+    showTypingIndicator();
+    
+    try {
+        const response = await fetch('/api/jarvis/control/chat/autonomous', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify({
+                message: message,
+                conversation_history: conversationHistory,
+                model: model
+            })
+        });
+        
+        if (response.redirected || response.url.includes('/login')) {
+            hideTypingIndicator();
+            addAIMessage('⚠️ Please [log in](/login) to use the AI assistant.', false);
+            return;
+        }
+        
+        if (!response.ok) {
+            throw new Error(`Server error (${response.status})`);
+        }
+        
+        const data = await response.json();
+        hideTypingIndicator();
+        
+        if (data.success) {
+            // Display tool execution results if any
+            if (data.tool_calls && data.tool_calls.length > 0) {
+                addToolExecutionResults(data.tool_calls);
+            }
+            
+            // Add the AI response
+            if (data.response) {
+                addAIMessage(data.response);
+            }
+        } else {
+            addAIMessage(`⚠️ Error: ${data.error || 'Unknown error'}`, false);
+        }
+        
+    } catch (error) {
+        console.error('Error in autonomous mode:', error);
+        hideTypingIndicator();
+        addAIMessage(`⚠️ Connection error: ${error.message}. Please check your network.`, false);
+    }
+}
+
+function addToolExecutionResults(toolCalls) {
+    const messagesDiv = document.getElementById('chatMessages');
+    
+    toolCalls.forEach(tc => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'message-wrapper tool-execution-wrapper';
+        
+        const bubble = document.createElement('div');
+        bubble.className = `tool-execution-bubble ${tc.success ? 'success' : 'error'}`;
+        
+        const header = document.createElement('div');
+        header.className = 'tool-execution-header';
+        header.innerHTML = `
+            <span class="tool-icon">${tc.success ? '✅' : '❌'}</span>
+            <span class="tool-name">${formatToolName(tc.tool)}</span>
+            <span class="tool-host">${tc.host || 'local'}</span>
+            <span class="tool-time">${tc.execution_time?.toFixed(2) || '0'}s</span>
+        `;
+        
+        const output = document.createElement('pre');
+        output.className = 'tool-output';
+        output.textContent = tc.output || tc.error || 'No output';
+        
+        bubble.appendChild(header);
+        bubble.appendChild(output);
+        wrapper.appendChild(bubble);
+        messagesDiv.appendChild(wrapper);
+    });
+    
+    scrollToBottom();
+}
+
+function formatToolName(name) {
+    return name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 }
 
 function stopGeneration() {

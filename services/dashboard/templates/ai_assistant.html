@@ -124,10 +124,17 @@
                 </div>
                 <div class="mb-3">
                     <label class="form-check-label d-flex align-items-center">
+                        <input type="checkbox" id="autonomousModeToggle" class="form-check-input me-2" checked onchange="toggleAutonomousMode()">
+                        <span>Autonomous Mode</span>
+                    </label>
+                    <small class="text-muted d-block mt-1">Execute real commands (Docker, SSH, Git). When off, Jarvis just describes actions.</small>
+                </div>
+                <div class="mb-3">
+                    <label class="form-check-label d-flex align-items-center">
                         <input type="checkbox" id="useStreamingToggle" class="form-check-input me-2" checked>
                         <span>Enable Streaming Responses</span>
                     </label>
-                    <small class="text-muted d-block mt-1">Real-time word-by-word responses (like ChatGPT)</small>
+                    <small class="text-muted d-block mt-1">Real-time word-by-word responses (like ChatGPT). Disabled when Autonomous Mode is on.</small>
                 </div>
             </div>
             <div class="modal-footer">
