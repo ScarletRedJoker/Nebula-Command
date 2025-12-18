@@ -365,6 +365,31 @@ else:
 
 logger.info("=" * 60)
 
+# Auto-initialize setup wizard settings from environment variables
+if db_service.is_available:
+    try:
+        from models.settings import SystemSetting
+        
+        with db_service.get_session() as session:
+            settings_to_init = [
+                ('setup.fleet_ssh.key_path', os.environ.get('FLEET_SSH_KEY_PATH', '/root/.ssh/id_rsa')),
+                ('setup.fleet_ssh.linode_user', os.environ.get('FLEET_LINODE_SSH_USER', 'root')),
+                ('setup.fleet_ssh.local_user', os.environ.get('FLEET_LOCAL_SSH_USER', 'evin')),
+                ('setup.tailscale.linode_ip', os.environ.get('TAILSCALE_LINODE_HOST', '')),
+                ('setup.tailscale.local_ip', os.environ.get('TAILSCALE_LOCAL_HOST', '')),
+            ]
+            
+            for key, value in settings_to_init:
+                if value:
+                    existing = session.query(SystemSetting).filter(SystemSetting.key == key).first()
+                    if not existing:
+                        SystemSetting.set_value(session, key, value, category='setup')
+                        logger.info(f"✓ Auto-initialized setting: {key}")
+            
+        logger.info("✓ Setup wizard settings initialized from environment")
+    except Exception as e:
+        logger.warning(f"⚠ Could not auto-initialize setup settings: {e}")
+
 activity_service.log_activity(
     'system',
     'Dashboard started successfully',

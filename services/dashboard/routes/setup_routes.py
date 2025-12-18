@@ -136,7 +136,7 @@ def set_db_setting(key: str, value: str, category: str = 'setup', is_secret: boo
     return False
 
 
-def update_validation_status(key: str, status: str, message: str = None):
+def update_validation_status(key: str, status: str, message: str = ""):
     """Update validation status for a setting"""
     try:
         from services.db_service import db_service
