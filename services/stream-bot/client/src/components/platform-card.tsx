@@ -1,7 +1,7 @@
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Settings, Check, X, Loader2 } from "lucide-react";
+import { Settings, Check, X, Loader2, AlertTriangle } from "lucide-react";
 import { SiTwitch, SiYoutube, SiKick } from "react-icons/si";
 import type { PlatformConnection } from "@shared/schema";
 
@@ -104,7 +104,17 @@ export function PlatformCard({
               <span className="xs:hidden">Off</span>
             </Badge>
           )}
-          {isConnected && tokenHealth && (
+          {connection?.needsRefresh && (
+            <Badge
+              variant="destructive"
+              className="text-[10px] sm:text-xs flex items-center gap-1"
+              data-testid={`status-${platform}-needs-refresh`}
+            >
+              <AlertTriangle className="h-3 w-3" />
+              <span>Needs Reconnect</span>
+            </Badge>
+          )}
+          {isConnected && tokenHealth && !connection?.needsRefresh && (
             <span className={`candy-token-health candy-token-${tokenHealth}`}>
               {tokenHealth === "valid" && "✓ Token OK"}
               {tokenHealth === "expiring" && "⚠ Refresh Soon"}

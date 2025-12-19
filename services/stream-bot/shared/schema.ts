@@ -30,6 +30,7 @@ export const platformConnections = pgTable("platform_connections", {
   tokenExpiresAt: timestamp("token_expires_at"),
   channelId: text("channel_id"), // Channel/stream ID for the platform
   isConnected: boolean("is_connected").default(false).notNull(),
+  needsRefresh: boolean("needs_refresh").default(false).notNull(), // Token needs manual re-authentication
   lastConnectedAt: timestamp("last_connected_at"),
   connectionData: jsonb("connection_data"), // Platform-specific metadata
   createdAt: timestamp("created_at").defaultNow().notNull(),

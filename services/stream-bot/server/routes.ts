@@ -568,6 +568,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         platformUserId: p.platformUserId,
         platformUsername: p.platformUsername,
         isConnected: p.isConnected,
+        needsRefresh: p.needsRefresh ?? false,
         lastConnectedAt: p.lastConnectedAt,
         createdAt: p.createdAt,
         updatedAt: p.updatedAt,
@@ -615,18 +616,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
           tokenExpiresAt: p.tokenExpiresAt,
           status,
           message,
-          needsReauth: !hasRefreshToken,
+          needsReauth: !hasRefreshToken || p.needsRefresh,
+          needsRefresh: p.needsRefresh ?? false,
         };
       });
       
       res.json({
         success: true,
         platforms: tokenHealth,
-        anyNeedsReauth: tokenHealth.some(t => t.needsReauth),
+        anyNeedsReauth: tokenHealth.some(t => t.needsReauth || t.needsRefresh),
       });
     } catch (error: any) {
       console.error('[Token Health] Error:', error.message);
       res.status(500).json({ error: "Failed to check token health" });
+    }
+  });
+
+  // Token Health Check - Simple endpoint for all platform connection status
+  app.get("/api/token-health", requireAuth, async (req, res) => {
+    try {
+      const platforms = await storage.getPlatformConnections(req.user!.id);
+      
+      const connections = platforms.map(p => ({
+        platform: p.platform,
+        platformUsername: p.platformUsername,
+        isConnected: p.isConnected,
+        needsRefresh: p.needsRefresh ?? false,
+        lastConnectedAt: p.lastConnectedAt,
+        tokenExpiresAt: p.tokenExpiresAt,
+      }));
+      
+      res.json({
+        success: true,
+        connections,
+        summary: {
+          total: connections.length,
+          connected: connections.filter(c => c.isConnected).length,
+          needsRefresh: connections.filter(c => c.needsRefresh).length,
+        },
+      });
+    } catch (error: any) {
+      console.error('[Token Health API] Error:', error.message);
+      res.status(500).json({ error: "Failed to fetch token health" });
     }
   });
 

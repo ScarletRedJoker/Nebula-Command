@@ -19,6 +19,9 @@ import { ChatbotService } from "./chatbot-service";
 import { shoutoutService } from "./shoutout-service";
 import { refreshTwitchToken } from "./oauth-twitch";
 import { decryptToken } from "./crypto-utils";
+import { db } from "./db";
+import { platformConnections } from "@shared/schema";
+import { eq, and } from "drizzle-orm";
 import type { BotConfig, PlatformConnection, CustomCommand, ModerationRule, LinkWhitelist } from "@shared/schema";
 
 type BotEvent = {
@@ -407,6 +410,29 @@ export class BotWorker {
       isRunning: this.isRunning,
       userId: this.userId,
     };
+  }
+
+  /**
+   * Mark a platform connection as needing refresh due to auth errors
+   */
+  private async markPlatformNeedsRefresh(platform: string): Promise<void> {
+    try {
+      await db
+        .update(platformConnections)
+        .set({
+          needsRefresh: true,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(platformConnections.userId, this.userId),
+            eq(platformConnections.platform, platform)
+          )
+        );
+      console.log(`[BotWorker] Marked ${platform} as needing refresh for user ${this.userId}`);
+    } catch (error) {
+      console.error(`[BotWorker] Failed to mark ${platform} as needing refresh:`, error);
+    }
   }
 
   private async checkModeration(
@@ -1481,6 +1507,14 @@ export class BotWorker {
       return true;
     } catch (error: any) {
       console.error(`[BotWorker] Failed to start Twitch client for user ${this.userId}:`, error?.message || error);
+      
+      // Check for authentication failures and mark platform as needing refresh
+      const errorMsg = error?.message || String(error);
+      if (errorMsg.includes('Login authentication failed') || errorMsg.includes('401') || errorMsg.includes('Invalid oauth token')) {
+        console.warn(`[BotWorker] Twitch auth failure detected, marking as needing refresh for user ${this.userId}`);
+        await this.markPlatformNeedsRefresh('twitch');
+      }
+      
       if (this.twitchClient) {
         try {
           await this.twitchClient.disconnect();
@@ -1761,8 +1795,9 @@ export class BotWorker {
       
       // Check if this is an auth error that requires reconnection
       if (error?.message?.includes('401') || error?.message?.includes('unauthorized') || error?.message?.includes('auth')) {
-        console.warn(`[BotWorker] Kick: Auth error detected, scheduling reconnection for user ${this.userId}`);
+        console.warn(`[BotWorker] Kick: Auth error detected, marking as needing refresh for user ${this.userId}`);
         this.kickClientReady = false;
+        await this.markPlatformNeedsRefresh('kick');
         this.scheduleKickReconnect();
       }
       
@@ -2291,15 +2326,31 @@ export class BotWorker {
           throw new Error("Twitch username not found in connection");
         }
         console.log(`[BotWorker] Posting to Twitch channel ${connection.platformUsername}: ${message.substring(0, 50)}...`);
-        await this.twitchClient.say(connection.platformUsername, message);
-        this.recordPlatformMessage("twitch", message);
-        console.log(`[BotWorker] Successfully posted to Twitch for user ${this.userId}`);
+        try {
+          await this.twitchClient.say(connection.platformUsername, message);
+          this.recordPlatformMessage("twitch", message);
+          console.log(`[BotWorker] Successfully posted to Twitch for user ${this.userId}`);
+        } catch (error: any) {
+          if (error?.message?.includes('401') || error?.message?.includes('Login authentication failed') || error?.message?.includes('auth')) {
+            console.warn(`[BotWorker] Twitch auth error detected, marking as needing refresh for user ${this.userId}`);
+            await this.markPlatformNeedsRefresh('twitch');
+          }
+          throw error;
+        }
         break;
 
       case "youtube":
         if (this.youtubeActiveLiveChatId) {
-          await sendYouTubeChatMessageForUser(this.userId, this.youtubeActiveLiveChatId, message);
-          this.recordPlatformMessage("youtube", message);
+          try {
+            await sendYouTubeChatMessageForUser(this.userId, this.youtubeActiveLiveChatId, message);
+            this.recordPlatformMessage("youtube", message);
+          } catch (error: any) {
+            if (error?.message?.includes('401') || error?.message?.includes('authentication expired') || error?.message?.includes('permissions insufficient')) {
+              console.warn(`[BotWorker] YouTube auth error detected, marking as needing refresh for user ${this.userId}`);
+              await this.markPlatformNeedsRefresh('youtube');
+            }
+            throw error;
+          }
         } else {
           throw new Error("YouTube live chat not available (no active livestream)");
         }

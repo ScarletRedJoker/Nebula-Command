@@ -151,13 +151,14 @@ export class TokenRefreshService {
         return;
       }
 
-      // Update database with new tokens atomically
+      // Update database with new tokens atomically and clear needsRefresh flag
       await db
         .update(platformConnections)
         .set({
           accessToken: encryptToken(newTokens.accessToken),
           refreshToken: newTokens.refreshToken ? encryptToken(newTokens.refreshToken) : connection.refreshToken,
           tokenExpiresAt: newTokens.expiresAt,
+          needsRefresh: false,
           updatedAt: new Date(),
         })
         .where(eq(platformConnections.id, id));
@@ -324,20 +325,20 @@ export class TokenRefreshService {
   }
 
   /**
-   * Handle refresh failure - mark connection as disconnected and notify user
+   * Handle refresh failure - mark connection as needing refresh and notify user
    */
   private async handleRefreshFailure(connection: any): Promise<void> {
     try {
-      // Mark connection as disconnected
+      // Mark connection as needing refresh (don't disconnect - let user manually reconnect)
       await db
         .update(platformConnections)
         .set({
-          isConnected: false,
+          needsRefresh: true,
           updatedAt: new Date(),
         })
         .where(eq(platformConnections.id, connection.id));
 
-      console.log(`[TokenRefresh] Marked ${connection.platform} connection as disconnected for user ${connection.userId}`);
+      console.log(`[TokenRefresh] Marked ${connection.platform} connection as needing refresh for user ${connection.userId}`);
 
       // Create notification for user
       await this.notifyUserReauthRequired(connection);
