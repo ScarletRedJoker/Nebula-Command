@@ -2,8 +2,8 @@ import { WebSocket } from "ws";
 import { BotWorker } from "./bot-worker";
 import { createUserStorage } from "./user-storage";
 import { db } from "./db";
-import { botInstances } from "@shared/schema";
-import { eq, sql } from "drizzle-orm";
+import { botInstances, botConfigs, platformConnections } from "@shared/schema";
+import { eq, sql, and } from "drizzle-orm";
 
 export class BotManager {
   private workers: Map<string, BotWorker> = new Map();
@@ -37,8 +37,84 @@ export class BotManager {
       }
     }
 
+    // Reconciliation: Find users with active bot configs and connected platforms
+    // who should have running bots but don't
+    await this.reconcileOrphanedConnections();
+
     this.isReady = true;
     console.log("[BotManager] Bootstrap complete");
+  }
+
+  private async reconcileOrphanedConnections(): Promise<void> {
+    console.log("[BotManager] Reconciling orphaned connections...");
+    
+    try {
+      // Find all users with connected platforms (more robust than relying on bot_configs)
+      const connectedPlatforms = await db.query.platformConnections.findMany({
+        where: eq(platformConnections.isConnected, true),
+      });
+
+      // Group by userId
+      const userConnections = new Map<string, number>();
+      for (const conn of connectedPlatforms) {
+        userConnections.set(conn.userId, (userConnections.get(conn.userId) || 0) + 1);
+      }
+
+      console.log(`[BotManager] Found ${userConnections.size} users with connected platforms`);
+
+      let reconciled = 0;
+      for (const [userId, connectionCount] of userConnections) {
+        // Skip if bot is already running
+        if (this.workers.has(userId)) {
+          continue;
+        }
+
+        // Check if user has a bot_config with isActive = false (explicitly stopped)
+        const config = await db.query.botConfigs.findFirst({
+          where: eq(botConfigs.userId, userId),
+        });
+
+        // If config exists and isActive is explicitly false, skip
+        if (config && config.isActive === false) {
+          console.log(`[BotManager] Skipping user ${userId} - bot explicitly stopped`);
+          continue;
+        }
+
+        // If no config exists or isActive is true, start the bot
+        console.log(`[BotManager] Reconciling bot for user ${userId} with ${connectionCount} connected platform(s)`);
+        try {
+          // Ensure bot_config exists with isActive = true
+          if (!config) {
+            await db
+              .insert(botConfigs)
+              .values({
+                userId,
+                isActive: true,
+              })
+              .onConflictDoUpdate({
+                target: botConfigs.userId,
+                set: {
+                  isActive: true,
+                  updatedAt: new Date(),
+                },
+              });
+          }
+
+          await this.startUserBot(userId);
+          reconciled++;
+        } catch (error) {
+          console.error(`[BotManager] Failed to reconcile bot for user ${userId}:`, error);
+        }
+      }
+
+      if (reconciled > 0) {
+        console.log(`[BotManager] ✓ Reconciled ${reconciled} orphaned bot(s)`);
+      } else {
+        console.log("[BotManager] No orphaned connections to reconcile");
+      }
+    } catch (error) {
+      console.error("[BotManager] Reconciliation error:", error);
+    }
   }
 
   async startUserBot(userId: string): Promise<void> {
