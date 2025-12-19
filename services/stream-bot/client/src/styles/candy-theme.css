@@ -1,183 +1,178 @@
-/* Candy Color Palette */
+/* Professional Dark Theme - Modern SaaS Aesthetic */
 :root {
-  /* Primary Candy Colors */
-  --candy-pink: #FF6B9D;
-  --candy-blue: #4ECDC4;
-  --candy-purple: #A78BFA;
-  --candy-green: #5EE68C;
-  --candy-orange: #FFA07A;
-  --candy-yellow: #FFD93D;
+  /* Neutral Colors */
+  --neutral-50: #fafafa;
+  --neutral-100: #f4f4f5;
+  --neutral-200: #e4e4e7;
+  --neutral-300: #d4d4d8;
+  --neutral-400: #a1a1aa;
+  --neutral-500: #71717a;
+  --neutral-600: #52525b;
+  --neutral-700: #3f3f46;
+  --neutral-800: #27272a;
+  --neutral-900: #18181b;
+  --neutral-950: #09090b;
+
+  /* Accent Colors - Subtle and Professional */
+  --accent-primary: #6366f1;
+  --accent-primary-hover: #4f46e5;
+  --accent-primary-muted: rgba(99, 102, 241, 0.15);
+  --accent-success: #22c55e;
+  --accent-success-muted: rgba(34, 197, 94, 0.15);
+  --accent-warning: #f59e0b;
+  --accent-warning-muted: rgba(245, 158, 11, 0.15);
+  --accent-error: #ef4444;
+  --accent-error-muted: rgba(239, 68, 68, 0.15);
+  --accent-info: #3b82f6;
+  --accent-info-muted: rgba(59, 130, 246, 0.15);
+
+  /* Surfaces */
+  --surface-primary: var(--neutral-900);
+  --surface-secondary: var(--neutral-800);
+  --surface-tertiary: var(--neutral-700);
+  --surface-elevated: rgba(255, 255, 255, 0.03);
   
-  /* Gradients */
-  --gradient-cotton-candy: linear-gradient(135deg, #FF6B9D 0%, #C084FC 50%, #4ECDC4 100%);
-  --gradient-blueberry: linear-gradient(135deg, #667EEA 0%, #764BA2 100%);
-  --gradient-lime: linear-gradient(135deg, #5EE68C 0%, #10B981 100%);
-  --gradient-sunset: linear-gradient(135deg, #FFA07A 0%, #FF6B9D 100%);
-  --gradient-ocean: linear-gradient(135deg, #4ECDC4 0%, #556FFF 100%);
-  --gradient-purple-dream: linear-gradient(135deg, #A78BFA 0%, #EC4899 100%);
+  /* Borders */
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-default: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.15);
   
-  /* Glassmorphism */
-  --glass-bg: rgba(255, 255, 255, 0.1);
-  --glass-border: rgba(255, 255, 255, 0.2);
-  --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.3);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
   
-  /* Dark mode glassmorphism */
-  --glass-bg-dark: rgba(0, 0, 0, 0.2);
-  --glass-border-dark: rgba(255, 255, 255, 0.1);
-  
-  /* Animations */
-  --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-bounce: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  /* Transitions */
+  --transition-fast: all 0.15s ease;
+  --transition-base: all 0.2s ease;
+  --transition-slow: all 0.3s ease;
 }
 
-/* Glassmorphic Card */
+/* Glass Card - Clean Modern Style */
 .candy-glass-card {
-  background: var(--glass-bg);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-radius: 24px;
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shadow);
-  transition: var(--transition-smooth);
+  background: var(--surface-secondary);
+  border-radius: 12px;
+  border: 1px solid var(--border-default);
+  box-shadow: var(--shadow-md);
+  transition: var(--transition-base);
 }
 
 .dark .candy-glass-card {
-  background: var(--glass-bg-dark);
-  border-color: var(--glass-border-dark);
+  background: var(--surface-secondary);
+  border-color: var(--border-default);
 }
 
 .candy-glass-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.25);
-  border-color: rgba(255, 255, 255, 0.3);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-lg);
 }
 
-/* Gradient Buttons */
+/* Primary Button */
 .candy-button {
-  background: var(--gradient-cotton-candy);
+  background: var(--accent-primary);
   border: none;
-  border-radius: 16px;
+  border-radius: 8px;
   color: white;
-  font-weight: 600;
-  padding: 12px 24px;
+  font-weight: 500;
+  padding: 10px 20px;
   cursor: pointer;
-  transition: var(--transition-smooth);
-  box-shadow: 0 4px 15px rgba(255, 107, 157, 0.3);
+  transition: var(--transition-fast);
+  box-shadow: var(--shadow-sm);
 }
 
 .candy-button:hover {
-  transform: translateY(-2px) scale(1.02);
-  box-shadow: 0 6px 25px rgba(255, 107, 157, 0.5);
+  background: var(--accent-primary-hover);
+  box-shadow: var(--shadow-md);
 }
 
 .candy-button:active {
-  transform: translateY(0) scale(0.98);
+  transform: scale(0.98);
 }
 
-/* Animated Gradient Background */
+/* Subtle Background */
 .candy-animated-bg {
-  background: linear-gradient(-45deg, #FF6B9D, #C084FC, #4ECDC4, #5EE68C);
-  background-size: 400% 400%;
-  animation: candyGradient 15s ease infinite;
+  background: var(--neutral-950);
 }
 
-@keyframes candyGradient {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
-/* Glow Effects */
+/* Subtle Glow for Focus States */
 .candy-glow {
-  box-shadow: 0 0 20px rgba(255, 107, 157, 0.5),
-              0 0 40px rgba(192, 132, 252, 0.3),
-              0 0 60px rgba(78, 205, 196, 0.2);
-  animation: candyPulse 3s ease-in-out infinite;
+  box-shadow: 0 0 0 2px var(--accent-primary-muted);
 }
 
-@keyframes candyPulse {
-  0%, 100% {
-    box-shadow: 0 0 20px rgba(255, 107, 157, 0.5),
-                0 0 40px rgba(192, 132, 252, 0.3),
-                0 0 60px rgba(78, 205, 196, 0.2);
-  }
-  50% {
-    box-shadow: 0 0 30px rgba(255, 107, 157, 0.7),
-                0 0 50px rgba(192, 132, 252, 0.5),
-                0 0 70px rgba(78, 205, 196, 0.3);
-  }
-}
-
-/* Stats Cards with Candy Colors */
+/* Stats Cards - Clean Minimal Style */
 .candy-stat-card-pink {
-  background: linear-gradient(135deg, rgba(255, 107, 157, 0.2) 0%, rgba(255, 107, 157, 0.05) 100%);
-  border-left: 4px solid var(--candy-pink);
-  transition: var(--transition-smooth);
+  background: var(--surface-elevated);
+  border-left: 3px solid var(--accent-error);
+  transition: var(--transition-base);
+  border-radius: 8px;
 }
 
 .candy-stat-card-pink:hover {
-  background: linear-gradient(135deg, rgba(255, 107, 157, 0.25) 0%, rgba(255, 107, 157, 0.08) 100%);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 16px rgba(255, 107, 157, 0.2);
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: var(--shadow-sm);
 }
 
 .candy-stat-card-blue {
-  background: linear-gradient(135deg, rgba(78, 205, 196, 0.2) 0%, rgba(78, 205, 196, 0.05) 100%);
-  border-left: 4px solid var(--candy-blue);
-  transition: var(--transition-smooth);
+  background: var(--surface-elevated);
+  border-left: 3px solid var(--accent-info);
+  transition: var(--transition-base);
+  border-radius: 8px;
 }
 
 .candy-stat-card-blue:hover {
-  background: linear-gradient(135deg, rgba(78, 205, 196, 0.25) 0%, rgba(78, 205, 196, 0.08) 100%);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 16px rgba(78, 205, 196, 0.2);
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: var(--shadow-sm);
 }
 
 .candy-stat-card-purple {
-  background: linear-gradient(135deg, rgba(167, 139, 250, 0.2) 0%, rgba(167, 139, 250, 0.05) 100%);
-  border-left: 4px solid var(--candy-purple);
-  transition: var(--transition-smooth);
+  background: var(--surface-elevated);
+  border-left: 3px solid var(--accent-primary);
+  transition: var(--transition-base);
+  border-radius: 8px;
 }
 
 .candy-stat-card-purple:hover {
-  background: linear-gradient(135deg, rgba(167, 139, 250, 0.25) 0%, rgba(167, 139, 250, 0.08) 100%);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 16px rgba(167, 139, 250, 0.2);
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: var(--shadow-sm);
 }
 
 .candy-stat-card-green {
-  background: linear-gradient(135deg, rgba(94, 230, 140, 0.2) 0%, rgba(94, 230, 140, 0.05) 100%);
-  border-left: 4px solid var(--candy-green);
-  transition: var(--transition-smooth);
+  background: var(--surface-elevated);
+  border-left: 3px solid var(--accent-success);
+  transition: var(--transition-base);
+  border-radius: 8px;
 }
 
 .candy-stat-card-green:hover {
-  background: linear-gradient(135deg, rgba(94, 230, 140, 0.25) 0%, rgba(94, 230, 140, 0.08) 100%);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 16px rgba(94, 230, 140, 0.2);
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: var(--shadow-sm);
 }
 
-/* Platform-specific Gradients */
+/* Platform-specific Styling */
 .candy-platform-twitch {
-  background: linear-gradient(135deg, rgba(145, 70, 255, 0.15) 0%, rgba(145, 70, 255, 0.05) 100%);
-  border: 1px solid rgba(145, 70, 255, 0.3);
+  background: rgba(145, 70, 255, 0.08);
+  border: 1px solid rgba(145, 70, 255, 0.2);
+  border-radius: 8px;
 }
 
 .candy-platform-youtube {
-  background: linear-gradient(135deg, rgba(255, 0, 0, 0.15) 0%, rgba(255, 0, 0, 0.05) 100%);
-  border: 1px solid rgba(255, 0, 0, 0.3);
+  background: rgba(255, 0, 0, 0.08);
+  border: 1px solid rgba(255, 0, 0, 0.2);
+  border-radius: 8px;
 }
 
 .candy-platform-kick {
-  background: linear-gradient(135deg, rgba(83, 250, 82, 0.15) 0%, rgba(83, 250, 82, 0.05) 100%);
-  border: 1px solid rgba(83, 250, 82, 0.3);
+  background: rgba(83, 250, 82, 0.08);
+  border: 1px solid rgba(83, 250, 82, 0.2);
+  border-radius: 8px;
 }
 
 /* Fade In Animation */
-@keyframes candyFadeIn {
+@keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -186,63 +181,47 @@
 }
 
 .candy-fade-in {
-  animation: candyFadeIn 0.6s ease-out forwards;
+  animation: fadeIn 0.3s ease-out forwards;
 }
 
 .candy-fade-in-delay-1 {
-  animation: candyFadeIn 0.6s ease-out 0.1s forwards;
+  animation: fadeIn 0.3s ease-out 0.05s forwards;
   opacity: 0;
 }
 
 .candy-fade-in-delay-2 {
-  animation: candyFadeIn 0.6s ease-out 0.2s forwards;
+  animation: fadeIn 0.3s ease-out 0.1s forwards;
   opacity: 0;
 }
 
 .candy-fade-in-delay-3 {
-  animation: candyFadeIn 0.6s ease-out 0.3s forwards;
+  animation: fadeIn 0.3s ease-out 0.15s forwards;
   opacity: 0;
 }
 
-/* Shimmer Loading Animation */
-@keyframes candyShimmer {
+/* Loading Shimmer */
+@keyframes shimmer {
   0% {
-    background-position: -1000px 0;
+    background-position: -200% 0;
   }
   100% {
-    background-position: 1000px 0;
+    background-position: 200% 0;
   }
 }
 
 .candy-shimmer {
   background: linear-gradient(
     90deg,
-    rgba(255, 255, 255, 0) 0%,
-    rgba(255, 107, 157, 0.2) 20%,
-    rgba(192, 132, 252, 0.2) 40%,
-    rgba(78, 205, 196, 0.2) 60%,
-    rgba(255, 255, 255, 0) 100%
+    var(--neutral-800) 0%,
+    var(--neutral-700) 50%,
+    var(--neutral-800) 100%
   );
-  background-size: 1000px 100%;
-  animation: candyShimmer 2s infinite linear;
-}
-
-/* Bounce Animation */
-@keyframes candyBounce {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
-}
-
-.candy-bounce {
-  animation: candyBounce 1s ease-in-out infinite;
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
 }
 
 /* Spin Animation for Loader */
-@keyframes candySpin {
+@keyframes spin {
   from {
     transform: rotate(0deg);
   }
@@ -252,33 +231,33 @@
 }
 
 .candy-spin {
-  animation: candySpin 1s linear infinite;
+  animation: spin 1s linear infinite;
 }
 
-/* Gradient Text */
+/* Gradient Text - Subtle Professional */
 .candy-gradient-text {
-  background: var(--gradient-cotton-candy);
+  background: linear-gradient(135deg, var(--neutral-100) 0%, var(--neutral-400) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 /* Hover Elevate Effect */
 .candy-hover-elevate {
-  transition: var(--transition-smooth);
+  transition: var(--transition-base);
 }
 
 .candy-hover-elevate:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
 }
 
 /* Feature Card Styling */
 .candy-feature-card {
   position: relative;
   overflow: hidden;
-  transition: var(--transition-smooth);
+  transition: var(--transition-base);
 }
 
 .candy-feature-card::before {
@@ -291,73 +270,64 @@
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(255, 255, 255, 0.1),
+    rgba(255, 255, 255, 0.03),
     transparent
   );
-  transition: left 0.5s ease;
+  transition: left 0.4s ease;
 }
 
 .candy-feature-card:hover::before {
   left: 100%;
 }
 
-/* Badge Gradients */
+/* Badge Styles - Clean and Minimal */
 .candy-badge-pink {
-  background: var(--gradient-sunset);
-  color: white;
+  background: var(--accent-error-muted);
+  color: var(--accent-error);
   border: none;
-  box-shadow: 0 2px 8px rgba(255, 107, 157, 0.3);
+  font-weight: 500;
+  border-radius: 6px;
 }
 
 .candy-badge-blue {
-  background: var(--gradient-ocean);
-  color: white;
+  background: var(--accent-info-muted);
+  color: var(--accent-info);
   border: none;
-  box-shadow: 0 2px 8px rgba(78, 205, 196, 0.3);
+  font-weight: 500;
+  border-radius: 6px;
 }
 
 .candy-badge-purple {
-  background: var(--gradient-purple-dream);
-  color: white;
+  background: var(--accent-primary-muted);
+  color: var(--accent-primary);
   border: none;
-  box-shadow: 0 2px 8px rgba(167, 139, 250, 0.3);
+  font-weight: 500;
+  border-radius: 6px;
 }
 
 .candy-badge-green {
-  background: var(--gradient-lime);
-  color: white;
+  background: var(--accent-success-muted);
+  color: var(--accent-success);
   border: none;
-  box-shadow: 0 2px 8px rgba(94, 230, 140, 0.3);
+  font-weight: 500;
+  border-radius: 6px;
 }
 
 /* Progress Bar */
 .candy-progress {
-  background: linear-gradient(90deg, var(--candy-pink), var(--candy-purple), var(--candy-blue));
-  background-size: 200% 100%;
-  animation: candyProgressFlow 2s linear infinite;
+  background: var(--accent-primary);
   border-radius: 9999px;
-  height: 8px;
-}
-
-@keyframes candyProgressFlow {
-  0% {
-    background-position: 0% 0%;
-  }
-  100% {
-    background-position: 200% 0%;
-  }
+  height: 6px;
 }
 
 /* Tooltip Styling */
 .candy-tooltip {
-  background: var(--glass-bg-dark);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid var(--glass-border);
-  border-radius: 12px;
+  background: var(--neutral-800);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
   padding: 8px 12px;
   font-size: 0.875rem;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-lg);
 }
 
 /* Scrollbar Styling */
@@ -371,12 +341,12 @@
 }
 
 .candy-scrollbar::-webkit-scrollbar-thumb {
-  background: var(--gradient-cotton-candy);
+  background: var(--neutral-600);
   border-radius: 4px;
 }
 
 .candy-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: var(--gradient-sunset);
+  background: var(--neutral-500);
 }
 
 /* Mobile-first responsive utilities */
@@ -423,10 +393,8 @@
   left: 0;
   right: 0;
   height: 4rem;
-  background: var(--glass-bg-dark);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-top: 1px solid var(--glass-border-dark);
+  background: var(--neutral-900);
+  border-top: 1px solid var(--border-default);
   display: flex;
   align-items: center;
   justify-content: space-around;
@@ -440,20 +408,20 @@
   align-items: center;
   justify-content: center;
   padding: 0.5rem;
-  border-radius: 0.75rem;
-  transition: var(--transition-smooth);
-  color: rgba(255, 255, 255, 0.6);
+  border-radius: 8px;
+  transition: var(--transition-fast);
+  color: var(--neutral-500);
   min-width: 4rem;
 }
 
 .candy-bottom-nav-item:hover,
 .candy-bottom-nav-item.active {
-  color: white;
-  background: rgba(167, 139, 250, 0.2);
+  color: var(--neutral-100);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .candy-bottom-nav-item.active {
-  color: var(--candy-purple);
+  color: var(--accent-primary);
 }
 
 .candy-bottom-nav-item span {
@@ -468,35 +436,27 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.375rem 0.75rem;
-  border-radius: 9999px;
+  border-radius: 6px;
   font-size: 0.75rem;
   font-weight: 500;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-subtle);
 }
 
 .candy-connection-excellent {
-  background: rgba(94, 230, 140, 0.2);
-  color: var(--candy-green);
-  border: 1px solid rgba(94, 230, 140, 0.3);
+  color: var(--accent-success);
 }
 
 .candy-connection-good {
-  background: rgba(255, 217, 61, 0.2);
-  color: var(--candy-yellow);
-  border: 1px solid rgba(255, 217, 61, 0.3);
+  color: var(--accent-warning);
 }
 
 .candy-connection-poor {
-  background: rgba(255, 107, 157, 0.2);
-  color: var(--candy-pink);
-  border: 1px solid rgba(255, 107, 157, 0.3);
+  color: var(--accent-error);
 }
 
 .candy-connection-offline {
-  background: rgba(128, 128, 128, 0.2);
-  color: #888;
-  border: 1px solid rgba(128, 128, 128, 0.3);
+  color: var(--neutral-500);
 }
 
 /* Token Health Indicator */
@@ -505,7 +465,7 @@
   align-items: center;
   gap: 0.375rem;
   padding: 0.25rem 0.5rem;
-  border-radius: 0.5rem;
+  border-radius: 4px;
   font-size: 0.625rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -513,19 +473,18 @@
 }
 
 .candy-token-valid {
-  background: rgba(94, 230, 140, 0.15);
-  color: var(--candy-green);
+  background: var(--accent-success-muted);
+  color: var(--accent-success);
 }
 
 .candy-token-expiring {
-  background: rgba(255, 217, 61, 0.15);
-  color: var(--candy-yellow);
-  animation: candyPulse 2s ease-in-out infinite;
+  background: var(--accent-warning-muted);
+  color: var(--accent-warning);
 }
 
 .candy-token-expired {
-  background: rgba(255, 107, 157, 0.15);
-  color: var(--candy-pink);
+  background: var(--accent-error-muted);
+  color: var(--accent-error);
 }
 
 /* Touch-friendly utilities */
@@ -547,14 +506,14 @@
   justify-content: space-between;
   width: 100%;
   padding: 1rem;
-  background: var(--glass-bg-dark);
-  border-radius: 0.75rem;
-  transition: var(--transition-smooth);
+  background: var(--surface-secondary);
+  border-radius: 8px;
+  transition: var(--transition-fast);
   cursor: pointer;
 }
 
 .candy-collapsible-trigger:hover {
-  background: rgba(167, 139, 250, 0.1);
+  background: var(--surface-tertiary);
 }
 
 .candy-collapsible-trigger[data-state="open"] {
@@ -563,34 +522,34 @@
 }
 
 .candy-collapsible-content {
-  background: var(--glass-bg-dark);
-  border-radius: 0 0 0.75rem 0.75rem;
+  background: var(--surface-secondary);
+  border-radius: 0 0 8px 8px;
   padding: 1rem;
-  border-top: 1px solid var(--glass-border-dark);
+  border-top: 1px solid var(--border-subtle);
 }
 
 /* Overlay Editor styles */
 .candy-overlay-canvas {
   position: relative;
-  background: linear-gradient(45deg, #1a1a2e 25%, #16162a 25%, #16162a 50%, #1a1a2e 50%, #1a1a2e 75%, #16162a 75%);
+  background: linear-gradient(45deg, var(--neutral-900) 25%, var(--neutral-800) 25%, var(--neutral-800) 50%, var(--neutral-900) 50%, var(--neutral-900) 75%, var(--neutral-800) 75%);
   background-size: 20px 20px;
-  border-radius: 0.5rem;
+  border-radius: 8px;
   overflow: hidden;
-  border: 2px solid var(--glass-border-dark);
+  border: 1px solid var(--border-default);
 }
 
 .candy-overlay-element {
   position: absolute;
   cursor: move;
   border: 2px solid transparent;
-  border-radius: 0.25rem;
-  transition: border-color 0.2s ease;
+  border-radius: 4px;
+  transition: border-color 0.15s ease;
 }
 
 .candy-overlay-element:hover,
 .candy-overlay-element.selected {
-  border-color: var(--candy-purple);
-  box-shadow: 0 0 0 2px rgba(167, 139, 250, 0.3);
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px var(--accent-primary-muted);
 }
 
 .candy-overlay-element.dragging {
@@ -600,9 +559,9 @@
 
 .candy-overlay-handle {
   position: absolute;
-  width: 12px;
-  height: 12px;
-  background: var(--candy-purple);
+  width: 10px;
+  height: 10px;
+  background: var(--accent-primary);
   border: 2px solid white;
   border-radius: 50%;
   cursor: nwse-resize;
@@ -625,22 +584,21 @@
   aspect-ratio: 9 / 16;
 }
 
-/* Purple streamer theme enhancements */
+/* Streamer theme - Professional */
 .candy-streamer-card {
-  background: linear-gradient(135deg, rgba(167, 139, 250, 0.1) 0%, rgba(139, 92, 246, 0.05) 100%);
-  border: 1px solid rgba(167, 139, 250, 0.2);
-  border-radius: 1rem;
-  transition: var(--transition-smooth);
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  transition: var(--transition-base);
 }
 
 .candy-streamer-card:hover {
-  border-color: rgba(167, 139, 250, 0.4);
-  box-shadow: 0 0 20px rgba(167, 139, 250, 0.15);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-md);
 }
 
 .candy-streamer-glow {
-  box-shadow: 0 0 15px rgba(167, 139, 250, 0.3),
-              0 0 30px rgba(167, 139, 250, 0.15);
+  box-shadow: var(--shadow-lg);
 }
 
 /* Latency display styles */
@@ -651,20 +609,20 @@
   font-family: var(--font-mono);
   font-size: 0.75rem;
   padding: 0.25rem 0.5rem;
-  border-radius: 0.375rem;
-  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+  background: var(--surface-elevated);
 }
 
 .candy-latency-low {
-  color: var(--candy-green);
+  color: var(--accent-success);
 }
 
 .candy-latency-medium {
-  color: var(--candy-yellow);
+  color: var(--accent-warning);
 }
 
 .candy-latency-high {
-  color: var(--candy-pink);
+  color: var(--accent-error);
 }
 
 /* Platform status icons */
@@ -682,24 +640,28 @@
 }
 
 .candy-platform-status-dot.online {
-  background: var(--candy-green);
-  box-shadow: 0 0 8px var(--candy-green);
-  animation: candyPulse 2s ease-in-out infinite;
+  background: var(--accent-success);
+  box-shadow: 0 0 6px var(--accent-success);
 }
 
 .candy-platform-status-dot.offline {
-  background: #666;
+  background: var(--neutral-600);
 }
 
 .candy-platform-status-dot.connecting {
-  background: var(--candy-yellow);
-  animation: candyPulse 1s ease-in-out infinite;
+  background: var(--accent-warning);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
 /* Timestamp styling */
 .candy-timestamp {
   font-size: 0.625rem;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--neutral-500);
   font-family: var(--font-mono);
 }
 
@@ -717,9 +679,7 @@
 
 /* Reduce motion for accessibility */
 @media (prefers-reduced-motion: reduce) {
-  .candy-bounce,
   .candy-spin,
-  .candy-glow,
   .candy-fade-in,
   .candy-fade-in-delay-1,
   .candy-fade-in-delay-2,

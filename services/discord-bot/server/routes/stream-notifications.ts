@@ -16,13 +16,23 @@ const externalNotificationSchema = z.object({
   viewerCount: z.number().optional(),
 });
 
-// Validation schemas
+// Validation schemas - Enhanced with YAGPDB-style features
 const streamSettingsSchema = z.object({
   notificationChannelId: z.string(),
   customMessage: z.string().nullable().optional(),
   isEnabled: z.boolean().optional(),
   autoDetectEnabled: z.boolean().optional(),
   autoSyncIntervalMinutes: z.number().min(15).max(1440).optional(),
+  mentionRole: z.string().nullable().optional(),
+  // YAGPDB-style features
+  notifyAllMembers: z.boolean().optional(),
+  roleRequirements: z.string().nullable().optional(), // JSON array of role IDs
+  excludedRoles: z.string().nullable().optional(), // JSON array of role IDs
+  gameFilterEnabled: z.boolean().optional(),
+  gameFilterRegex: z.string().nullable().optional(),
+  streamingRoleEnabled: z.boolean().optional(),
+  streamingRoleId: z.string().nullable().optional(),
+  cooldownMinutes: z.number().min(0).max(1440).optional(),
 });
 
 const trackedUserSchema = z.object({
@@ -79,7 +89,17 @@ router.get("/settings/:serverId", isAuthenticated, async (req: Request, res: Res
       customMessage: null,
       isEnabled: false,
       autoDetectEnabled: false,
-      autoSyncIntervalMinutes: 60
+      autoSyncIntervalMinutes: 60,
+      mentionRole: null,
+      // YAGPDB-style defaults
+      notifyAllMembers: false,
+      roleRequirements: null,
+      excludedRoles: null,
+      gameFilterEnabled: false,
+      gameFilterRegex: null,
+      streamingRoleEnabled: false,
+      streamingRoleId: null,
+      cooldownMinutes: 30
     });
   } catch (error) {
     console.error("Failed to get stream notification settings:", error);

@@ -1,12 +1,13 @@
-import { Client, ActivityType, EmbedBuilder, TextChannel, GuildMember } from 'discord.js';
+import { Client, ActivityType, EmbedBuilder, TextChannel, GuildMember, Role } from 'discord.js';
 import { IStorage } from '../storage';
 import { twitchAPI, youtubeAPI, type EnrichedStreamData } from './twitch-api';
+import { StreamNotificationSettings } from '../../shared/schema';
 
 /**
- * ENHANCED STREAM NOTIFICATION SYSTEM WITH EDGE CASE HANDLING
+ * ENHANCED STREAM NOTIFICATION SYSTEM WITH YAGPDB-STYLE FEATURES
  * 
- * Features:
- * - Debouncing: 30 second minimum between notifications
+ * Core Features:
+ * - Debouncing: Configurable cooldown between notifications
  * - Offline grace period: 5 minutes before removing "live" status
  * - Platform switch detection: Handles Twitch → YouTube transitions
  * - Stream verification: Confirms stream is live via platform API
@@ -14,6 +15,14 @@ import { twitchAPI, youtubeAPI, type EnrichedStreamData } from './twitch-api';
  * - Notification queue: Queues notifications during Discord API downtime
  * - Comprehensive logging: All state transitions logged
  * - Presence flapping protection: Prevents spam from unstable presence
+ * 
+ * YAGPDB-Style Features:
+ * - Role-based filtering: Only notify for users with certain roles
+ * - Excluded roles: Skip users who have specific roles
+ * - Game/category regex filter: Only notify for specific games
+ * - Streaming role assignment: Auto-assign role when streaming, remove when done
+ * - Custom message templates: {user}, {game}, {url}, {title}, {platform}
+ * - Notify all members option: Not just tracked users
  */
 
 // Stream state tracking
@@ -57,11 +66,170 @@ let discordAPIHealthy = true;
 let lastAPIFailure: Date | null = null;
 
 // Configuration
-const DEBOUNCE_INTERVAL_MS = 30 * 1000; // 30 seconds
+const DEFAULT_COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes default cooldown
 const OFFLINE_GRACE_PERIOD_MS = 5 * 60 * 1000; // 5 minutes
 const MIN_STREAM_DURATION_MS = 60 * 1000; // 1 minute
 const MAX_RETRY_ATTEMPTS = 5;
 const RETRY_BASE_DELAY_MS = 1000; // Start with 1 second
+
+// Track users who currently have the streaming role assigned
+const usersWithStreamingRole = new Map<string, string>(); // key: `${serverId}:${userId}`, value: roleId
+
+/**
+ * YAGPDB-STYLE HELPER FUNCTIONS
+ */
+
+/**
+ * Check if a member meets role requirements for notifications
+ * Returns true if member has at least one required role (or if no requirements set)
+ */
+function checkRoleRequirements(member: GuildMember, settings: StreamNotificationSettings): boolean {
+  if (!settings.roleRequirements) return true;
+  
+  try {
+    const requiredRoles: string[] = JSON.parse(settings.roleRequirements);
+    if (requiredRoles.length === 0) return true;
+    
+    const hasRequiredRole = requiredRoles.some(roleId => member.roles.cache.has(roleId));
+    if (!hasRequiredRole) {
+      console.log(`[Role Filter] ${member.displayName} does not have any required roles, skipping`);
+    }
+    return hasRequiredRole;
+  } catch (error) {
+    console.error('[Role Filter] Error parsing role requirements:', error);
+    return true; // Default to allowing if parse error
+  }
+}
+
+/**
+ * Check if a member has any excluded roles
+ * Returns true if member should be excluded (has an excluded role)
+ */
+function hasExcludedRole(member: GuildMember, settings: StreamNotificationSettings): boolean {
+  if (!settings.excludedRoles) return false;
+  
+  try {
+    const excludedRoles: string[] = JSON.parse(settings.excludedRoles);
+    if (excludedRoles.length === 0) return false;
+    
+    const hasExcluded = excludedRoles.some(roleId => member.roles.cache.has(roleId));
+    if (hasExcluded) {
+      console.log(`[Role Filter] ${member.displayName} has an excluded role, skipping`);
+    }
+    return hasExcluded;
+  } catch (error) {
+    console.error('[Role Filter] Error parsing excluded roles:', error);
+    return false; // Default to not excluding if parse error
+  }
+}
+
+/**
+ * Check if game/category matches the filter regex
+ * Returns true if game matches (or if no filter set)
+ */
+function matchesGameFilter(game: string | null, settings: StreamNotificationSettings): boolean {
+  if (!settings.gameFilterEnabled || !settings.gameFilterRegex) return true;
+  if (!game) return false; // If game required but none provided
+  
+  try {
+    const regex = new RegExp(settings.gameFilterRegex, 'i');
+    const matches = regex.test(game);
+    if (!matches) {
+      console.log(`[Game Filter] "${game}" does not match regex "${settings.gameFilterRegex}", skipping`);
+    }
+    return matches;
+  } catch (error) {
+    console.error('[Game Filter] Invalid regex pattern:', error);
+    return true; // Default to allowing if regex error
+  }
+}
+
+/**
+ * Get the cooldown interval based on settings
+ */
+function getCooldownMs(settings: StreamNotificationSettings): number {
+  const cooldownMinutes = settings.cooldownMinutes ?? 30;
+  return cooldownMinutes * 60 * 1000;
+}
+
+/**
+ * Assign streaming role to a member
+ */
+async function assignStreamingRole(
+  member: GuildMember,
+  settings: StreamNotificationSettings
+): Promise<void> {
+  if (!settings.streamingRoleEnabled || !settings.streamingRoleId) return;
+  
+  const key = `${member.guild.id}:${member.id}`;
+  
+  try {
+    const role = member.guild.roles.cache.get(settings.streamingRoleId);
+    if (!role) {
+      console.warn(`[Streaming Role] Role ${settings.streamingRoleId} not found in guild`);
+      return;
+    }
+    
+    if (!member.roles.cache.has(settings.streamingRoleId)) {
+      await member.roles.add(role, 'User started streaming');
+      usersWithStreamingRole.set(key, settings.streamingRoleId);
+      console.log(`✓ [Streaming Role] Assigned "${role.name}" to ${member.displayName}`);
+    }
+  } catch (error) {
+    console.error(`[Streaming Role] Failed to assign role to ${member.displayName}:`, error);
+  }
+}
+
+/**
+ * Remove streaming role from a member
+ */
+async function removeStreamingRole(
+  member: GuildMember,
+  settings: StreamNotificationSettings
+): Promise<void> {
+  if (!settings.streamingRoleEnabled || !settings.streamingRoleId) return;
+  
+  const key = `${member.guild.id}:${member.id}`;
+  
+  try {
+    const role = member.guild.roles.cache.get(settings.streamingRoleId);
+    if (!role) {
+      usersWithStreamingRole.delete(key);
+      return;
+    }
+    
+    if (member.roles.cache.has(settings.streamingRoleId)) {
+      await member.roles.remove(role, 'User stopped streaming');
+      usersWithStreamingRole.delete(key);
+      console.log(`✓ [Streaming Role] Removed "${role.name}" from ${member.displayName}`);
+    }
+  } catch (error) {
+    console.error(`[Streaming Role] Failed to remove role from ${member.displayName}:`, error);
+  }
+}
+
+/**
+ * Process custom message template with variables
+ * Supports: {user}, {game}, {url}, {title}, {platform}, {channel}
+ */
+function processMessageTemplate(
+  template: string,
+  member: GuildMember,
+  state: StreamState,
+  enrichedData: EnrichedStreamData | null
+): string {
+  const game = enrichedData?.game || state.game || 'Unknown Game';
+  const title = enrichedData?.title || state.streamTitle || 'Live Stream';
+  
+  return template
+    .replace(/{user}/g, member.toString())
+    .replace(/{username}/g, member.displayName)
+    .replace(/{game}/g, game)
+    .replace(/{url}/g, state.streamUrl)
+    .replace(/{title}/g, title)
+    .replace(/{platform}/g, state.platform)
+    .replace(/{channel}/g, member.guild.name);
+}
 
 /**
  * Generate unique session ID for a stream
@@ -252,13 +420,13 @@ export function createStreamNotificationEmbed(
 }
 
 /**
- * Send stream notification with retry logic
+ * Send stream notification with retry logic (YAGPDB-enhanced)
  */
 async function sendStreamNotification(
   guild: any,
   member: GuildMember,
   state: StreamState,
-  settings: any,
+  settings: StreamNotificationSettings,
   storage: IStorage,
   enrichedData: EnrichedStreamData | null
 ): Promise<boolean> {
@@ -272,14 +440,15 @@ async function sendStreamNotification(
     }
 
     // Get custom message from server settings or use default
-    let messageTemplate = settings.customMessage || `{user} just went live!`;
+    const messageTemplate = settings.customMessage || `{user} just went live!`;
     
-    // Substitute placeholders (use enriched data if available)
-    const gameName = enrichedData?.game || state.game || 'Unknown Game';
-    let content = messageTemplate
-      .replace(/{user}/g, member.toString())
-      .replace(/{game}/g, gameName)
-      .replace(/{platform}/g, state.platform);
+    // Process template with all YAGPDB-style variables
+    let content = processMessageTemplate(messageTemplate, member, state, enrichedData);
+    
+    // Add mention role if configured
+    if (settings.mentionRole) {
+      content = `<@&${settings.mentionRole}> ${content}`;
+    }
 
     // Create the embed with enriched data
     const embed = createStreamNotificationEmbed(
@@ -436,7 +605,7 @@ function handleStreamOffline(serverId: string, userId: string, state: StreamStat
 }
 
 /**
- * Handle presence update events to detect when users start streaming
+ * Handle presence update events to detect when users start streaming (YAGPDB-enhanced)
  */
 export async function handlePresenceUpdate(
   storage: IStorage,
@@ -458,11 +627,14 @@ export async function handlePresenceUpdate(
       return; // Stream notifications not configured for this server
     }
 
-    // Check if this user is being tracked
+    // YAGPDB-STYLE: Check if we should process this user
+    // Option 1: Track all members who go live
+    // Option 2: Only track specific users (default)
     const trackedUsers = await storage.getStreamTrackedUsers(serverId);
     const isTracked = trackedUsers.some(u => u.userId === userId);
+    const shouldProcess = settings.notifyAllMembers || isTracked;
     
-    if (!isTracked) {
+    if (!shouldProcess) {
       return; // This user isn't being tracked for stream notifications
     }
 
@@ -487,6 +659,35 @@ export async function handlePresenceUpdate(
       const game = newStreaming.name || null;
       
       console.log(`[Presence Update] ${userId} streaming on ${platform}: ${streamUrl}`);
+      
+      // Fetch member first for role checks
+      const member = await retryWithBackoff(
+        () => newPresence.guild.members.fetch(userId),
+        `Fetch member ${userId}`
+      );
+      
+      if (!member) {
+        console.error(`[Presence Update] Could not fetch member ${userId}`);
+        return;
+      }
+      
+      // YAGPDB-STYLE: Assign streaming role immediately when streaming detected
+      await assignStreamingRole(member as GuildMember, settings);
+      
+      // YAGPDB-STYLE: Check role requirements
+      if (!checkRoleRequirements(member as GuildMember, settings)) {
+        return; // User doesn't have required roles
+      }
+      
+      // YAGPDB-STYLE: Check excluded roles
+      if (hasExcludedRole(member as GuildMember, settings)) {
+        return; // User has an excluded role
+      }
+      
+      // YAGPDB-STYLE: Check game/category filter
+      if (!matchesGameFilter(game, settings)) {
+        return; // Game doesn't match filter
+      }
       
       // Check if this is a new stream session or platform switch
       const isPlatformSwitch = existingState && existingState.platform !== platform;
@@ -548,11 +749,12 @@ export async function handlePresenceUpdate(
       
       streamStates.set(key, state);
       
-      // DEBOUNCE CHECK: Don't notify if we just notified recently
+      // YAGPDB-STYLE: Cooldown check using configurable duration
+      const cooldownMs = getCooldownMs(settings);
       if (state.lastNotifiedAt) {
         const timeSinceLastNotification = now.getTime() - state.lastNotifiedAt.getTime();
-        if (timeSinceLastNotification < DEBOUNCE_INTERVAL_MS) {
-          console.log(`⏱ [Debounce] ${userId} - Skipping notification (${timeSinceLastNotification / 1000}s since last notification)`);
+        if (timeSinceLastNotification < cooldownMs) {
+          console.log(`⏱ [Cooldown] ${userId} - Skipping notification (${Math.round(timeSinceLastNotification / 60000)}min since last, cooldown is ${settings.cooldownMinutes}min)`);
           return;
         }
       }
@@ -570,17 +772,6 @@ export async function handlePresenceUpdate(
         
         state.verifiedLive = !!enrichedData;
         
-        // Fetch member
-        const member = await retryWithBackoff(
-          () => newPresence.guild.members.fetch(userId),
-          `Fetch member ${userId}`
-        );
-        
-        if (!member) {
-          console.error(`[Presence Update] Could not fetch member ${userId}`);
-          return;
-        }
-        
         // Try to send notification
         const success = await sendStreamNotification(
           newPresence.guild,
@@ -596,9 +787,12 @@ export async function handlePresenceUpdate(
           state.lastNotifiedAt = now;
           streamStates.set(key, state);
           
-          await storage.updateStreamTrackedUser(serverId, userId, {
-            lastNotifiedAt: now
-          });
+          // Update tracked user if this is a tracked user
+          if (isTracked) {
+            await storage.updateStreamTrackedUser(serverId, userId, {
+              lastNotifiedAt: now
+            });
+          }
         } else {
           // Queue for retry
           console.log(`[Notification Queue] Queueing notification for ${(member as GuildMember).displayName}`);
@@ -616,6 +810,16 @@ export async function handlePresenceUpdate(
     // USER STOPPED STREAMING
     else if (!newStreaming && existingState && existingState.isLive) {
       console.log(`[Presence Update] ${userId} stopped streaming`);
+      
+      // YAGPDB-STYLE: Remove streaming role when user stops streaming
+      try {
+        const member = await newPresence.guild.members.fetch(userId);
+        if (member) {
+          await removeStreamingRole(member as GuildMember, settings);
+        }
+      } catch (error) {
+        console.warn(`[Streaming Role] Could not remove role for ${userId}:`, error);
+      }
       
       // Check if stream was too short (< 1 minute)
       const streamDuration = now.getTime() - existingState.startedAt.getTime();

@@ -545,16 +545,28 @@ export type InsertThreadMapping = z.infer<typeof insertThreadMappingSchema>;
 export type ThreadMapping = typeof threadMappings.$inferSelect;
 
 // Stream Notification Settings - tracks which channels to send streaming notifications
+// YAGPDB-style features: role filtering, game regex, streaming role assignment, cooldowns
 export const streamNotificationSettings = pgTable("stream_notification_settings", {
   id: serial("id").primaryKey(),
   serverId: text("server_id").notNull().unique(), // Discord server ID
   notificationChannelId: text("notification_channel_id"), // Channel to post stream notifications
   isEnabled: boolean("is_enabled").default(true), // Whether stream notifications are enabled
   mentionRole: text("mention_role"), // Optional role to @ mention in notifications
-  customMessage: text("custom_message"), // Optional custom message template
+  customMessage: text("custom_message"), // Optional custom message template with variables: {user}, {game}, {url}, {title}, {platform}
   autoDetectEnabled: boolean("auto_detect_enabled").default(false), // Auto-detect users with connected streaming accounts
   autoSyncIntervalMinutes: integer("auto_sync_interval_minutes").default(60), // How often to rescan server members (in minutes)
   lastAutoSyncAt: timestamp("last_auto_sync_at"), // When we last auto-scanned the server
+  
+  // YAGPDB-style features
+  gameFilterRegex: text("game_filter_regex"), // Regex pattern to filter by game/category (e.g., "Minecraft|Fortnite")
+  gameFilterEnabled: boolean("game_filter_enabled").default(false), // Whether game filtering is active
+  roleRequirements: text("role_requirements"), // JSON array of role IDs - user must have at least one to trigger notifications
+  excludedRoles: text("excluded_roles"), // JSON array of role IDs - users with these roles are excluded
+  streamingRoleId: text("streaming_role_id"), // Role to assign when user starts streaming, removed when done
+  streamingRoleEnabled: boolean("streaming_role_enabled").default(false), // Whether streaming role assignment is enabled
+  cooldownMinutes: integer("cooldown_minutes").default(30), // Cooldown between notifications per user (prevent spam)
+  notifyAllMembers: boolean("notify_all_members").default(false), // If true, notify for ALL members who go live (not just tracked users)
+  
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
