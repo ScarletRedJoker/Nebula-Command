@@ -20,26 +20,33 @@ echo ""
 
 # Step 1: Check hostname resolution
 echo -e "${CYAN}[1/7] Hostname Resolution${NC}"
-NAS_IP=$(getent hosts "$NAS_HOST" 2>/dev/null | awk '{print $1}' | head -1)
-if [ -n "$NAS_IP" ]; then
-    echo -e "${GREEN}[OK]${NC} $NAS_HOST resolves to $NAS_IP"
+
+# Check if input is already an IP address
+if [[ "$NAS_HOST" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    NAS_IP="$NAS_HOST"
+    echo -e "${GREEN}[OK]${NC} Using IP address directly: $NAS_IP"
 else
-    echo -e "${YELLOW}[WARN]${NC} Cannot resolve $NAS_HOST via DNS"
-    
-    # Try mDNS
-    NAS_IP=$(avahi-resolve -n "$NAS_HOST" 2>/dev/null | awk '{print $2}')
+    NAS_IP=$(getent hosts "$NAS_HOST" 2>/dev/null | awk '{print $1}' | head -1)
     if [ -n "$NAS_IP" ]; then
-        echo -e "${GREEN}[OK]${NC} Resolved via mDNS: $NAS_IP"
+        echo -e "${GREEN}[OK]${NC} $NAS_HOST resolves to $NAS_IP"
     else
-        echo -e "${RED}[FAIL]${NC} Cannot resolve hostname"
-        echo ""
-        echo "Try running with IP address:"
-        echo "  ./diagnose-nas.sh 192.168.x.x"
-        echo ""
-        echo "Or check your network:"
-        echo "  - Is NAS powered on?"
-        echo "  - Is NAS on same network as this computer?"
-        echo "  - Try: arp -a | grep -i zyxel"
+        echo -e "${YELLOW}[WARN]${NC} Cannot resolve $NAS_HOST via DNS"
+        
+        # Try mDNS
+        NAS_IP=$(avahi-resolve -n "$NAS_HOST" 2>/dev/null | awk '{print $2}')
+        if [ -n "$NAS_IP" ]; then
+            echo -e "${GREEN}[OK]${NC} Resolved via mDNS: $NAS_IP"
+        else
+            echo -e "${RED}[FAIL]${NC} Cannot resolve hostname"
+            echo ""
+            echo "Try running with IP address:"
+            echo "  ./diagnose-nas.sh 192.168.x.x"
+            echo ""
+            echo "Or check your network:"
+            echo "  - Is NAS powered on?"
+            echo "  - Is NAS on same network as this computer?"
+            echo "  - Try: arp -a | grep -i zyxel"
+        fi
     fi
 fi
 
