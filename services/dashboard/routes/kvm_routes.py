@@ -1,10 +1,20 @@
 """
 KVM Gaming Management Routes
 Windows VM control with GPU passthrough for gaming/productivity mode switching
+
+Communication priority:
+1. Windows HTTP Agent (port 8765) - fastest, most reliable
+2. SSH fallback - if agent unavailable
+3. Manual instructions - if nothing works
 """
 import os
 import logging
 import re
+import json
+import subprocess
+from typing import Optional, Dict, Any, Tuple
+from urllib.request import urlopen, Request
+from urllib.error import URLError, HTTPError
 
 from flask import Blueprint, jsonify, request, render_template
 from utils.auth import require_auth, require_web_auth
@@ -16,17 +26,95 @@ logger = logging.getLogger(__name__)
 
 kvm_bp = Blueprint('kvm', __name__, url_prefix='/kvm')
 
-VM_NAME = os.environ.get('KVM_VM_NAME', 'win11')
 HOST_ID = 'local'
+AGENT_PORT = int(os.environ.get('KVM_AGENT_PORT', '8765'))
+AGENT_TIMEOUT = 5
+CONFIG_FILE = os.environ.get('KVM_CONFIG_FILE', '/etc/kvm-orchestrator.conf')
 
-def get_windows_ssh_config():
+
+def load_kvm_config() -> Dict[str, str]:
+    """Load KVM configuration from file or environment"""
+    config = {
+        'vm_name': os.environ.get('KVM_VM_NAME', ''),
+        'vm_ip': os.environ.get('WINDOWS_VM_IP', ''),
+    }
+    
+    for config_path in [CONFIG_FILE, os.path.expanduser('~/.kvm-orchestrator.conf')]:
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, 'r') as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith('#') and '=' in line:
+                            key, value = line.split('=', 1)
+                            key = key.strip().lower()
+                            value = value.strip().strip('"\'')
+                            if key == 'vm_name' and value:
+                                config['vm_name'] = value
+                            elif key == 'vm_ip' and value:
+                                config['vm_ip'] = value
+            except Exception as e:
+                logger.warning(f"Could not read config from {config_path}: {e}")
+    
+    if not config['vm_name']:
+        config['vm_name'] = 'win11'
+    
+    return config
+
+
+def get_windows_ssh_config() -> Dict[str, str]:
     """Get Windows VM SSH configuration from environment"""
+    config = load_kvm_config()
     return {
-        'ip': os.environ.get('WINDOWS_VM_IP', '192.168.122.250'),
+        'ip': config['vm_ip'] or os.environ.get('WINDOWS_VM_IP', '192.168.122.250'),
         'user': os.environ.get('WINDOWS_VM_USER', 'Administrator'),
         'ssh_key': os.environ.get('WINDOWS_VM_SSH_KEY', '~/.ssh/id_rsa'),
         'known_hosts': os.environ.get('WINDOWS_VM_KNOWN_HOSTS', '~/.ssh/known_hosts'),
     }
+
+
+def call_windows_agent(endpoint: str, method: str = 'GET', timeout: int = AGENT_TIMEOUT) -> Tuple[bool, Optional[Dict], str]:
+    """
+    Call the Windows HTTP agent
+    Returns: (success, data, message)
+    """
+    config = load_kvm_config()
+    vm_ip = config.get('vm_ip')
+    
+    if not vm_ip:
+        return False, None, "VM IP not configured"
+    
+    url = f"http://{vm_ip}:{AGENT_PORT}{endpoint}"
+    
+    try:
+        req = Request(url, method=method)
+        req.add_header('Content-Type', 'application/json')
+        
+        with urlopen(req, timeout=timeout) as response:
+            data = json.loads(response.read().decode('utf-8'))
+            return True, data, "Agent responded"
+            
+    except HTTPError as e:
+        try:
+            error_data = json.loads(e.read().decode('utf-8'))
+            return False, error_data, f"Agent error: {e.code}"
+        except:
+            return False, None, f"Agent HTTP error: {e.code}"
+    except URLError as e:
+        return False, None, f"Agent unreachable: {e.reason}"
+    except Exception as e:
+        return False, None, f"Agent error: {str(e)}"
+
+
+def check_agent_status() -> Dict[str, Any]:
+    """Check if Windows agent is responding"""
+    success, data, message = call_windows_agent('/health')
+    return {
+        'available': success,
+        'data': data,
+        'message': message
+    }
+
 
 def build_secure_ssh_cmd(command: str) -> str:
     """Build a secure SSH command with proper host key checking"""
@@ -51,37 +139,103 @@ def kvm_management():
     return render_template('kvm_management.html')
 
 
+@kvm_bp.route('/api/config', methods=['GET'])
+@require_auth
+def get_config():
+    """Get current KVM configuration"""
+    config = load_kvm_config()
+    agent_status = check_agent_status()
+    
+    return make_response(True, {
+        'vm_name': config['vm_name'],
+        'vm_ip': config['vm_ip'],
+        'agent_port': AGENT_PORT,
+        'agent_available': agent_status['available'],
+        'agent_message': agent_status['message'],
+        'config_sources': {
+            'file': CONFIG_FILE if os.path.exists(CONFIG_FILE) else None,
+            'user_file': os.path.expanduser('~/.kvm-orchestrator.conf') if os.path.exists(os.path.expanduser('~/.kvm-orchestrator.conf')) else None,
+        }
+    })
+
+
 @kvm_bp.route('/api/status', methods=['GET'])
 @require_auth
 def get_vm_status():
-    """Get Windows VM status via virsh"""
+    """Get comprehensive Windows VM status"""
     try:
+        config = load_kvm_config()
+        vm_name = config['vm_name']
+        vm_ip = config['vm_ip']
+        
         result = fleet_manager.execute_command(
             HOST_ID,
-            f'virsh list --all | grep {VM_NAME}',
+            f'virsh list --all | grep -E "\\s{vm_name}\\s|\\s{vm_name}$"',
             bypass_whitelist=True
         )
         
-        if not result.get('success') and 'error' in result:
-            return make_response(False, message=result.get('error'), status_code=500)
-        
         output = result.get('output', '').strip()
-        
-        status = 'unknown'
+        vm_state = 'unknown'
         if 'running' in output.lower():
-            status = 'running'
+            vm_state = 'running'
         elif 'shut off' in output.lower():
-            status = 'stopped'
+            vm_state = 'stopped'
         elif 'paused' in output.lower():
-            status = 'paused'
+            vm_state = 'paused'
         elif not output:
-            status = 'not_found'
+            vm_state = 'not_found'
         
-        return make_response(True, {
-            'vm_name': VM_NAME,
-            'status': status,
+        status_data = {
+            'vm_name': vm_name,
+            'vm_state': vm_state,
+            'vm_ip': vm_ip,
+            'agent': {'available': False, 'message': 'Not checked'},
+            'sunshine': {'responding': False},
+            'rdp': {'responding': False},
+            'communication_method': 'none',
             'raw_output': output
-        })
+        }
+        
+        if vm_state == 'running' and vm_ip:
+            agent_check = check_agent_status()
+            status_data['agent'] = agent_check
+            
+            if agent_check['available'] and agent_check.get('data'):
+                status_data['communication_method'] = 'http_agent'
+                agent_data = agent_check['data']
+                
+                if 'sunshine' in agent_data:
+                    status_data['sunshine'] = {
+                        'responding': agent_data['sunshine'].get('running', False),
+                        'details': agent_data['sunshine']
+                    }
+                
+                if 'rdp' in agent_data:
+                    status_data['rdp'] = {
+                        'responding': agent_data['rdp'].get('service_running', False),
+                        'enabled': agent_data['rdp'].get('enabled', False),
+                        'details': agent_data['rdp']
+                    }
+                
+                if 'gpu' in agent_data:
+                    status_data['gpu'] = agent_data['gpu']
+            else:
+                sunshine_check = fleet_manager.execute_command(
+                    HOST_ID,
+                    f'nc -z -w 2 {vm_ip} 47989 && echo "open" || echo "closed"',
+                    bypass_whitelist=True
+                )
+                status_data['sunshine']['responding'] = 'open' in sunshine_check.get('output', '')
+                
+                rdp_check = fleet_manager.execute_command(
+                    HOST_ID,
+                    f'nc -z -w 2 {vm_ip} 3389 && echo "open" || echo "closed"',
+                    bypass_whitelist=True
+                )
+                status_data['rdp']['responding'] = 'open' in rdp_check.get('output', '')
+                status_data['communication_method'] = 'port_scan'
+        
+        return make_response(True, status_data)
         
     except Exception as e:
         logger.error(f"Error getting VM status: {e}")
@@ -94,16 +248,29 @@ def get_vm_status():
 def start_vm():
     """Start the Windows VM"""
     try:
+        config = load_kvm_config()
+        vm_name = config['vm_name']
+        
         result = fleet_manager.execute_command(
             HOST_ID,
-            f'virsh start {VM_NAME}',
+            f'virsh start {vm_name}',
             bypass_whitelist=True
         )
         
-        if result.get('success'):
-            return make_response(True, message=f'VM {VM_NAME} started successfully')
+        if result.get('success') or 'already active' in result.get('output', '').lower():
+            return make_response(True, message=f'VM {vm_name} started successfully')
         else:
-            return make_response(False, message=result.get('error') or result.get('output'), status_code=400)
+            error_msg = result.get('error') or result.get('output', 'Unknown error')
+            
+            suggestions = []
+            if 'already active' in error_msg.lower():
+                return make_response(True, message=f'VM {vm_name} is already running')
+            if 'domain' in error_msg.lower() and 'not found' in error_msg.lower():
+                suggestions.append(f"Run 'kvm-orchestrator.sh discover' to find available VMs")
+            if 'gpu' in error_msg.lower() or 'vfio' in error_msg.lower():
+                suggestions.append("GPU may be in use. Try: echo 1 | sudo tee /sys/bus/pci/devices/0000:XX:00.0/reset")
+            
+            return make_response(False, data={'suggestions': suggestions}, message=error_msg, status_code=400)
             
     except Exception as e:
         logger.error(f"Error starting VM: {e}")
@@ -116,14 +283,23 @@ def start_vm():
 def stop_vm():
     """Gracefully shutdown the Windows VM"""
     try:
+        config = load_kvm_config()
+        vm_name = config['vm_name']
+        
+        agent_status = check_agent_status()
+        if agent_status['available']:
+            success, data, msg = call_windows_agent('/shutdown', method='POST', timeout=10)
+            if success:
+                logger.info("Shutdown initiated via Windows agent")
+        
         result = fleet_manager.execute_command(
             HOST_ID,
-            f'virsh shutdown {VM_NAME}',
+            f'virsh shutdown {vm_name}',
             bypass_whitelist=True
         )
         
         if result.get('success'):
-            return make_response(True, message=f'VM {VM_NAME} shutdown initiated')
+            return make_response(True, message=f'VM {vm_name} shutdown initiated')
         else:
             return make_response(False, message=result.get('error') or result.get('output'), status_code=400)
             
@@ -138,14 +314,17 @@ def stop_vm():
 def force_stop_vm():
     """Force stop the Windows VM"""
     try:
+        config = load_kvm_config()
+        vm_name = config['vm_name']
+        
         result = fleet_manager.execute_command(
             HOST_ID,
-            f'virsh destroy {VM_NAME}',
+            f'virsh destroy {vm_name}',
             bypass_whitelist=True
         )
         
         if result.get('success'):
-            return make_response(True, message=f'VM {VM_NAME} force stopped')
+            return make_response(True, message=f'VM {vm_name} force stopped')
         else:
             return make_response(False, message=result.get('error') or result.get('output'), status_code=400)
             
@@ -160,14 +339,17 @@ def force_stop_vm():
 def restart_vm():
     """Restart the Windows VM"""
     try:
+        config = load_kvm_config()
+        vm_name = config['vm_name']
+        
         result = fleet_manager.execute_command(
             HOST_ID,
-            f'virsh reboot {VM_NAME}',
+            f'virsh reboot {vm_name}',
             bypass_whitelist=True
         )
         
         if result.get('success'):
-            return make_response(True, message=f'VM {VM_NAME} reboot initiated')
+            return make_response(True, message=f'VM {vm_name} reboot initiated')
         else:
             return make_response(False, message=result.get('error') or result.get('output'), status_code=400)
             
@@ -179,8 +361,14 @@ def restart_vm():
 @kvm_bp.route('/api/gpu-status', methods=['GET'])
 @require_auth
 def get_gpu_status():
-    """Get GPU status and telemetry"""
+    """Get GPU status from Windows agent or host"""
     try:
+        agent_status = check_agent_status()
+        if agent_status['available'] and agent_status.get('data', {}).get('gpu'):
+            gpu_data = agent_status['data']['gpu']
+            gpu_data['source'] = 'windows_agent'
+            return make_response(True, gpu_data)
+        
         result = fleet_manager.execute_command(
             HOST_ID,
             'nvidia-smi --query-gpu=name,temperature.gpu,utilization.gpu,utilization.memory,memory.used,memory.total,power.draw,fan.speed --format=csv,noheader,nounits',
@@ -189,6 +377,7 @@ def get_gpu_status():
         
         gpu_data = {
             'available': False,
+            'source': 'host',
             'name': 'Unknown',
             'temperature': 0,
             'gpu_utilization': 0,
@@ -233,42 +422,71 @@ def get_gpu_status():
 @kvm_bp.route('/api/mode', methods=['GET'])
 @require_auth
 def get_current_mode():
-    """Get current mode (gaming/productivity)"""
+    """Get current mode (gaming/productivity/idle)"""
     try:
+        config = load_kvm_config()
+        vm_ip = config.get('vm_ip')
+        
+        mode_data = {
+            'mode': 'unknown',
+            'sunshine_running': False,
+            'rdp_enabled': False,
+            'rdp_connected': False,
+            'moonlight_connected': False,
+            'source': 'none'
+        }
+        
+        if vm_ip:
+            agent_status = check_agent_status()
+            if agent_status['available'] and agent_status.get('data'):
+                mode_data['source'] = 'windows_agent'
+                agent_data = agent_status['data']
+                
+                mode_data['sunshine_running'] = agent_data.get('sunshine', {}).get('running', False)
+                mode_data['rdp_enabled'] = agent_data.get('rdp', {}).get('enabled', False)
+                mode_data['rdp_connected'] = agent_data.get('rdp', {}).get('active_sessions', 0) > 0
+                
+                if mode_data['sunshine_running']:
+                    mode_data['mode'] = 'gaming'
+                elif mode_data['rdp_connected']:
+                    mode_data['mode'] = 'productivity'
+                else:
+                    mode_data['mode'] = 'idle'
+                    
+                return make_response(True, mode_data)
+        
+        mode_data['source'] = 'host_detection'
+        
         sunshine_result = fleet_manager.execute_command(
-            HOST_ID,
-            'pgrep -f sunshine || echo ""',
-            bypass_whitelist=True
-        )
-        sunshine_running = bool(sunshine_result.get('output', '').strip())
-        
-        rdp_result = fleet_manager.execute_command(
-            HOST_ID,
-            'ss -tn | grep ":3389" | grep ESTAB || echo ""',
-            bypass_whitelist=True
-        )
-        rdp_connected = bool(rdp_result.get('output', '').strip())
-        
-        moonlight_result = fleet_manager.execute_command(
             HOST_ID,
             'ss -un | grep ":47998\\|:47999\\|:48000" || echo ""',
             bypass_whitelist=True
         )
-        moonlight_connected = bool(moonlight_result.get('output', '').strip())
+        mode_data['moonlight_connected'] = bool(sunshine_result.get('output', '').strip())
         
-        if moonlight_connected or sunshine_running:
-            mode = 'gaming'
-        elif rdp_connected:
-            mode = 'productivity'
+        if vm_ip:
+            sunshine_check = fleet_manager.execute_command(
+                HOST_ID,
+                f'nc -z -w 2 {vm_ip} 47989 && echo "open" || echo ""',
+                bypass_whitelist=True
+            )
+            mode_data['sunshine_running'] = 'open' in sunshine_check.get('output', '')
+            
+            rdp_check = fleet_manager.execute_command(
+                HOST_ID,
+                f'nc -z -w 2 {vm_ip} 3389 && echo "open" || echo ""',
+                bypass_whitelist=True
+            )
+            mode_data['rdp_enabled'] = 'open' in rdp_check.get('output', '')
+        
+        if mode_data['moonlight_connected'] or mode_data['sunshine_running']:
+            mode_data['mode'] = 'gaming'
+        elif mode_data['rdp_connected']:
+            mode_data['mode'] = 'productivity'
         else:
-            mode = 'idle'
+            mode_data['mode'] = 'idle'
         
-        return make_response(True, {
-            'mode': mode,
-            'sunshine_running': sunshine_running,
-            'rdp_connected': rdp_connected,
-            'moonlight_connected': moonlight_connected
-        })
+        return make_response(True, mode_data)
         
     except Exception as e:
         logger.error(f"Error getting current mode: {e}")
@@ -281,19 +499,57 @@ def get_current_mode():
 def switch_to_gaming():
     """Switch to Gaming Mode (Sunshine)"""
     try:
-        script_path = '/opt/homelab/deploy/local/scripts/switch-kvm-mode.sh'
+        config = load_kvm_config()
+        vm_ip = config.get('vm_ip')
         
-        result = fleet_manager.execute_command(
-            HOST_ID,
-            f'bash {script_path} gaming 2>&1 || echo "Script not found, attempting manual switch"',
-            timeout=120,
-            bypass_whitelist=True
-        )
+        result_data = {
+            'mode': 'gaming',
+            'method': 'none',
+            'actions': [],
+            'manual_steps': []
+        }
         
-        return make_response(True, {
-            'output': result.get('output', ''),
-            'mode': 'gaming'
-        }, message='Switched to Gaming Mode')
+        if vm_ip:
+            success, data, msg = call_windows_agent('/mode/gaming', method='POST', timeout=15)
+            if success:
+                result_data['method'] = 'windows_agent'
+                result_data['actions'].append('Switched mode via Windows agent')
+                result_data['agent_response'] = data
+                
+                return make_response(True, result_data, message='Switched to Gaming Mode via agent')
+        
+        script_path = '/opt/homelab/deploy/local/scripts/kvm-orchestrator.sh'
+        alt_script_path = os.path.expanduser('~/homelab/deploy/local/scripts/kvm-orchestrator.sh')
+        
+        for path in [script_path, alt_script_path]:
+            script_result = fleet_manager.execute_command(
+                HOST_ID,
+                f'test -f {path} && bash {path} gaming 2>&1',
+                timeout=120,
+                bypass_whitelist=True
+            )
+            
+            if script_result.get('success') and script_result.get('output', '').strip():
+                result_data['method'] = 'orchestrator_script'
+                result_data['actions'].append('Executed kvm-orchestrator.sh gaming')
+                result_data['script_output'] = script_result.get('output', '')
+                
+                return make_response(True, result_data, message='Switched to Gaming Mode via script')
+        
+        result_data['method'] = 'manual'
+        result_data['manual_steps'] = [
+            'Windows agent not responding and orchestrator script not found',
+            'On your Windows VM:',
+            '  1. Disconnect any RDP sessions',
+            '  2. Start Sunshine (right-click tray icon → Start)',
+            '  3. Connect with Moonlight',
+            '',
+            f'Install Windows agent for automatic control: http://{vm_ip}:8765/ (if agent installed)',
+            'Or run on Windows (Admin PowerShell):',
+            '  iwr https://your-server/install-windows-agent.ps1 | iex'
+        ]
+        
+        return make_response(True, result_data, message='Manual steps required - see instructions')
         
     except Exception as e:
         logger.error(f"Error switching to gaming mode: {e}")
@@ -306,19 +562,57 @@ def switch_to_gaming():
 def switch_to_productivity():
     """Switch to Productivity Mode (RDP)"""
     try:
-        script_path = '/opt/homelab/deploy/local/scripts/switch-kvm-mode.sh'
+        config = load_kvm_config()
+        vm_ip = config.get('vm_ip')
         
-        result = fleet_manager.execute_command(
-            HOST_ID,
-            f'bash {script_path} productivity 2>&1 || echo "Script not found, attempting manual switch"',
-            timeout=120,
-            bypass_whitelist=True
-        )
+        result_data = {
+            'mode': 'productivity',
+            'method': 'none',
+            'actions': [],
+            'manual_steps': []
+        }
         
-        return make_response(True, {
-            'output': result.get('output', ''),
-            'mode': 'productivity'
-        }, message='Switched to Productivity Mode')
+        if vm_ip:
+            success, data, msg = call_windows_agent('/mode/desktop', method='POST', timeout=15)
+            if success:
+                result_data['method'] = 'windows_agent'
+                result_data['actions'].append('Switched mode via Windows agent')
+                result_data['agent_response'] = data
+                
+                return make_response(True, result_data, message='Switched to Productivity Mode via agent')
+        
+        script_path = '/opt/homelab/deploy/local/scripts/kvm-orchestrator.sh'
+        alt_script_path = os.path.expanduser('~/homelab/deploy/local/scripts/kvm-orchestrator.sh')
+        
+        for path in [script_path, alt_script_path]:
+            script_result = fleet_manager.execute_command(
+                HOST_ID,
+                f'test -f {path} && bash {path} desktop 2>&1',
+                timeout=120,
+                bypass_whitelist=True
+            )
+            
+            if script_result.get('success') and script_result.get('output', '').strip():
+                result_data['method'] = 'orchestrator_script'
+                result_data['actions'].append('Executed kvm-orchestrator.sh desktop')
+                result_data['script_output'] = script_result.get('output', '')
+                
+                return make_response(True, result_data, message='Switched to Productivity Mode via script')
+        
+        result_data['method'] = 'manual'
+        result_data['manual_steps'] = [
+            'Windows agent not responding and orchestrator script not found',
+            'On your Windows VM:',
+            '  1. Stop Sunshine (right-click tray icon → Exit)',
+            '  2. Connect via RDP',
+            '',
+            f'RDP address: {vm_ip or "<vm-ip>"}',
+            '',
+            'Install Windows agent for automatic control (Admin PowerShell):',
+            '  iwr https://your-server/install-windows-agent.ps1 | iex'
+        ]
+        
+        return make_response(True, result_data, message='Manual steps required - see instructions')
         
     except Exception as e:
         logger.error(f"Error switching to productivity mode: {e}")
@@ -328,13 +622,51 @@ def switch_to_productivity():
 @kvm_bp.route('/api/diagnose', methods=['POST'])
 @require_auth
 def diagnose_kvm():
-    """Run KVM diagnostics for gaming freezes"""
+    """Run comprehensive KVM diagnostics"""
     try:
-        diagnostics = {
+        config = load_kvm_config()
+        vm_ip = config.get('vm_ip')
+        
+        diagnostics: Dict[str, Any] = {
             'checks': [],
             'warnings': [],
-            'errors': []
+            'errors': [],
+            'sources': []
         }
+        
+        if vm_ip:
+            success, data, msg = call_windows_agent('/diagnostics', timeout=30)
+            if success and data:
+                diagnostics['sources'].append('windows_agent')
+                diagnostics['windows'] = data
+                
+                if data.get('hags_enabled'):
+                    diagnostics['warnings'].append({
+                        'name': 'HAGS Enabled',
+                        'status': 'warning',
+                        'detail': 'Hardware-Accelerated GPU Scheduling can cause streaming issues'
+                    })
+                
+                if data.get('game_dvr_enabled'):
+                    diagnostics['warnings'].append({
+                        'name': 'Game DVR Enabled',
+                        'status': 'warning',
+                        'detail': 'Xbox Game Bar/DVR can interfere with streaming'
+                    })
+                
+                if not data.get('is_high_performance'):
+                    diagnostics['warnings'].append({
+                        'name': 'Power Plan',
+                        'status': 'warning',
+                        'detail': 'Not using High Performance power plan'
+                    })
+            else:
+                diagnostics['sources'].append('host_only')
+                diagnostics['warnings'].append({
+                    'name': 'Windows Agent',
+                    'status': 'warning',
+                    'detail': f'Agent not responding at {vm_ip}:{AGENT_PORT}. Install for full diagnostics.'
+                })
         
         vfio_result = fleet_manager.execute_command(
             HOST_ID,
@@ -357,24 +689,23 @@ def diagnose_kvm():
         )
         if hugepages_result.get('success'):
             output = hugepages_result.get('output', '')
-            if 'HugePages_Total' in output:
-                match = re.search(r'HugePages_Total:\s+(\d+)', output)
-                if match and int(match.group(1)) > 0:
-                    diagnostics['checks'].append({'name': 'Hugepages', 'status': 'ok', 'detail': f'Hugepages configured: {match.group(1)}'})
-                else:
-                    diagnostics['warnings'].append({'name': 'Hugepages', 'status': 'warning', 'detail': 'Hugepages not configured (may affect performance)'})
+            match = re.search(r'HugePages_Total:\s+(\d+)', output)
+            if match and int(match.group(1)) > 0:
+                diagnostics['checks'].append({'name': 'Hugepages', 'status': 'ok', 'detail': f'Configured: {match.group(1)}'})
+            else:
+                diagnostics['warnings'].append({'name': 'Hugepages', 'status': 'warning', 'detail': 'Not configured (may affect performance)'})
         
-        isolcpus_result = fleet_manager.execute_command(
+        iommu_result = fleet_manager.execute_command(
             HOST_ID,
-            'cat /proc/cmdline | grep -o "isolcpus=[^ ]*" || echo "not set"',
+            'dmesg | grep -i iommu | head -5',
             bypass_whitelist=True
         )
-        if isolcpus_result.get('success'):
-            output = isolcpus_result.get('output', '').strip()
-            if 'isolcpus=' in output:
-                diagnostics['checks'].append({'name': 'CPU Isolation', 'status': 'ok', 'detail': output})
+        if iommu_result.get('success'):
+            output = iommu_result.get('output', '').strip()
+            if 'iommu' in output.lower():
+                diagnostics['checks'].append({'name': 'IOMMU', 'status': 'ok', 'detail': 'IOMMU enabled'})
             else:
-                diagnostics['warnings'].append({'name': 'CPU Isolation', 'status': 'warning', 'detail': 'No CPU isolation configured'})
+                diagnostics['errors'].append({'name': 'IOMMU', 'status': 'error', 'detail': 'IOMMU may not be enabled'})
         
         gpu_result = fleet_manager.execute_command(
             HOST_ID,
@@ -391,33 +722,6 @@ def diagnose_kvm():
                     diagnostics['warnings'].append({'name': 'GPU Temperature', 'status': 'warning', 'detail': f'{temp}°C (getting warm)'})
                 else:
                     diagnostics['errors'].append({'name': 'GPU Temperature', 'status': 'error', 'detail': f'{temp}°C (too hot!)'})
-        
-        dmesg_result = fleet_manager.execute_command(
-            HOST_ID,
-            'dmesg | tail -100 | grep -i "vfio\\|gpu\\|nvidia\\|error\\|fail" | tail -10',
-            bypass_whitelist=True
-        )
-        if dmesg_result.get('success'):
-            output = dmesg_result.get('output', '').strip()
-            if output:
-                if 'error' in output.lower() or 'fail' in output.lower():
-                    diagnostics['warnings'].append({'name': 'Kernel Messages', 'status': 'warning', 'detail': output[:500]})
-                else:
-                    diagnostics['checks'].append({'name': 'Kernel Messages', 'status': 'ok', 'detail': 'No critical errors in recent logs'})
-            else:
-                diagnostics['checks'].append({'name': 'Kernel Messages', 'status': 'ok', 'detail': 'No GPU/VFIO related messages'})
-        
-        iommu_result = fleet_manager.execute_command(
-            HOST_ID,
-            'dmesg | grep -i iommu | head -5',
-            bypass_whitelist=True
-        )
-        if iommu_result.get('success'):
-            output = iommu_result.get('output', '').strip()
-            if 'IOMMU' in output.upper() or 'iommu' in output:
-                diagnostics['checks'].append({'name': 'IOMMU', 'status': 'ok', 'detail': 'IOMMU enabled'})
-            else:
-                diagnostics['errors'].append({'name': 'IOMMU', 'status': 'error', 'detail': 'IOMMU may not be enabled'})
         
         return make_response(True, diagnostics)
         
@@ -446,58 +750,20 @@ def get_vm_logs():
         return make_response(False, message=str(e), status_code=500)
 
 
-@kvm_bp.route('/api/windows-diagnose', methods=['POST'])
-@require_auth
-def diagnose_windows_gaming():
-    """Run gaming diagnostics on Windows VM (HAGS, Game Bar, drivers, Sunshine)"""
-    try:
-        vm_result = fleet_manager.execute_command(
-            HOST_ID,
-            f'virsh list --all | grep {VM_NAME}',
-            bypass_whitelist=True
-        )
-        
-        if 'running' not in vm_result.get('output', '').lower():
-            return make_response(False, message='Windows VM is not running', status_code=400)
-        
-        ssh_cmd = build_secure_ssh_cmd(
-            'powershell -ExecutionPolicy Bypass -File C:\\\\opt\\\\homelab\\\\scripts\\\\diagnose-gaming.ps1 -Json'
-        )
-        
-        diag_result = fleet_manager.execute_command(
-            HOST_ID,
-            ssh_cmd,
-            timeout=60,
-            bypass_whitelist=True
-        )
-        
-        if diag_result.get('success'):
-            output = diag_result.get('output', '').strip()
-            try:
-                import json
-                diagnostics = json.loads(output)
-                return make_response(True, diagnostics)
-            except:
-                if 'Host key verification failed' in output:
-                    return make_response(False, message='SSH host key not in known_hosts. Run: ssh-keyscan -H <WINDOWS_VM_IP> >> ~/.ssh/known_hosts', status_code=400)
-                return make_response(True, {
-                    'raw_output': output,
-                    'note': 'Could not parse JSON - raw output returned'
-                })
-        else:
-            return make_response(False, message=diag_result.get('error', 'Diagnostics failed'), status_code=500)
-            
-    except Exception as e:
-        logger.error(f"Error running Windows diagnostics: {e}")
-        return make_response(False, message=str(e), status_code=500)
-
-
 @kvm_bp.route('/api/sunshine/restart', methods=['POST'])
 @require_auth
 @require_permission(Permission.MANAGE_DOCKER)
 def restart_sunshine():
     """Restart Sunshine service on Windows VM"""
     try:
+        config = load_kvm_config()
+        vm_ip = config.get('vm_ip')
+        
+        if vm_ip:
+            success, data, msg = call_windows_agent('/restart-sunshine', method='POST', timeout=30)
+            if success:
+                return make_response(True, data, message='Sunshine restarted via agent')
+        
         ssh_cmd = build_secure_ssh_cmd(
             "powershell -Command \\\"Restart-Service SunshineService -Force; Start-Sleep 3; Get-Service SunshineService | Select-Object Status\\\""
         )
@@ -511,18 +777,69 @@ def restart_sunshine():
         
         output = result.get('output', '')
         if 'Host key verification failed' in output:
-            return make_response(False, message='SSH host key not in known_hosts. Run: ssh-keyscan -H <WINDOWS_VM_IP> >> ~/.ssh/known_hosts', status_code=400)
+            return make_response(False, 
+                data={'suggestions': ['Run: ssh-keyscan -H <WINDOWS_VM_IP> >> ~/.ssh/known_hosts']},
+                message='SSH host key not in known_hosts', 
+                status_code=400)
         
         if result.get('success'):
-            return make_response(True, {
-                'output': output,
-            }, message='Sunshine restart initiated')
+            return make_response(True, {'output': output}, message='Sunshine restart initiated via SSH')
         else:
-            return make_response(False, message=result.get('error', 'Restart failed'), status_code=500)
+            return make_response(False, 
+                data={
+                    'manual_steps': [
+                        'Could not restart Sunshine automatically',
+                        'On Windows, run:',
+                        '  Restart-Service SunshineService',
+                        'Or right-click Sunshine tray icon → Restart'
+                    ]
+                },
+                message='Manual restart required - see instructions')
             
     except Exception as e:
         logger.error(f"Error restarting Sunshine: {e}")
         return make_response(False, message=str(e), status_code=500)
+
+
+@kvm_bp.route('/api/agent/install-instructions', methods=['GET'])
+@require_auth
+def get_agent_install_instructions():
+    """Get Windows agent installation instructions"""
+    config = load_kvm_config()
+    vm_ip = config.get('vm_ip', '<VM_IP>')
+    
+    instructions = {
+        'overview': 'The Windows Agent enables automatic control of gaming/desktop modes from the dashboard.',
+        'requirements': [
+            'Windows 10/11',
+            'Administrator privileges',
+            'PowerShell 5.1+',
+            'Network access from Linux host to Windows VM on port 8765'
+        ],
+        'installation': {
+            'one_liner': 'iwr https://your-server/deploy/local/scripts/install-windows-agent.ps1 | iex',
+            'manual_steps': [
+                '1. Copy windows-agent.ps1 and install-windows-agent.ps1 to Windows VM',
+                '2. Open PowerShell as Administrator',
+                '3. Run: .\\install-windows-agent.ps1',
+                '4. Verify: curl http://localhost:8765/health'
+            ]
+        },
+        'verification': {
+            'from_windows': 'Invoke-RestMethod http://localhost:8765/health',
+            'from_linux': f'curl http://{vm_ip}:8765/health'
+        },
+        'endpoints': [
+            'GET  /health - Health check',
+            'GET  /diagnostics - Full diagnostics',
+            'POST /mode/gaming - Switch to gaming mode',
+            'POST /mode/desktop - Switch to desktop mode',
+            'POST /restart-sunshine - Restart Sunshine',
+            'POST /shutdown - Shutdown Windows'
+        ]
+    }
+    
+    return make_response(True, instructions)
 
 
 @kvm_bp.route('/api/vnc/status', methods=['GET'])
@@ -530,7 +847,6 @@ def restart_sunshine():
 def get_vnc_status():
     """Get VNC service status on Ubuntu host"""
     try:
-        # Check x11vnc and novnc status
         result = fleet_manager.execute_command(
             HOST_ID,
             '''echo "x11vnc: $(systemctl is-active x11vnc 2>/dev/null || echo 'not installed')"; echo "novnc: $(systemctl is-active novnc 2>/dev/null || echo 'not installed')"; echo "port_6080: $(ss -tlnp | grep :6080 | head -1 || echo 'not listening')"''',
@@ -555,7 +871,6 @@ def get_vnc_status():
         if 'novnc: active' in output:
             status['novnc'] = 'running'
             status['port_listening'] = True
-            status['url'] = 'http://100.110.227.25:6080/vnc.html'
         elif 'novnc: inactive' in output:
             status['novnc'] = 'stopped'
             
@@ -580,7 +895,6 @@ def start_vnc():
         
         return make_response(True, {
             'output': result.get('output', ''),
-            'url': 'http://100.110.227.25:6080/vnc.html'
         }, message='VNC services started')
         
     except Exception as e:
