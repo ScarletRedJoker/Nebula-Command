@@ -96,6 +96,10 @@ services/discord-bot/logs/
 services/stream-bot/logs/
 services/n8n/data/
 
+# Static site logs
+static-site/*/public_html/log/
+**/log/*.log
+
 # Docker volumes and runtime data
 postgres_data/
 caddy_data/
