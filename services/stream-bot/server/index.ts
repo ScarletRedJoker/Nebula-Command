@@ -86,6 +86,9 @@ app.use('/api/', apiLimiter);
 app.use('/auth/', authLimiter);
 
 // Export session middleware for WebSocket authentication
+// IMPORTANT: In production, Caddy terminates TLS and forwards plain HTTP to this service.
+// We set trust proxy above, so Express knows the original request was HTTPS.
+// Setting secure: "auto" lets Express infer from req.secure (which respects X-Forwarded-Proto).
 export const sessionMiddleware = session({
   store: new PgSession({
     pool: pool as any,
@@ -95,8 +98,9 @@ export const sessionMiddleware = session({
   secret: SESSION_SECRET || "streambot-insecure-default-change-immediately",
   resave: false,
   saveUninitialized: false,
+  proxy: true,
   cookie: {
-    secure: NODE_ENV === "production",
+    secure: "auto" as any,
     httpOnly: true,
     maxAge: 1000 * 60 * 60 * 24 * 7,
     sameSite: NODE_ENV === "production" ? "none" : "lax",

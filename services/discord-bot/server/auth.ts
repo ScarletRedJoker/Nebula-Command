@@ -109,9 +109,10 @@ export function setupAuth(app: Express, storage: IStorage): void {
    * - resave: false - Don't save session if unmodified (performance)
    * - saveUninitialized: false - Don't create session until something is stored (GDPR, performance)
    * - cookie.maxAge: 86400000ms = 24 hours - Session expires after 1 day
-   * - cookie.secure: true in production - Only send cookie over HTTPS
+   * - cookie.secure: "auto" - Let Express infer from req.secure (respects X-Forwarded-Proto from Caddy)
    * - cookie.sameSite: 'lax' - CSRF protection while allowing OAuth redirects
    * - cookie.httpOnly: true - Prevent JavaScript access to cookie (XSS protection)
+   * - proxy: true - Trust the proxy (Caddy) for secure cookie handling
    * - store: In-memory store with daily cleanup of expired sessions
    */
   app.use(
@@ -119,9 +120,10 @@ export function setupAuth(app: Express, storage: IStorage): void {
       secret: sessionSecret,
       resave: false,
       saveUninitialized: false,
+      proxy: true,
       cookie: {
         maxAge: 86400000, // 1 day
-        secure: process.env.NODE_ENV === 'production',
+        secure: "auto" as any,
         sameSite: 'lax',
         httpOnly: true
       },
