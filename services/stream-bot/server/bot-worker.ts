@@ -25,12 +25,21 @@ import { eq, and } from "drizzle-orm";
 import type { BotConfig, PlatformConnection, CustomCommand, ModerationRule, LinkWhitelist } from "@shared/schema";
 
 type BotEvent = {
-  type: "status_changed" | "new_message" | "error" | "moderation_action" | "giveaway_entry";
+  type: "status_changed" | "new_message" | "error" | "moderation_action" | "giveaway_entry" | "kick_degraded";
   userId: string;
   data: any;
 };
 
 type KickClient = ReturnType<typeof createClient>;
+
+type KickConnectionState = "disconnected" | "connecting" | "connected" | "reconnecting" | "degraded";
+
+const KICK_RECONNECT_CONFIG = {
+  initialDelayMs: 1000,          // Start with 1 second delay
+  maxDelayMs: 300000,            // Cap at 5 minutes (300 seconds)
+  maxReconnectAttempts: 5,       // After 5 failures, enter degraded mode
+  degradedIntervalMs: 300000,    // In degraded mode, retry every 5 minutes
+} as const;
 
 // Anti-spam rate limiting configuration per platform (ToS-compliant)
 const RATE_LIMITS = {
@@ -69,10 +78,13 @@ export class BotWorker {
   private kickChannelSlug: string | null = null;
   private kickClientReady: boolean = false;
   private kickReconnectAttempts: number = 0;
-  private kickMaxReconnectAttempts: number = 5;
+  private kickTotalReconnectAttempts: number = 0;
   private kickReconnectTimeout: NodeJS.Timeout | null = null;
   private kickConnection: PlatformConnection | null = null;
   private kickKeywords: string[] = [];
+  private kickConnectionState: KickConnectionState = "disconnected";
+  private kickLastStateChange: Date | null = null;
+  private kickIsDegraded: boolean = false;
   private youtubeActiveLiveChatId: string | null = null;
   private cronJob: cron.ScheduledTask | null = null;
   private randomTimeout: NodeJS.Timeout | null = null;
@@ -338,6 +350,9 @@ export class BotWorker {
         this.kickConnection = null;
         this.kickKeywords = [];
         this.kickReconnectAttempts = 0;
+        this.kickTotalReconnectAttempts = 0;
+        this.setKickConnectionState("disconnected");
+        this.kickIsDegraded = false;
       }
 
       // Stop cron job
@@ -1583,8 +1598,13 @@ export class BotWorker {
     const channelName = connection.platformUsername.toLowerCase();
     this.kickChannelSlug = channelName;
     this.kickClientReady = false;
+    this.setKickConnectionState("connecting");
 
-    console.log(`[BotWorker] Kick: Starting connection for user ${this.userId} (channel: ${channelName}), attempt ${this.kickReconnectAttempts + 1}/${this.kickMaxReconnectAttempts}`);
+    const attemptInfo = this.kickIsDegraded 
+      ? `(degraded mode, total attempts: ${this.kickTotalReconnectAttempts})`
+      : `(attempt ${this.kickReconnectAttempts + 1}/${KICK_RECONNECT_CONFIG.maxReconnectAttempts})`;
+    
+    console.log(`[BotWorker] Kick: Starting connection for user ${this.userId} (channel: ${channelName}) ${attemptInfo}`);
 
     try {
       // Create the Kick client
@@ -1656,10 +1676,17 @@ export class BotWorker {
     // Ready event - connection successful
     this.kickClient.on("ready", async () => {
       this.kickClientReady = true;
-      this.kickReconnectAttempts = 0; // Reset on successful connection
-      console.log(`[BotWorker] Kick: ✅ Connected and ready for user ${this.userId} (${this.kickChannelSlug})`);
+      this.kickReconnectAttempts = 0;
       
-      // Log user info if available
+      const wasDegrade = this.kickIsDegraded;
+      if (wasDegrade) {
+        this.kickIsDegraded = false;
+        console.log(`[BotWorker] Kick: ✅ Recovered from degraded mode for user ${this.userId}`);
+      }
+      
+      this.setKickConnectionState("connected");
+      console.log(`[BotWorker] Kick: ✅ Connected and ready for user ${this.userId} (${this.kickChannelSlug}), total reconnect attempts: ${this.kickTotalReconnectAttempts}`);
+      
       try {
         const user = (this.kickClient as any)?.user;
         if (user) {
@@ -1669,7 +1696,6 @@ export class BotWorker {
         // Ignore errors accessing user info
       }
 
-      // Send Discord go-live notification for Kick
       if (this.kickChannelSlug) {
         const streamUrl = `https://kick.com/${this.kickChannelSlug}`;
         await notifyStreamGoLive(
@@ -1683,14 +1709,19 @@ export class BotWorker {
 
     // Error event handler
     this.kickClient.on("error" as any, (error: any) => {
-      console.error(`[BotWorker] Kick: Error event for user ${this.userId}:`, error?.message || error);
+      if (!this.kickIsDegraded) {
+        console.error(`[BotWorker] Kick: Error event for user ${this.userId}:`, error?.message || error);
+      }
       this.handleKickConnectionFailure(error);
     });
 
     // Disconnect event handler (if supported by the library)
     this.kickClient.on("disconnect" as any, (reason: any) => {
-      console.warn(`[BotWorker] Kick: Disconnected for user ${this.userId}, reason:`, reason);
+      if (!this.kickIsDegraded) {
+        console.warn(`[BotWorker] Kick: Disconnected for user ${this.userId}, reason:`, reason);
+      }
       this.kickClientReady = false;
+      this.setKickConnectionState("disconnected");
       
       // Attempt reconnection if bot is still running
       if (this.isRunning) {
@@ -1805,9 +1836,35 @@ export class BotWorker {
     }
   }
 
+  private setKickConnectionState(state: KickConnectionState): void {
+    const previousState = this.kickConnectionState;
+    this.kickConnectionState = state;
+    this.kickLastStateChange = new Date();
+    
+    if (previousState !== state) {
+      const timestamp = this.kickLastStateChange.toISOString();
+      console.log(`[BotWorker] Kick: State changed: ${previousState} → ${state} at ${timestamp} (user ${this.userId})`);
+    }
+  }
+
   private handleKickConnectionFailure(error: any): void {
     this.kickClientReady = false;
-    console.error(`[BotWorker] Kick: Connection failure for user ${this.userId}:`, error?.message || error);
+    this.kickTotalReconnectAttempts++;
+    
+    const errorMessage = error?.message || String(error);
+    const isAuthError = errorMessage.includes('401') || 
+                        errorMessage.includes('unauthorized') || 
+                        errorMessage.includes('auth') ||
+                        errorMessage.includes('forbidden');
+    
+    if (isAuthError) {
+      console.error(`[BotWorker] Kick: Auth error for user ${this.userId}: ${errorMessage}`);
+      this.markPlatformNeedsRefresh('kick').catch(() => {});
+    } else if (this.kickIsDegraded) {
+      console.debug(`[BotWorker] Kick: Connection failure in degraded mode for user ${this.userId} (suppressing verbose logs)`);
+    } else {
+      console.warn(`[BotWorker] Kick: Connection failure for user ${this.userId}: ${errorMessage}`);
+    }
     
     if (this.isRunning) {
       this.scheduleKickReconnect();
@@ -1815,35 +1872,52 @@ export class BotWorker {
   }
 
   private scheduleKickReconnect(): void {
-    // Clear any existing reconnect timeout
     if (this.kickReconnectTimeout) {
       clearTimeout(this.kickReconnectTimeout);
       this.kickReconnectTimeout = null;
     }
 
     this.kickReconnectAttempts++;
+    
+    const { maxReconnectAttempts, initialDelayMs, maxDelayMs, degradedIntervalMs } = KICK_RECONNECT_CONFIG;
 
-    if (this.kickReconnectAttempts > this.kickMaxReconnectAttempts) {
-      console.error(`[BotWorker] Kick: Max reconnection attempts (${this.kickMaxReconnectAttempts}) reached for user ${this.userId}. Giving up.`);
+    if (this.kickReconnectAttempts > maxReconnectAttempts && !this.kickIsDegraded) {
+      this.kickIsDegraded = true;
+      this.setKickConnectionState("degraded");
+      
+      console.warn(`[BotWorker] Kick: Entering degraded mode after ${maxReconnectAttempts} failed attempts for user ${this.userId}. Will retry every 5 minutes.`);
+      
       this.emitEvent({
-        type: "error",
+        type: "kick_degraded",
         userId: this.userId,
-        data: { error: `Kick connection failed after ${this.kickMaxReconnectAttempts} attempts. Please check your Kick credentials.` },
+        data: { 
+          message: `Kick connection is degraded after ${maxReconnectAttempts} failed attempts. Bot will continue trying in the background.`,
+          totalAttempts: this.kickTotalReconnectAttempts,
+          timestamp: new Date().toISOString(),
+        },
       });
-      return;
     }
 
-    // Exponential backoff: 2^attempt * 1000ms (2s, 4s, 8s, 16s, 32s)
-    const backoffMs = Math.min(Math.pow(2, this.kickReconnectAttempts) * 1000, 60000);
-    console.log(`[BotWorker] Kick: Scheduling reconnection for user ${this.userId} in ${backoffMs / 1000}s (attempt ${this.kickReconnectAttempts}/${this.kickMaxReconnectAttempts})`);
+    let backoffMs: number;
+    if (this.kickIsDegraded) {
+      backoffMs = degradedIntervalMs;
+    } else {
+      backoffMs = Math.min(initialDelayMs * Math.pow(2, this.kickReconnectAttempts - 1), maxDelayMs);
+    }
+
+    this.setKickConnectionState(this.kickIsDegraded ? "degraded" : "reconnecting");
+    
+    if (!this.kickIsDegraded) {
+      console.log(`[BotWorker] Kick: Scheduling reconnection for user ${this.userId} in ${backoffMs / 1000}s (attempt ${this.kickReconnectAttempts}/${maxReconnectAttempts})`);
+    }
 
     this.kickReconnectTimeout = setTimeout(async () => {
-      console.log(`[BotWorker] Kick: Attempting reconnection for user ${this.userId}...`);
+      if (!this.kickIsDegraded) {
+        console.log(`[BotWorker] Kick: Attempting reconnection for user ${this.userId}...`);
+      }
       
-      // Clean up old client
       if (this.kickClient) {
         try {
-          // Remove all listeners to prevent memory leaks
           this.kickClient.removeAllListeners?.();
         } catch (e) {
           // Ignore cleanup errors
@@ -1851,7 +1925,13 @@ export class BotWorker {
         this.kickClient = null;
       }
       
-      await this.connectKickClient();
+      try {
+        await this.connectKickClient();
+      } catch (error: any) {
+        if (!this.kickIsDegraded) {
+          console.warn(`[BotWorker] Kick: Reconnection attempt failed for user ${this.userId}:`, error?.message || error);
+        }
+      }
     }, backoffMs);
   }
 

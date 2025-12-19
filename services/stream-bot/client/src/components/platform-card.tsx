@@ -50,6 +50,17 @@ export function PlatformCard({
   const Icon = config.icon;
   const isConnected = connection?.isConnected ?? false;
 
+  const needsScopeUpgrade = () => {
+    if (platform !== 'youtube' || !isConnected || !connection?.connectionData) {
+      return false;
+    }
+    const connectionData = connection.connectionData as { scopes?: string };
+    const scopes = connectionData?.scopes || '';
+    return !scopes.includes('youtube.force-ssl');
+  };
+
+  const scopeUpgradeNeeded = needsScopeUpgrade();
+
   const getTokenHealth = () => {
     if (!connection?.lastConnectedAt) return null;
     const lastConnected = new Date(connection.lastConnectedAt);
@@ -104,14 +115,14 @@ export function PlatformCard({
               <span className="xs:hidden">Off</span>
             </Badge>
           )}
-          {connection?.needsRefresh && (
+          {(connection?.needsRefresh || scopeUpgradeNeeded) && (
             <Badge
               variant="destructive"
               className="text-[10px] sm:text-xs flex items-center gap-1"
               data-testid={`status-${platform}-needs-refresh`}
             >
               <AlertTriangle className="h-3 w-3" />
-              <span>Needs Reconnect</span>
+              <span>{scopeUpgradeNeeded ? 'Scope Update Needed' : 'Needs Reconnect'}</span>
             </Badge>
           )}
           {isConnected && tokenHealth && !connection?.needsRefresh && (
@@ -130,6 +141,14 @@ export function PlatformCard({
             Connected: {new Date(connection.lastConnectedAt).toLocaleDateString()}
           </div>
         )}
+        {scopeUpgradeNeeded && (
+          <div className="text-[10px] sm:text-xs text-amber-500 bg-amber-500/10 p-2 rounded-md">
+            <p className="font-medium">Live chat permissions needed</p>
+            <p className="text-muted-foreground mt-0.5">
+              Please reconnect to enable live chat posting. Your connection uses older permissions.
+            </p>
+          </div>
+        )}
         {!isConnected && (
           <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2">
             Connect to start posting facts
@@ -140,21 +159,38 @@ export function PlatformCard({
       <CardFooter className="flex justify-between gap-2 p-3 sm:p-6 pt-0">
         {isConnected ? (
           <>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onDisconnect}
-              disabled={isLoading}
-              data-testid={`button-disconnect-${platform}`}
-              className="hover:scale-105 transition-transform h-9 sm:h-8 text-xs sm:text-sm candy-touch-target flex-1 sm:flex-none"
-            >
-              {isLoading ? (
-                <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" />
-              ) : (
-                <X className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              )}
-              <span className="ml-1">Disconnect</span>
-            </Button>
+            {scopeUpgradeNeeded ? (
+              <Button
+                size="sm"
+                onClick={onConnect}
+                disabled={isLoading}
+                className="candy-button border-0 h-9 sm:h-8 text-xs sm:text-sm candy-touch-target flex-1"
+                data-testid={`button-reconnect-${platform}`}
+              >
+                {isLoading ? (
+                  <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" />
+                ) : (
+                  <AlertTriangle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                )}
+                <span className="ml-1">Reconnect</span>
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onDisconnect}
+                disabled={isLoading}
+                data-testid={`button-disconnect-${platform}`}
+                className="hover:scale-105 transition-transform h-9 sm:h-8 text-xs sm:text-sm candy-touch-target flex-1 sm:flex-none"
+              >
+                {isLoading ? (
+                  <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" />
+                ) : (
+                  <X className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                )}
+                <span className="ml-1">Disconnect</span>
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="sm"

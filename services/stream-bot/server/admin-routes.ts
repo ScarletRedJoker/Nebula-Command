@@ -53,6 +53,49 @@ router.get('/users', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
+router.get('/users/:userId/status', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    const [user] = await db.select({
+      id: users.id,
+      email: users.email,
+      role: users.role,
+      isActive: users.isActive,
+      onboardingCompleted: users.onboardingCompleted,
+      createdAt: users.createdAt,
+      updatedAt: users.updatedAt,
+    }).from(users).where(eq(users.id, userId));
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const [botConfig] = await db.select().from(botConfigs).where(eq(botConfigs.userId, userId));
+    const [botInstance] = await db.select().from(botInstances).where(eq(botInstances.userId, userId));
+    const platforms = await db.select().from(platformConnections).where(eq(platformConnections.userId, userId));
+
+    const workerStatus = botManager.getUserBotStatus(userId);
+
+    res.json({
+      user,
+      botConfig: botConfig || null,
+      botInstance: botInstance || null,
+      workerRunning: workerStatus.isRunning,
+      platforms: platforms.map(p => ({
+        platform: p.platform,
+        isConnected: p.isConnected,
+        platformUsername: p.platformUsername,
+        lastConnectedAt: p.lastConnectedAt,
+        needsRefresh: p.needsRefresh,
+      })),
+    });
+  } catch (error) {
+    console.error(`[Admin] Failed to fetch user status for ${req.params.userId}:`, error);
+    res.status(500).json({ error: 'Failed to fetch user status' });
+  }
+});
+
 router.post('/users/:userId/start-bot', requireAuth, requireAdmin, async (req, res) => {
   try {
     const { userId } = req.params;

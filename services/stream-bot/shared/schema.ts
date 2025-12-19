@@ -14,6 +14,8 @@ export const users = pgTable("users", {
   onboardingCompleted: boolean("onboarding_completed").default(false).notNull(),
   onboardingStep: integer("onboarding_step").default(0).notNull(), // 0-4 for tracking progress
   dismissedWelcome: boolean("dismissed_welcome").default(false).notNull(), // Track if user dismissed welcome card
+  discordId: varchar("discord_id", { length: 20 }), // Discord user ID for Lanyard presence integration
+  personalPresenceEnabled: boolean("personal_presence_enabled").default(false).notNull(), // Enable personal Discord presence via Lanyard
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
