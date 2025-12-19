@@ -52,9 +52,27 @@ docker compose up -d
 echo -e "${GREEN}✓ Services started${NC}"
 echo ""
 
-# Step 4: Health check
-echo -e "${CYAN}[4/4] Waiting for services (30s)...${NC}"
-sleep 30
+# Step 4: Database sync
+echo -e "${CYAN}[4/6] Syncing database schemas...${NC}"
+sleep 10  # Wait for postgres to be ready
+if [ -f "scripts/sync-streambot-db.sh" ]; then
+    bash scripts/sync-streambot-db.sh
+fi
+if [ -f "scripts/sync-discordbot-db.sh" ]; then
+    bash scripts/sync-discordbot-db.sh
+fi
+echo -e "${GREEN}✓ Database sync complete${NC}"
+echo ""
+
+# Step 5: Restart services to pick up schema changes
+echo -e "${CYAN}[5/6] Restarting services...${NC}"
+docker restart stream-bot discord-bot 2>/dev/null || true
+echo -e "${GREEN}✓ Services restarted${NC}"
+echo ""
+
+# Step 6: Health check
+echo -e "${CYAN}[6/6] Waiting for services (20s)...${NC}"
+sleep 20
 
 echo ""
 echo -e "${CYAN}━━━ Service Status ━━━${NC}"
