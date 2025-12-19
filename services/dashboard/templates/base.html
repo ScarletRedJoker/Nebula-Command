@@ -1056,6 +1056,40 @@
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
     <script src="{{ url_for('static', filename='js/ai_helper_widget.js') }}"></script>
     
+    <!-- Fix Bootstrap modal backdrop stuck issue -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Clean up any stray modal backdrops on page load
+            document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
+            
+            // Listen for modal hidden events to clean up backdrops
+            document.addEventListener('hidden.bs.modal', function() {
+                // Remove all backdrops
+                document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+                // Reset body styles if no modals are open
+                if (!document.querySelector('.modal.show')) {
+                    document.body.classList.remove('modal-open');
+                    document.body.style.overflow = '';
+                    document.body.style.paddingRight = '';
+                }
+            });
+            
+            // Failsafe: clean up any orphaned backdrops every 2 seconds
+            setInterval(function() {
+                const openModals = document.querySelectorAll('.modal.show');
+                if (openModals.length === 0) {
+                    document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+                    document.body.classList.remove('modal-open');
+                    document.body.style.overflow = '';
+                    document.body.style.paddingRight = '';
+                }
+            }, 2000);
+        });
+    </script>
+    
     {% block extra_js %}{% endblock %}
 </body>
 </html>
