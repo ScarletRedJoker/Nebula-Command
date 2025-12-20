@@ -14,7 +14,9 @@
 set -euo pipefail
 
 readonly CONFIG_FILE="${KVM_CONFIG:-/etc/kvm-orchestrator.conf}"
+readonly STATE_FILE="${KVM_STATE:-/var/lib/kvm-orchestrator/state.json}"
 readonly AGENT_PORT="${AGENT_PORT:-8765}"
+readonly AGENT_TOKEN="${KVM_AGENT_TOKEN:-kvm-mode-switch-2024}"
 readonly SUNSHINE_PORT="${SUNSHINE_PORT:-47989}"
 readonly RDP_PORT="${RDP_PORT:-3389}"
 
@@ -51,6 +53,34 @@ VM_IP=\"${VM_IP}\"
     else
         warn "Cannot write to $CONFIG_FILE - saving to ~/.kvm-orchestrator.conf"
         echo "$config_content" > ~/.kvm-orchestrator.conf
+    fi
+}
+
+save_mode_state() {
+    local mode="$1"
+    local state_dir
+    state_dir=$(dirname "$STATE_FILE")
+    
+    sudo mkdir -p "$state_dir" 2>/dev/null || mkdir -p "$state_dir" 2>/dev/null || true
+    
+    local state_content="{
+  \"mode\": \"$mode\",
+  \"vm_name\": \"${VM_NAME:-unknown}\",
+  \"vm_ip\": \"${VM_IP:-unknown}\",
+  \"timestamp\": \"$(date -Iseconds)\"
+}"
+    
+    echo "$state_content" | sudo tee "$STATE_FILE" > /dev/null 2>&1 || \
+        echo "$state_content" > "$STATE_FILE" 2>/dev/null || true
+    
+    log "Mode state saved: $mode"
+}
+
+get_current_mode() {
+    if [[ -f "$STATE_FILE" ]]; then
+        grep -oP '"mode":\s*"\K[^"]+' "$STATE_FILE" 2>/dev/null || echo "unknown"
+    else
+        echo "unknown"
     fi
 }
 
@@ -210,7 +240,11 @@ call_agent() {
         curl -s --connect-timeout 5 "$url" 2>/dev/null
     else
         # Fix HTTP 411: Windows agent requires Content-Length header on POST
-        curl -s --connect-timeout 5 -X POST -H "Content-Length: 0" "$url" 2>/dev/null
+        # Include auth token for mode-changing endpoints
+        curl -s --connect-timeout 5 -X POST \
+            -H "Content-Length: 0" \
+            -H "Authorization: Bearer ${AGENT_TOKEN}" \
+            "$url" 2>/dev/null
     fi
 }
 
@@ -412,9 +446,10 @@ switch_to_gaming() {
     if check_agent; then
         log "Switching mode via Windows agent..."
         local result
-        result=$(call_agent POST "/mode/gaming")
+        result=$(call_agent POST "/gaming")
         if [[ "$result" == *"success"* ]]; then
             success "Gaming mode activated via agent"
+            save_mode_state "gaming"
             show_gaming_instructions
             return 0
         else
@@ -445,9 +480,10 @@ switch_to_desktop() {
     if check_agent; then
         log "Switching mode via Windows agent..."
         local result
-        result=$(call_agent POST "/mode/desktop")
+        result=$(call_agent POST "/desktop")
         if [[ "$result" == *"success"* ]]; then
             success "Desktop mode activated via agent"
+            save_mode_state "desktop"
             show_desktop_instructions
             return 0
         else

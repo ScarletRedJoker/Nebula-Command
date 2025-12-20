@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Windows Console (Recovery)
+Comment=Open SPICE console for recovery access
+Exec=/opt/homelab/HomeLabHub/deploy/local/scripts/kvm-launch.sh console
+Icon=utilities-terminal
+Terminal=false
+Type=Application
+Categories=System;
+Keywords=windows;console;recovery;spice;

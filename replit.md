@@ -67,24 +67,54 @@ The codebase is organized into a `services/` directory for each application, alo
 
 ## KVM Gaming Setup
 
-### Access Methods (Priority Order)
-1. **Sunshine/Moonlight** - Primary gaming mode (port 47989)
-2. **RDP** - Productivity mode (port 3389) - Currently disabled for virtual display compatibility
-3. **SPICE Console** - Recovery fallback via libvirt (always works)
+### One-Click Access (Recommended)
+After installing shortcuts, just click in your app menu:
+- **Windows Gaming (Moonlight)** - Auto-starts VM, switches to gaming mode, launches Moonlight
+- **Windows Desktop (RDP)** - Auto-starts VM, switches to desktop mode, connects RDP
+- **Windows Console (Recovery)** - Opens SPICE console for emergencies
+
+Install shortcuts:
+```bash
+cd /opt/homelab/HomeLabHub/deploy/local/scripts
+./install-kvm-shortcuts.sh
+```
+
+### Access Methods
+1. **Sunshine/Moonlight** - Primary gaming mode (CoD, Steam Big Picture)
+2. **RDP/WinApps** - Desktop productivity mode (Windows apps on Linux)
+3. **SPICE Console** - Recovery fallback (always works)
+
+### Manual Mode Switching
+```bash
+./kvm-launch.sh gaming     # One-click: start VM → gaming mode → Moonlight
+./kvm-launch.sh desktop    # One-click: start VM → desktop mode → RDP
+./kvm-launch.sh console    # Recovery access
+
+# Or use the lower-level orchestrator:
+./kvm-orchestrator.sh gaming      # Switch to Sunshine mode
+./kvm-orchestrator.sh desktop     # Switch to RDP mode
+./kvm-orchestrator.sh console     # SPICE recovery console
+./kvm-orchestrator.sh status      # Check current state
+```
+
+### Windows Agent Setup
+For automatic mode switching, install the agent on Windows (run as Admin):
+```powershell
+# Save to C:\Scripts\kvm-mode-agent.ps1 and run
+powershell -ExecutionPolicy Bypass -File C:\Scripts\kvm-mode-agent.ps1
+```
+The agent listens on port 8765 and manages Sunshine/RDP services.
 
 ### Recovery When Locked Out
-If Sunshine needs new credentials and RDP is disabled:
+If Sunshine needs new credentials and RDP is unavailable:
 ```bash
-# On LOCAL Ubuntu host (host.evindrake.net)
 cd /opt/homelab/HomeLabHub/deploy/local/scripts
 ./kvm-orchestrator.sh console
 ```
 This opens a SPICE console directly to Windows, bypassing Sunshine/RDP entirely.
 
-### Mode Switching
-```bash
-./kvm-orchestrator.sh gaming      # Enable Sunshine for Moonlight
-./kvm-orchestrator.sh desktop     # Enable RDP for WinApps
-./kvm-orchestrator.sh console     # SPICE recovery console
-./kvm-orchestrator.sh status      # Check current state
-```
+### Technical Notes
+- Mode state persists in `/var/lib/kvm-orchestrator/state.json`
+- SPICE uses GL acceleration via Unix socket (`/run/libvirt/qemu/spice-*.sock`)
+- Network uses virtio for optimal performance
+- GPU passthrough uses NVIDIA with vfio-pci binding

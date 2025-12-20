@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Windows Desktop (RDP)
+Comment=Start Windows VM in desktop mode and connect via RDP
+Exec=/opt/homelab/HomeLabHub/deploy/local/scripts/kvm-launch.sh desktop
+Icon=preferences-desktop-remote-desktop
+Terminal=false
+Type=Application
+Categories=System;
+Keywords=windows;rdp;desktop;winapps;
