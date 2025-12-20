@@ -15,7 +15,7 @@ if (-not $AuthToken) {
 
 # Bind to VM's private IP only (192.168.122.x) for security
 # Change this if your VM has a different IP range
-$ListenIP = "192.168.122.10"  # Adjust to your VM's IP
+$ListenIP = "0.0.0.0"  # Listen on all interfaces
 
 function Write-Log {
     param([string]$Message)
