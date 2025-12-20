@@ -11,6 +11,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ConnectionQualityIndicator } from "@/components/ConnectionQualityIndicator";
 import { BottomNavigation } from "@/components/BottomNavigation";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { WebSocketProvider } from "@/contexts/WebSocketContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import UserMenu from "@/components/UserMenu";
 import OAuthLogin from "@/pages/OAuthLogin";
@@ -69,8 +70,9 @@ function ProtectedRouter() {
   };
 
   return (
-    <SidebarProvider style={style as React.CSSProperties}>
-      <OnboardingWizard />
+    <WebSocketProvider>
+      <SidebarProvider style={style as React.CSSProperties}>
+        <OnboardingWizard />
       <div className="flex h-screen w-full overflow-hidden">
         <AppSidebar />
         <div className="flex flex-col flex-1 min-w-0">
@@ -115,7 +117,8 @@ function ProtectedRouter() {
           <BottomNavigation />
         </div>
       </div>
-    </SidebarProvider>
+      </SidebarProvider>
+    </WebSocketProvider>
   );
 }
 
