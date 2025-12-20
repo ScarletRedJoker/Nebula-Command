@@ -98,8 +98,13 @@ run_sql "CREATE TABLE IF NOT EXISTS custom_commands (
 run_sql "CREATE UNIQUE INDEX IF NOT EXISTS custom_commands_user_id_name_unique ON custom_commands(user_id, name);" "custom_commands unique index"
 
 echo "[6/6] Granting permissions..."
-run_sql "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO streambot;" "table permissions"
-run_sql "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO streambot;" "sequence permissions"
+# Skip grants if streambot role doesn't exist (services connect as main user)
+if docker exec -i $CONTAINER psql -U $USER -d $DB -c "SELECT 1 FROM pg_roles WHERE rolname='streambot'" 2>/dev/null | grep -q "1"; then
+    run_sql "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO streambot;" "table permissions"
+    run_sql "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO streambot;" "sequence permissions"
+else
+    echo -e "  ${YELLOW}○${NC} Skipping grants (streambot role not configured - services use main user)"
+fi
 
 echo ""
 echo "═══ Verification ═══"

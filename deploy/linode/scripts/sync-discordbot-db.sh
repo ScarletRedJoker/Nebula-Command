@@ -68,8 +68,13 @@ run_sql "CREATE TABLE IF NOT EXISTS thread_mappings (
 );" "thread_mappings table"
 
 echo "[5/5] Granting permissions..."
-run_sql "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO discord_bot;" "table permissions"
-run_sql "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO discord_bot;" "sequence permissions"
+# Skip grants if discord_bot role doesn't exist (services connect as main user)
+if docker exec -i $CONTAINER psql -U $USER -d $DB -c "SELECT 1 FROM pg_roles WHERE rolname='discord_bot'" 2>/dev/null | grep -q "1"; then
+    run_sql "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO discord_bot;" "table permissions"
+    run_sql "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO discord_bot;" "sequence permissions"
+else
+    echo -e "  ${YELLOW}○${NC} Skipping grants (discord_bot role not configured - services use main user)"
+fi
 
 echo ""
 echo "═══ Verification ═══"
