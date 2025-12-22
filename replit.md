@@ -129,3 +129,29 @@ Then use keyboard to navigate Windows and run admin commands.
 - GPU passthrough: NVIDIA with vfio-pci binding
 - Sunshine ports: 47984-48010 (TCP/UDP)
 - RDP port: 3389
+
+## Local Ubuntu Server (host.evindrake.net)
+
+### NAS Configuration
+- **NAS IP:** 192.168.0.185 (Zyxel NAS326)
+- **NAS MAC:** bc:83:85:f4:1e:20 (for DHCP reservation)
+- **Share:** //192.168.0.185/networkshare
+- **Mount Point:** /srv/media (automount on access)
+- **Plex Media Path:** /srv/media → /media (inside container)
+
+### Mount Configuration (fstab)
+```
+//192.168.0.185/networkshare /srv/media cifs guest,uid=1000,gid=1000,vers=3.0,_netdev,noauto,x-systemd.automount,x-systemd.idle-timeout=60,x-systemd.mount-timeout=30 0 0
+```
+
+### Key Services (Docker)
+- **plex** - Media server at http://192.168.0.177:32400/web
+- **homeassistant** - Home automation
+- **homelab-minio** - Object storage (ports 9000-9001)
+- **caddy-local** - Reverse proxy (ports 80, 443)
+- **homelab-dashboard** - Dashboard UI (port 5000)
+
+### Boot Safety
+- NAS mounts use `noauto,x-systemd.automount` to prevent boot hangs when NAS is offline
+- VM autostart is DISABLED to prevent resource starvation
+- Failed services have been cleaned up
