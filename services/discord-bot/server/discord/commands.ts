@@ -39,7 +39,12 @@ import {
   createPanelsHelpEmbed,
   createAdminHelpEmbed,
   createHelpNavigationButtons,
-  createHelpBackButton
+  createHelpBackButton,
+  createMediaRequestEmbed,
+  createMediaRequestNotificationEmbed,
+  createMediaRequestListEmbed,
+  createMediaRequestActionButtons,
+  type MediaRequestData
 } from './embed-templates';
 
 // Extended PanelTemplate type with fields and buttons
@@ -1474,7 +1479,7 @@ commands.set('stream-list', streamListCommand);
 
 console.log('[Discord] Registered stream notification commands:', ['stream-setup', 'stream-track', 'stream-untrack', 'stream-list'].join(', '));
 
-// /plex command - Plex server invite
+// /plex command - Plex server invite and media requests
 const plexCommand: Command = {
   data: new SlashCommandBuilder()
     .setName('plex')
@@ -1488,6 +1493,70 @@ const plexCommand: Command = {
             .setDescription('The user to invite (optional - sends to channel if not specified)')
             .setRequired(false)
         )
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('request')
+        .setDescription('Request a movie or TV show to be added to Plex')
+        .addStringOption(option =>
+          option.setName('title')
+            .setDescription('The title of the movie or TV show')
+            .setRequired(true)
+        )
+        .addStringOption(option =>
+          option.setName('type')
+            .setDescription('Type of media (default: movie)')
+            .setRequired(false)
+            .addChoices(
+              { name: 'Movie', value: 'movie' },
+              { name: 'TV Show', value: 'show' }
+            )
+        )
+        .addStringOption(option =>
+          option.setName('year')
+            .setDescription('Year of release (optional, helps find the right title)')
+            .setRequired(false)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('myrequests')
+        .setDescription('View your own media requests')
+    )
+    .addSubcommandGroup(group =>
+      group
+        .setName('requests')
+        .setDescription('Manage media requests (admin only)')
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('list')
+            .setDescription('View all pending media requests')
+        )
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('approve')
+            .setDescription('Approve a media request')
+            .addIntegerOption(option =>
+              option.setName('id')
+                .setDescription('The request ID to approve')
+                .setRequired(true)
+            )
+        )
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('deny')
+            .setDescription('Deny a media request')
+            .addIntegerOption(option =>
+              option.setName('id')
+                .setDescription('The request ID to deny')
+                .setRequired(true)
+            )
+            .addStringOption(option =>
+              option.setName('reason')
+                .setDescription('Reason for denying the request')
+                .setRequired(false)
+            )
+        )
     ),
   execute: async (interaction, { storage }) => {
     if (!interaction.isCommand()) return;
@@ -1498,9 +1567,19 @@ const plexCommand: Command = {
       console.error('Failed to defer Plex command interaction:', error);
       return;
     }
+
+    const serverId = interaction.guildId;
+    if (!serverId) {
+      await interaction.editReply('❌ This command can only be used in a server.');
+      return;
+    }
+
+    const subcommandGroup = interaction.options.data[0]?.type === 2 ? interaction.options.data[0]?.name : null;
+    const subcommand = subcommandGroup 
+      ? (interaction.options.data[0]?.options?.[0]?.name || '')
+      : (interaction.options.data[0]?.name || '');
     
-    const subcommand = interaction.options.data[0]?.name || '';
-    
+    // Handle invite subcommand
     if (subcommand === 'invite') {
       try {
         const options = interaction.options.data[0]?.options || [];
@@ -1521,6 +1600,312 @@ const plexCommand: Command = {
       } catch (error) {
         console.error('Error sending Plex invite:', error);
         await interaction.editReply('❌ Failed to send Plex invite. Please try again.');
+      }
+      return;
+    }
+
+    // Handle request subcommand
+    if (subcommand === 'request') {
+      try {
+        const options = interaction.options.data[0]?.options || [];
+        const title = options.find(opt => opt.name === 'title')?.value as string;
+        const mediaType = (options.find(opt => opt.name === 'type')?.value as string) || 'movie';
+        const year = options.find(opt => opt.name === 'year')?.value as string | undefined;
+
+        if (!title) {
+          await interaction.editReply('❌ Please provide a title for your request.');
+          return;
+        }
+
+        const request = await storage.createMediaRequest({
+          serverId,
+          userId: interaction.user.id,
+          username: interaction.user.username,
+          title,
+          mediaType,
+          status: 'pending',
+          year: year || null
+        });
+
+        const requestData: MediaRequestData = {
+          id: request.id,
+          title: request.title,
+          mediaType: request.mediaType,
+          status: request.status,
+          username: request.username,
+          userId: request.userId,
+          year: request.year,
+          createdAt: request.createdAt
+        };
+
+        const embed = createMediaRequestEmbed(requestData);
+        await interaction.editReply({ 
+          content: '✅ Your request has been submitted!',
+          embeds: [embed] 
+        });
+
+        // Send notification to admin channel if configured
+        try {
+          const settings = await storage.getBotSettings(serverId);
+          if (settings?.plexRequestChannelId) {
+            const client = getDiscordClient();
+            const channel = await client.channels.fetch(settings.plexRequestChannelId);
+            if (channel && channel.isTextBased() && 'send' in channel) {
+              const notificationEmbed = createMediaRequestNotificationEmbed(requestData, 'new');
+              const actionButtons = createMediaRequestActionButtons(request.id);
+              await channel.send({ 
+                embeds: [notificationEmbed],
+                components: [actionButtons]
+              });
+            }
+          }
+        } catch (notifyError) {
+          console.error('Error sending request notification:', notifyError);
+        }
+
+        console.log(`[Discord] Media request created by ${interaction.user.username}: ${title} (${mediaType})`);
+        
+      } catch (error) {
+        console.error('Error creating media request:', error);
+        await interaction.editReply('❌ Failed to create media request. Please try again.');
+      }
+      return;
+    }
+
+    // Handle myrequests subcommand
+    if (subcommand === 'myrequests') {
+      try {
+        const requests = await storage.getMediaRequestsByUser(serverId, interaction.user.id);
+        const requestsData: MediaRequestData[] = requests.map(r => ({
+          id: r.id,
+          title: r.title,
+          mediaType: r.mediaType,
+          status: r.status,
+          username: r.username,
+          userId: r.userId,
+          year: r.year,
+          reason: r.reason,
+          createdAt: r.createdAt
+        }));
+
+        const embed = createMediaRequestListEmbed(requestsData, 'all');
+        embed.setTitle('📋 Your Media Requests');
+        
+        await interaction.editReply({ embeds: [embed] });
+        
+      } catch (error) {
+        console.error('Error fetching user requests:', error);
+        await interaction.editReply('❌ Failed to fetch your requests. Please try again.');
+      }
+      return;
+    }
+
+    // Handle requests group (admin only)
+    if (subcommandGroup === 'requests') {
+      // Check admin permissions
+      const member = interaction.member;
+      const settings = await storage.getBotSettings(serverId);
+      
+      let hasAdminAccess = false;
+      if (member && 'permissions' in member) {
+        hasAdminAccess = member.permissions.has(PermissionFlagsBits.Administrator);
+      }
+      if (!hasAdminAccess && settings?.plexAdminRoleId && member && 'roles' in member) {
+        const memberRoles = member.roles;
+        if ('cache' in memberRoles) {
+          hasAdminAccess = memberRoles.cache.has(settings.plexAdminRoleId);
+        }
+      }
+
+      if (!hasAdminAccess) {
+        await interaction.editReply('❌ You do not have permission to manage media requests.');
+        return;
+      }
+
+      const groupOptions = interaction.options.data[0]?.options?.[0]?.options || [];
+
+      // Handle list subcommand
+      if (subcommand === 'list') {
+        try {
+          const requests = await storage.getPendingMediaRequests(serverId);
+          const requestsData: MediaRequestData[] = requests.map(r => ({
+            id: r.id,
+            title: r.title,
+            mediaType: r.mediaType,
+            status: r.status,
+            username: r.username,
+            userId: r.userId,
+            year: r.year,
+            createdAt: r.createdAt
+          }));
+
+          const embed = createMediaRequestListEmbed(requestsData, 'pending');
+          await interaction.editReply({ embeds: [embed] });
+          
+        } catch (error) {
+          console.error('Error fetching pending requests:', error);
+          await interaction.editReply('❌ Failed to fetch pending requests. Please try again.');
+        }
+        return;
+      }
+
+      // Handle approve subcommand
+      if (subcommand === 'approve') {
+        try {
+          const requestId = groupOptions.find(opt => opt.name === 'id')?.value as number;
+          
+          if (!requestId) {
+            await interaction.editReply('❌ Please provide a request ID.');
+            return;
+          }
+
+          const existingRequest = await storage.getMediaRequest(requestId);
+          if (!existingRequest) {
+            await interaction.editReply(`❌ Request #${requestId} not found.`);
+            return;
+          }
+
+          if (existingRequest.serverId !== serverId) {
+            await interaction.editReply('❌ This request belongs to a different server.');
+            return;
+          }
+
+          if (existingRequest.status !== 'pending') {
+            await interaction.editReply(`❌ Request #${requestId} has already been ${existingRequest.status}.`);
+            return;
+          }
+
+          const updated = await storage.approveMediaRequest(
+            requestId,
+            interaction.user.id,
+            interaction.user.username
+          );
+
+          if (!updated) {
+            await interaction.editReply('❌ Failed to approve request. Please try again.');
+            return;
+          }
+
+          const requestData: MediaRequestData = {
+            id: updated.id,
+            title: updated.title,
+            mediaType: updated.mediaType,
+            status: updated.status,
+            username: updated.username,
+            userId: updated.userId,
+            year: updated.year,
+            approvedBy: updated.approvedBy,
+            approvedByUsername: updated.approvedByUsername,
+            approvedAt: updated.approvedAt,
+            createdAt: updated.createdAt
+          };
+
+          const embed = createMediaRequestEmbed(requestData);
+          await interaction.editReply({ 
+            content: `✅ Request #${requestId} has been approved!`,
+            embeds: [embed] 
+          });
+
+          // Notify the user who made the request
+          try {
+            const client = getDiscordClient();
+            const requester = await client.users.fetch(updated.userId);
+            if (requester) {
+              const notificationEmbed = createMediaRequestNotificationEmbed(requestData, 'approved');
+              await requester.send({ embeds: [notificationEmbed] }).catch(() => {});
+            }
+          } catch (notifyError) {
+            console.error('Error notifying requester:', notifyError);
+          }
+
+          console.log(`[Discord] Media request #${requestId} approved by ${interaction.user.username}`);
+          
+        } catch (error) {
+          console.error('Error approving request:', error);
+          await interaction.editReply('❌ Failed to approve request. Please try again.');
+        }
+        return;
+      }
+
+      // Handle deny subcommand
+      if (subcommand === 'deny') {
+        try {
+          const requestId = groupOptions.find(opt => opt.name === 'id')?.value as number;
+          const reason = groupOptions.find(opt => opt.name === 'reason')?.value as string | undefined;
+          
+          if (!requestId) {
+            await interaction.editReply('❌ Please provide a request ID.');
+            return;
+          }
+
+          const existingRequest = await storage.getMediaRequest(requestId);
+          if (!existingRequest) {
+            await interaction.editReply(`❌ Request #${requestId} not found.`);
+            return;
+          }
+
+          if (existingRequest.serverId !== serverId) {
+            await interaction.editReply('❌ This request belongs to a different server.');
+            return;
+          }
+
+          if (existingRequest.status !== 'pending') {
+            await interaction.editReply(`❌ Request #${requestId} has already been ${existingRequest.status}.`);
+            return;
+          }
+
+          const updated = await storage.denyMediaRequest(
+            requestId,
+            interaction.user.id,
+            interaction.user.username,
+            reason
+          );
+
+          if (!updated) {
+            await interaction.editReply('❌ Failed to deny request. Please try again.');
+            return;
+          }
+
+          const requestData: MediaRequestData = {
+            id: updated.id,
+            title: updated.title,
+            mediaType: updated.mediaType,
+            status: updated.status,
+            username: updated.username,
+            userId: updated.userId,
+            year: updated.year,
+            reason: updated.reason,
+            approvedBy: updated.approvedBy,
+            approvedByUsername: updated.approvedByUsername,
+            approvedAt: updated.approvedAt,
+            createdAt: updated.createdAt
+          };
+
+          const embed = createMediaRequestEmbed(requestData);
+          await interaction.editReply({ 
+            content: `❌ Request #${requestId} has been denied.`,
+            embeds: [embed] 
+          });
+
+          // Notify the user who made the request
+          try {
+            const client = getDiscordClient();
+            const requester = await client.users.fetch(updated.userId);
+            if (requester) {
+              const notificationEmbed = createMediaRequestNotificationEmbed(requestData, 'denied');
+              await requester.send({ embeds: [notificationEmbed] }).catch(() => {});
+            }
+          } catch (notifyError) {
+            console.error('Error notifying requester:', notifyError);
+          }
+
+          console.log(`[Discord] Media request #${requestId} denied by ${interaction.user.username}${reason ? `: ${reason}` : ''}`);
+          
+        } catch (error) {
+          console.error('Error denying request:', error);
+          await interaction.editReply('❌ Failed to deny request. Please try again.');
+        }
+        return;
       }
     }
   }

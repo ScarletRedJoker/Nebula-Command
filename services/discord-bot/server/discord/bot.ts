@@ -1632,6 +1632,294 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
       
       // =============== END NEW TICKET MODERATION BUTTON HANDLERS ===============
       
+      // =============== PLEX MEDIA REQUEST BUTTON HANDLERS ===============
+      
+      // Handle Plex request approve button
+      else if (interaction.isButton() && interaction.customId.startsWith('plex_approve_')) {
+        await interaction.deferReply({ ephemeral: true });
+        
+        const requestId = parseInt(interaction.customId.split('_')[2]);
+        const serverId = interaction.guildId;
+        
+        if (!serverId) {
+          await interaction.editReply('❌ This action can only be used in a server.');
+          return;
+        }
+        
+        try {
+          // Check admin permissions
+          const member = interaction.member;
+          const settings = await storage.getBotSettings(serverId);
+          
+          let hasAdminAccess = false;
+          if (member && 'permissions' in member) {
+            hasAdminAccess = (member.permissions as any).has(PermissionFlagsBits.Administrator);
+          }
+          if (!hasAdminAccess && settings?.plexAdminRoleId && member && 'roles' in member) {
+            const memberRoles = member.roles as any;
+            if ('cache' in memberRoles) {
+              hasAdminAccess = memberRoles.cache.has(settings.plexAdminRoleId);
+            }
+          }
+          
+          if (!hasAdminAccess) {
+            await interaction.editReply('❌ You do not have permission to approve media requests.');
+            return;
+          }
+          
+          const existingRequest = await storage.getMediaRequest(requestId);
+          if (!existingRequest) {
+            await interaction.editReply(`❌ Request #${requestId} not found.`);
+            return;
+          }
+          
+          if (existingRequest.serverId !== serverId) {
+            await interaction.editReply('❌ This request belongs to a different server.');
+            return;
+          }
+          
+          if (existingRequest.status !== 'pending') {
+            await interaction.editReply(`❌ Request #${requestId} has already been ${existingRequest.status}.`);
+            return;
+          }
+          
+          const updated = await storage.approveMediaRequest(
+            requestId,
+            interaction.user.id,
+            interaction.user.username
+          );
+          
+          if (!updated) {
+            await interaction.editReply('❌ Failed to approve request. Please try again.');
+            return;
+          }
+          
+          await interaction.editReply(`✅ Request #${requestId} (**${updated.title}**) has been approved!`);
+          
+          // Update the original message to reflect the approval
+          try {
+            const { createMediaRequestEmbed } = await import('./embed-templates');
+            const requestData = {
+              id: updated.id,
+              title: updated.title,
+              mediaType: updated.mediaType,
+              status: updated.status,
+              username: updated.username,
+              userId: updated.userId,
+              year: updated.year,
+              approvedBy: updated.approvedBy,
+              approvedByUsername: updated.approvedByUsername,
+              approvedAt: updated.approvedAt,
+              createdAt: updated.createdAt
+            };
+            const embed = createMediaRequestEmbed(requestData);
+            await interaction.message.edit({ embeds: [embed], components: [] });
+          } catch (e) {
+            console.error('Error updating request message:', e);
+          }
+          
+          // Notify the requester
+          try {
+            const requester = await client.users.fetch(updated.userId);
+            if (requester) {
+              const { createMediaRequestNotificationEmbed } = await import('./embed-templates');
+              const notificationEmbed = createMediaRequestNotificationEmbed({
+                id: updated.id,
+                title: updated.title,
+                mediaType: updated.mediaType,
+                status: updated.status,
+                username: updated.username,
+                userId: updated.userId,
+                year: updated.year,
+                approvedByUsername: updated.approvedByUsername
+              }, 'approved');
+              await requester.send({ embeds: [notificationEmbed] }).catch(() => {});
+            }
+          } catch (e) {
+            console.error('Error notifying requester:', e);
+          }
+          
+          console.log(`[Discord] Media request #${requestId} approved by ${interaction.user.username}`);
+        } catch (error) {
+          console.error('Error approving request:', error);
+          await interaction.editReply('❌ Failed to approve request. Please try again.');
+        }
+      }
+      
+      // Handle Plex request deny button
+      else if (interaction.isButton() && interaction.customId.startsWith('plex_deny_')) {
+        const requestId = parseInt(interaction.customId.split('_')[2]);
+        const serverId = interaction.guildId;
+        
+        if (!serverId) {
+          await interaction.reply({ content: '❌ This action can only be used in a server.', ephemeral: true });
+          return;
+        }
+        
+        try {
+          // Check admin permissions
+          const member = interaction.member;
+          const settings = await storage.getBotSettings(serverId);
+          
+          let hasAdminAccess = false;
+          if (member && 'permissions' in member) {
+            hasAdminAccess = (member.permissions as any).has(PermissionFlagsBits.Administrator);
+          }
+          if (!hasAdminAccess && settings?.plexAdminRoleId && member && 'roles' in member) {
+            const memberRoles = member.roles as any;
+            if ('cache' in memberRoles) {
+              hasAdminAccess = memberRoles.cache.has(settings.plexAdminRoleId);
+            }
+          }
+          
+          if (!hasAdminAccess) {
+            await interaction.reply({ content: '❌ You do not have permission to deny media requests.', ephemeral: true });
+            return;
+          }
+          
+          const existingRequest = await storage.getMediaRequest(requestId);
+          if (!existingRequest) {
+            await interaction.reply({ content: `❌ Request #${requestId} not found.`, ephemeral: true });
+            return;
+          }
+          
+          if (existingRequest.status !== 'pending') {
+            await interaction.reply({ content: `❌ Request #${requestId} has already been ${existingRequest.status}.`, ephemeral: true });
+            return;
+          }
+          
+          // Show modal for denial reason
+          const modal = new ModalBuilder()
+            .setCustomId(`plex_deny_modal_${requestId}`)
+            .setTitle(`Deny Request #${requestId}`);
+          
+          const reasonInput = new TextInputBuilder()
+            .setCustomId('deny_reason')
+            .setLabel('Reason for denial (optional)')
+            .setStyle(TextInputStyle.Paragraph)
+            .setRequired(false)
+            .setMaxLength(500)
+            .setPlaceholder('Enter a reason for denying this request...');
+          
+          const actionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(reasonInput);
+          modal.addComponents(actionRow);
+          
+          await interaction.showModal(modal);
+        } catch (error) {
+          console.error('Error handling deny button:', error);
+          await interaction.reply({ content: '❌ Failed to process denial. Please try again.', ephemeral: true });
+        }
+      }
+      
+      // Handle Plex deny modal submission
+      else if (interaction.isModalSubmit() && interaction.customId.startsWith('plex_deny_modal_')) {
+        await interaction.deferReply({ ephemeral: true });
+        
+        const requestId = parseInt(interaction.customId.split('_')[3]);
+        const reason = interaction.fields.getTextInputValue('deny_reason') || undefined;
+        const serverId = interaction.guildId;
+        
+        if (!serverId) {
+          await interaction.editReply('❌ This action can only be used in a server.');
+          return;
+        }
+        
+        try {
+          const existingRequest = await storage.getMediaRequest(requestId);
+          if (!existingRequest) {
+            await interaction.editReply(`❌ Request #${requestId} not found.`);
+            return;
+          }
+          
+          if (existingRequest.status !== 'pending') {
+            await interaction.editReply(`❌ Request #${requestId} has already been ${existingRequest.status}.`);
+            return;
+          }
+          
+          const updated = await storage.denyMediaRequest(
+            requestId,
+            interaction.user.id,
+            interaction.user.username,
+            reason
+          );
+          
+          if (!updated) {
+            await interaction.editReply('❌ Failed to deny request. Please try again.');
+            return;
+          }
+          
+          await interaction.editReply(`❌ Request #${requestId} (**${updated.title}**) has been denied.${reason ? `\n**Reason:** ${reason}` : ''}`);
+          
+          // Update the original message to reflect the denial
+          try {
+            const { createMediaRequestEmbed } = await import('./embed-templates');
+            const requestData = {
+              id: updated.id,
+              title: updated.title,
+              mediaType: updated.mediaType,
+              status: updated.status,
+              username: updated.username,
+              userId: updated.userId,
+              year: updated.year,
+              reason: updated.reason,
+              approvedBy: updated.approvedBy,
+              approvedByUsername: updated.approvedByUsername,
+              approvedAt: updated.approvedAt,
+              createdAt: updated.createdAt
+            };
+            const embed = createMediaRequestEmbed(requestData);
+            
+            // Find and update the message
+            const channel = interaction.channel;
+            if (channel && 'messages' in channel) {
+              const messages = await channel.messages.fetch({ limit: 50 });
+              for (const msg of messages.values()) {
+                if (msg.components.length > 0) {
+                  const buttons = msg.components[0]?.components || [];
+                  for (const btn of buttons) {
+                    if ('customId' in btn && btn.customId?.includes(`plex_deny_${requestId}`)) {
+                      await msg.edit({ embeds: [embed], components: [] });
+                      break;
+                    }
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            console.error('Error updating request message:', e);
+          }
+          
+          // Notify the requester
+          try {
+            const requester = await client.users.fetch(updated.userId);
+            if (requester) {
+              const { createMediaRequestNotificationEmbed } = await import('./embed-templates');
+              const notificationEmbed = createMediaRequestNotificationEmbed({
+                id: updated.id,
+                title: updated.title,
+                mediaType: updated.mediaType,
+                status: updated.status,
+                username: updated.username,
+                userId: updated.userId,
+                year: updated.year,
+                reason: updated.reason,
+                approvedByUsername: updated.approvedByUsername
+              }, 'denied');
+              await requester.send({ embeds: [notificationEmbed] }).catch(() => {});
+            }
+          } catch (e) {
+            console.error('Error notifying requester:', e);
+          }
+          
+          console.log(`[Discord] Media request #${requestId} denied by ${interaction.user.username}${reason ? `: ${reason}` : ''}`);
+        } catch (error) {
+          console.error('Error denying request:', error);
+          await interaction.editReply('❌ Failed to deny request. Please try again.');
+        }
+      }
+      
+      // =============== END PLEX MEDIA REQUEST BUTTON HANDLERS ===============
+      
       // Handle embed builder modal submission
       else if (interaction.isModalSubmit() && interaction.customId === 'embed_create_modal') {
         try {

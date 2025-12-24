@@ -96,6 +96,9 @@ import {
   type UserEmbed,
   type InsertUserEmbed,
   type UpdateUserEmbed,
+  type MediaRequest,
+  type InsertMediaRequest,
+  type UpdateMediaRequest,
   users,
   discordUsers,
   servers,
@@ -135,7 +138,8 @@ import {
   inviteTracker,
   scheduledMessages,
   customCommands,
-  userEmbeds
+  userEmbeds,
+  mediaRequests
 } from "@shared/schema";
 import { IStorage } from "./storage";
 import { db } from "./db";
@@ -1953,6 +1957,105 @@ export class DatabaseStorage implements IStorage {
         eq(userEmbeds.userId, userId),
         eq(userEmbeds.serverId, serverId)
       ));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  // Media Request operations
+  async getMediaRequest(id: number): Promise<MediaRequest | null> {
+    const [request] = await db.select()
+      .from(mediaRequests)
+      .where(eq(mediaRequests.id, id))
+      .limit(1);
+    return request || null;
+  }
+
+  async getMediaRequestsByServer(serverId: string, status?: string): Promise<MediaRequest[]> {
+    if (status) {
+      return await db.select()
+        .from(mediaRequests)
+        .where(and(
+          eq(mediaRequests.serverId, serverId),
+          eq(mediaRequests.status, status)
+        ))
+        .orderBy(mediaRequests.createdAt);
+    }
+    return await db.select()
+      .from(mediaRequests)
+      .where(eq(mediaRequests.serverId, serverId))
+      .orderBy(mediaRequests.createdAt);
+  }
+
+  async getMediaRequestsByUser(serverId: string, userId: string): Promise<MediaRequest[]> {
+    return await db.select()
+      .from(mediaRequests)
+      .where(and(
+        eq(mediaRequests.serverId, serverId),
+        eq(mediaRequests.userId, userId)
+      ))
+      .orderBy(mediaRequests.createdAt);
+  }
+
+  async getPendingMediaRequests(serverId: string): Promise<MediaRequest[]> {
+    return await db.select()
+      .from(mediaRequests)
+      .where(and(
+        eq(mediaRequests.serverId, serverId),
+        eq(mediaRequests.status, 'pending')
+      ))
+      .orderBy(mediaRequests.createdAt);
+  }
+
+  async createMediaRequest(data: InsertMediaRequest): Promise<MediaRequest> {
+    const [newRequest] = await db.insert(mediaRequests)
+      .values({
+        ...data,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
+      .returning();
+    return newRequest;
+  }
+
+  async updateMediaRequest(id: number, updates: UpdateMediaRequest): Promise<MediaRequest | null> {
+    const [updated] = await db.update(mediaRequests)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(mediaRequests.id, id))
+      .returning();
+    return updated || null;
+  }
+
+  async approveMediaRequest(id: number, approvedBy: string, approvedByUsername: string): Promise<MediaRequest | null> {
+    const [updated] = await db.update(mediaRequests)
+      .set({
+        status: 'approved',
+        approvedBy,
+        approvedByUsername,
+        approvedAt: new Date(),
+        updatedAt: new Date()
+      })
+      .where(eq(mediaRequests.id, id))
+      .returning();
+    return updated || null;
+  }
+
+  async denyMediaRequest(id: number, approvedBy: string, approvedByUsername: string, reason?: string): Promise<MediaRequest | null> {
+    const [updated] = await db.update(mediaRequests)
+      .set({
+        status: 'denied',
+        approvedBy,
+        approvedByUsername,
+        reason: reason || null,
+        approvedAt: new Date(),
+        updatedAt: new Date()
+      })
+      .where(eq(mediaRequests.id, id))
+      .returning();
+    return updated || null;
+  }
+
+  async deleteMediaRequest(id: number): Promise<boolean> {
+    const result = await db.delete(mediaRequests)
+      .where(eq(mediaRequests.id, id));
     return result.rowCount ? result.rowCount > 0 : false;
   }
 }

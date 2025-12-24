@@ -42,6 +42,7 @@ import webhookRoutes from "./routes/webhook-routes";
 import analyticsRoutes from "./routes/analytics-routes";
 import { setReady } from "./routes/health-routes";
 import guildProvisioningRoutes from "./routes/guild-provisioning-routes";
+import publicApiRoutes from "./api/public-api";
 import { isDeveloperMiddleware } from "./middleware/developerAuth";
 import { startRetentionService, stopRetentionService } from "./services/retention-service";
 
@@ -3262,6 +3263,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Mount analytics routes
   app.use('/api/analytics', analyticsRoutes);
+
+  // Mount public API routes for website integration (rig-city.com)
+  app.use('/api/public', publicApiRoutes);
 
   // Start background services
   startRetentionService();

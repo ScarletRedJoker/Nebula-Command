@@ -649,6 +649,26 @@ export function createPlexHelpEmbed(): EmbedBuilder {
         inline: false
       },
       {
+        name: '`/plex request <title> [type]`',
+        value: '**Request media**\nRequest a movie or TV show to be added.\n• `title` - Name of the movie/show\n• `type` - movie or show (default: movie)',
+        inline: false
+      },
+      {
+        name: '`/plex requests list`',
+        value: '**View pending requests** *(Admin)*\nSee all pending media requests waiting for approval.',
+        inline: true
+      },
+      {
+        name: '`/plex requests approve <id>`',
+        value: '**Approve a request** *(Admin)*\nApprove a pending media request.',
+        inline: true
+      },
+      {
+        name: '`/plex requests deny <id> [reason]`',
+        value: '**Deny a request** *(Admin)*\nDeny a pending media request with optional reason.',
+        inline: true
+      },
+      {
         name: '📱 Supported Devices',
         value: '• iOS & Android phones/tablets\n• Smart TVs (Samsung, LG, etc.)\n• Streaming devices (Roku, Fire TV, Apple TV)\n• Web browser at app.plex.tv\n• Gaming consoles (PlayStation, Xbox)',
         inline: true
@@ -788,5 +808,181 @@ export function createHelpBackButton(): ActionRowBuilder<ButtonBuilder> {
         .setLabel('Back to Main Menu')
         .setEmoji('🏠')
         .setStyle(ButtonStyle.Secondary)
+    );
+}
+
+/**
+ * Media Request Embeds
+ */
+
+export interface MediaRequestData {
+  id: number;
+  title: string;
+  mediaType: string;
+  status: string;
+  username: string;
+  userId: string;
+  reason?: string | null;
+  year?: string | null;
+  posterUrl?: string | null;
+  approvedBy?: string | null;
+  approvedByUsername?: string | null;
+  approvedAt?: Date | null;
+  createdAt?: Date | null;
+}
+
+export function createMediaRequestEmbed(request: MediaRequestData): EmbedBuilder {
+  const typeEmoji = request.mediaType === 'show' ? '📺' : '🎬';
+  const statusDisplay = {
+    pending: { emoji: '⏳', text: 'Pending', color: '#FFA500' as const },
+    approved: { emoji: '✅', text: 'Approved', color: '#43B581' as const },
+    denied: { emoji: '❌', text: 'Denied', color: '#F04747' as const },
+    downloaded: { emoji: '📥', text: 'Downloaded', color: '#5865F2' as const }
+  };
+
+  const status = statusDisplay[request.status as keyof typeof statusDisplay] || statusDisplay.pending;
+
+  const embed = new EmbedBuilder()
+    .setTitle(`${typeEmoji} Media Request #${request.id}`)
+    .setDescription(`**${request.title}**${request.year ? ` (${request.year})` : ''}`)
+    .addFields(
+      { name: 'Type', value: request.mediaType === 'show' ? 'TV Show' : 'Movie', inline: true },
+      { name: 'Status', value: `${status.emoji} ${status.text}`, inline: true },
+      { name: 'Requested By', value: `<@${request.userId}>`, inline: true }
+    )
+    .setColor(status.color)
+    .setTimestamp(request.createdAt || new Date());
+
+  if (request.approvedByUsername && request.status !== 'pending') {
+    embed.addFields({
+      name: request.status === 'approved' ? 'Approved By' : 'Denied By',
+      value: request.approvedByUsername,
+      inline: true
+    });
+  }
+
+  if (request.reason && request.status === 'denied') {
+    embed.addFields({ name: 'Reason', value: request.reason, inline: false });
+  }
+
+  if (request.posterUrl) {
+    embed.setThumbnail(request.posterUrl);
+  }
+
+  embed.setFooter({ text: 'Plex Media Request System' });
+
+  return embed;
+}
+
+export function createMediaRequestNotificationEmbed(
+  request: MediaRequestData,
+  action: 'new' | 'approved' | 'denied'
+): EmbedBuilder {
+  const typeEmoji = request.mediaType === 'show' ? '📺' : '🎬';
+  
+  let title: string;
+  let color: string;
+  let description: string;
+
+  switch (action) {
+    case 'new':
+      title = '🆕 New Media Request';
+      color = '#FFA500';
+      description = `**${request.username}** has requested a new ${request.mediaType === 'show' ? 'TV show' : 'movie'}`;
+      break;
+    case 'approved':
+      title = '✅ Media Request Approved';
+      color = '#43B581';
+      description = `Request #${request.id} has been approved${request.approvedByUsername ? ` by **${request.approvedByUsername}**` : ''}`;
+      break;
+    case 'denied':
+      title = '❌ Media Request Denied';
+      color = '#F04747';
+      description = `Request #${request.id} has been denied${request.approvedByUsername ? ` by **${request.approvedByUsername}**` : ''}`;
+      break;
+  }
+
+  const embed = new EmbedBuilder()
+    .setTitle(title)
+    .setDescription(description)
+    .addFields(
+      { name: `${typeEmoji} Title`, value: `**${request.title}**${request.year ? ` (${request.year})` : ''}`, inline: false },
+      { name: 'Type', value: request.mediaType === 'show' ? 'TV Show' : 'Movie', inline: true },
+      { name: 'Request ID', value: `#${request.id}`, inline: true },
+      { name: 'Requested By', value: `<@${request.userId}>`, inline: true }
+    )
+    .setColor(color)
+    .setTimestamp();
+
+  if (request.reason && action === 'denied') {
+    embed.addFields({ name: 'Reason', value: request.reason, inline: false });
+  }
+
+  if (request.posterUrl) {
+    embed.setThumbnail(request.posterUrl);
+  }
+
+  embed.setFooter({ text: 'Plex Media Request System' });
+
+  return embed;
+}
+
+export function createMediaRequestListEmbed(
+  requests: MediaRequestData[],
+  status: 'pending' | 'all',
+  serverName?: string
+): EmbedBuilder {
+  const title = status === 'pending' 
+    ? '⏳ Pending Media Requests'
+    : '📋 All Media Requests';
+
+  const embed = new EmbedBuilder()
+    .setTitle(title)
+    .setColor(EMBED_COLORS.PLEX)
+    .setTimestamp()
+    .setFooter({ text: 'Plex Media Request System' });
+
+  if (requests.length === 0) {
+    embed.setDescription(status === 'pending' 
+      ? '*No pending requests at this time.*'
+      : '*No media requests found.*');
+    return embed;
+  }
+
+  const requestLines = requests.slice(0, 15).map(r => {
+    const typeEmoji = r.mediaType === 'show' ? '📺' : '🎬';
+    const statusEmoji = r.status === 'pending' ? '⏳' 
+      : r.status === 'approved' ? '✅'
+      : r.status === 'denied' ? '❌'
+      : '📥';
+    return `${statusEmoji} **#${r.id}** ${typeEmoji} ${r.title}${r.year ? ` (${r.year})` : ''} - <@${r.userId}>`;
+  });
+
+  embed.setDescription(requestLines.join('\n'));
+
+  if (requests.length > 15) {
+    embed.addFields({
+      name: 'Note',
+      value: `Showing 15 of ${requests.length} requests. Use the web dashboard for full list.`,
+      inline: false
+    });
+  }
+
+  return embed;
+}
+
+export function createMediaRequestActionButtons(requestId: number): ActionRowBuilder<ButtonBuilder> {
+  return new ActionRowBuilder<ButtonBuilder>()
+    .addComponents(
+      new ButtonBuilder()
+        .setCustomId(`plex_approve_${requestId}`)
+        .setLabel('Approve')
+        .setEmoji('✅')
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(`plex_deny_${requestId}`)
+        .setLabel('Deny')
+        .setEmoji('❌')
+        .setStyle(ButtonStyle.Danger)
     );
 }

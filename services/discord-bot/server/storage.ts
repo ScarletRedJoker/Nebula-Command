@@ -76,7 +76,10 @@ import {
   type UpdateCustomCommand,
   type UserEmbed,
   type InsertUserEmbed,
-  type UpdateUserEmbed
+  type UpdateUserEmbed,
+  type MediaRequest,
+  type InsertMediaRequest,
+  type UpdateMediaRequest
 } from "@shared/schema";
 
 // Define the storage interface
@@ -298,6 +301,17 @@ export interface IStorage {
   getUserEmbed(userId: string, serverId: string): Promise<UserEmbed | null>;
   createOrUpdateUserEmbed(data: InsertUserEmbed): Promise<UserEmbed>;
   deleteUserEmbed(userId: string, serverId: string): Promise<boolean>;
+  
+  // Media Request operations
+  getMediaRequest(id: number): Promise<MediaRequest | null>;
+  getMediaRequestsByServer(serverId: string, status?: string): Promise<MediaRequest[]>;
+  getMediaRequestsByUser(serverId: string, userId: string): Promise<MediaRequest[]>;
+  getPendingMediaRequests(serverId: string): Promise<MediaRequest[]>;
+  createMediaRequest(data: InsertMediaRequest): Promise<MediaRequest>;
+  updateMediaRequest(id: number, updates: UpdateMediaRequest): Promise<MediaRequest | null>;
+  approveMediaRequest(id: number, approvedBy: string, approvedByUsername: string): Promise<MediaRequest | null>;
+  denyMediaRequest(id: number, approvedBy: string, approvedByUsername: string, reason?: string): Promise<MediaRequest | null>;
+  deleteMediaRequest(id: number): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {

@@ -97,6 +97,9 @@ export const botSettings = pgTable("bot_settings", {
   boostThankMessage: text("boost_thank_message").default("🚀 Thank you {user} for boosting the server! You're amazing! 💜"),
   boostRoleId: text("boost_role_id"), // Extra recognition role for boosters
   boostTrackingEnabled: boolean("boost_tracking_enabled").default(false),
+  // Plex request settings
+  plexRequestChannelId: text("plex_request_channel_id"), // Channel for Plex request notifications
+  plexAdminRoleId: text("plex_admin_role_id"), // Role required to approve/deny requests
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -1232,3 +1235,42 @@ export const updateUserEmbedSchema = createInsertSchema(userEmbeds).omit({
   updatedAt: true
 }).partial();
 export type UpdateUserEmbed = z.infer<typeof updateUserEmbedSchema>;
+
+// Media Requests - tracks Plex media requests
+export const mediaRequests = pgTable("media_requests", {
+  id: serial("id").primaryKey(),
+  serverId: text("server_id").notNull(),
+  userId: text("user_id").notNull(), // Discord user ID of requester
+  username: text("username").notNull(), // Cache username for display
+  title: text("title").notNull(), // Requested media title
+  mediaType: text("media_type").notNull().default("movie"), // movie, show
+  status: text("status").notNull().default("pending"), // pending, approved, denied, downloaded
+  reason: text("reason"), // Reason for denial (or notes)
+  imdbId: text("imdb_id"), // Optional IMDB ID if found
+  tmdbId: text("tmdb_id"), // Optional TMDB ID if found
+  year: text("year"), // Optional release year
+  posterUrl: text("poster_url"), // Optional poster URL for display
+  approvedBy: text("approved_by"), // Discord user ID of admin who approved/denied
+  approvedByUsername: text("approved_by_username"), // Cache approver username
+  approvedAt: timestamp("approved_at"), // When the request was approved/denied
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Media Requests validation schemas
+export const insertMediaRequestSchema = createInsertSchema(mediaRequests).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+export type InsertMediaRequest = z.infer<typeof insertMediaRequestSchema>;
+export type MediaRequest = typeof mediaRequests.$inferSelect;
+
+export const updateMediaRequestSchema = createInsertSchema(mediaRequests).omit({
+  id: true,
+  serverId: true,
+  userId: true,
+  createdAt: true,
+  updatedAt: true
+}).partial();
+export type UpdateMediaRequest = z.infer<typeof updateMediaRequestSchema>;
