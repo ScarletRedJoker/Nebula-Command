@@ -752,6 +752,19 @@ export const webhookEventLog = pgTable("webhook_event_log", {
   processedAt: timestamp("processed_at").defaultNow(),
 });
 
+// User Warnings - tracks moderation warnings issued to users
+export const userWarnings = pgTable("user_warnings", {
+  id: serial("id").primaryKey(),
+  serverId: text("server_id").notNull(),
+  userId: text("user_id").notNull(),
+  username: text("username"),
+  moderatorId: text("moderator_id").notNull(),
+  moderatorUsername: text("moderator_username"),
+  reason: text("reason").notNull(),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Guild Provisioning Status - tracks auto-setup progress for new servers
 export const guildProvisioningStatus = pgTable("guild_provisioning_status", {
   id: serial("id").primaryKey(),
