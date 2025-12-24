@@ -67,6 +67,36 @@ export const botSettings = pgTable("bot_settings", {
   xpCooldownSeconds: integer("xp_cooldown_seconds").default(60), // Cooldown between XP awards
   xpMinAmount: integer("xp_min_amount").default(15), // Minimum XP per message
   xpMaxAmount: integer("xp_max_amount").default(25), // Maximum XP per message
+  // Logging settings
+  loggingChannelId: text("logging_channel_id"), // Channel for logging events
+  logMessageEdits: boolean("log_message_edits").default(true),
+  logMessageDeletes: boolean("log_message_deletes").default(true),
+  logMemberJoins: boolean("log_member_joins").default(true),
+  logMemberLeaves: boolean("log_member_leaves").default(true),
+  logModActions: boolean("log_mod_actions").default(true),
+  // AutoMod settings
+  autoModEnabled: boolean("auto_mod_enabled").default(false),
+  bannedWords: text("banned_words"), // JSON array of banned words
+  linkWhitelist: text("link_whitelist"), // JSON array of whitelisted domains
+  linkFilterEnabled: boolean("link_filter_enabled").default(false),
+  spamThreshold: integer("spam_threshold").default(5), // Number of messages
+  spamTimeWindow: integer("spam_time_window").default(5), // In seconds
+  autoModAction: text("auto_mod_action").default("warn"), // warn, mute, kick
+  // Suggestion box settings
+  suggestionChannelId: text("suggestion_channel_id"), // Channel for suggestions
+  // Birthday tracker settings
+  birthdayChannelId: text("birthday_channel_id"), // Channel for birthday announcements
+  birthdayRoleId: text("birthday_role_id"), // Role to assign on user's birthday
+  birthdayMessage: text("birthday_message").default("🎂 Happy Birthday {user}! Hope you have an amazing day! 🎉"),
+  birthdayEnabled: boolean("birthday_enabled").default(false),
+  // Invite tracker settings
+  inviteLogChannelId: text("invite_log_channel_id"), // Channel for invite logs
+  inviteTrackingEnabled: boolean("invite_tracking_enabled").default(false),
+  // Boost tracker settings
+  boostChannelId: text("boost_channel_id"), // Channel for boost thank messages
+  boostThankMessage: text("boost_thank_message").default("🚀 Thank you {user} for boosting the server! You're amazing! 💜"),
+  boostRoleId: text("boost_role_id"), // Extra recognition role for boosters
+  boostTrackingEnabled: boolean("boost_tracking_enabled").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -961,6 +991,43 @@ export const insertReactionRoleSchema = createInsertSchema(reactionRoles).omit({
 export type InsertReactionRole = z.infer<typeof insertReactionRoleSchema>;
 export type ReactionRole = typeof reactionRoles.$inferSelect;
 
+// Suggestions - tracks user suggestions
+export const suggestions = pgTable("suggestions", {
+  id: serial("id").primaryKey(),
+  serverId: text("server_id").notNull(),
+  channelId: text("channel_id").notNull(),
+  messageId: text("message_id"), // Discord message ID for the suggestion embed
+  authorId: text("author_id").notNull(), // Discord user ID
+  authorUsername: text("author_username"), // Cache username for display
+  content: text("content").notNull(),
+  status: text("status").default("pending").notNull(), // pending, approved, denied, implemented
+  adminResponse: text("admin_response"), // Response from admin when approving/denying
+  responderId: text("responder_id"), // Discord user ID of admin who responded
+  upvotes: integer("upvotes").default(0),
+  downvotes: integer("downvotes").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Suggestions validation schemas
+export const insertSuggestionSchema = createInsertSchema(suggestions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+export type InsertSuggestion = z.infer<typeof insertSuggestionSchema>;
+export type Suggestion = typeof suggestions.$inferSelect;
+
+export const updateSuggestionSchema = createInsertSchema(suggestions).omit({
+  id: true,
+  serverId: true,
+  channelId: true,
+  authorId: true,
+  createdAt: true,
+  updatedAt: true
+}).partial();
+export type UpdateSuggestion = z.infer<typeof updateSuggestionSchema>;
+
 // AFK Users - tracks users who are AFK
 export const afkUsers = pgTable("afk_users", {
   id: serial("id").primaryKey(),
@@ -1011,3 +1078,157 @@ export const updateDiscordGiveawaySchema = createInsertSchema(discordGiveaways).
   updatedAt: true
 }).partial();
 export type UpdateDiscordGiveaway = z.infer<typeof updateDiscordGiveawaySchema>;
+
+// Birthdays - tracks user birthdays per server
+export const birthdays = pgTable("birthdays", {
+  id: serial("id").primaryKey(),
+  serverId: text("server_id").notNull(),
+  userId: text("user_id").notNull(), // Discord user ID
+  username: text("username"), // Cached username for display
+  birthMonth: integer("birth_month").notNull(), // 1-12
+  birthDay: integer("birth_day").notNull(), // 1-31
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Birthdays validation schemas
+export const insertBirthdaySchema = createInsertSchema(birthdays).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+export type InsertBirthday = z.infer<typeof insertBirthdaySchema>;
+export type Birthday = typeof birthdays.$inferSelect;
+
+export const updateBirthdaySchema = createInsertSchema(birthdays).omit({
+  id: true,
+  serverId: true,
+  userId: true,
+  createdAt: true,
+  updatedAt: true
+}).partial();
+export type UpdateBirthday = z.infer<typeof updateBirthdaySchema>;
+
+// Invite Tracker - tracks who invited whom
+export const inviteTracker = pgTable("invite_tracker", {
+  id: serial("id").primaryKey(),
+  serverId: text("server_id").notNull(),
+  inviterId: text("inviter_id").notNull(), // Discord user ID of inviter
+  inviterUsername: text("inviter_username"), // Cached inviter username
+  invitedUserId: text("invited_user_id").notNull(), // Discord user ID of invited user
+  invitedUsername: text("invited_username"), // Cached invited username
+  inviteCode: text("invite_code"), // The invite code that was used
+  joinedAt: timestamp("joined_at").defaultNow().notNull(),
+});
+
+// Invite Tracker validation schemas
+export const insertInviteTrackerSchema = createInsertSchema(inviteTracker).omit({
+  id: true,
+  joinedAt: true
+});
+export type InsertInviteTracker = z.infer<typeof insertInviteTrackerSchema>;
+export type InviteTracker = typeof inviteTracker.$inferSelect;
+
+// Scheduled Messages - stores scheduled messages for servers
+export const scheduledMessages = pgTable("scheduled_messages", {
+  id: serial("id").primaryKey(),
+  serverId: text("server_id").notNull(),
+  channelId: text("channel_id").notNull(),
+  message: text("message").notNull(),
+  embedJson: text("embed_json"), // JSON string for embed data
+  cronExpression: text("cron_expression"), // For repeating messages
+  nextRunAt: timestamp("next_run_at").notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdBy: text("created_by").notNull(), // Discord user ID
+  createdByUsername: text("created_by_username"), // Cached username
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Scheduled Messages validation schemas
+export const insertScheduledMessageSchema = createInsertSchema(scheduledMessages).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+export type InsertScheduledMessage = z.infer<typeof insertScheduledMessageSchema>;
+export type ScheduledMessage = typeof scheduledMessages.$inferSelect;
+
+export const updateScheduledMessageSchema = createInsertSchema(scheduledMessages).omit({
+  id: true,
+  serverId: true,
+  createdBy: true,
+  createdAt: true,
+  updatedAt: true
+}).partial();
+export type UpdateScheduledMessage = z.infer<typeof updateScheduledMessageSchema>;
+
+// Custom Commands - stores custom commands for servers
+export const customCommands = pgTable("custom_commands", {
+  id: serial("id").primaryKey(),
+  serverId: text("server_id").notNull(),
+  trigger: text("trigger").notNull(), // The command trigger (without prefix)
+  response: text("response").notNull(), // Response text with variable support
+  embedJson: text("embed_json"), // JSON string for embed response
+  createdBy: text("created_by").notNull(), // Discord user ID
+  createdByUsername: text("created_by_username"), // Cached username
+  usageCount: integer("usage_count").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Custom Commands validation schemas
+export const insertCustomCommandSchema = createInsertSchema(customCommands).omit({
+  id: true,
+  usageCount: true,
+  createdAt: true,
+  updatedAt: true
+});
+export type InsertCustomCommand = z.infer<typeof insertCustomCommandSchema>;
+export type CustomCommand = typeof customCommands.$inferSelect;
+
+export const updateCustomCommandSchema = createInsertSchema(customCommands).omit({
+  id: true,
+  serverId: true,
+  trigger: true,
+  createdBy: true,
+  createdAt: true,
+  updatedAt: true
+}).partial();
+export type UpdateCustomCommand = z.infer<typeof updateCustomCommandSchema>;
+
+// User Embeds - temporary storage for embed builder per user
+export const userEmbeds = pgTable("user_embeds", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(), // Discord user ID
+  serverId: text("server_id").notNull(),
+  title: text("title"),
+  description: text("description"),
+  color: text("color").default("#5865F2"),
+  footer: text("footer"),
+  imageUrl: text("image_url"),
+  thumbnailUrl: text("thumbnail_url"),
+  authorName: text("author_name"),
+  authorIconUrl: text("author_icon_url"),
+  fields: text("fields"), // JSON array of {name, value, inline} objects
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// User Embeds validation schemas
+export const insertUserEmbedSchema = createInsertSchema(userEmbeds).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+export type InsertUserEmbed = z.infer<typeof insertUserEmbedSchema>;
+export type UserEmbed = typeof userEmbeds.$inferSelect;
+
+export const updateUserEmbedSchema = createInsertSchema(userEmbeds).omit({
+  id: true,
+  userId: true,
+  serverId: true,
+  createdAt: true,
+  updatedAt: true
+}).partial();
+export type UpdateUserEmbed = z.infer<typeof updateUserEmbedSchema>;

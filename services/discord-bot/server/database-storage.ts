@@ -79,6 +79,23 @@ import {
   type DiscordGiveaway,
   type InsertDiscordGiveaway,
   type UpdateDiscordGiveaway,
+  type Suggestion,
+  type InsertSuggestion,
+  type UpdateSuggestion,
+  type Birthday,
+  type InsertBirthday,
+  type UpdateBirthday,
+  type InviteTracker,
+  type InsertInviteTracker,
+  type ScheduledMessage,
+  type InsertScheduledMessage,
+  type UpdateScheduledMessage,
+  type CustomCommand,
+  type InsertCustomCommand,
+  type UpdateCustomCommand,
+  type UserEmbed,
+  type InsertUserEmbed,
+  type UpdateUserEmbed,
   users,
   discordUsers,
   servers,
@@ -112,11 +129,17 @@ import {
   xpData,
   reactionRoles,
   afkUsers,
-  discordGiveaways
+  discordGiveaways,
+  suggestions,
+  birthdays,
+  inviteTracker,
+  scheduledMessages,
+  customCommands,
+  userEmbeds
 } from "@shared/schema";
 import { IStorage } from "./storage";
 import { db } from "./db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, lte } from "drizzle-orm";
 import type { PgTransaction } from "drizzle-orm/pg-core";
 
 export class DatabaseStorage implements IStorage {
@@ -1600,6 +1623,337 @@ export class DatabaseStorage implements IStorage {
       .where(eq(discordGiveaways.id, id))
       .returning();
     return updated || null;
+  }
+
+  // Suggestion operations
+  async getSuggestion(id: number): Promise<Suggestion | null> {
+    const [suggestion] = await db.select()
+      .from(suggestions)
+      .where(eq(suggestions.id, id))
+      .limit(1);
+    return suggestion || null;
+  }
+
+  async getSuggestionByMessage(messageId: string): Promise<Suggestion | null> {
+    const [suggestion] = await db.select()
+      .from(suggestions)
+      .where(eq(suggestions.messageId, messageId))
+      .limit(1);
+    return suggestion || null;
+  }
+
+  async getSuggestionsByServer(serverId: string): Promise<Suggestion[]> {
+    return await db.select()
+      .from(suggestions)
+      .where(eq(suggestions.serverId, serverId));
+  }
+
+  async getSuggestionsByAuthor(serverId: string, authorId: string): Promise<Suggestion[]> {
+    return await db.select()
+      .from(suggestions)
+      .where(and(
+        eq(suggestions.serverId, serverId),
+        eq(suggestions.authorId, authorId)
+      ));
+  }
+
+  async createSuggestion(data: InsertSuggestion): Promise<Suggestion> {
+    const [newSuggestion] = await db.insert(suggestions)
+      .values({
+        ...data,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
+      .returning();
+    return newSuggestion;
+  }
+
+  async updateSuggestion(id: number, updates: UpdateSuggestion): Promise<Suggestion | null> {
+    const [updated] = await db.update(suggestions)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(suggestions.id, id))
+      .returning();
+    return updated || null;
+  }
+
+  async deleteSuggestion(id: number): Promise<boolean> {
+    const result = await db.delete(suggestions)
+      .where(eq(suggestions.id, id));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  // Birthday operations
+  async getBirthday(serverId: string, userId: string): Promise<Birthday | null> {
+    const [birthday] = await db.select()
+      .from(birthdays)
+      .where(and(
+        eq(birthdays.serverId, serverId),
+        eq(birthdays.userId, userId)
+      ))
+      .limit(1);
+    return birthday || null;
+  }
+
+  async getBirthdaysByServer(serverId: string): Promise<Birthday[]> {
+    return await db.select()
+      .from(birthdays)
+      .where(eq(birthdays.serverId, serverId));
+  }
+
+  async getBirthdaysForDate(month: number, day: number): Promise<Birthday[]> {
+    return await db.select()
+      .from(birthdays)
+      .where(and(
+        eq(birthdays.birthMonth, month),
+        eq(birthdays.birthDay, day)
+      ));
+  }
+
+  async createBirthday(data: InsertBirthday): Promise<Birthday> {
+    const existing = await this.getBirthday(data.serverId, data.userId);
+    if (existing) {
+      const [updated] = await db.update(birthdays)
+        .set({ ...data, updatedAt: new Date() })
+        .where(and(
+          eq(birthdays.serverId, data.serverId),
+          eq(birthdays.userId, data.userId)
+        ))
+        .returning();
+      return updated;
+    }
+    const [newBirthday] = await db.insert(birthdays)
+      .values({
+        ...data,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
+      .returning();
+    return newBirthday;
+  }
+
+  async updateBirthday(serverId: string, userId: string, updates: UpdateBirthday): Promise<Birthday | null> {
+    const [updated] = await db.update(birthdays)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(and(
+        eq(birthdays.serverId, serverId),
+        eq(birthdays.userId, userId)
+      ))
+      .returning();
+    return updated || null;
+  }
+
+  async deleteBirthday(serverId: string, userId: string): Promise<boolean> {
+    const result = await db.delete(birthdays)
+      .where(and(
+        eq(birthdays.serverId, serverId),
+        eq(birthdays.userId, userId)
+      ));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  // Invite Tracker operations
+  async getInvitesByInviter(serverId: string, inviterId: string): Promise<InviteTracker[]> {
+    return await db.select()
+      .from(inviteTracker)
+      .where(and(
+        eq(inviteTracker.serverId, serverId),
+        eq(inviteTracker.inviterId, inviterId)
+      ));
+  }
+
+  async getInvitesByServer(serverId: string): Promise<InviteTracker[]> {
+    return await db.select()
+      .from(inviteTracker)
+      .where(eq(inviteTracker.serverId, serverId));
+  }
+
+  async getInviteLeaderboard(serverId: string, limit: number): Promise<{ inviterId: string; inviterUsername: string | null; count: number }[]> {
+    const allInvites = await this.getInvitesByServer(serverId);
+    const inviteCounts = new Map<string, { count: number; username: string | null }>();
+    
+    for (const invite of allInvites) {
+      const existing = inviteCounts.get(invite.inviterId);
+      if (existing) {
+        existing.count++;
+      } else {
+        inviteCounts.set(invite.inviterId, { count: 1, username: invite.inviterUsername });
+      }
+    }
+    
+    return Array.from(inviteCounts.entries())
+      .map(([inviterId, data]) => ({
+        inviterId,
+        inviterUsername: data.username,
+        count: data.count
+      }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, limit);
+  }
+
+  async createInviteRecord(data: InsertInviteTracker): Promise<InviteTracker> {
+    const [newRecord] = await db.insert(inviteTracker)
+      .values({
+        ...data,
+        joinedAt: new Date()
+      })
+      .returning();
+    return newRecord;
+  }
+
+  // Scheduled Messages operations
+  async getScheduledMessages(serverId: string): Promise<ScheduledMessage[]> {
+    return await db.select()
+      .from(scheduledMessages)
+      .where(eq(scheduledMessages.serverId, serverId));
+  }
+
+  async getScheduledMessage(id: number): Promise<ScheduledMessage | null> {
+    const [message] = await db.select()
+      .from(scheduledMessages)
+      .where(eq(scheduledMessages.id, id))
+      .limit(1);
+    return message || null;
+  }
+
+  async getDueScheduledMessages(): Promise<ScheduledMessage[]> {
+    const now = new Date();
+    return await db.select()
+      .from(scheduledMessages)
+      .where(and(
+        eq(scheduledMessages.isActive, true),
+        lte(scheduledMessages.nextRunAt, now)
+      ));
+  }
+
+  async createScheduledMessage(data: InsertScheduledMessage): Promise<ScheduledMessage> {
+    const [newMessage] = await db.insert(scheduledMessages)
+      .values({
+        ...data,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
+      .returning();
+    return newMessage;
+  }
+
+  async updateScheduledMessage(id: number, updates: UpdateScheduledMessage): Promise<ScheduledMessage | null> {
+    const [updated] = await db.update(scheduledMessages)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(scheduledMessages.id, id))
+      .returning();
+    return updated || null;
+  }
+
+  async deleteScheduledMessage(id: number): Promise<boolean> {
+    const result = await db.delete(scheduledMessages)
+      .where(eq(scheduledMessages.id, id));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  // Custom Commands operations
+  async getCustomCommands(serverId: string): Promise<CustomCommand[]> {
+    return await db.select()
+      .from(customCommands)
+      .where(eq(customCommands.serverId, serverId));
+  }
+
+  async getCustomCommand(serverId: string, trigger: string): Promise<CustomCommand | null> {
+    const [command] = await db.select()
+      .from(customCommands)
+      .where(and(
+        eq(customCommands.serverId, serverId),
+        eq(customCommands.trigger, trigger.toLowerCase())
+      ))
+      .limit(1);
+    return command || null;
+  }
+
+  async createCustomCommand(data: InsertCustomCommand): Promise<CustomCommand> {
+    const [newCommand] = await db.insert(customCommands)
+      .values({
+        ...data,
+        trigger: data.trigger.toLowerCase(),
+        usageCount: 0,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
+      .returning();
+    return newCommand;
+  }
+
+  async updateCustomCommand(serverId: string, trigger: string, updates: UpdateCustomCommand): Promise<CustomCommand | null> {
+    const [updated] = await db.update(customCommands)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(and(
+        eq(customCommands.serverId, serverId),
+        eq(customCommands.trigger, trigger.toLowerCase())
+      ))
+      .returning();
+    return updated || null;
+  }
+
+  async deleteCustomCommand(serverId: string, trigger: string): Promise<boolean> {
+    const result = await db.delete(customCommands)
+      .where(and(
+        eq(customCommands.serverId, serverId),
+        eq(customCommands.trigger, trigger.toLowerCase())
+      ));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  async incrementCustomCommandUsage(serverId: string, trigger: string): Promise<void> {
+    const cmd = await this.getCustomCommand(serverId, trigger);
+    if (cmd) {
+      await db.update(customCommands)
+        .set({ usageCount: cmd.usageCount + 1, updatedAt: new Date() })
+        .where(and(
+          eq(customCommands.serverId, serverId),
+          eq(customCommands.trigger, trigger.toLowerCase())
+        ));
+    }
+  }
+
+  // User Embeds operations
+  async getUserEmbed(userId: string, serverId: string): Promise<UserEmbed | null> {
+    const [embed] = await db.select()
+      .from(userEmbeds)
+      .where(and(
+        eq(userEmbeds.userId, userId),
+        eq(userEmbeds.serverId, serverId)
+      ))
+      .limit(1);
+    return embed || null;
+  }
+
+  async createOrUpdateUserEmbed(data: InsertUserEmbed): Promise<UserEmbed> {
+    const existing = await this.getUserEmbed(data.userId, data.serverId);
+    if (existing) {
+      const [updated] = await db.update(userEmbeds)
+        .set({ ...data, updatedAt: new Date() })
+        .where(and(
+          eq(userEmbeds.userId, data.userId),
+          eq(userEmbeds.serverId, data.serverId)
+        ))
+        .returning();
+      return updated;
+    }
+    const [newEmbed] = await db.insert(userEmbeds)
+      .values({
+        ...data,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
+      .returning();
+    return newEmbed;
+  }
+
+  async deleteUserEmbed(userId: string, serverId: string): Promise<boolean> {
+    const result = await db.delete(userEmbeds)
+      .where(and(
+        eq(userEmbeds.userId, userId),
+        eq(userEmbeds.serverId, serverId)
+      ));
+    return result.rowCount ? result.rowCount > 0 : false;
   }
 }
 

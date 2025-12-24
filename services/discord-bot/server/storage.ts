@@ -59,7 +59,24 @@ import {
   type InsertAfkUser,
   type DiscordGiveaway,
   type InsertDiscordGiveaway,
-  type UpdateDiscordGiveaway
+  type UpdateDiscordGiveaway,
+  type Suggestion,
+  type InsertSuggestion,
+  type UpdateSuggestion,
+  type Birthday,
+  type InsertBirthday,
+  type UpdateBirthday,
+  type InviteTracker,
+  type InsertInviteTracker,
+  type ScheduledMessage,
+  type InsertScheduledMessage,
+  type UpdateScheduledMessage,
+  type CustomCommand,
+  type InsertCustomCommand,
+  type UpdateCustomCommand,
+  type UserEmbed,
+  type InsertUserEmbed,
+  type UpdateUserEmbed
 } from "@shared/schema";
 
 // Define the storage interface
@@ -237,6 +254,50 @@ export interface IStorage {
   createGiveaway(data: InsertDiscordGiveaway): Promise<DiscordGiveaway>;
   updateGiveaway(id: number, updates: UpdateDiscordGiveaway): Promise<DiscordGiveaway | null>;
   endGiveaway(id: number, winners: string[]): Promise<DiscordGiveaway | null>;
+  
+  // Suggestion operations
+  getSuggestion(id: number): Promise<Suggestion | null>;
+  getSuggestionByMessage(messageId: string): Promise<Suggestion | null>;
+  getSuggestionsByServer(serverId: string): Promise<Suggestion[]>;
+  getSuggestionsByAuthor(serverId: string, authorId: string): Promise<Suggestion[]>;
+  createSuggestion(data: InsertSuggestion): Promise<Suggestion>;
+  updateSuggestion(id: number, updates: UpdateSuggestion): Promise<Suggestion | null>;
+  deleteSuggestion(id: number): Promise<boolean>;
+  
+  // Birthday operations
+  getBirthday(serverId: string, userId: string): Promise<Birthday | null>;
+  getBirthdaysByServer(serverId: string): Promise<Birthday[]>;
+  getBirthdaysForDate(month: number, day: number): Promise<Birthday[]>;
+  createBirthday(data: InsertBirthday): Promise<Birthday>;
+  updateBirthday(serverId: string, userId: string, updates: UpdateBirthday): Promise<Birthday | null>;
+  deleteBirthday(serverId: string, userId: string): Promise<boolean>;
+  
+  // Invite Tracker operations
+  getInvitesByInviter(serverId: string, inviterId: string): Promise<InviteTracker[]>;
+  getInvitesByServer(serverId: string): Promise<InviteTracker[]>;
+  getInviteLeaderboard(serverId: string, limit: number): Promise<{ inviterId: string; inviterUsername: string | null; count: number }[]>;
+  createInviteRecord(data: InsertInviteTracker): Promise<InviteTracker>;
+  
+  // Scheduled Messages operations
+  getScheduledMessages(serverId: string): Promise<ScheduledMessage[]>;
+  getScheduledMessage(id: number): Promise<ScheduledMessage | null>;
+  getDueScheduledMessages(): Promise<ScheduledMessage[]>;
+  createScheduledMessage(data: InsertScheduledMessage): Promise<ScheduledMessage>;
+  updateScheduledMessage(id: number, updates: UpdateScheduledMessage): Promise<ScheduledMessage | null>;
+  deleteScheduledMessage(id: number): Promise<boolean>;
+  
+  // Custom Commands operations
+  getCustomCommands(serverId: string): Promise<CustomCommand[]>;
+  getCustomCommand(serverId: string, trigger: string): Promise<CustomCommand | null>;
+  createCustomCommand(data: InsertCustomCommand): Promise<CustomCommand>;
+  updateCustomCommand(serverId: string, trigger: string, updates: UpdateCustomCommand): Promise<CustomCommand | null>;
+  deleteCustomCommand(serverId: string, trigger: string): Promise<boolean>;
+  incrementCustomCommandUsage(serverId: string, trigger: string): Promise<void>;
+  
+  // User Embeds operations
+  getUserEmbed(userId: string, serverId: string): Promise<UserEmbed | null>;
+  createOrUpdateUserEmbed(data: InsertUserEmbed): Promise<UserEmbed>;
+  deleteUserEmbed(userId: string, serverId: string): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
@@ -1395,6 +1456,77 @@ export class MemStorage implements IStorage {
       log => new Date(log.notifiedAt) >= cutoffDate
     );
     return originalLength - this.streamNotificationLogs.length;
+  }
+  
+  // Suggestion operations (stub implementations for MemStorage)
+  async getSuggestion(id: number): Promise<Suggestion | null> {
+    throw new Error('getSuggestion not implemented in MemStorage - use DatabaseStorage');
+  }
+  
+  async getSuggestionByMessage(messageId: string): Promise<Suggestion | null> {
+    throw new Error('getSuggestionByMessage not implemented in MemStorage - use DatabaseStorage');
+  }
+  
+  async getSuggestionsByServer(serverId: string): Promise<Suggestion[]> {
+    throw new Error('getSuggestionsByServer not implemented in MemStorage - use DatabaseStorage');
+  }
+  
+  async getSuggestionsByAuthor(serverId: string, authorId: string): Promise<Suggestion[]> {
+    throw new Error('getSuggestionsByAuthor not implemented in MemStorage - use DatabaseStorage');
+  }
+  
+  async createSuggestion(data: InsertSuggestion): Promise<Suggestion> {
+    throw new Error('createSuggestion not implemented in MemStorage - use DatabaseStorage');
+  }
+  
+  async updateSuggestion(id: number, updates: UpdateSuggestion): Promise<Suggestion | null> {
+    throw new Error('updateSuggestion not implemented in MemStorage - use DatabaseStorage');
+  }
+  
+  async deleteSuggestion(id: number): Promise<boolean> {
+    throw new Error('deleteSuggestion not implemented in MemStorage - use DatabaseStorage');
+  }
+  
+  // Birthday operations (stub implementations for MemStorage)
+  async getBirthday(serverId: string, userId: string): Promise<Birthday | null> {
+    throw new Error('getBirthday not implemented in MemStorage - use DatabaseStorage');
+  }
+  
+  async getBirthdaysByServer(serverId: string): Promise<Birthday[]> {
+    throw new Error('getBirthdaysByServer not implemented in MemStorage - use DatabaseStorage');
+  }
+  
+  async getBirthdaysForDate(month: number, day: number): Promise<Birthday[]> {
+    throw new Error('getBirthdaysForDate not implemented in MemStorage - use DatabaseStorage');
+  }
+  
+  async createBirthday(data: InsertBirthday): Promise<Birthday> {
+    throw new Error('createBirthday not implemented in MemStorage - use DatabaseStorage');
+  }
+  
+  async updateBirthday(serverId: string, userId: string, updates: UpdateBirthday): Promise<Birthday | null> {
+    throw new Error('updateBirthday not implemented in MemStorage - use DatabaseStorage');
+  }
+  
+  async deleteBirthday(serverId: string, userId: string): Promise<boolean> {
+    throw new Error('deleteBirthday not implemented in MemStorage - use DatabaseStorage');
+  }
+  
+  // Invite Tracker operations (stub implementations for MemStorage)
+  async getInvitesByInviter(serverId: string, inviterId: string): Promise<InviteTracker[]> {
+    throw new Error('getInvitesByInviter not implemented in MemStorage - use DatabaseStorage');
+  }
+  
+  async getInvitesByServer(serverId: string): Promise<InviteTracker[]> {
+    throw new Error('getInvitesByServer not implemented in MemStorage - use DatabaseStorage');
+  }
+  
+  async getInviteLeaderboard(serverId: string, limit: number): Promise<{ inviterId: string; inviterUsername: string | null; count: number }[]> {
+    throw new Error('getInviteLeaderboard not implemented in MemStorage - use DatabaseStorage');
+  }
+  
+  async createInviteRecord(data: InsertInviteTracker): Promise<InviteTracker> {
+    throw new Error('createInviteRecord not implemented in MemStorage - use DatabaseStorage');
   }
 }
 

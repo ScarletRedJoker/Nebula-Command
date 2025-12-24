@@ -3880,6 +3880,1038 @@ async function announceGiveawayWinners(client: Client, giveaway: any, winners: s
 commands.set('giveaway', giveawayCommand);
 console.log('[Discord] Registered giveaway command');
 
+// /logs command
+const logsCommand: Command = {
+  data: new SlashCommandBuilder()
+    .setName('logs')
+    .setDescription('Configure server logging')
+    .addSubcommand(subcommand =>
+      subcommand.setName('setup')
+        .setDescription('Set up the logging channel')
+        .addChannelOption(option =>
+          option.setName('channel')
+            .setDescription('The channel for logging events')
+            .setRequired(true)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand.setName('toggle')
+        .setDescription('Toggle specific log types')
+        .addStringOption(option =>
+          option.setName('type')
+            .setDescription('The log type to toggle')
+            .setRequired(true)
+            .addChoices(
+              { name: 'Message Edits', value: 'edits' },
+              { name: 'Message Deletes', value: 'deletes' },
+              { name: 'Member Joins', value: 'joins' },
+              { name: 'Member Leaves', value: 'leaves' },
+              { name: 'Mod Actions', value: 'mod' }
+            )
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand.setName('status')
+        .setDescription('View current logging settings')
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild) as SlashCommandSubcommandsOnlyBuilder,
+  execute: async (interaction, { storage }) => {
+    if (!interaction.guildId) return;
+    
+    try {
+      await interaction.deferReply({ ephemeral: true });
+    } catch { return; }
+    
+    const subcommand = interaction.options.getSubcommand();
+    
+    try {
+      let settings = await storage.getBotSettings(interaction.guildId);
+      if (!settings) {
+        settings = await storage.createBotSettings({ serverId: interaction.guildId });
+      }
+      
+      if (subcommand === 'setup') {
+        const channel = interaction.options.getChannel('channel', true);
+        
+        await storage.updateBotSettings(interaction.guildId, {
+          loggingChannelId: channel.id
+        });
+        
+        const embed = new EmbedBuilder()
+          .setTitle('📋 Logging Configured')
+          .setDescription(`Logging events will be sent to <#${channel.id}>`)
+          .setColor('#57F287')
+          .setTimestamp();
+        
+        await interaction.editReply({ embeds: [embed] });
+      } else if (subcommand === 'toggle') {
+        const type = interaction.options.getString('type', true);
+        let newState: boolean;
+        let typeName: string;
+        
+        switch (type) {
+          case 'edits':
+            newState = !settings.logMessageEdits;
+            await storage.updateBotSettings(interaction.guildId, { logMessageEdits: newState });
+            typeName = 'Message edits';
+            break;
+          case 'deletes':
+            newState = !settings.logMessageDeletes;
+            await storage.updateBotSettings(interaction.guildId, { logMessageDeletes: newState });
+            typeName = 'Message deletes';
+            break;
+          case 'joins':
+            newState = !settings.logMemberJoins;
+            await storage.updateBotSettings(interaction.guildId, { logMemberJoins: newState });
+            typeName = 'Member joins';
+            break;
+          case 'leaves':
+            newState = !settings.logMemberLeaves;
+            await storage.updateBotSettings(interaction.guildId, { logMemberLeaves: newState });
+            typeName = 'Member leaves';
+            break;
+          case 'mod':
+            newState = !settings.logModActions;
+            await storage.updateBotSettings(interaction.guildId, { logModActions: newState });
+            typeName = 'Mod actions';
+            break;
+          default:
+            await interaction.editReply('❌ Invalid log type.');
+            return;
+        }
+        
+        await interaction.editReply(`📋 ${typeName} logging is now ${newState ? 'enabled ✅' : 'disabled ❌'}`);
+      } else if (subcommand === 'status') {
+        const embed = new EmbedBuilder()
+          .setTitle('📋 Logging Status')
+          .addFields(
+            { name: 'Log Channel', value: settings.loggingChannelId ? `<#${settings.loggingChannelId}>` : 'Not set', inline: true },
+            { name: 'Message Edits', value: settings.logMessageEdits ? '✅ Enabled' : '❌ Disabled', inline: true },
+            { name: 'Message Deletes', value: settings.logMessageDeletes ? '✅ Enabled' : '❌ Disabled', inline: true },
+            { name: 'Member Joins', value: settings.logMemberJoins ? '✅ Enabled' : '❌ Disabled', inline: true },
+            { name: 'Member Leaves', value: settings.logMemberLeaves ? '✅ Enabled' : '❌ Disabled', inline: true },
+            { name: 'Mod Actions', value: settings.logModActions ? '✅ Enabled' : '❌ Disabled', inline: true }
+          )
+          .setColor('#5865F2')
+          .setTimestamp();
+        
+        await interaction.editReply({ embeds: [embed] });
+      }
+    } catch (error) {
+      console.error('Error executing logs command:', error);
+      await interaction.editReply('❌ Failed to update logging settings.');
+    }
+  }
+};
+
+commands.set('logs', logsCommand);
+console.log('[Discord] Registered logs command');
+
+// /automod command
+const automodCommand: Command = {
+  data: new SlashCommandBuilder()
+    .setName('automod')
+    .setDescription('Configure auto-moderation')
+    .addSubcommand(subcommand =>
+      subcommand.setName('toggle')
+        .setDescription('Enable or disable auto-moderation')
+    )
+    .addSubcommand(subcommand =>
+      subcommand.setName('addword')
+        .setDescription('Add a banned word')
+        .addStringOption(option =>
+          option.setName('word')
+            .setDescription('The word to ban')
+            .setRequired(true)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand.setName('removeword')
+        .setDescription('Remove a banned word')
+        .addStringOption(option =>
+          option.setName('word')
+            .setDescription('The word to remove')
+            .setRequired(true)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand.setName('spam')
+        .setDescription('Configure spam detection')
+        .addIntegerOption(option =>
+          option.setName('threshold')
+            .setDescription('Number of messages before triggering (default: 5)')
+            .setRequired(true)
+            .setMinValue(2)
+            .setMaxValue(20)
+        )
+        .addIntegerOption(option =>
+          option.setName('window')
+            .setDescription('Time window in seconds (default: 5)')
+            .setRequired(true)
+            .setMinValue(1)
+            .setMaxValue(60)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand.setName('links')
+        .setDescription('Toggle link filtering')
+    )
+    .addSubcommand(subcommand =>
+      subcommand.setName('whitelist')
+        .setDescription('Manage link whitelist')
+        .addStringOption(option =>
+          option.setName('action')
+            .setDescription('Add or remove a domain')
+            .setRequired(true)
+            .addChoices(
+              { name: 'Add', value: 'add' },
+              { name: 'Remove', value: 'remove' }
+            )
+        )
+        .addStringOption(option =>
+          option.setName('domain')
+            .setDescription('The domain to add/remove (e.g., discord.com)')
+            .setRequired(true)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand.setName('action')
+        .setDescription('Set the action to take when triggered')
+        .addStringOption(option =>
+          option.setName('type')
+            .setDescription('The action type')
+            .setRequired(true)
+            .addChoices(
+              { name: 'Warn', value: 'warn' },
+              { name: 'Mute (5 min timeout)', value: 'mute' },
+              { name: 'Kick', value: 'kick' }
+            )
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand.setName('status')
+        .setDescription('View auto-mod settings')
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages) as SlashCommandSubcommandsOnlyBuilder,
+  execute: async (interaction, { storage }) => {
+    if (!interaction.guildId) return;
+    
+    try {
+      await interaction.deferReply({ ephemeral: true });
+    } catch { return; }
+    
+    const subcommand = interaction.options.getSubcommand();
+    
+    try {
+      let settings = await storage.getBotSettings(interaction.guildId);
+      if (!settings) {
+        settings = await storage.createBotSettings({ serverId: interaction.guildId });
+      }
+      
+      if (subcommand === 'toggle') {
+        const newState = !settings.autoModEnabled;
+        await storage.updateBotSettings(interaction.guildId, { autoModEnabled: newState });
+        await interaction.editReply(`🛡️ Auto-moderation is now ${newState ? 'enabled ✅' : 'disabled ❌'}`);
+      } else if (subcommand === 'addword') {
+        const word = interaction.options.getString('word', true).toLowerCase();
+        const bannedWords: string[] = settings.bannedWords ? JSON.parse(settings.bannedWords) : [];
+        
+        if (bannedWords.includes(word)) {
+          await interaction.editReply(`❌ "${word}" is already in the banned words list.`);
+          return;
+        }
+        
+        bannedWords.push(word);
+        await storage.updateBotSettings(interaction.guildId, { bannedWords: JSON.stringify(bannedWords) });
+        await interaction.editReply(`✅ Added "${word}" to banned words list. (${bannedWords.length} total)`);
+      } else if (subcommand === 'removeword') {
+        const word = interaction.options.getString('word', true).toLowerCase();
+        const bannedWords: string[] = settings.bannedWords ? JSON.parse(settings.bannedWords) : [];
+        
+        const index = bannedWords.indexOf(word);
+        if (index === -1) {
+          await interaction.editReply(`❌ "${word}" is not in the banned words list.`);
+          return;
+        }
+        
+        bannedWords.splice(index, 1);
+        await storage.updateBotSettings(interaction.guildId, { bannedWords: JSON.stringify(bannedWords) });
+        await interaction.editReply(`✅ Removed "${word}" from banned words list. (${bannedWords.length} remaining)`);
+      } else if (subcommand === 'spam') {
+        const threshold = interaction.options.getInteger('threshold', true);
+        const window = interaction.options.getInteger('window', true);
+        
+        await storage.updateBotSettings(interaction.guildId, {
+          spamThreshold: threshold,
+          spamTimeWindow: window
+        });
+        
+        await interaction.editReply(`✅ Spam detection configured: ${threshold} messages in ${window} seconds.`);
+      } else if (subcommand === 'links') {
+        const newState = !settings.linkFilterEnabled;
+        await storage.updateBotSettings(interaction.guildId, { linkFilterEnabled: newState });
+        await interaction.editReply(`🔗 Link filtering is now ${newState ? 'enabled ✅' : 'disabled ❌'}`);
+      } else if (subcommand === 'whitelist') {
+        const action = interaction.options.getString('action', true);
+        const domain = interaction.options.getString('domain', true).toLowerCase().replace('https://', '').replace('http://', '').replace('www.', '');
+        const whitelist: string[] = settings.linkWhitelist ? JSON.parse(settings.linkWhitelist) : [];
+        
+        if (action === 'add') {
+          if (whitelist.includes(domain)) {
+            await interaction.editReply(`❌ "${domain}" is already whitelisted.`);
+            return;
+          }
+          whitelist.push(domain);
+          await storage.updateBotSettings(interaction.guildId, { linkWhitelist: JSON.stringify(whitelist) });
+          await interaction.editReply(`✅ Added "${domain}" to whitelist. (${whitelist.length} total)`);
+        } else {
+          const index = whitelist.indexOf(domain);
+          if (index === -1) {
+            await interaction.editReply(`❌ "${domain}" is not in the whitelist.`);
+            return;
+          }
+          whitelist.splice(index, 1);
+          await storage.updateBotSettings(interaction.guildId, { linkWhitelist: JSON.stringify(whitelist) });
+          await interaction.editReply(`✅ Removed "${domain}" from whitelist. (${whitelist.length} remaining)`);
+        }
+      } else if (subcommand === 'action') {
+        const actionType = interaction.options.getString('type', true);
+        await storage.updateBotSettings(interaction.guildId, { autoModAction: actionType });
+        await interaction.editReply(`✅ Auto-mod action set to: **${actionType}**`);
+      } else if (subcommand === 'status') {
+        const bannedWords: string[] = settings.bannedWords ? JSON.parse(settings.bannedWords) : [];
+        const whitelist: string[] = settings.linkWhitelist ? JSON.parse(settings.linkWhitelist) : [];
+        
+        const embed = new EmbedBuilder()
+          .setTitle('🛡️ Auto-Mod Status')
+          .addFields(
+            { name: 'Enabled', value: settings.autoModEnabled ? '✅ Yes' : '❌ No', inline: true },
+            { name: 'Action', value: settings.autoModAction || 'warn', inline: true },
+            { name: 'Link Filter', value: settings.linkFilterEnabled ? '✅ Enabled' : '❌ Disabled', inline: true },
+            { name: 'Spam Detection', value: `${settings.spamThreshold || 5} msgs / ${settings.spamTimeWindow || 5}s`, inline: true },
+            { name: 'Banned Words', value: bannedWords.length > 0 ? `${bannedWords.length} words` : 'None', inline: true },
+            { name: 'Whitelisted Domains', value: whitelist.length > 0 ? whitelist.join(', ').substring(0, 1024) : 'None', inline: false }
+          )
+          .setColor(settings.autoModEnabled ? '#57F287' : '#ED4245')
+          .setTimestamp();
+        
+        await interaction.editReply({ embeds: [embed] });
+      }
+    } catch (error) {
+      console.error('Error executing automod command:', error);
+      await interaction.editReply('❌ Failed to update auto-mod settings.');
+    }
+  }
+};
+
+commands.set('automod', automodCommand);
+console.log('[Discord] Registered automod command');
+
+// /suggest command
+const suggestCommand: Command = {
+  data: new SlashCommandBuilder()
+    .setName('suggest')
+    .setDescription('Submit a suggestion')
+    .addStringOption(option =>
+      option.setName('content')
+        .setDescription('Your suggestion')
+        .setRequired(true)
+        .setMaxLength(1000)
+    ) as SlashCommandOptionsOnlyBuilder,
+  execute: async (interaction, { storage }) => {
+    if (!interaction.guildId || !interaction.channel) return;
+    
+    try {
+      await interaction.deferReply({ ephemeral: false });
+    } catch { return; }
+    
+    try {
+      const content = interaction.options.getString('content', true);
+      let settings = await storage.getBotSettings(interaction.guildId);
+      
+      const targetChannelId = settings?.suggestionChannelId || interaction.channelId;
+      const targetChannel = interaction.guild?.channels.cache.get(targetChannelId);
+      
+      if (!targetChannel || !targetChannel.isTextBased()) {
+        await interaction.editReply('❌ Suggestion channel not found. Please contact an admin.');
+        return;
+      }
+      
+      const suggestion = await storage.createSuggestion({
+        serverId: interaction.guildId,
+        channelId: targetChannelId,
+        authorId: interaction.user.id,
+        authorUsername: interaction.user.username,
+        content,
+        status: 'pending',
+        upvotes: 0,
+        downvotes: 0
+      });
+      
+      const embed = new EmbedBuilder()
+        .setTitle(`💡 Suggestion #${suggestion.id}`)
+        .setDescription(content)
+        .setAuthor({
+          name: interaction.user.username,
+          iconURL: interaction.user.displayAvatarURL()
+        })
+        .addFields(
+          { name: 'Status', value: '⏳ Pending', inline: true },
+          { name: 'Votes', value: '👍 0 | 👎 0', inline: true }
+        )
+        .setColor('#5865F2')
+        .setFooter({ text: `Suggestion ID: ${suggestion.id}` })
+        .setTimestamp();
+      
+      let sentMessage;
+      if (targetChannelId === interaction.channelId) {
+        sentMessage = await interaction.editReply({ embeds: [embed] });
+      } else {
+        sentMessage = await (targetChannel as any).send({ embeds: [embed] });
+        await interaction.editReply(`✅ Your suggestion has been submitted! See it in <#${targetChannelId}>`);
+      }
+      
+      if (sentMessage) {
+        await storage.updateSuggestion(suggestion.id, { messageId: sentMessage.id });
+        await sentMessage.react('👍');
+        await sentMessage.react('👎');
+      }
+    } catch (error) {
+      console.error('Error creating suggestion:', error);
+      await interaction.editReply('❌ Failed to submit suggestion.');
+    }
+  }
+};
+
+commands.set('suggest', suggestCommand);
+console.log('[Discord] Registered suggest command');
+
+// /suggestion command
+const suggestionCommand: Command = {
+  data: new SlashCommandBuilder()
+    .setName('suggestion')
+    .setDescription('Manage suggestions')
+    .addSubcommand(subcommand =>
+      subcommand.setName('approve')
+        .setDescription('Approve a suggestion')
+        .addIntegerOption(option =>
+          option.setName('id')
+            .setDescription('Suggestion ID')
+            .setRequired(true)
+        )
+        .addStringOption(option =>
+          option.setName('response')
+            .setDescription('Response message')
+            .setRequired(false)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand.setName('deny')
+        .setDescription('Deny a suggestion')
+        .addIntegerOption(option =>
+          option.setName('id')
+            .setDescription('Suggestion ID')
+            .setRequired(true)
+        )
+        .addStringOption(option =>
+          option.setName('reason')
+            .setDescription('Reason for denial')
+            .setRequired(false)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand.setName('implement')
+        .setDescription('Mark a suggestion as implemented')
+        .addIntegerOption(option =>
+          option.setName('id')
+            .setDescription('Suggestion ID')
+            .setRequired(true)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand.setName('status')
+        .setDescription('Check suggestion status')
+        .addIntegerOption(option =>
+          option.setName('id')
+            .setDescription('Suggestion ID')
+            .setRequired(true)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand.setName('setchannel')
+        .setDescription('Set the suggestion channel')
+        .addChannelOption(option =>
+          option.setName('channel')
+            .setDescription('The channel for suggestions')
+            .setRequired(true)
+        )
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages) as SlashCommandSubcommandsOnlyBuilder,
+  execute: async (interaction, { storage }) => {
+    if (!interaction.guildId) return;
+    
+    try {
+      await interaction.deferReply({ ephemeral: true });
+    } catch { return; }
+    
+    const subcommand = interaction.options.getSubcommand();
+    
+    try {
+      if (subcommand === 'setchannel') {
+        const channel = interaction.options.getChannel('channel', true);
+        
+        let settings = await storage.getBotSettings(interaction.guildId);
+        if (!settings) {
+          settings = await storage.createBotSettings({ serverId: interaction.guildId });
+        }
+        
+        await storage.updateBotSettings(interaction.guildId, { suggestionChannelId: channel.id });
+        await interaction.editReply(`✅ Suggestion channel set to <#${channel.id}>`);
+        return;
+      }
+      
+      const suggestionId = interaction.options.getInteger('id', true);
+      const suggestion = await storage.getSuggestion(suggestionId);
+      
+      if (!suggestion || suggestion.serverId !== interaction.guildId) {
+        await interaction.editReply('❌ Suggestion not found.');
+        return;
+      }
+      
+      if (subcommand === 'status') {
+        const statusEmoji: Record<string, string> = {
+          pending: '⏳',
+          approved: '✅',
+          denied: '❌',
+          implemented: '🎉'
+        };
+        
+        const embed = new EmbedBuilder()
+          .setTitle(`💡 Suggestion #${suggestion.id}`)
+          .setDescription(suggestion.content)
+          .addFields(
+            { name: 'Status', value: `${statusEmoji[suggestion.status]} ${suggestion.status.charAt(0).toUpperCase() + suggestion.status.slice(1)}`, inline: true },
+            { name: 'Votes', value: `👍 ${suggestion.upvotes || 0} | 👎 ${suggestion.downvotes || 0}`, inline: true },
+            { name: 'Author', value: `<@${suggestion.authorId}>`, inline: true }
+          )
+          .setColor(suggestion.status === 'approved' || suggestion.status === 'implemented' ? '#57F287' : suggestion.status === 'denied' ? '#ED4245' : '#5865F2')
+          .setTimestamp(suggestion.createdAt);
+        
+        if (suggestion.adminResponse) {
+          embed.addFields({ name: 'Response', value: suggestion.adminResponse });
+        }
+        
+        await interaction.editReply({ embeds: [embed] });
+        return;
+      }
+      
+      let newStatus: string;
+      let color: string;
+      let statusEmoji: string;
+      
+      if (subcommand === 'approve') {
+        newStatus = 'approved';
+        color = '#57F287';
+        statusEmoji = '✅';
+      } else if (subcommand === 'deny') {
+        newStatus = 'denied';
+        color = '#ED4245';
+        statusEmoji = '❌';
+      } else {
+        newStatus = 'implemented';
+        color = '#FEE75C';
+        statusEmoji = '🎉';
+      }
+      
+      const response = interaction.options.getString('response') || interaction.options.getString('reason');
+      
+      await storage.updateSuggestion(suggestionId, {
+        status: newStatus,
+        adminResponse: response || undefined,
+        responderId: interaction.user.id
+      });
+      
+      if (suggestion.messageId && suggestion.channelId) {
+        try {
+          const channel = interaction.guild?.channels.cache.get(suggestion.channelId);
+          if (channel && channel.isTextBased()) {
+            const message = await (channel as any).messages.fetch(suggestion.messageId);
+            if (message) {
+              const updatedEmbed = new EmbedBuilder()
+                .setTitle(`💡 Suggestion #${suggestion.id}`)
+                .setDescription(suggestion.content)
+                .setAuthor({
+                  name: suggestion.authorUsername || 'Unknown User'
+                })
+                .addFields(
+                  { name: 'Status', value: `${statusEmoji} ${newStatus.charAt(0).toUpperCase() + newStatus.slice(1)}`, inline: true },
+                  { name: 'Votes', value: `👍 ${suggestion.upvotes || 0} | 👎 ${suggestion.downvotes || 0}`, inline: true }
+                )
+                .setColor(color as any)
+                .setFooter({ text: `Suggestion ID: ${suggestion.id} | Reviewed by ${interaction.user.username}` })
+                .setTimestamp();
+              
+              if (response) {
+                updatedEmbed.addFields({ name: 'Response', value: response });
+              }
+              
+              await message.edit({ embeds: [updatedEmbed] });
+            }
+          }
+        } catch (e) {
+          console.error('Error updating suggestion message:', e);
+        }
+      }
+      
+      await interaction.editReply(`${statusEmoji} Suggestion #${suggestionId} has been ${newStatus}.`);
+    } catch (error) {
+      console.error('Error executing suggestion command:', error);
+      await interaction.editReply('❌ Failed to update suggestion.');
+    }
+  }
+};
+
+commands.set('suggestion', suggestionCommand);
+console.log('[Discord] Registered suggestion command');
+
+// Birthday Command - /birthday set, remove, list, channel
+const birthdayCommand: Command = {
+  data: new SlashCommandBuilder()
+    .setName('birthday')
+    .setDescription('Manage birthdays in the server')
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('set')
+        .setDescription('Set your birthday')
+        .addIntegerOption(option =>
+          option.setName('month')
+            .setDescription('Birth month (1-12)')
+            .setRequired(true)
+            .setMinValue(1)
+            .setMaxValue(12)
+        )
+        .addIntegerOption(option =>
+          option.setName('day')
+            .setDescription('Birth day (1-31)')
+            .setRequired(true)
+            .setMinValue(1)
+            .setMaxValue(31)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('remove')
+        .setDescription('Remove your birthday from the server')
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('list')
+        .setDescription('Show upcoming birthdays in the server')
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('channel')
+        .setDescription('Set the birthday announcement channel (admin only)')
+        .addChannelOption(option =>
+          option.setName('channel')
+            .setDescription('Channel for birthday announcements')
+            .setRequired(true)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('role')
+        .setDescription('Set the birthday role to assign on birthdays (admin only)')
+        .addRoleOption(option =>
+          option.setName('role')
+            .setDescription('Role to assign on birthdays')
+            .setRequired(true)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('enable')
+        .setDescription('Enable or disable birthday tracking (admin only)')
+        .addBooleanOption(option =>
+          option.setName('enabled')
+            .setDescription('Enable birthday tracking')
+            .setRequired(true)
+        )
+    ),
+  async execute(interaction: ChatInputCommandInteraction, { storage }: CommandContext) {
+    const subcommand = interaction.options.getSubcommand();
+    const guildId = interaction.guildId;
+    
+    if (!guildId) {
+      await interaction.reply({ content: '❌ This command can only be used in a server.', ephemeral: true });
+      return;
+    }
+    
+    try {
+      if (subcommand === 'set') {
+        const month = interaction.options.getInteger('month', true);
+        const day = interaction.options.getInteger('day', true);
+        
+        const daysInMonth = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+        if (day > daysInMonth[month - 1]) {
+          await interaction.reply({ content: `❌ Invalid date: ${month}/${day}. Month ${month} only has ${daysInMonth[month - 1]} days.`, ephemeral: true });
+          return;
+        }
+        
+        await storage.createBirthday({
+          serverId: guildId,
+          userId: interaction.user.id,
+          username: interaction.user.username,
+          birthMonth: month,
+          birthDay: day
+        });
+        
+        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        await interaction.reply({ content: `🎂 Your birthday has been set to **${monthNames[month - 1]} ${day}**!`, ephemeral: true });
+      } else if (subcommand === 'remove') {
+        const deleted = await storage.deleteBirthday(guildId, interaction.user.id);
+        if (deleted) {
+          await interaction.reply({ content: '✅ Your birthday has been removed from this server.', ephemeral: true });
+        } else {
+          await interaction.reply({ content: '❌ You don\'t have a birthday set in this server.', ephemeral: true });
+        }
+      } else if (subcommand === 'list') {
+        const birthdays = await storage.getBirthdaysByServer(guildId);
+        
+        if (birthdays.length === 0) {
+          await interaction.reply({ content: '📅 No birthdays have been set in this server yet.', ephemeral: true });
+          return;
+        }
+        
+        const now = new Date();
+        const currentMonth = now.getMonth() + 1;
+        const currentDay = now.getDate();
+        
+        const sortedBirthdays = birthdays.map(b => {
+          let daysUntil = (b.birthMonth - currentMonth) * 30 + (b.birthDay - currentDay);
+          if (daysUntil < 0) daysUntil += 365;
+          return { ...b, daysUntil };
+        }).sort((a, b) => a.daysUntil - b.daysUntil).slice(0, 10);
+        
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const birthdayList = sortedBirthdays.map((b, i) => {
+          const emoji = b.daysUntil === 0 ? '🎂' : '📅';
+          return `${i + 1}. ${emoji} <@${b.userId}> - ${monthNames[b.birthMonth - 1]} ${b.birthDay}${b.daysUntil === 0 ? ' **(Today!)**' : ` (in ${b.daysUntil} days)`}`;
+        }).join('\n');
+        
+        const embed = new EmbedBuilder()
+          .setTitle('🎂 Upcoming Birthdays')
+          .setDescription(birthdayList)
+          .setColor('#FF69B4')
+          .setFooter({ text: `${birthdays.length} total birthdays registered` })
+          .setTimestamp();
+        
+        await interaction.reply({ embeds: [embed] });
+      } else if (subcommand === 'channel') {
+        if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+          await interaction.reply({ content: '❌ You need Manage Server permission to use this command.', ephemeral: true });
+          return;
+        }
+        
+        const channel = interaction.options.getChannel('channel', true);
+        await storage.updateBotSettings(guildId, { birthdayChannelId: channel.id, birthdayEnabled: true });
+        
+        await interaction.reply({ content: `✅ Birthday announcements will now be posted in <#${channel.id}>`, ephemeral: true });
+      } else if (subcommand === 'role') {
+        if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+          await interaction.reply({ content: '❌ You need Manage Server permission to use this command.', ephemeral: true });
+          return;
+        }
+        
+        const role = interaction.options.getRole('role', true);
+        await storage.updateBotSettings(guildId, { birthdayRoleId: role.id });
+        
+        await interaction.reply({ content: `✅ The birthday role has been set to <@&${role.id}>`, ephemeral: true });
+      } else if (subcommand === 'enable') {
+        if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+          await interaction.reply({ content: '❌ You need Manage Server permission to use this command.', ephemeral: true });
+          return;
+        }
+        
+        const enabled = interaction.options.getBoolean('enabled', true);
+        await storage.updateBotSettings(guildId, { birthdayEnabled: enabled });
+        
+        await interaction.reply({ content: enabled ? '✅ Birthday tracking has been enabled!' : '✅ Birthday tracking has been disabled.', ephemeral: true });
+      }
+    } catch (error) {
+      console.error('Error executing birthday command:', error);
+      await interaction.reply({ content: '❌ An error occurred while processing your request.', ephemeral: true });
+    }
+  }
+};
+commands.set('birthday', birthdayCommand);
+console.log('[Discord] Registered birthday command');
+
+// Invites Command - /invites user, leaderboard, channel
+const invitesCommand: Command = {
+  data: new SlashCommandBuilder()
+    .setName('invites')
+    .setDescription('Track server invites')
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('user')
+        .setDescription('Check invite count for a user')
+        .addUserOption(option =>
+          option.setName('user')
+            .setDescription('User to check (leave empty for yourself)')
+            .setRequired(false)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('leaderboard')
+        .setDescription('Show top 10 inviters')
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('channel')
+        .setDescription('Set the invite log channel (admin only)')
+        .addChannelOption(option =>
+          option.setName('channel')
+            .setDescription('Channel for invite logs')
+            .setRequired(true)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('enable')
+        .setDescription('Enable or disable invite tracking (admin only)')
+        .addBooleanOption(option =>
+          option.setName('enabled')
+            .setDescription('Enable invite tracking')
+            .setRequired(true)
+        )
+    ),
+  async execute(interaction: ChatInputCommandInteraction, { storage }: CommandContext) {
+    const subcommand = interaction.options.getSubcommand();
+    const guildId = interaction.guildId;
+    
+    if (!guildId) {
+      await interaction.reply({ content: '❌ This command can only be used in a server.', ephemeral: true });
+      return;
+    }
+    
+    await interaction.deferReply();
+    
+    try {
+      if (subcommand === 'user') {
+        const targetUser = interaction.options.getUser('user') || interaction.user;
+        const invites = await storage.getInvitesByInviter(guildId, targetUser.id);
+        
+        const embed = new EmbedBuilder()
+          .setTitle(`📨 Invite Stats for ${targetUser.username}`)
+          .setThumbnail(targetUser.displayAvatarURL())
+          .setColor('#5865F2')
+          .addFields(
+            { name: 'Total Invites', value: `${invites.length}`, inline: true }
+          );
+        
+        if (invites.length > 0) {
+          const recentInvites = invites.slice(-5).reverse();
+          const invitedList = recentInvites.map(inv => `<@${inv.invitedUserId}>`).join(', ');
+          embed.addFields({ name: 'Recently Invited', value: invitedList || 'None', inline: false });
+        }
+        
+        embed.setFooter({ text: 'Invite tracking started when the bot joined' }).setTimestamp();
+        
+        await interaction.editReply({ embeds: [embed] });
+      } else if (subcommand === 'leaderboard') {
+        const leaderboard = await storage.getInviteLeaderboard(guildId, 10);
+        
+        if (leaderboard.length === 0) {
+          await interaction.editReply('📊 No invite data recorded yet.');
+          return;
+        }
+        
+        const leaderboardText = leaderboard.map((entry, i) => {
+          const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
+          return `${medal} <@${entry.inviterId}> - **${entry.count}** invites`;
+        }).join('\n');
+        
+        const embed = new EmbedBuilder()
+          .setTitle('📊 Invite Leaderboard')
+          .setDescription(leaderboardText)
+          .setColor('#FFD700')
+          .setFooter({ text: `Top ${leaderboard.length} inviters` })
+          .setTimestamp();
+        
+        await interaction.editReply({ embeds: [embed] });
+      } else if (subcommand === 'channel') {
+        if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+          await interaction.editReply('❌ You need Manage Server permission to use this command.');
+          return;
+        }
+        
+        const channel = interaction.options.getChannel('channel', true);
+        await storage.updateBotSettings(guildId, { inviteLogChannelId: channel.id, inviteTrackingEnabled: true });
+        
+        await interaction.editReply(`✅ Invite logs will now be posted in <#${channel.id}>`);
+      } else if (subcommand === 'enable') {
+        if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+          await interaction.editReply('❌ You need Manage Server permission to use this command.');
+          return;
+        }
+        
+        const enabled = interaction.options.getBoolean('enabled', true);
+        await storage.updateBotSettings(guildId, { inviteTrackingEnabled: enabled });
+        
+        await interaction.editReply(enabled ? '✅ Invite tracking has been enabled!' : '✅ Invite tracking has been disabled.');
+      }
+    } catch (error) {
+      console.error('Error executing invites command:', error);
+      await interaction.editReply('❌ An error occurred while processing your request.');
+    }
+  }
+};
+commands.set('invites', invitesCommand);
+console.log('[Discord] Registered invites command');
+
+// Boost Command - /boost thankchannel, message, role
+const boostCommand: Command = {
+  data: new SlashCommandBuilder()
+    .setName('boost')
+    .setDescription('Configure server boost tracking')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('thankchannel')
+        .setDescription('Set the channel for boost thank messages')
+        .addChannelOption(option =>
+          option.setName('channel')
+            .setDescription('Channel for boost notifications')
+            .setRequired(true)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('message')
+        .setDescription('Set custom thank message ({user} for mention)')
+        .addStringOption(option =>
+          option.setName('message')
+            .setDescription('Custom thank message (use {user} for user mention)')
+            .setRequired(true)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('role')
+        .setDescription('Set a recognition role for boosters')
+        .addRoleOption(option =>
+          option.setName('role')
+            .setDescription('Role to assign to boosters')
+            .setRequired(true)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('enable')
+        .setDescription('Enable or disable boost tracking')
+        .addBooleanOption(option =>
+          option.setName('enabled')
+            .setDescription('Enable boost tracking')
+            .setRequired(true)
+        )
+    ),
+  async execute(interaction: ChatInputCommandInteraction, { storage }: CommandContext) {
+    const subcommand = interaction.options.getSubcommand();
+    const guildId = interaction.guildId;
+    
+    if (!guildId) {
+      await interaction.reply({ content: '❌ This command can only be used in a server.', ephemeral: true });
+      return;
+    }
+    
+    try {
+      if (subcommand === 'thankchannel') {
+        const channel = interaction.options.getChannel('channel', true);
+        await storage.updateBotSettings(guildId, { boostChannelId: channel.id, boostTrackingEnabled: true });
+        
+        await interaction.reply({ content: `🚀 Boost thank messages will now be posted in <#${channel.id}>`, ephemeral: true });
+      } else if (subcommand === 'message') {
+        const message = interaction.options.getString('message', true);
+        await storage.updateBotSettings(guildId, { boostThankMessage: message });
+        
+        const preview = message.replace('{user}', interaction.user.toString());
+        await interaction.reply({ content: `✅ Boost message updated!\n**Preview:** ${preview}`, ephemeral: true });
+      } else if (subcommand === 'role') {
+        const role = interaction.options.getRole('role', true);
+        await storage.updateBotSettings(guildId, { boostRoleId: role.id });
+        
+        await interaction.reply({ content: `✅ Booster recognition role set to <@&${role.id}>`, ephemeral: true });
+      } else if (subcommand === 'enable') {
+        const enabled = interaction.options.getBoolean('enabled', true);
+        await storage.updateBotSettings(guildId, { boostTrackingEnabled: enabled });
+        
+        await interaction.reply({ content: enabled ? '🚀 Boost tracking has been enabled!' : '✅ Boost tracking has been disabled.', ephemeral: true });
+      }
+    } catch (error) {
+      console.error('Error executing boost command:', error);
+      await interaction.reply({ content: '❌ An error occurred while processing your request.', ephemeral: true });
+    }
+  }
+};
+commands.set('boost', boostCommand);
+console.log('[Discord] Registered boost command');
+
+// Boosters Command - /boosters - List all current boosters
+const boostersCommand: Command = {
+  data: new SlashCommandBuilder()
+    .setName('boosters')
+    .setDescription('List all current server boosters'),
+  async execute(interaction: ChatInputCommandInteraction, { storage }: CommandContext) {
+    const guild = interaction.guild;
+    
+    if (!guild) {
+      await interaction.reply({ content: '❌ This command can only be used in a server.', ephemeral: true });
+      return;
+    }
+    
+    await interaction.deferReply();
+    
+    try {
+      await guild.members.fetch();
+      const boosters = guild.members.cache.filter(member => member.premiumSince !== null);
+      
+      if (boosters.size === 0) {
+        await interaction.editReply('💜 This server has no boosters yet. Be the first!');
+        return;
+      }
+      
+      const sortedBoosters = [...boosters.values()]
+        .sort((a, b) => (a.premiumSince?.getTime() || 0) - (b.premiumSince?.getTime() || 0));
+      
+      const boosterList = sortedBoosters.slice(0, 25).map((member, i) => {
+        const boostDate = member.premiumSince ? `<t:${Math.floor(member.premiumSince.getTime() / 1000)}:R>` : 'Unknown';
+        return `${i + 1}. <@${member.id}> - Boosting since ${boostDate}`;
+      }).join('\n');
+      
+      const embed = new EmbedBuilder()
+        .setTitle('💜 Server Boosters')
+        .setDescription(boosterList)
+        .setColor('#F47FFF')
+        .addFields(
+          { name: 'Total Boosters', value: `${boosters.size}`, inline: true },
+          { name: 'Boost Level', value: `Level ${guild.premiumTier}`, inline: true },
+          { name: 'Total Boosts', value: `${guild.premiumSubscriptionCount || 0}`, inline: true }
+        )
+        .setFooter({ text: 'Thank you for supporting the server! 💜' })
+        .setTimestamp();
+      
+      await interaction.editReply({ embeds: [embed] });
+    } catch (error) {
+      console.error('Error executing boosters command:', error);
+      await interaction.editReply('❌ An error occurred while fetching booster information.');
+    }
+  }
+};
+commands.set('boosters', boostersCommand);
+console.log('[Discord] Registered boosters command');
+
 // Export giveaway helper functions for scheduled job
 export { pickGiveawayWinners, announceGiveawayWinners };
 

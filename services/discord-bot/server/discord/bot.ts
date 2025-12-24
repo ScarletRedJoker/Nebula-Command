@@ -26,6 +26,8 @@ import { TicketChannelManager, startThreadCleanupJob } from './ticket-channel-ma
 import { initHomelabPresence, HomelabPresenceService } from './homelab-presence';
 import { streamPoller } from '../services/stream-poller';
 import { initializeCommunityFeatures } from './community-features';
+import { initializeModerationFeatures, handleAutoMod } from './moderation-features';
+import { registerScheduledCommands, calculateNextRun } from './scheduled-commands';
 
 // Discord bot instance
 let client: Client | null = null;
@@ -49,7 +51,9 @@ developerCommands.forEach(command => {
   commands.set(command.data.name, command);
 });
 console.log('[Discord] Registered developer commands:', developerCommands.map(c => c.data.name).join(', '));
-console.log('[Discord] Total commands after dev commands:', Array.from(commands.keys()).join(', '));
+
+registerScheduledCommands();
+console.log('[Discord] Total commands after all registrations:', Array.from(commands.keys()).join(', '));
 
 export async function startBot(storage: IStorage, broadcast: (data: any) => void): Promise<void> {
   if (!process.env.DISCORD_BOT_TOKEN) {
@@ -1627,12 +1631,113 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
       }
       
       // =============== END NEW TICKET MODERATION BUTTON HANDLERS ===============
+      
+      // Handle embed builder modal submission
+      else if (interaction.isModalSubmit() && interaction.customId === 'embed_create_modal') {
+        try {
+          await interaction.deferReply({ ephemeral: true });
+          
+          const title = interaction.fields.getTextInputValue('embed_title') || null;
+          const description = interaction.fields.getTextInputValue('embed_description') || null;
+          const color = interaction.fields.getTextInputValue('embed_color') || '#5865F2';
+          const footer = interaction.fields.getTextInputValue('embed_footer') || null;
+          const imageUrl = interaction.fields.getTextInputValue('embed_image') || null;
+          
+          if (!title && !description) {
+            await interaction.editReply('❌ You must provide at least a title or description.');
+            return;
+          }
+          
+          await storage.createOrUpdateUserEmbed({
+            userId: interaction.user.id,
+            serverId: interaction.guildId!,
+            title,
+            description,
+            color,
+            footer,
+            imageUrl
+          });
+          
+          const previewEmbed = new EmbedBuilder();
+          if (title) previewEmbed.setTitle(title);
+          if (description) previewEmbed.setDescription(description);
+          if (color) {
+            try {
+              previewEmbed.setColor(parseInt(color.replace('#', ''), 16));
+            } catch {}
+          }
+          if (footer) previewEmbed.setFooter({ text: footer });
+          if (imageUrl) previewEmbed.setImage(imageUrl);
+          
+          await interaction.editReply({ 
+            content: '✅ Embed saved! Use `/embed preview` to see it or `/embed send` to send it.',
+            embeds: [previewEmbed]
+          });
+        } catch (error) {
+          console.error('[Embed Modal] Error:', error);
+          if (interaction.deferred || interaction.replied) {
+            await interaction.editReply('❌ An error occurred while saving your embed.');
+          }
+        }
+      }
     });
     
     // Handle messages in ticket channels/threads
     client.on(Events.MessageCreate, async (message) => {
       // Ignore bot messages
       if (message.author.bot) return;
+      
+      // Run auto-mod check first
+      try {
+        const autoModResult = await handleAutoMod(message, storage);
+        if (autoModResult.triggered) {
+          console.log(`[AutoMod] Action triggered for user ${message.author.tag}: ${autoModResult.reason}`);
+          return; // Stop processing if automod handled it
+        }
+      } catch (autoModError) {
+        console.error('[AutoMod] Error in automod handler:', autoModError);
+      }
+      
+      // Handle custom commands
+      if (message.guild) {
+        try {
+          const settings = await storage.getBotSettings(message.guild.id);
+          const prefix = settings?.botPrefix || '!';
+          
+          if (message.content.startsWith(prefix)) {
+            const args = message.content.slice(prefix.length).trim().split(/\s+/);
+            const trigger = args.shift()?.toLowerCase();
+            
+            if (trigger) {
+              const customCmd = await storage.getCustomCommand(message.guild.id, trigger);
+              if (customCmd) {
+                await storage.incrementCustomCommandUsage(message.guild.id, trigger);
+                
+                let response = customCmd.response
+                  .replace(/\{user\}/g, `<@${message.author.id}>`)
+                  .replace(/\{server\}/g, message.guild.name)
+                  .replace(/\{channel\}/g, `<#${message.channel.id}>`)
+                  .replace(/\{args\}/g, args.join(' '));
+                
+                if (customCmd.embedJson) {
+                  try {
+                    const embedData = JSON.parse(customCmd.embedJson);
+                    const embed = new EmbedBuilder(embedData);
+                    await message.channel.send({ content: response || undefined, embeds: [embed] });
+                  } catch {
+                    await message.channel.send(response);
+                  }
+                } else {
+                  await message.channel.send(response);
+                }
+                return;
+              }
+            }
+          }
+        } catch (customCmdError) {
+          console.error('[CustomCmd] Error handling custom command:', customCmdError);
+        }
+      }
       
       // Import ChannelType to check if it's a thread
       const { ChannelType } = await import('discord.js');
@@ -2086,6 +2191,58 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
       console.log('[Bot] Starting ticket system safeguard background jobs...');
       startBackgroundJobs(client!, storage, broadcast);
       
+      // Start scheduled messages scheduler (check every minute)
+      console.log('[Scheduler] Starting scheduled messages job...');
+      setInterval(async () => {
+        try {
+          const dueMessages = await storage.getDueScheduledMessages();
+          
+          for (const scheduled of dueMessages) {
+            try {
+              const guild = readyClient.guilds.cache.get(scheduled.serverId);
+              if (!guild) continue;
+              
+              const channel = guild.channels.cache.get(scheduled.channelId);
+              if (!channel || !channel.isTextBased()) continue;
+              
+              // Parse embed if present
+              if (scheduled.embedJson) {
+                try {
+                  const embedData = JSON.parse(scheduled.embedJson);
+                  const embed = new EmbedBuilder(embedData);
+                  await (channel as any).send({ 
+                    content: scheduled.message || undefined, 
+                    embeds: [embed] 
+                  });
+                } catch {
+                  await (channel as any).send(scheduled.message);
+                }
+              } else if (scheduled.message) {
+                await (channel as any).send(scheduled.message);
+              }
+              
+              console.log(`[Scheduler] Sent scheduled message #${scheduled.id} to ${guild.name}/${channel.name}`);
+              
+              // Handle repeat or deactivate
+              if (scheduled.cronExpression) {
+                const nextRun = calculateNextRun(scheduled.cronExpression, new Date());
+                await storage.updateScheduledMessage(scheduled.id, { nextRunAt: nextRun });
+                console.log(`[Scheduler] Rescheduled message #${scheduled.id} for ${nextRun.toISOString()}`);
+              } else {
+                await storage.updateScheduledMessage(scheduled.id, { isActive: false });
+                console.log(`[Scheduler] Deactivated one-time message #${scheduled.id}`);
+              }
+            } catch (msgError) {
+              console.error(`[Scheduler] Error sending scheduled message #${scheduled.id}:`, msgError);
+              // Deactivate on error to prevent spam
+              await storage.updateScheduledMessage(scheduled.id, { isActive: false });
+            }
+          }
+        } catch (error) {
+          console.error('[Scheduler] Error in scheduled messages job:', error);
+        }
+      }, 60 * 1000); // Check every minute
+      
       // Cleanup old interaction locks every hour to prevent table bloat
       setInterval(async () => {
         try {
@@ -2144,6 +2301,15 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
         console.log('[Bot] ✅ Community features initialized successfully');
       } catch (communityError) {
         console.error('[Bot] Failed to initialize community features:', communityError);
+      }
+      
+      // Initialize moderation features (Logging, Auto-Mod)
+      console.log('[Bot] Initializing moderation features...');
+      try {
+        initializeModerationFeatures(client!, storage);
+        console.log('[Bot] ✅ Moderation features initialized successfully');
+      } catch (modError) {
+        console.error('[Bot] Failed to initialize moderation features:', modError);
       }
     });
 

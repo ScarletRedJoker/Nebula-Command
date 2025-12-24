@@ -497,6 +497,238 @@ async function handleAfkMessage(message: Message, storage: IStorage): Promise<vo
   }
 }
 
+// Invite cache for tracking who invited whom
+const guildInviteCache = new Map<string, Map<string, number>>();
+
+async function cacheGuildInvites(guild: any): Promise<void> {
+  try {
+    const invites = await guild.invites.fetch();
+    const inviteCache = new Map<string, number>();
+    invites.forEach((invite: any) => {
+      inviteCache.set(invite.code, invite.uses || 0);
+    });
+    guildInviteCache.set(guild.id, inviteCache);
+    console.log(`[Invites] Cached ${inviteCache.size} invites for ${guild.name}`);
+  } catch (error) {
+    console.error(`[Invites] Failed to cache invites for ${guild.name}:`, error);
+  }
+}
+
+async function handleInviteTracking(member: GuildMember, storage: IStorage): Promise<void> {
+  try {
+    const settings = await storage.getBotSettings(member.guild.id);
+    if (!settings?.inviteTrackingEnabled) return;
+    
+    const cachedInvites = guildInviteCache.get(member.guild.id);
+    if (!cachedInvites) {
+      console.log('[Invites] No cached invites for guild, caching now...');
+      await cacheGuildInvites(member.guild);
+      return;
+    }
+    
+    const newInvites = await member.guild.invites.fetch();
+    let usedInvite: any = null;
+    
+    newInvites.forEach((invite: any) => {
+      const cachedUses = cachedInvites.get(invite.code) || 0;
+      if (invite.uses && invite.uses > cachedUses) {
+        usedInvite = invite;
+      }
+    });
+    
+    // Update cache
+    const newCache = new Map<string, number>();
+    newInvites.forEach((invite: any) => {
+      newCache.set(invite.code, invite.uses || 0);
+    });
+    guildInviteCache.set(member.guild.id, newCache);
+    
+    if (usedInvite && usedInvite.inviter) {
+      await storage.createInviteRecord({
+        serverId: member.guild.id,
+        inviterId: usedInvite.inviter.id,
+        inviterUsername: usedInvite.inviter.username,
+        invitedUserId: member.user.id,
+        invitedUsername: member.user.username,
+        inviteCode: usedInvite.code
+      });
+      
+      console.log(`[Invites] ${member.user.username} was invited by ${usedInvite.inviter.username} using code ${usedInvite.code}`);
+      
+      if (settings.inviteLogChannelId) {
+        const logChannel = member.guild.channels.cache.get(settings.inviteLogChannelId) as TextChannel;
+        if (logChannel && logChannel.isTextBased()) {
+          const embed = new EmbedBuilder()
+            .setTitle('📨 New Member Joined')
+            .setDescription(`<@${member.user.id}> joined the server!`)
+            .addFields(
+              { name: 'Invited By', value: `<@${usedInvite.inviter.id}>`, inline: true },
+              { name: 'Invite Code', value: `\`${usedInvite.code}\``, inline: true }
+            )
+            .setThumbnail(member.user.displayAvatarURL())
+            .setColor('#57F287')
+            .setTimestamp();
+          
+          await logChannel.send({ embeds: [embed] });
+        }
+      }
+    } else {
+      console.log(`[Invites] Could not determine which invite ${member.user.username} used`);
+    }
+  } catch (error) {
+    console.error('[Invites] Error tracking invite:', error);
+  }
+}
+
+async function handleBoostTracking(
+  oldMember: GuildMember | PartialGuildMember, 
+  newMember: GuildMember,
+  storage: IStorage
+): Promise<void> {
+  try {
+    const wasBoosting = oldMember.premiumSince !== null;
+    const isBoosting = newMember.premiumSince !== null;
+    
+    if (!wasBoosting && isBoosting) {
+      console.log(`[Boost] ${newMember.user.username} started boosting ${newMember.guild.name}`);
+      
+      const settings = await storage.getBotSettings(newMember.guild.id);
+      if (!settings?.boostTrackingEnabled) return;
+      
+      if (settings.boostRoleId) {
+        const role = newMember.guild.roles.cache.get(settings.boostRoleId);
+        if (role && role.position < (newMember.guild.members.me?.roles.highest.position || 0)) {
+          await newMember.roles.add(role).catch(err => 
+            console.error(`[Boost] Failed to add booster role:`, err)
+          );
+          console.log(`[Boost] Added recognition role to ${newMember.user.username}`);
+        }
+      }
+      
+      if (settings.boostChannelId) {
+        const boostChannel = newMember.guild.channels.cache.get(settings.boostChannelId) as TextChannel;
+        if (boostChannel && boostChannel.isTextBased()) {
+          const message = (settings.boostThankMessage || '🚀 Thank you {user} for boosting the server! You\'re amazing! 💜')
+            .replace('{user}', `<@${newMember.user.id}>`);
+          
+          const embed = new EmbedBuilder()
+            .setTitle('💜 New Server Boost!')
+            .setDescription(message)
+            .setThumbnail(newMember.user.displayAvatarURL())
+            .addFields(
+              { name: 'Booster', value: `<@${newMember.user.id}>`, inline: true },
+              { name: 'Boost Count', value: `${newMember.guild.premiumSubscriptionCount || 0}`, inline: true },
+              { name: 'Level', value: `Level ${newMember.guild.premiumTier}`, inline: true }
+            )
+            .setColor('#F47FFF')
+            .setTimestamp();
+          
+          await boostChannel.send({ embeds: [embed] });
+          console.log(`[Boost] Sent thank you message for ${newMember.user.username}`);
+        }
+      }
+    } else if (wasBoosting && !isBoosting) {
+      console.log(`[Boost] ${newMember.user.username} stopped boosting ${newMember.guild.name}`);
+      
+      const settings = await storage.getBotSettings(newMember.guild.id);
+      if (settings?.boostRoleId) {
+        const role = newMember.guild.roles.cache.get(settings.boostRoleId);
+        if (role && newMember.roles.cache.has(role.id)) {
+          await newMember.roles.remove(role).catch(err =>
+            console.error(`[Boost] Failed to remove booster role:`, err)
+          );
+          console.log(`[Boost] Removed recognition role from ${newMember.user.username}`);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('[Boost] Error handling boost tracking:', error);
+  }
+}
+
+// Birthday scheduled job
+let birthdayCheckInterval: NodeJS.Timeout | null = null;
+const processedBirthdays = new Set<string>();
+
+async function checkBirthdays(client: Client, storage: IStorage): Promise<void> {
+  try {
+    const now = new Date();
+    const month = now.getMonth() + 1;
+    const day = now.getDate();
+    const todayKey = `${month}-${day}`;
+    
+    if (processedBirthdays.has(todayKey + '-checked')) {
+      return;
+    }
+    
+    const birthdays = await storage.getBirthdaysForDate(month, day);
+    if (birthdays.length === 0) return;
+    
+    console.log(`[Birthday] Found ${birthdays.length} birthdays for ${month}/${day}`);
+    
+    for (const birthday of birthdays) {
+      const cacheKey = `${birthday.serverId}-${birthday.userId}-${todayKey}`;
+      if (processedBirthdays.has(cacheKey)) continue;
+      
+      try {
+        const guild = client.guilds.cache.get(birthday.serverId);
+        if (!guild) continue;
+        
+        const settings = await storage.getBotSettings(birthday.serverId);
+        if (!settings?.birthdayEnabled || !settings.birthdayChannelId) continue;
+        
+        const channel = guild.channels.cache.get(settings.birthdayChannelId) as TextChannel;
+        if (!channel || !channel.isTextBased()) continue;
+        
+        const member = await guild.members.fetch(birthday.userId).catch(() => null);
+        if (!member) continue;
+        
+        const message = (settings.birthdayMessage || '🎂 Happy Birthday {user}! Hope you have an amazing day! 🎉')
+          .replace('{user}', `<@${birthday.userId}>`);
+        
+        const embed = new EmbedBuilder()
+          .setTitle('🎂 Happy Birthday!')
+          .setDescription(message)
+          .setThumbnail(member.user.displayAvatarURL())
+          .setColor('#FF69B4')
+          .setTimestamp();
+        
+        await channel.send({ embeds: [embed] });
+        console.log(`[Birthday] Sent birthday message for ${birthday.username || birthday.userId}`);
+        
+        if (settings.birthdayRoleId) {
+          const role = guild.roles.cache.get(settings.birthdayRoleId);
+          if (role && role.position < (guild.members.me?.roles.highest.position || 0)) {
+            await member.roles.add(role).catch(err => 
+              console.error(`[Birthday] Failed to add birthday role:`, err)
+            );
+            
+            setTimeout(async () => {
+              try {
+                const refreshedMember = await guild.members.fetch(birthday.userId).catch(() => null);
+                if (refreshedMember && refreshedMember.roles.cache.has(role.id)) {
+                  await refreshedMember.roles.remove(role);
+                  console.log(`[Birthday] Removed birthday role from ${birthday.username}`);
+                }
+              } catch (err) {
+                console.error(`[Birthday] Failed to remove birthday role:`, err);
+              }
+            }, 24 * 60 * 60 * 1000);
+          }
+        }
+        
+        processedBirthdays.add(cacheKey);
+      } catch (error) {
+        console.error(`[Birthday] Error processing birthday for ${birthday.userId}:`, error);
+      }
+    }
+    
+    processedBirthdays.add(todayKey + '-checked');
+  } catch (error) {
+    console.error('[Birthday] Error checking birthdays:', error);
+  }
+}
+
 // Giveaway scheduled job
 let giveawayCheckInterval: NodeJS.Timeout | null = null;
 
@@ -520,7 +752,7 @@ async function checkEndedGiveaways(client: Client, storage: IStorage): Promise<v
 }
 
 export function initializeCommunityFeatures(client: Client, storage: IStorage): void {
-  console.log('[Community] Initializing community features (Starboard, Welcome, XP, ReactionRoles, AFK, Giveaways)...');
+  console.log('[Community] Initializing community features (Starboard, Welcome, XP, ReactionRoles, AFK, Giveaways, Invites, Boost, Birthdays)...');
 
   client.on(Events.MessageReactionAdd, async (reaction, user) => {
     if (user.bot) return;
@@ -536,6 +768,7 @@ export function initializeCommunityFeatures(client: Client, storage: IStorage): 
 
   client.on(Events.GuildMemberAdd, async (member) => {
     await handleMemberJoin(member, storage);
+    await handleInviteTracking(member, storage);
   });
 
   client.on(Events.GuildMemberRemove, async (member) => {
@@ -545,6 +778,23 @@ export function initializeCommunityFeatures(client: Client, storage: IStorage): 
   client.on(Events.MessageCreate, async (message) => {
     await handleXpMessage(message, storage);
     await handleAfkMessage(message, storage);
+  });
+
+  client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
+    await handleBoostTracking(oldMember, newMember, storage);
+  });
+
+  client.on(Events.GuildCreate, async (guild) => {
+    console.log(`[Invites] Caching invites for new guild: ${guild.name}`);
+    await cacheGuildInvites(guild);
+  });
+
+  client.once(Events.ClientReady, async () => {
+    console.log('[Invites] Caching invites for all guilds...');
+    for (const [guildId, guild] of client.guilds.cache) {
+      await cacheGuildInvites(guild);
+    }
+    console.log('[Invites] Finished caching invites');
   });
 
   // Start giveaway check interval (every 15 seconds)
@@ -560,7 +810,30 @@ export function initializeCommunityFeatures(client: Client, storage: IStorage): 
     checkEndedGiveaways(client, storage);
   }, 5000);
 
-  console.log('[Community] Community features initialized successfully (including ReactionRoles, AFK, Giveaways)');
+  // Start birthday check interval (every hour)
+  if (birthdayCheckInterval) {
+    clearInterval(birthdayCheckInterval);
+  }
+  birthdayCheckInterval = setInterval(() => {
+    checkBirthdays(client, storage);
+  }, 60 * 60 * 1000);
+  
+  // Initial birthday check after bot starts
+  setTimeout(() => {
+    checkBirthdays(client, storage);
+    console.log('[Birthday] Initial birthday check completed');
+  }, 10000);
+  
+  // Clear processed birthdays cache at midnight
+  setInterval(() => {
+    const now = new Date();
+    if (now.getHours() === 0 && now.getMinutes() === 0) {
+      processedBirthdays.clear();
+      console.log('[Birthday] Cleared processed birthdays cache for new day');
+    }
+  }, 60 * 1000);
+
+  console.log('[Community] Community features initialized successfully (including ReactionRoles, AFK, Giveaways, Invites, Boost, Birthdays)');
 }
 
-export { replaceWelcomeVariables };
+export { replaceWelcomeVariables, cacheGuildInvites };
