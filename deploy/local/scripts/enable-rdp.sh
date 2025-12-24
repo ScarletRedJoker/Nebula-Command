@@ -85,7 +85,7 @@ if nc -z -w 5 "$VM_IP" 3389 2>/dev/null; then
     echo -e "${GREEN}=== SUCCESS ===${NC}"
     echo ""
     echo "RDP is now enabled. Connect with:"
-    echo "  xfreerdp3 /v:$VM_IP /u:Evin /p:Brs=2729 /f"
+    echo "  xfreerdp3 /v:$VM_IP /u:Evin /p:\$RDP_PASSWORD /f"
     echo ""
 else
     warn "RDP port not responding yet - may need a moment to start"

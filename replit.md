@@ -108,10 +108,11 @@ Access the VM from anywhere with Tailscale + Moonlight:
 Config lives at `~/.config/winapps/winapps.conf`:
 ```
 RDP_USER="Evin"
-RDP_PASS="Brs=2729"
+RDP_PASS="<your-windows-password>"
 RDP_IP="192.168.122.250"
 VM_NAME="RDPWindows"
 ```
+**Note:** Set the actual password on your local machine only, never commit to git.
 
 Also requires in `/etc/environment`:
 ```

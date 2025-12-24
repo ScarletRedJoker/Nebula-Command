@@ -10,7 +10,7 @@ REPO_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 VM_NAME="RDPWindows"
 VM_IP="192.168.122.250"
 VM_USER="Evin"
-VM_PASS="Brs=2729"
+VM_PASS="${RDP_PASSWORD:-changeme}"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
