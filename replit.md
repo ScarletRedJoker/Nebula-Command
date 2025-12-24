@@ -83,8 +83,26 @@ cd /opt/homelab/HomeLabHub/deploy/local/scripts
 
 ### Access Methods
 1. **Sunshine/Moonlight** - Gaming mode (CoD, Steam) via https://192.168.122.250:47990
-2. **RDP/WinApps** - Desktop mode, seamless Windows apps on Linux
+2. **RDP/WinApps** - Desktop mode, seamless Windows apps on Linux (CURRENTLY BROKEN - needs Windows repair)
 3. **SPICE Console** - Recovery fallback (`virt-viewer RDPWindows`)
+
+### Remote Access via Tailscale (WORKING)
+Access the VM from anywhere with Tailscale + Moonlight:
+- **VM Tailscale IP:** 100.118.44.102
+- **Sunshine Web UI:** https://100.118.44.102:47990
+- **Moonlight Streaming:** Connect Moonlight client to 100.118.44.102
+
+**Tailscale Mesh:**
+- homelab-local: 100.110.227.25
+- homelab-linode: 100.66.61.51
+- rdpwindows: 100.118.44.102
+- Pixel 6 Pro: 100.88.227.91
+
+**Setup on new device:**
+1. Install Tailscale and join network
+2. Install Moonlight client
+3. Add host: 100.118.44.102
+4. Pair via Sunshine web UI
 
 ### WinApps Setup
 Config lives at `~/.config/winapps/winapps.conf`:
