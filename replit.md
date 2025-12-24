@@ -65,89 +65,48 @@ The codebase is organized into a `services/` directory for each application, alo
 -   **Caddy**: Used as a reverse proxy for all services.
 -   **Tailscale**: For secure network access between homelab components.
 
-## KVM Gaming Setup
-
-### Quick Fix (If Things Break)
-```bash
-cd /opt/homelab/HomeLabHub/deploy/local/scripts
-./fix-kvm-winapps.sh   # Fixes RDP, WinApps config, everything
-```
+## KVM Gaming VM (Sunshine/Moonlight)
 
 ### VM Configuration
 - **VM Name:** RDPWindows
 - **VM IP:** 192.168.122.250
+- **Tailscale IP:** 100.118.44.102
 - **User:** Evin
-- **Network:** e1000e on libvirt default (virbr0)
 - **GPU:** NVIDIA passthrough for gaming
-- **Guest Agent:** QEMU Guest Agent for remote admin commands
 
-### Access Methods
-1. **Sunshine/Moonlight** - Gaming mode (CoD, Steam) via https://192.168.122.250:47990
-2. **RDP/WinApps** - Desktop mode, seamless Windows apps on Linux (CURRENTLY BROKEN - needs Windows repair)
-3. **SPICE Console** - Recovery fallback (`virt-viewer RDPWindows`)
-
-### Remote Access via Tailscale (WORKING)
-Access the VM from anywhere with Tailscale + Moonlight:
-- **VM Tailscale IP:** 100.118.44.102
+### Access via Tailscale + Moonlight
+Primary access method for gaming and desktop use:
 - **Sunshine Web UI:** https://100.118.44.102:47990
 - **Moonlight Streaming:** Connect Moonlight client to 100.118.44.102
-
-**Tailscale Mesh:**
-- homelab-local: 100.110.227.25
-- homelab-linode: 100.66.61.51
-- rdpwindows: 100.118.44.102
-- Pixel 6 Pro: 100.88.227.91
 
 **Setup on new device:**
 1. Install Tailscale and join network
 2. Install Moonlight client
 3. Add host: 100.118.44.102
-4. Pair via Sunshine web UI
+4. Pair via Sunshine web UI (PIN pairing)
 
-### WinApps Setup
-Config lives at `~/.config/winapps/winapps.conf`:
-```
-RDP_USER="Evin"
-RDP_PASS="<your-windows-password>"
-RDP_IP="192.168.122.250"
-VM_NAME="RDPWindows"
-```
-**Note:** Set the actual password on your local machine only, never commit to git.
+### Tailscale Mesh
+- homelab-local: 100.110.227.25
+- homelab-linode: 100.66.61.51
+- rdpwindows: 100.118.44.102
+- Pixel 6 Pro: 100.88.227.91
 
-Also requires in `/etc/environment`:
-```
-LIBVIRT_DEFAULT_URI="qemu:///system"
-```
-
-### Manual Mode Switching
+### Launch VM
 ```bash
+cd /opt/homelab/HomeLabHub/deploy/local/scripts
 ./kvm-launch.sh gaming     # Start VM → Sunshine → Moonlight
-./kvm-launch.sh desktop    # Start VM → RDP mode → WinApps
-./kvm-launch.sh console    # SPICE recovery console
-```
-
-### Enable RDP from Linux (via Guest Agent)
-```bash
-./enable-rdp.sh            # Uses QEMU guest agent to enable RDP remotely
+./kvm-launch.sh console    # SPICE recovery console (fallback)
 ```
 
 ### Windows Requirements
-Inside Windows, these must be installed:
-1. **QEMU Guest Agent** - From virtio-win.iso → `guest-agent/qemu-ga-x86_64.msi`
-2. **SPICE Guest Tools** - For mouse input in SPICE console
-3. **Sunshine** - For Moonlight game streaming
-
-### Recovery When Locked Out
-```bash
-virt-viewer RDPWindows     # Opens SPICE console (keyboard works)
-```
-Then use keyboard to navigate Windows and run admin commands.
+Inside Windows:
+1. **QEMU Guest Agent** - From virtio-win.iso
+2. **Sunshine** - For Moonlight game streaming
 
 ### Technical Notes
-- Network: e1000e adapter (Windows built-in driver support)
+- Network: e1000e adapter on virbr0
 - GPU passthrough: NVIDIA with vfio-pci binding
 - Sunshine ports: 47984-48010 (TCP/UDP)
-- RDP port: 3389
 
 ## Local Ubuntu Server (host.evindrake.net)
 
