@@ -12257,8 +12257,8 @@ img[loading="lazy"] {
     }
 }
 
-/* Text Gradient Animation */
-.terminal {
+/* Text Gradient Animation - for headers only, not terminal cards */
+.gradient-text {
     background: linear-gradient(90deg, #ff2851, #ff5073, #ff2851);
     background-size: 200% auto;
     -webkit-background-clip: text;
