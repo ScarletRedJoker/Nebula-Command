@@ -1557,6 +1557,58 @@ const plexCommand: Command = {
                 .setRequired(false)
             )
         )
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('downloaded')
+            .setDescription('Mark a request as downloaded/added to Plex')
+            .addIntegerOption(option =>
+              option.setName('id')
+                .setDescription('The request ID to mark as downloaded')
+                .setRequired(true)
+            )
+        )
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('all')
+            .setDescription('View all media requests with optional filter')
+            .addStringOption(option =>
+              option.setName('status')
+                .setDescription('Filter by status')
+                .setRequired(false)
+                .addChoices(
+                  { name: 'All', value: 'all' },
+                  { name: 'Pending', value: 'pending' },
+                  { name: 'Approved', value: 'approved' },
+                  { name: 'Denied', value: 'denied' },
+                  { name: 'Downloaded', value: 'downloaded' }
+                )
+            )
+        )
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('delete')
+            .setDescription('Delete a media request')
+            .addIntegerOption(option =>
+              option.setName('id')
+                .setDescription('The request ID to delete')
+                .setRequired(true)
+            )
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('setup')
+        .setDescription('Configure Plex request settings (admin only)')
+        .addChannelOption(option =>
+          option.setName('channel')
+            .setDescription('Channel for request notifications')
+            .setRequired(false)
+        )
+        .addRoleOption(option =>
+          option.setName('admin-role')
+            .setDescription('Role allowed to manage requests')
+            .setRequired(false)
+        )
     ),
   execute: async (interaction, { storage }) => {
     if (!interaction.isCommand()) return;
@@ -1907,6 +1959,252 @@ const plexCommand: Command = {
         }
         return;
       }
+
+      // Handle downloaded subcommand
+      if (subcommand === 'downloaded') {
+        try {
+          const requestId = groupOptions.find(opt => opt.name === 'id')?.value as number;
+          
+          if (!requestId) {
+            await interaction.editReply('❌ Please provide a request ID.');
+            return;
+          }
+
+          const existingRequest = await storage.getMediaRequest(requestId);
+          if (!existingRequest) {
+            await interaction.editReply(`❌ Request #${requestId} not found.`);
+            return;
+          }
+
+          if (existingRequest.serverId !== serverId) {
+            await interaction.editReply('❌ This request belongs to a different server.');
+            return;
+          }
+
+          if (existingRequest.status === 'downloaded') {
+            await interaction.editReply(`❌ Request #${requestId} is already marked as downloaded.`);
+            return;
+          }
+
+          const updated = await storage.markMediaRequestDownloaded(
+            requestId,
+            interaction.user.id,
+            interaction.user.username
+          );
+
+          if (!updated) {
+            await interaction.editReply('❌ Failed to mark request as downloaded. Please try again.');
+            return;
+          }
+
+          const requestData: MediaRequestData = {
+            id: updated.id,
+            title: updated.title,
+            mediaType: updated.mediaType,
+            status: updated.status,
+            username: updated.username,
+            userId: updated.userId,
+            year: updated.year,
+            approvedBy: updated.approvedBy,
+            approvedByUsername: updated.approvedByUsername,
+            approvedAt: updated.approvedAt,
+            createdAt: updated.createdAt
+          };
+
+          const embed = createMediaRequestEmbed(requestData);
+          await interaction.editReply({ 
+            content: `✅ Request #${requestId} marked as downloaded and added to Plex!`,
+            embeds: [embed] 
+          });
+
+          // Notify the user who made the request
+          try {
+            const client = getDiscordClient();
+            const requester = await client.users.fetch(updated.userId);
+            if (requester) {
+              const notificationEmbed = createMediaRequestNotificationEmbed(requestData, 'downloaded');
+              await requester.send({ embeds: [notificationEmbed] }).catch(() => {});
+            }
+          } catch (notifyError) {
+            console.error('Error notifying requester:', notifyError);
+          }
+
+          console.log(`[Discord] Media request #${requestId} marked as downloaded by ${interaction.user.username}`);
+          
+        } catch (error) {
+          console.error('Error marking request as downloaded:', error);
+          await interaction.editReply('❌ Failed to mark request as downloaded. Please try again.');
+        }
+        return;
+      }
+
+      // Handle all subcommand - view all requests with filter
+      if (subcommand === 'all') {
+        try {
+          const statusFilter = groupOptions.find(opt => opt.name === 'status')?.value as string | undefined;
+          
+          let requests;
+          if (statusFilter && statusFilter !== 'all') {
+            requests = await storage.getMediaRequestsByServer(serverId, statusFilter);
+          } else {
+            requests = await storage.getMediaRequestsByServer(serverId);
+          }
+
+          const requestsData: MediaRequestData[] = requests.map(r => ({
+            id: r.id,
+            title: r.title,
+            mediaType: r.mediaType,
+            status: r.status,
+            username: r.username,
+            userId: r.userId,
+            year: r.year,
+            reason: r.reason,
+            approvedBy: r.approvedBy,
+            approvedByUsername: r.approvedByUsername,
+            approvedAt: r.approvedAt,
+            createdAt: r.createdAt
+          }));
+
+          const embed = createMediaRequestListEmbed(requestsData, statusFilter || 'all');
+          embed.setTitle(`📋 All Media Requests${statusFilter && statusFilter !== 'all' ? ` (${statusFilter})` : ''}`);
+          
+          await interaction.editReply({ embeds: [embed] });
+          
+        } catch (error) {
+          console.error('Error fetching all requests:', error);
+          await interaction.editReply('❌ Failed to fetch requests. Please try again.');
+        }
+        return;
+      }
+
+      // Handle delete subcommand
+      if (subcommand === 'delete') {
+        try {
+          const requestId = groupOptions.find(opt => opt.name === 'id')?.value as number;
+          
+          if (!requestId) {
+            await interaction.editReply('❌ Please provide a request ID.');
+            return;
+          }
+
+          const existingRequest = await storage.getMediaRequest(requestId);
+          if (!existingRequest) {
+            await interaction.editReply(`❌ Request #${requestId} not found.`);
+            return;
+          }
+
+          if (existingRequest.serverId !== serverId) {
+            await interaction.editReply('❌ This request belongs to a different server.');
+            return;
+          }
+
+          const deleted = await storage.deleteMediaRequest(requestId);
+
+          if (!deleted) {
+            await interaction.editReply('❌ Failed to delete request. Please try again.');
+            return;
+          }
+
+          await interaction.editReply(`✅ Request #${requestId} ("${existingRequest.title}") has been deleted.`);
+          console.log(`[Discord] Media request #${requestId} deleted by ${interaction.user.username}`);
+          
+        } catch (error) {
+          console.error('Error deleting request:', error);
+          await interaction.editReply('❌ Failed to delete request. Please try again.');
+        }
+        return;
+      }
+    }
+
+    // Handle setup subcommand (top-level)
+    if (subcommand === 'setup') {
+      // Check admin permissions
+      const member = interaction.member;
+      let hasAdminAccess = false;
+      if (member && 'permissions' in member) {
+        hasAdminAccess = member.permissions.has(PermissionFlagsBits.Administrator);
+      }
+
+      if (!hasAdminAccess) {
+        await interaction.editReply('❌ You need Administrator permissions to configure Plex settings.');
+        return;
+      }
+
+      try {
+        const options = interaction.options.data[0]?.options || [];
+        const channel = options.find(opt => opt.name === 'channel')?.channel;
+        const adminRole = options.find(opt => opt.name === 'admin-role')?.role;
+
+        if (!channel && !adminRole) {
+          // Show current settings
+          const settings = await storage.getBotSettings(serverId);
+          const embed = new EmbedBuilder()
+            .setTitle('🎬 Plex Request Settings')
+            .setColor('#E5A00D')
+            .setDescription('Configure where request notifications go and who can manage them.')
+            .addFields(
+              { 
+                name: 'Notification Channel', 
+                value: settings?.plexRequestChannelId ? `<#${settings.plexRequestChannelId}>` : '*Not configured*', 
+                inline: true 
+              },
+              { 
+                name: 'Admin Role', 
+                value: settings?.plexAdminRoleId ? `<@&${settings.plexAdminRoleId}>` : '*Not configured (Admins only)*', 
+                inline: true 
+              }
+            )
+            .setFooter({ text: 'Use /plex setup with options to update these settings' });
+          
+          await interaction.editReply({ embeds: [embed] });
+          return;
+        }
+
+        // Update settings
+        const currentSettings = await storage.getBotSettings(serverId);
+        const updates: any = {};
+        
+        if (channel) {
+          updates.plexRequestChannelId = channel.id;
+        }
+        if (adminRole) {
+          updates.plexAdminRoleId = adminRole.id;
+        }
+
+        if (currentSettings) {
+          await storage.updateBotSettings(serverId, updates);
+        } else {
+          await storage.createBotSettings({
+            serverId,
+            ...updates
+          });
+        }
+
+        const embed = new EmbedBuilder()
+          .setTitle('✅ Plex Settings Updated')
+          .setColor('#43B581')
+          .setDescription('Plex request settings have been updated.')
+          .addFields(
+            { 
+              name: 'Notification Channel', 
+              value: channel ? `<#${channel.id}>` : '*Unchanged*', 
+              inline: true 
+            },
+            { 
+              name: 'Admin Role', 
+              value: adminRole ? `<@&${adminRole.id}>` : '*Unchanged*', 
+              inline: true 
+            }
+          );
+        
+        await interaction.editReply({ embeds: [embed] });
+        console.log(`[Discord] Plex settings updated by ${interaction.user.username}`);
+        
+      } catch (error) {
+        console.error('Error updating Plex settings:', error);
+        await interaction.editReply('❌ Failed to update Plex settings. Please try again.');
+      }
+      return;
     }
   }
 };

@@ -669,6 +669,21 @@ export function createPlexHelpEmbed(): EmbedBuilder {
         inline: true
       },
       {
+        name: '`/plex requests downloaded <id>`',
+        value: '**Mark as downloaded** *(Admin)*\nMark when media has been added to Plex.',
+        inline: true
+      },
+      {
+        name: '`/plex requests all [status]`',
+        value: '**View all requests** *(Admin)*\nView requests with optional status filter.',
+        inline: true
+      },
+      {
+        name: '`/plex setup [channel] [role]`',
+        value: '**Configure settings** *(Admin)*\nSet notification channel and admin role.',
+        inline: true
+      },
+      {
         name: '📱 Supported Devices',
         value: '• iOS & Android phones/tablets\n• Smart TVs (Samsung, LG, etc.)\n• Streaming devices (Roku, Fire TV, Apple TV)\n• Web browser at app.plex.tv\n• Gaming consoles (PlayStation, Xbox)',
         inline: true
@@ -854,8 +869,11 @@ export function createMediaRequestEmbed(request: MediaRequestData): EmbedBuilder
     .setTimestamp(request.createdAt || new Date());
 
   if (request.approvedByUsername && request.status !== 'pending') {
+    const actionLabel = request.status === 'approved' ? 'Approved By' 
+      : request.status === 'downloaded' ? 'Added to Plex By' 
+      : 'Denied By';
     embed.addFields({
-      name: request.status === 'approved' ? 'Approved By' : 'Denied By',
+      name: actionLabel,
       value: request.approvedByUsername,
       inline: true
     });
@@ -876,7 +894,7 @@ export function createMediaRequestEmbed(request: MediaRequestData): EmbedBuilder
 
 export function createMediaRequestNotificationEmbed(
   request: MediaRequestData,
-  action: 'new' | 'approved' | 'denied'
+  action: 'new' | 'approved' | 'denied' | 'downloaded'
 ): EmbedBuilder {
   const typeEmoji = request.mediaType === 'show' ? '📺' : '🎬';
   
@@ -899,6 +917,11 @@ export function createMediaRequestNotificationEmbed(
       title = '❌ Media Request Denied';
       color = '#F04747';
       description = `Request #${request.id} has been denied${request.approvedByUsername ? ` by **${request.approvedByUsername}**` : ''}`;
+      break;
+    case 'downloaded':
+      title = '📥 Media Added to Plex!';
+      color = '#E5A00D';
+      description = `Your request has been fulfilled! **${request.title}** is now available on Plex.`;
       break;
   }
 
@@ -929,12 +952,17 @@ export function createMediaRequestNotificationEmbed(
 
 export function createMediaRequestListEmbed(
   requests: MediaRequestData[],
-  status: 'pending' | 'all',
+  status: 'pending' | 'approved' | 'denied' | 'downloaded' | 'all',
   serverName?: string
 ): EmbedBuilder {
-  const title = status === 'pending' 
-    ? '⏳ Pending Media Requests'
-    : '📋 All Media Requests';
+  const titleMap: Record<string, string> = {
+    pending: '⏳ Pending Media Requests',
+    approved: '✅ Approved Media Requests',
+    denied: '❌ Denied Media Requests',
+    downloaded: '📥 Downloaded Media Requests',
+    all: '📋 All Media Requests'
+  };
+  const title = titleMap[status] || '📋 Media Requests';
 
   const embed = new EmbedBuilder()
     .setTitle(title)
@@ -943,9 +971,14 @@ export function createMediaRequestListEmbed(
     .setFooter({ text: 'Plex Media Request System' });
 
   if (requests.length === 0) {
-    embed.setDescription(status === 'pending' 
-      ? '*No pending requests at this time.*'
-      : '*No media requests found.*');
+    const emptyMap: Record<string, string> = {
+      pending: '*No pending requests at this time.*',
+      approved: '*No approved requests found.*',
+      denied: '*No denied requests found.*',
+      downloaded: '*No downloaded requests found.*',
+      all: '*No media requests found.*'
+    };
+    embed.setDescription(emptyMap[status] || '*No media requests found.*');
     return embed;
   }
 

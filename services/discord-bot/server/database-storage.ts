@@ -2053,6 +2053,20 @@ export class DatabaseStorage implements IStorage {
     return updated || null;
   }
 
+  async markMediaRequestDownloaded(id: number, downloadedBy: string, downloadedByUsername: string): Promise<MediaRequest | null> {
+    const [updated] = await db.update(mediaRequests)
+      .set({
+        status: 'downloaded',
+        approvedBy: downloadedBy,
+        approvedByUsername: downloadedByUsername,
+        approvedAt: new Date(),
+        updatedAt: new Date()
+      })
+      .where(eq(mediaRequests.id, id))
+      .returning();
+    return updated || null;
+  }
+
   async deleteMediaRequest(id: number): Promise<boolean> {
     const result = await db.delete(mediaRequests)
       .where(eq(mediaRequests.id, id));

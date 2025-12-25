@@ -311,6 +311,7 @@ export interface IStorage {
   updateMediaRequest(id: number, updates: UpdateMediaRequest): Promise<MediaRequest | null>;
   approveMediaRequest(id: number, approvedBy: string, approvedByUsername: string): Promise<MediaRequest | null>;
   denyMediaRequest(id: number, approvedBy: string, approvedByUsername: string, reason?: string): Promise<MediaRequest | null>;
+  markMediaRequestDownloaded(id: number, downloadedBy: string, downloadedByUsername: string): Promise<MediaRequest | null>;
   deleteMediaRequest(id: number): Promise<boolean>;
 }
 
