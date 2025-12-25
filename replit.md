@@ -203,3 +203,27 @@ For "Secure Connection Failed" errors on production domains:
 2. Check Caddy container is running: `docker logs caddy`
 3. Verify ports 80/443 are open: `ss -tlnp | grep -E ':(80|443)'`
 4. Check certificate status: `docker exec caddy caddy list-certs`
+
+### Missing DNS Records (Cloudflare)
+The following DNS records need to be created in Cloudflare pointing to Linode (`69.164.211.205`):
+
+**rig-city.com zone:**
+| Type | Name | Value | Proxy |
+|------|------|-------|-------|
+| A | dashboard | 69.164.211.205 | DNS Only |
+| A | discord | 69.164.211.205 | DNS Only |
+| A | stream | 69.164.211.205 | DNS Only |
+| A | bot | 69.164.211.205 | DNS Only |
+
+**evindrake.net zone:**
+| Type | Name | Value | Proxy |
+|------|------|-------|-------|
+| A | dns | 69.164.211.205 | DNS Only |
+
+Note: Use "DNS Only" (not Proxied) for domains that need direct SSL certificates from Let's Encrypt.
+
+### Docker DNS Issues (Linode)
+If seeing "lookup homelab-dashboard on 127.0.0.11:53: server misbehaving":
+1. Restart Docker: `systemctl restart docker`
+2. Rebuild containers: `docker-compose down && docker-compose up -d`
+3. Check container network: `docker network inspect homelab_default`
