@@ -199,6 +199,61 @@ export default function OverlayEditor() {
 
   const selectedEl = elements.find(el => el.id === selectedElement);
 
+  // Export configuration as JSON file
+  const exportConfig = () => {
+    const config = {
+      version: "1.0",
+      aspectRatio,
+      elements,
+      exportedAt: new Date().toISOString(),
+    };
+    
+    const blob = new Blob([JSON.stringify(config, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `overlay-config-${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  // Save configuration to server (for OBS browser source)
+  const saveConfig = async () => {
+    try {
+      const config = {
+        aspectRatio,
+        elements,
+      };
+      
+      const response = await fetch("/api/overlay/save-config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(config),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        alert(`Configuration saved! Your OBS overlay URL:\n\n${window.location.origin}/overlay/custom?id=${data.id}`);
+      } else {
+        const error = await response.json();
+        alert(`Failed to save: ${error.error || "Unknown error"}`);
+      }
+    } catch (error: any) {
+      alert(`Failed to save: ${error.message}`);
+    }
+  };
+
+  // Reset to default elements
+  const resetElements = () => {
+    if (confirm("Reset all elements to defaults? This cannot be undone.")) {
+      setElements([...defaultElements]);
+      setSelectedElement(null);
+    }
+  };
+
   return (
     <div className="p-3 sm:p-6 space-y-4 sm:space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -211,11 +266,11 @@ export default function OverlayEditor() {
             {previewMode ? <EyeOff className="h-4 w-4 mr-1" /> : <Eye className="h-4 w-4 mr-1" />}
             <span className="hidden sm:inline">{previewMode ? "Edit" : "Preview"}</span>
           </Button>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={resetElements}>
             <RotateCcw className="h-4 w-4 mr-1" />
             <span className="hidden sm:inline">Reset</span>
           </Button>
-          <Button size="sm" className="candy-button border-0">
+          <Button size="sm" className="candy-button border-0" onClick={saveConfig}>
             <Save className="h-4 w-4 mr-1" />
             <span className="hidden sm:inline">Save</span>
           </Button>
@@ -497,7 +552,7 @@ export default function OverlayEditor() {
               <CardTitle className="text-sm">Export</CardTitle>
             </CardHeader>
             <CardContent className="p-3 sm:p-4 pt-0">
-              <Button variant="outline" size="sm" className="w-full">
+              <Button variant="outline" size="sm" className="w-full" onClick={exportConfig}>
                 <Download className="h-4 w-4 mr-1" />
                 Export Config
               </Button>

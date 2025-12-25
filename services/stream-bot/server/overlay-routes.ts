@@ -145,4 +145,66 @@ router.get('/verify-token', (req, res) => {
   }
 });
 
+// In-memory storage for overlay configs (would use database in production)
+const overlayConfigs = new Map<string, { userId: number; config: any; createdAt: Date }>();
+
+/**
+ * Save overlay configuration
+ * POST /save-config
+ */
+router.post('/save-config', requireAuth, async (req, res) => {
+  try {
+    const userId = req.user!.id;
+    const { aspectRatio, elements } = req.body;
+
+    if (!elements || !Array.isArray(elements)) {
+      return res.status(400).json({ error: 'Invalid overlay configuration' });
+    }
+
+    // Generate unique ID for this config
+    const configId = `${userId}-${Date.now()}`;
+    
+    overlayConfigs.set(configId, {
+      userId,
+      config: { aspectRatio, elements },
+      createdAt: new Date()
+    });
+
+    // Clean up old configs (keep last 10 per user)
+    const userConfigs = Array.from(overlayConfigs.entries())
+      .filter(([_, v]) => v.userId === userId)
+      .sort((a, b) => b[1].createdAt.getTime() - a[1].createdAt.getTime());
+    
+    if (userConfigs.length > 10) {
+      userConfigs.slice(10).forEach(([key]) => overlayConfigs.delete(key));
+    }
+
+    console.log(`[Overlay] Saved config ${configId} for user ${userId}`);
+
+    res.json({ 
+      id: configId,
+      overlayUrl: `/overlay/custom?id=${configId}`
+    });
+
+  } catch (error: any) {
+    console.error('[Overlay] Error saving config:', error.message);
+    res.status(500).json({ error: 'Failed to save overlay configuration' });
+  }
+});
+
+/**
+ * Get overlay configuration
+ * GET /config/:id
+ */
+router.get('/config/:id', (req, res) => {
+  const { id } = req.params;
+  
+  const saved = overlayConfigs.get(id);
+  if (!saved) {
+    return res.status(404).json({ error: 'Overlay configuration not found' });
+  }
+
+  res.json(saved.config);
+});
+
 export default router;
