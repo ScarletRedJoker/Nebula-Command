@@ -78,21 +78,37 @@ The codebase is organized into a `services/` directory for each application, alo
 
 ### VM Configuration
 - **VM Name:** RDPWindows
-- **VM IP:** 192.168.122.250
+- **Network:** br0 bridge (gets LAN IP from router)
 - **Tailscale IP:** 100.118.44.102
 - **User:** Evin
-- **GPU:** NVIDIA passthrough for gaming
+- **GPU:** NVIDIA RTX 3060 (vfio-pci passthrough)
 
-### Access via Tailscale + Moonlight
-Primary access method for gaming and desktop use:
-- **Sunshine Web UI:** https://100.118.44.102:47990
-- **Moonlight Streaming:** Connect Moonlight client to 100.118.44.102
+### Quick Start
+```bash
+sudo kvm-rdpwindows.sh start    # Start with full preflight checks
+sudo kvm-rdpwindows.sh stop     # Graceful shutdown
+sudo kvm-rdpwindows.sh status   # Check state + IPs
+sudo kvm-rdpwindows.sh restart  # Stop + start
+sudo kvm-rdpwindows.sh health   # Health check with auto-recovery
+```
 
-**Setup on new device:**
-1. Install Tailscale and join network
-2. Install Moonlight client
-3. Add host: 100.118.44.102
-4. Pair via Sunshine web UI (PIN pairing)
+### Connect with Moonlight
+**Via Tailscale (anywhere):**
+1. Install Tailscale on device, join network
+2. Install Moonlight
+3. Add host: `100.118.44.102`
+4. Pair via Sunshine: `https://100.118.44.102:47990`
+
+**Via LAN (local network):**
+1. Install Moonlight
+2. Add host: check `sudo kvm-rdpwindows.sh status` for LAN IP
+3. Pair via Sunshine web UI
+
+### Auto-Start on Boot
+```bash
+sudo systemctl enable kvm-rdpwindows.service  # VM starts on boot
+sudo systemctl enable kvm-health.timer        # Health checks every 10min
+```
 
 ### Tailscale Mesh
 - homelab-local: 100.110.227.25
@@ -100,22 +116,25 @@ Primary access method for gaming and desktop use:
 - rdpwindows: 100.118.44.102
 - Pixel 6 Pro: 100.88.227.91
 
-### Launch VM
-```bash
-cd /opt/homelab/HomeLabHub/deploy/local/scripts
-./kvm-launch.sh gaming     # Start VM → Sunshine → Moonlight
-./kvm-launch.sh console    # SPICE recovery console (fallback)
-```
+### Robust Startup System
+The `kvm-rdpwindows.sh` script handles:
+- **GPU D3cold recovery**: Auto PCIe reset if GPU stuck in sleep
+- **Stale process cleanup**: Kills orphaned virtiofsd before start
+- **Retry logic**: 3 attempts with recovery between each
+- **Health monitoring**: systemd timer auto-recovers failed VMs
 
-### Windows Requirements
-Inside Windows:
-1. **QEMU Guest Agent** - From virtio-win.iso
-2. **Sunshine** - For Moonlight game streaming
+### Kernel Parameters (prevent GPU sleep)
+Add to `/etc/default/grub` GRUB_CMDLINE_LINUX_DEFAULT:
+```
+pcie_port_pm=off pcie_aspm=off
+```
+Then: `sudo update-grub && sudo reboot`
 
 ### Technical Notes
-- Network: e1000e adapter on virbr0
-- GPU passthrough: NVIDIA with vfio-pci binding
+- Network: virtio on br0 bridge (LAN access)
+- GPU passthrough: NVIDIA RTX 3060 with vfio-pci
 - Sunshine ports: 47984-48010 (TCP/UDP)
+- virtiofs share: /srv/vm-share → host_share (inside Windows)
 
 ### Storage Options (in order of simplicity)
 
