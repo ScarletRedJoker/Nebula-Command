@@ -11,7 +11,7 @@
 
 network:
   version: 2
-  renderer: networkd
+  renderer: NetworkManager
   
   ethernets:
     # Replace 'enp3s0' with your actual NIC name

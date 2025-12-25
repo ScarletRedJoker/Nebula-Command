@@ -77,7 +77,7 @@ if [[ "$setup_bridge" =~ ^[Yy]$ ]]; then
         cat > /etc/netplan/01-bridge.yaml << EOF
 network:
   version: 2
-  renderer: networkd
+  renderer: NetworkManager
   ethernets:
     ${nic_name}:
       dhcp4: false
@@ -92,6 +92,7 @@ network:
         stp: false
         forward-delay: 0
 EOF
+        chmod 600 /etc/netplan/01-bridge.yaml
         echo "  Created /etc/netplan/01-bridge.yaml"
         echo "  Run 'sudo netplan apply' to activate (network will briefly drop)"
     fi
