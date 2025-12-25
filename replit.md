@@ -170,3 +170,36 @@ Requires virtiofsd installed, complex setup, can break boot if misconfigured.
 - NAS mounts use `noauto,x-systemd.automount` to prevent boot hangs when NAS is offline
 - VM autostart is DISABLED to prevent resource starvation
 - Failed services have been cleaned up
+
+## Stream Bot OBS Overlays
+
+### Overlay Editor Features
+- **Visual Editor**: Drag-and-drop overlay element positioning
+- **Element Types**: Text, image placeholders, boxes, and alerts
+- **Export**: Download configuration as JSON file
+- **Save**: Store configuration server-side (in-memory, max 10 per user)
+- **Reset**: Restore default elements with confirmation
+
+### OBS Overlay URLs
+- Spotify Now Playing: `/overlay/spotify?token=<overlay_token>`
+- YouTube Live: `/overlay/youtube?token=<overlay_token>`
+- Custom Overlay: `/overlay/custom?id=<config_id>`
+
+### Production Notes
+- Overlay configs are stored in-memory (will not persist across server restarts)
+- Consider database persistence for production deployment
+- SSL for stream.rig-city.com requires Caddy container running on Linode
+
+## Known Limitations
+
+### Google Services (Replit Development)
+- Uses Replit OAuth connectors which require `REPLIT_CONNECTORS_HOSTNAME`
+- For production deployment, implement traditional Google OAuth flow
+- Affected features: Google Calendar, Google Mail integrations
+
+### SSL Troubleshooting (Production)
+For "Secure Connection Failed" errors on production domains:
+1. Verify DNS A records point to Linode IP
+2. Check Caddy container is running: `docker logs caddy`
+3. Verify ports 80/443 are open: `ss -tlnp | grep -E ':(80|443)'`
+4. Check certificate status: `docker exec caddy caddy list-certs`
