@@ -34,7 +34,8 @@ wait_for_vm() {
     log "Waiting for VM to be ready..."
     
     while [[ $elapsed -lt $timeout ]]; do
-        if "$ORCHESTRATOR" status 2>/dev/null | grep -q "running"; then
+        # Check directly with virsh for more reliable detection
+        if virsh domstate RDPWindows 2>/dev/null | grep -qi "running"; then
             return 0
         fi
         sleep 2
