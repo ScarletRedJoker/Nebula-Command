@@ -25,54 +25,92 @@ echo "Directory: $SCRIPT_DIR"
 echo ""
 
 # Step 1: Pull latest code
-echo -e "${CYAN}[1/4] Pulling latest code...${NC}"
+echo -e "${CYAN}[1/5] Pulling latest code...${NC}"
 cd /opt/homelab/HomeLabHub
 git pull origin main
 cd "$SCRIPT_DIR"
 echo -e "${GREEN}✓ Code updated${NC}"
 echo ""
 
-# Step 2: Check .env exists
+# Step 2: Validate and fix environment
+echo -e "${CYAN}[2/5] Checking environment...${NC}"
 if [ ! -f ".env" ]; then
-    echo -e "${RED}[ERROR] .env file not found!${NC}"
-    echo "  Copy from template: cp /opt/homelab/HomeLabHub/.env.template .env"
-    echo "  Then fill in all values"
-    exit 1
+    echo -e "${YELLOW}No .env found - creating from template...${NC}"
+    if [ -f ".env.example" ]; then
+        cp .env.example .env
+    else
+        touch .env
+    fi
 fi
 
+# Make fix-env.sh executable
+chmod +x scripts/fix-env.sh 2>/dev/null || true
+
+# Check for critical missing vars
+source .env 2>/dev/null || true
+MISSING_CRITICAL=0
+
+if [[ -z "${TAILSCALE_AUTHKEY:-}" || "${TAILSCALE_AUTHKEY:-}" == *"xxxxx"* ]]; then
+    echo -e "${RED}[MISSING] TAILSCALE_AUTHKEY${NC}"
+    MISSING_CRITICAL=1
+fi
+if [[ -z "${OPENAI_API_KEY:-}" || "${OPENAI_API_KEY:-}" == "sk-" ]]; then
+    echo -e "${RED}[MISSING] OPENAI_API_KEY${NC}"
+    MISSING_CRITICAL=1
+fi
+if [[ -z "${DISCORD_BOT_TOKEN:-}" ]]; then
+    echo -e "${RED}[MISSING] DISCORD_BOT_TOKEN${NC}"
+    MISSING_CRITICAL=1
+fi
+if [[ -z "${CLOUDFLARE_API_TOKEN:-}" ]]; then
+    echo -e "${RED}[MISSING] CLOUDFLARE_API_TOKEN${NC}"
+    MISSING_CRITICAL=1
+fi
+
+if [[ $MISSING_CRITICAL -eq 1 ]]; then
+    echo ""
+    echo -e "${YELLOW}Critical environment variables missing!${NC}"
+    echo "  Fix with: ./scripts/fix-env.sh --fix"
+    echo "  Or set directly: ./scripts/fix-env.sh --set TAILSCALE_AUTHKEY=tskey-xxx"
+    echo ""
+    read -p "Continue anyway? (y/N) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo -e "${RED}Deployment aborted. Fix your .env first.${NC}"
+        exit 1
+    fi
+fi
+echo -e "${GREEN}✓ Environment checked${NC}"
+echo ""
+
 # Step 3: Build and deploy
-echo -e "${CYAN}[2/4] Building images...${NC}"
+echo -e "${CYAN}[3/5] Building images...${NC}"
 docker compose build --no-cache
 echo -e "${GREEN}✓ Build complete${NC}"
 echo ""
 
-echo -e "${CYAN}[3/4] Deploying services...${NC}"
+echo -e "${CYAN}[4/5] Deploying services...${NC}"
 docker compose down --remove-orphans 2>/dev/null || true
 docker compose up -d
 echo -e "${GREEN}✓ Services started${NC}"
 echo ""
 
-# Step 4: Database sync
-echo -e "${CYAN}[4/6] Syncing database schemas...${NC}"
+# Step 5: Database sync and health check
+echo -e "${CYAN}[5/5] Final setup...${NC}"
 sleep 10  # Wait for postgres to be ready
 if [ -f "scripts/sync-streambot-db.sh" ]; then
-    bash scripts/sync-streambot-db.sh
+    bash scripts/sync-streambot-db.sh 2>/dev/null || true
 fi
 if [ -f "scripts/sync-discordbot-db.sh" ]; then
-    bash scripts/sync-discordbot-db.sh
+    bash scripts/sync-discordbot-db.sh 2>/dev/null || true
 fi
-echo -e "${GREEN}✓ Database sync complete${NC}"
-echo ""
-
-# Step 5: Restart services to pick up schema changes
-echo -e "${CYAN}[5/6] Restarting services...${NC}"
 docker restart stream-bot discord-bot 2>/dev/null || true
-echo -e "${GREEN}✓ Services restarted${NC}"
+echo -e "${GREEN}✓ Database synced, services restarted${NC}"
 echo ""
 
-# Step 6: Health check
-echo -e "${CYAN}[6/6] Waiting for services (20s)...${NC}"
-sleep 20
+# Health check
+echo -e "${CYAN}Waiting for services (15s)...${NC}"
+sleep 15
 
 echo ""
 echo -e "${CYAN}━━━ Service Status ━━━${NC}"
