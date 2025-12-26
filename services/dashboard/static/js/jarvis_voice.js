@@ -12,6 +12,13 @@ class JarvisVoice {
         this.isPausedForTTS = false;
         this.sessionId = null;
         this.voices = [];
+        this.audioPlayer = null;
+        
+        // TTS settings
+        this.useOpenAITTS = true;  // Enable OpenAI TTS by default
+        this.openAIVoice = 'onyx';  // Default: deep and authoritative (like J.A.R.V.I.S.)
+        this.openAISpeed = 1.0;
+        this.openAIAvailable = false;
         
         // Command patterns for intent detection
         this.commandPatterns = {
@@ -45,15 +52,51 @@ class JarvisVoice {
         this.recognition.onerror = (event) => this.onRecognitionError(event);
         this.recognition.onend = () => this.onRecognitionEnd();
         
-        // Load available voices
+        // Load available voices for browser TTS fallback
         this.synthesis.onvoiceschanged = () => {
             this.voices = this.synthesis.getVoices();
         };
+        
+        // Initialize audio player for OpenAI TTS
+        this.audioPlayer = new Audio();
+        this.audioPlayer.onended = () => this.onTTSComplete();
+        this.audioPlayer.onerror = (e) => this.onTTSError(e);
+        
+        // Check OpenAI TTS availability
+        this.checkTTSConfig();
         
         // Initialize UI elements
         this.initUI();
         
         console.log('Jarvis Voice Interface initialized');
+    }
+    
+    async checkTTSConfig() {
+        try {
+            const response = await fetch('/api/jarvis/voice/tts/config', {
+                headers: { 'X-API-Key': this.getApiKey() }
+            });
+            const config = await response.json();
+            
+            if (config.success && config.openai_available) {
+                this.openAIAvailable = true;
+                console.log('OpenAI TTS available - using high-quality voice synthesis');
+                
+                // Load saved preferences
+                const savedVoice = localStorage.getItem('jarvis_tts_voice');
+                if (savedVoice) this.openAIVoice = savedVoice;
+                
+                const savedEnabled = localStorage.getItem('jarvis_tts_openai');
+                if (savedEnabled !== null) this.useOpenAITTS = savedEnabled === 'true';
+            } else {
+                this.openAIAvailable = false;
+                this.useOpenAITTS = false;
+                console.log('OpenAI TTS not available - using browser synthesis');
+            }
+        } catch (error) {
+            console.warn('Could not check TTS config:', error);
+            this.openAIAvailable = false;
+        }
     }
     
     initUI() {
@@ -66,6 +109,67 @@ class JarvisVoice {
         
         if (stopButton) {
             stopButton.addEventListener('click', () => this.stopListening());
+        }
+        
+        // Voice settings controls
+        const ttsToggle = document.getElementById('openai-tts-toggle');
+        const voiceSelect = document.getElementById('voice-select');
+        const ttsStatus = document.getElementById('tts-status');
+        
+        if (ttsToggle) {
+            // Load saved preference
+            const savedEnabled = localStorage.getItem('jarvis_tts_openai');
+            if (savedEnabled !== null) {
+                ttsToggle.checked = savedEnabled === 'true';
+            }
+            
+            ttsToggle.addEventListener('change', (e) => {
+                this.toggleOpenAITTS(e.target.checked);
+                this.updateTTSStatus();
+            });
+        }
+        
+        if (voiceSelect) {
+            // Load saved voice preference
+            const savedVoice = localStorage.getItem('jarvis_tts_voice');
+            if (savedVoice) {
+                voiceSelect.value = savedVoice;
+            }
+            
+            voiceSelect.addEventListener('change', (e) => {
+                this.setVoice(e.target.value);
+            });
+        }
+        
+        // Update TTS status display after config check completes
+        setTimeout(() => this.updateTTSStatus(), 1000);
+    }
+    
+    updateTTSStatus() {
+        const ttsStatus = document.getElementById('tts-status');
+        const ttsToggle = document.getElementById('openai-tts-toggle');
+        const voiceSelect = document.getElementById('voice-select');
+        
+        if (!ttsStatus) return;
+        
+        if (this.openAIAvailable) {
+            if (this.useOpenAITTS) {
+                ttsStatus.textContent = 'High-quality voice synthesis enabled';
+                ttsStatus.className = 'text-success d-block mt-2';
+            } else {
+                ttsStatus.textContent = 'Using browser voice synthesis';
+                ttsStatus.className = 'text-muted d-block mt-2';
+            }
+            if (ttsToggle) ttsToggle.disabled = false;
+            if (voiceSelect) voiceSelect.disabled = !this.useOpenAITTS;
+        } else {
+            ttsStatus.textContent = 'OpenAI TTS not available - using browser voice';
+            ttsStatus.className = 'text-warning d-block mt-2';
+            if (ttsToggle) {
+                ttsToggle.checked = false;
+                ttsToggle.disabled = true;
+            }
+            if (voiceSelect) voiceSelect.disabled = true;
         }
     }
     
@@ -319,22 +423,73 @@ class JarvisVoice {
     }
     
     speak(text) {
-        if (!this.synthesis) {
-            console.error('Speech synthesis not available');
-            return;
-        }
-        
         // Pause recognition during TTS to prevent self-feedback loop
-        const wasListening = this.isListening;
-        if (wasListening && this.recognition) {
+        this.wasListeningBeforeTTS = this.isListening;
+        if (this.wasListeningBeforeTTS && this.recognition) {
             console.log('Pausing recognition during TTS playback');
-            this.isPausedForTTS = true;  // Mark as TTS pause (not user stop)
+            this.isPausedForTTS = true;
             try {
-                this.recognition.abort();  // Use abort() instead of stop() to prevent 'no-speech' error
+                this.recognition.abort();
             } catch (error) {
                 console.error('Error aborting recognition for TTS:', error);
-                // Continue with TTS even if abort failed
             }
+        }
+        
+        // Use OpenAI TTS if available and enabled
+        if (this.useOpenAITTS && this.openAIAvailable) {
+            this.speakWithOpenAI(text);
+        } else {
+            this.speakWithBrowser(text);
+        }
+    }
+    
+    async speakWithOpenAI(text) {
+        console.log('Using OpenAI TTS with voice:', this.openAIVoice);
+        this.enterSpeakingState();
+        
+        try {
+            const response = await fetch('/api/jarvis/voice/tts', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-API-Key': this.getApiKey()
+                },
+                body: JSON.stringify({
+                    text: text,
+                    voice: this.openAIVoice,
+                    speed: this.openAISpeed,
+                    base64: true
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success && result.audio) {
+                // Play the audio from base64
+                const audioBlob = this.base64ToBlob(result.audio, 'audio/mpeg');
+                const audioUrl = URL.createObjectURL(audioBlob);
+                
+                this.audioPlayer.src = audioUrl;
+                await this.audioPlayer.play();
+            } else if (result.fallback) {
+                // Fall back to browser TTS
+                console.log('OpenAI TTS failed, falling back to browser TTS');
+                this.speakWithBrowser(text);
+            } else {
+                throw new Error(result.error || 'TTS failed');
+            }
+        } catch (error) {
+            console.error('OpenAI TTS error:', error);
+            // Fall back to browser TTS
+            this.speakWithBrowser(text);
+        }
+    }
+    
+    speakWithBrowser(text) {
+        if (!this.synthesis) {
+            console.error('Speech synthesis not available');
+            this.onTTSComplete();
+            return;
         }
         
         // Cancel any ongoing speech
@@ -356,46 +511,76 @@ class JarvisVoice {
             this.enterSpeakingState();
         };
         
-        utterance.onend = () => {
-            // Resume recognition after TTS completes (if it was listening before)
-            this.isPausedForTTS = false;
-            if (wasListening) {
-                console.log('Resuming recognition after TTS playback');
-                setTimeout(() => {
-                    if (!this.isStopping) {
-                        try {
-                            this.recognition.start();
-                            // enterListeningState() will be called by onRecognitionStart
-                        } catch (error) {
-                            console.error('Error resuming recognition:', error);
-                            this.enterIdleState();
-                        }
-                    }
-                }, 500);
-            } else {
-                this.enterIdleState();
-            }
-        };
-        
-        utterance.onerror = (error) => {
-            console.error('Speech synthesis error:', error);
-            this.isPausedForTTS = false;
-            if (wasListening && !this.isStopping) {
-                // Try to resume even on error
-                setTimeout(() => {
-                    try {
-                        this.recognition.start();
-                    } catch (e) {
-                        console.error('Error resuming after TTS error:', e);
-                        this.enterIdleState();
-                    }
-                }, 500);
-            } else {
-                this.enterIdleState();
-            }
-        };
+        utterance.onend = () => this.onTTSComplete();
+        utterance.onerror = (error) => this.onTTSError(error);
         
         this.synthesis.speak(utterance);
+    }
+    
+    base64ToBlob(base64, mimeType) {
+        const byteCharacters = atob(base64);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        return new Blob([byteArray], { type: mimeType });
+    }
+    
+    onTTSComplete() {
+        console.log('TTS playback complete');
+        this.isPausedForTTS = false;
+        
+        if (this.wasListeningBeforeTTS) {
+            console.log('Resuming recognition after TTS playback');
+            setTimeout(() => {
+                if (!this.isStopping) {
+                    try {
+                        this.recognition.start();
+                    } catch (error) {
+                        console.error('Error resuming recognition:', error);
+                        this.enterIdleState();
+                    }
+                }
+            }, 500);
+        } else {
+            this.enterIdleState();
+        }
+    }
+    
+    onTTSError(error) {
+        console.error('TTS error:', error);
+        this.isPausedForTTS = false;
+        
+        if (this.wasListeningBeforeTTS && !this.isStopping) {
+            setTimeout(() => {
+                try {
+                    this.recognition.start();
+                } catch (e) {
+                    console.error('Error resuming after TTS error:', e);
+                    this.enterIdleState();
+                }
+            }, 500);
+        } else {
+            this.enterIdleState();
+        }
+    }
+    
+    setVoice(voiceId) {
+        const validVoices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
+        if (validVoices.includes(voiceId)) {
+            this.openAIVoice = voiceId;
+            localStorage.setItem('jarvis_tts_voice', voiceId);
+            console.log('TTS voice set to:', voiceId);
+        }
+    }
+    
+    toggleOpenAITTS(enabled) {
+        if (this.openAIAvailable) {
+            this.useOpenAITTS = enabled;
+            localStorage.setItem('jarvis_tts_openai', enabled.toString());
+            console.log('OpenAI TTS:', enabled ? 'enabled' : 'disabled');
+        }
     }
     
     updateUI(state) {

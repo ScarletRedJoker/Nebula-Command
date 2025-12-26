@@ -322,6 +322,26 @@
         </div>
         
         <div id="voice-status" class="voice-status"></div>
+        
+        <div id="voice-settings" class="voice-settings mt-4">
+            <div class="d-flex align-items-center justify-content-center gap-3 flex-wrap">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="openai-tts-toggle" checked>
+                    <label class="form-check-label" for="openai-tts-toggle">
+                        <i class="bi bi-stars"></i> Natural Voice
+                    </label>
+                </div>
+                <select id="voice-select" class="form-select form-select-sm" style="width: auto;">
+                    <option value="onyx">Onyx (Authoritative)</option>
+                    <option value="echo">Echo (Conversational)</option>
+                    <option value="nova">Nova (Friendly)</option>
+                    <option value="alloy">Alloy (Neutral)</option>
+                    <option value="fable">Fable (Dramatic)</option>
+                    <option value="shimmer">Shimmer (Bright)</option>
+                </select>
+            </div>
+            <small id="tts-status" class="text-muted d-block mt-2">High-quality voice synthesis enabled</small>
+        </div>
     </div>
     
     <div class="voice-history">

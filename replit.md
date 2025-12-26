@@ -61,7 +61,7 @@ The codebase is organized into a `services/` directory for each application, alo
 
 -   **PostgreSQL**: Primary database for all services (Neon for development, homelab-postgres for production).
 -   **Redis**: Used for caching and session management across services.
--   **OpenAI API**: For Jarvis AI features in the Dashboard.
+-   **OpenAI API**: For Jarvis AI features and text-to-speech in the Dashboard.
 -   **Discord API (discord.js)**: For Discord Bot functionality.
 -   **Twitch API**: For Stream Bot and Discord Bot integrations (OAuth, chat posting, notifications).
 -   **YouTube API**: For Stream Bot and Discord Bot integrations (OAuth, live chat).

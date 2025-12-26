@@ -1,10 +1,12 @@
 """Jarvis Voice API - Home Assistant Integration Endpoints"""
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, Response
 from datetime import datetime
 import logging
 import os
 import uuid
 import re
+import io
+import base64
 from sqlalchemy import func
 
 from models.jarvis import Project, ArtifactBuild, SSLCertificate, AISession
@@ -18,6 +20,13 @@ from celery_app import celery_app
 from utils.auth import require_auth
 
 logger = logging.getLogger(__name__)
+
+try:
+    from openai import OpenAI
+    OPENAI_TTS_AVAILABLE = True
+except ImportError:
+    OPENAI_TTS_AVAILABLE = False
+    logger.warning("OpenAI SDK not available for TTS")
 
 try:
     import docker
@@ -1014,6 +1023,124 @@ def jarvis_wizard_step():
             'success': False,
             'error': str(e)
         }), 500
+
+
+@jarvis_voice_bp.route('/voice/tts', methods=['POST'])
+@require_auth
+def text_to_speech():
+    """
+    Generate speech audio from text using OpenAI TTS
+    
+    Expected input:
+    {
+        "text": str,
+        "voice": str (optional: alloy, echo, fable, onyx, nova, shimmer - default: onyx),
+        "speed": float (optional: 0.25 to 4.0 - default: 1.0)
+    }
+    
+    Returns:
+        Audio file (MP3) or base64 encoded audio
+    """
+    try:
+        if not OPENAI_TTS_AVAILABLE:
+            return jsonify({
+                'success': False,
+                'error': 'OpenAI TTS not available. Using browser fallback.',
+                'fallback': True
+            }), 503
+        
+        api_key = os.environ.get('OPENAI_API_KEY')
+        if not api_key:
+            return jsonify({
+                'success': False,
+                'error': 'OpenAI API key not configured',
+                'fallback': True
+            }), 503
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'No JSON data provided'}), 400
+        
+        text = data.get('text', '').strip()
+        if not text:
+            return jsonify({'success': False, 'error': 'text is required'}), 400
+        
+        if len(text) > 4096:
+            text = text[:4096]
+        
+        voice = data.get('voice', 'onyx')
+        valid_voices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']
+        if voice not in valid_voices:
+            voice = 'onyx'
+        
+        speed = data.get('speed', 1.0)
+        try:
+            speed = float(speed)
+            speed = max(0.25, min(4.0, speed))
+        except (ValueError, TypeError):
+            speed = 1.0
+        
+        return_base64 = data.get('base64', True)
+        
+        client = OpenAI(api_key=api_key)
+        
+        response = client.audio.speech.create(
+            model="tts-1",
+            voice=voice,
+            input=text,
+            speed=speed,
+            response_format="mp3"
+        )
+        
+        audio_data = response.content
+        
+        if return_base64:
+            audio_base64 = base64.b64encode(audio_data).decode('utf-8')
+            return jsonify({
+                'success': True,
+                'audio': audio_base64,
+                'format': 'mp3',
+                'voice': voice
+            }), 200
+        else:
+            return Response(
+                audio_data,
+                mimetype='audio/mpeg',
+                headers={
+                    'Content-Disposition': 'inline; filename="jarvis_response.mp3"',
+                    'Cache-Control': 'no-cache'
+                }
+            )
+    
+    except Exception as e:
+        logger.error(f"Error in TTS endpoint: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'fallback': True
+        }), 500
+
+
+@jarvis_voice_bp.route('/voice/tts/config', methods=['GET'])
+@require_auth
+def tts_config():
+    """Get TTS configuration and available options"""
+    api_key = os.environ.get('OPENAI_API_KEY')
+    
+    return jsonify({
+        'success': True,
+        'openai_available': OPENAI_TTS_AVAILABLE and bool(api_key),
+        'voices': [
+            {'id': 'alloy', 'name': 'Alloy', 'description': 'Neutral and balanced'},
+            {'id': 'echo', 'name': 'Echo', 'description': 'Warm and conversational'},
+            {'id': 'fable', 'name': 'Fable', 'description': 'Expressive and dramatic'},
+            {'id': 'onyx', 'name': 'Onyx', 'description': 'Deep and authoritative'},
+            {'id': 'nova', 'name': 'Nova', 'description': 'Friendly and upbeat'},
+            {'id': 'shimmer', 'name': 'Shimmer', 'description': 'Clear and bright'}
+        ],
+        'default_voice': 'onyx',
+        'speed_range': {'min': 0.25, 'max': 4.0, 'default': 1.0}
+    }), 200
 
 
 @jarvis_voice_bp.route('/marketplace/wizard/install', methods=['POST'])
