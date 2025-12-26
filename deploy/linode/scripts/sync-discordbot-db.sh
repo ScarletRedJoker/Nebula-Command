@@ -78,7 +78,7 @@ fi
 
 echo ""
 echo "═══ Verification ═══"
-for table in tickets ticket_settings stream_tracked_users stream_notification_settings stream_notification_log thread_mappings; do
+for table in tickets bot_settings stream_tracked_users stream_notification_settings stream_notification_log thread_mappings; do
     if docker exec -i $CONTAINER psql -U $USER -d $DB -c "\\dt $table" 2>/dev/null | grep -q $table; then
         echo -e "  ${GREEN}✓${NC} $table exists"
     else
