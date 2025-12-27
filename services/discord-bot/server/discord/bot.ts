@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits, Events, REST, Routes, EmbedBuilder, ActivityType } from 'discord.js';
+import { Client, GatewayIntentBits, Events, REST, Routes, EmbedBuilder, ActivityType, PermissionFlagsBits, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } from 'discord.js';
 import { commands, registerCommands, sendTicketNotificationToAdminChannel } from './commands';
 import { developerCommands } from './dev-commands';
 import { IStorage } from '../storage';
@@ -28,6 +28,8 @@ import { streamPoller } from '../services/stream-poller';
 import { initializeCommunityFeatures } from './community-features';
 import { initializeModerationFeatures, handleAutoMod } from './moderation-features';
 import { registerScheduledCommands, calculateNextRun } from './scheduled-commands';
+import { commandEngine } from '../services/commandEngine';
+import { guildIdentityService } from '../services/guildIdentityService';
 
 // Discord bot instance
 let client: Client | null = null;
@@ -1986,7 +1988,7 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
         console.error('[AutoMod] Error in automod handler:', autoModError);
       }
       
-      // Handle custom commands
+      // Handle custom commands using commandEngine
       if (message.guild) {
         try {
           const settings = await storage.getBotSettings(message.guild.id);
@@ -1997,33 +1999,35 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
             const trigger = args.shift()?.toLowerCase();
             
             if (trigger) {
-              const customCmd = await storage.getCustomCommand(message.guild.id, trigger);
+              // Check if trigger matches a built-in slash command (prevent overriding critical bot functions)
+              if (commands.has(trigger)) {
+                console.log(`[CommandEngine] Skipping custom command "${trigger}" - matches built-in command`);
+                return;
+              }
+              
+              // Use commandEngine to find and execute custom commands
+              const customCmd = commandEngine.findCommand(message.guild.id, trigger);
               if (customCmd) {
-                await storage.incrementCustomCommandUsage(message.guild.id, trigger);
-                
-                let response = customCmd.response
-                  .replace(/\{user\}/g, `<@${message.author.id}>`)
-                  .replace(/\{server\}/g, message.guild.name)
-                  .replace(/\{channel\}/g, `<#${message.channel.id}>`)
-                  .replace(/\{args\}/g, args.join(' '));
-                
-                if (customCmd.embedJson) {
-                  try {
-                    const embedData = JSON.parse(customCmd.embedJson);
-                    const embed = new EmbedBuilder(embedData);
-                    await message.channel.send({ content: response || undefined, embeds: [embed] });
-                  } catch {
-                    await message.channel.send(response);
+                try {
+                  const result = await commandEngine.executeCommand(message, customCmd, args);
+                  if (!result.success && result.error) {
+                    console.log(`[CommandEngine] Command "${trigger}" failed: ${result.error}`);
                   }
-                } else {
-                  await message.channel.send(response);
+                } catch (execError) {
+                  console.error(`[CommandEngine] Error executing command "${trigger}":`, execError);
+                  try {
+                    await message.reply({
+                      content: '❌ An error occurred while running this command. Please try again later.',
+                      allowedMentions: { repliedUser: false }
+                    });
+                  } catch {}
                 }
                 return;
               }
             }
           }
         } catch (customCmdError) {
-          console.error('[CustomCmd] Error handling custom command:', customCmdError);
+          console.error('[CommandEngine] Error handling custom command:', customCmdError);
         }
       }
       
@@ -2430,6 +2434,30 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
       });
       console.log(`========================\n`);
       
+      // Initialize guild identity service with Discord client
+      console.log('[GuildIdentity] Registering Discord client...');
+      guildIdentityService.setClient(readyClient);
+      
+      // Load custom commands for all connected guilds
+      console.log('[CommandEngine] Loading custom commands for all guilds...');
+      for (const [guildId, guild] of guilds) {
+        try {
+          await commandEngine.loadCommands(guildId);
+          console.log(`[CommandEngine] ✅ Loaded commands for ${guild.name}`);
+        } catch (cmdError) {
+          console.error(`[CommandEngine] Failed to load commands for ${guild.name}:`, cmdError);
+        }
+      }
+      
+      // Sync guild identities on startup (optional - rate-limited)
+      console.log('[GuildIdentity] Syncing guild identities...');
+      try {
+        const syncResult = await guildIdentityService.syncAllGuilds();
+        console.log(`[GuildIdentity] ✅ Sync complete: ${syncResult.success} success, ${syncResult.failed} failed`);
+      } catch (syncError) {
+        console.error('[GuildIdentity] Failed to sync guild identities:', syncError);
+      }
+      
       // Load ticket-channel mappings with retry logic
       const mappingsLoaded = await loadTicketMappings();
       
@@ -2610,6 +2638,14 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
         await autoProvisionNewGuild(guild);
       } catch (provError) {
         console.error(`[Discord] Failed to auto-provision guild ${guild.name}:`, provError);
+      }
+      
+      // Load custom commands for the new guild
+      try {
+        await commandEngine.loadCommands(guild.id);
+        console.log(`[CommandEngine] ✅ Loaded commands for new guild ${guild.name}`);
+      } catch (cmdError) {
+        console.error(`[CommandEngine] Failed to load commands for new guild ${guild.name}:`, cmdError);
       }
       
       broadcast({

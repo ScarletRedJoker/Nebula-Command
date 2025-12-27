@@ -25,7 +25,12 @@ import {
   insertPanelTemplateButtonSchema,
   updatePanelTemplateButtonSchema,
   insertServerRolePermissionSchema,
-  updateServerRolePermissionSchema
+  updateServerRolePermissionSchema,
+  insertCustomCommandSchema,
+  updateCustomCommandSchema,
+  insertCommandVariableSchema,
+  insertGuildBotProfileSchema,
+  updateGuildBotProfileSchema
 } from "@shared/schema";
 import { calculateBotPermissions, generateDiscordInviteURL } from "../shared/discord-constants";
 import { startBot } from "./discord/bot";
@@ -45,6 +50,8 @@ import guildProvisioningRoutes from "./routes/guild-provisioning-routes";
 import publicApiRoutes from "./api/public-api";
 import { isDeveloperMiddleware } from "./middleware/developerAuth";
 import { startRetentionService, stopRetentionService } from "./services/retention-service";
+import { commandEngine } from "./services/commandEngine";
+import { guildIdentityService } from "./services/guildIdentityService";
 
 // Configure multer for embed image uploads
 const EMBED_IMAGES_DIR = path.join(process.cwd(), 'attached_assets', 'embed-images');
@@ -3240,6 +3247,518 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error deleting role permission:', error);
       res.status(500).json({ message: 'Failed to delete role permission' });
+    }
+  });
+
+  // =============================================
+  // CUSTOM COMMANDS ROUTES
+  // =============================================
+
+  // GET /api/servers/:serverId/commands - List all custom commands for a server
+  app.get('/api/servers/:serverId/commands', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const serverId = req.params.serverId;
+      
+      const hasAccess = await userHasServerAccess(user, serverId);
+      if (!hasAccess) {
+        return res.status(403).json({ message: 'Access denied to this server' });
+      }
+      
+      const commands = await storage.getCustomCommands(serverId);
+      res.json(commands);
+    } catch (error) {
+      console.error('Error fetching custom commands:', error);
+      res.status(500).json({ message: 'Failed to fetch custom commands' });
+    }
+  });
+
+  // GET /api/servers/:serverId/commands/:commandId - Get single command
+  app.get('/api/servers/:serverId/commands/:commandId', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const serverId = req.params.serverId;
+      const commandId = parseInt(req.params.commandId);
+      
+      if (isNaN(commandId)) {
+        return res.status(400).json({ message: 'Invalid command ID' });
+      }
+      
+      const hasAccess = await userHasServerAccess(user, serverId);
+      if (!hasAccess) {
+        return res.status(403).json({ message: 'Access denied to this server' });
+      }
+      
+      const command = await storage.getCustomCommandById(commandId);
+      if (!command) {
+        return res.status(404).json({ message: 'Command not found' });
+      }
+      
+      if (command.serverId !== serverId) {
+        return res.status(403).json({ message: 'Command does not belong to this server' });
+      }
+      
+      res.json(command);
+    } catch (error) {
+      console.error('Error fetching custom command:', error);
+      res.status(500).json({ message: 'Failed to fetch custom command' });
+    }
+  });
+
+  // POST /api/servers/:serverId/commands - Create new custom command
+  app.post('/api/servers/:serverId/commands', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const serverId = req.params.serverId;
+      
+      const hasAccess = await userHasServerAccess(user, serverId);
+      if (!hasAccess) {
+        return res.status(403).json({ message: 'Access denied to this server' });
+      }
+      
+      const commandData = {
+        ...req.body,
+        serverId,
+        createdBy: user.id,
+        createdByUsername: user.username || user.discordUsername
+      };
+      
+      const validatedData = insertCustomCommandSchema.parse(commandData);
+      const command = await storage.createCustomCommand(validatedData);
+      
+      await commandEngine.refreshCommands(serverId);
+      
+      res.status(201).json(command);
+      broadcast({ type: 'COMMAND_CREATED', data: { serverId, command } });
+    } catch (error) {
+      console.error('Error creating custom command:', error);
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ message: 'Invalid command data', errors: error.errors });
+      } else {
+        res.status(500).json({ message: 'Failed to create custom command' });
+      }
+    }
+  });
+
+  // PUT /api/servers/:serverId/commands/:commandId - Update command
+  app.put('/api/servers/:serverId/commands/:commandId', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const serverId = req.params.serverId;
+      const commandId = parseInt(req.params.commandId);
+      
+      if (isNaN(commandId)) {
+        return res.status(400).json({ message: 'Invalid command ID' });
+      }
+      
+      const hasAccess = await userHasServerAccess(user, serverId);
+      if (!hasAccess) {
+        return res.status(403).json({ message: 'Access denied to this server' });
+      }
+      
+      const existingCommand = await storage.getCustomCommandById(commandId);
+      if (!existingCommand) {
+        return res.status(404).json({ message: 'Command not found' });
+      }
+      
+      if (existingCommand.serverId !== serverId) {
+        return res.status(403).json({ message: 'Command does not belong to this server' });
+      }
+      
+      const validatedData = updateCustomCommandSchema.parse(req.body);
+      const updatedCommand = await storage.updateCustomCommandById(commandId, validatedData);
+      
+      if (!updatedCommand) {
+        return res.status(500).json({ message: 'Failed to update command' });
+      }
+      
+      await commandEngine.refreshCommands(serverId);
+      
+      res.json(updatedCommand);
+      broadcast({ type: 'COMMAND_UPDATED', data: { serverId, command: updatedCommand } });
+    } catch (error) {
+      console.error('Error updating custom command:', error);
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ message: 'Invalid command data', errors: error.errors });
+      } else {
+        res.status(500).json({ message: 'Failed to update custom command' });
+      }
+    }
+  });
+
+  // DELETE /api/servers/:serverId/commands/:commandId - Delete command
+  app.delete('/api/servers/:serverId/commands/:commandId', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const serverId = req.params.serverId;
+      const commandId = parseInt(req.params.commandId);
+      
+      if (isNaN(commandId)) {
+        return res.status(400).json({ message: 'Invalid command ID' });
+      }
+      
+      const hasAccess = await userHasServerAccess(user, serverId);
+      if (!hasAccess) {
+        return res.status(403).json({ message: 'Access denied to this server' });
+      }
+      
+      const existingCommand = await storage.getCustomCommandById(commandId);
+      if (!existingCommand) {
+        return res.status(404).json({ message: 'Command not found' });
+      }
+      
+      if (existingCommand.serverId !== serverId) {
+        return res.status(403).json({ message: 'Command does not belong to this server' });
+      }
+      
+      const deleted = await storage.deleteCustomCommandById(commandId);
+      if (!deleted) {
+        return res.status(500).json({ message: 'Failed to delete command' });
+      }
+      
+      await commandEngine.refreshCommands(serverId);
+      
+      res.json({ message: 'Command deleted successfully' });
+      broadcast({ type: 'COMMAND_DELETED', data: { serverId, commandId } });
+    } catch (error) {
+      console.error('Error deleting custom command:', error);
+      res.status(500).json({ message: 'Failed to delete custom command' });
+    }
+  });
+
+  // POST /api/servers/:serverId/commands/:commandId/duplicate - Duplicate a command
+  app.post('/api/servers/:serverId/commands/:commandId/duplicate', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const serverId = req.params.serverId;
+      const commandId = parseInt(req.params.commandId);
+      
+      if (isNaN(commandId)) {
+        return res.status(400).json({ message: 'Invalid command ID' });
+      }
+      
+      const hasAccess = await userHasServerAccess(user, serverId);
+      if (!hasAccess) {
+        return res.status(403).json({ message: 'Access denied to this server' });
+      }
+      
+      const existingCommand = await storage.getCustomCommandById(commandId);
+      if (!existingCommand) {
+        return res.status(404).json({ message: 'Command not found' });
+      }
+      
+      if (existingCommand.serverId !== serverId) {
+        return res.status(403).json({ message: 'Command does not belong to this server' });
+      }
+      
+      const duplicateData = {
+        serverId,
+        trigger: `${existingCommand.trigger}_copy`,
+        aliases: existingCommand.aliases,
+        description: existingCommand.description ? `${existingCommand.description} (copy)` : null,
+        category: existingCommand.category,
+        response: existingCommand.response,
+        embedJson: existingCommand.embedJson,
+        commandType: existingCommand.commandType,
+        isEnabled: false,
+        isHidden: existingCommand.isHidden,
+        requiredRoleIds: existingCommand.requiredRoleIds,
+        deniedRoleIds: existingCommand.deniedRoleIds,
+        requiredChannelIds: existingCommand.requiredChannelIds,
+        requiredPermissions: existingCommand.requiredPermissions,
+        cooldownSeconds: existingCommand.cooldownSeconds,
+        globalCooldownSeconds: existingCommand.globalCooldownSeconds,
+        deleteUserMessage: existingCommand.deleteUserMessage,
+        deleteResponseAfter: existingCommand.deleteResponseAfter,
+        ephemeral: existingCommand.ephemeral,
+        mentionUser: existingCommand.mentionUser,
+        actionsJson: existingCommand.actionsJson,
+        isDraft: true,
+        createdBy: user.id,
+        createdByUsername: user.username || user.discordUsername
+      };
+      
+      const validatedData = insertCustomCommandSchema.parse(duplicateData);
+      const duplicatedCommand = await storage.createCustomCommand(validatedData);
+      
+      res.status(201).json(duplicatedCommand);
+      broadcast({ type: 'COMMAND_CREATED', data: { serverId, command: duplicatedCommand } });
+    } catch (error) {
+      console.error('Error duplicating custom command:', error);
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ message: 'Invalid command data', errors: error.errors });
+      } else {
+        res.status(500).json({ message: 'Failed to duplicate custom command' });
+      }
+    }
+  });
+
+  // POST /api/servers/:serverId/commands/refresh - Refresh command cache
+  app.post('/api/servers/:serverId/commands/refresh', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const serverId = req.params.serverId;
+      
+      const hasAccess = await userHasServerAccess(user, serverId);
+      if (!hasAccess) {
+        return res.status(403).json({ message: 'Access denied to this server' });
+      }
+      
+      await commandEngine.refreshCommands(serverId);
+      
+      res.json({ message: 'Command cache refreshed successfully' });
+    } catch (error) {
+      console.error('Error refreshing command cache:', error);
+      res.status(500).json({ message: 'Failed to refresh command cache' });
+    }
+  });
+
+  // =============================================
+  // COMMAND VARIABLES ROUTES
+  // =============================================
+
+  // GET /api/servers/:serverId/variables - List custom variables
+  app.get('/api/servers/:serverId/variables', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const serverId = req.params.serverId;
+      
+      const hasAccess = await userHasServerAccess(user, serverId);
+      if (!hasAccess) {
+        return res.status(403).json({ message: 'Access denied to this server' });
+      }
+      
+      const variables = await storage.getCommandVariables(serverId);
+      res.json(variables);
+    } catch (error) {
+      console.error('Error fetching command variables:', error);
+      res.status(500).json({ message: 'Failed to fetch command variables' });
+    }
+  });
+
+  // POST /api/servers/:serverId/variables - Create variable
+  app.post('/api/servers/:serverId/variables', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const serverId = req.params.serverId;
+      
+      const hasAccess = await userHasServerAccess(user, serverId);
+      if (!hasAccess) {
+        return res.status(403).json({ message: 'Access denied to this server' });
+      }
+      
+      const variableData = {
+        ...req.body,
+        serverId,
+        createdBy: user.id
+      };
+      
+      const validatedData = insertCommandVariableSchema.parse(variableData);
+      const variable = await storage.createCommandVariable(validatedData);
+      
+      await commandEngine.refreshCommands(serverId);
+      
+      res.status(201).json(variable);
+      broadcast({ type: 'VARIABLE_CREATED', data: { serverId, variable } });
+    } catch (error) {
+      console.error('Error creating command variable:', error);
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ message: 'Invalid variable data', errors: error.errors });
+      } else {
+        res.status(500).json({ message: 'Failed to create command variable' });
+      }
+    }
+  });
+
+  // PUT /api/servers/:serverId/variables/:variableId - Update variable
+  app.put('/api/servers/:serverId/variables/:variableId', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const serverId = req.params.serverId;
+      const variableId = parseInt(req.params.variableId);
+      
+      if (isNaN(variableId)) {
+        return res.status(400).json({ message: 'Invalid variable ID' });
+      }
+      
+      const hasAccess = await userHasServerAccess(user, serverId);
+      if (!hasAccess) {
+        return res.status(403).json({ message: 'Access denied to this server' });
+      }
+      
+      const existingVariable = await storage.getCommandVariable(variableId);
+      if (!existingVariable) {
+        return res.status(404).json({ message: 'Variable not found' });
+      }
+      
+      if (existingVariable.serverId !== serverId) {
+        return res.status(403).json({ message: 'Variable does not belong to this server' });
+      }
+      
+      const updatedVariable = await storage.updateCommandVariable(variableId, req.body);
+      
+      if (!updatedVariable) {
+        return res.status(500).json({ message: 'Failed to update variable' });
+      }
+      
+      await commandEngine.refreshCommands(serverId);
+      
+      res.json(updatedVariable);
+      broadcast({ type: 'VARIABLE_UPDATED', data: { serverId, variable: updatedVariable } });
+    } catch (error) {
+      console.error('Error updating command variable:', error);
+      res.status(500).json({ message: 'Failed to update command variable' });
+    }
+  });
+
+  // DELETE /api/servers/:serverId/variables/:variableId - Delete variable
+  app.delete('/api/servers/:serverId/variables/:variableId', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const serverId = req.params.serverId;
+      const variableId = parseInt(req.params.variableId);
+      
+      if (isNaN(variableId)) {
+        return res.status(400).json({ message: 'Invalid variable ID' });
+      }
+      
+      const hasAccess = await userHasServerAccess(user, serverId);
+      if (!hasAccess) {
+        return res.status(403).json({ message: 'Access denied to this server' });
+      }
+      
+      const existingVariable = await storage.getCommandVariable(variableId);
+      if (!existingVariable) {
+        return res.status(404).json({ message: 'Variable not found' });
+      }
+      
+      if (existingVariable.serverId !== serverId) {
+        return res.status(403).json({ message: 'Variable does not belong to this server' });
+      }
+      
+      const deleted = await storage.deleteCommandVariable(variableId);
+      if (!deleted) {
+        return res.status(500).json({ message: 'Failed to delete variable' });
+      }
+      
+      await commandEngine.refreshCommands(serverId);
+      
+      res.json({ message: 'Variable deleted successfully' });
+      broadcast({ type: 'VARIABLE_DELETED', data: { serverId, variableId } });
+    } catch (error) {
+      console.error('Error deleting command variable:', error);
+      res.status(500).json({ message: 'Failed to delete command variable' });
+    }
+  });
+
+  // =============================================
+  // GUILD BOT PROFILE ROUTES
+  // =============================================
+
+  // GET /api/servers/:serverId/bot-profile - Get bot profile (nickname, avatar)
+  app.get('/api/servers/:serverId/bot-profile', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const serverId = req.params.serverId;
+      
+      const hasAccess = await userHasServerAccess(user, serverId);
+      if (!hasAccess) {
+        return res.status(403).json({ message: 'Access denied to this server' });
+      }
+      
+      const profile = await guildIdentityService.getProfile(serverId);
+      
+      if (!profile) {
+        return res.json({
+          serverId,
+          nickname: null,
+          avatarUrl: null,
+          avatarAssetId: null,
+          autoSyncEnabled: true,
+          nicknameSyncedAt: null,
+          avatarSyncedAt: null,
+          lastSyncError: null
+        });
+      }
+      
+      res.json(profile);
+    } catch (error) {
+      console.error('Error fetching bot profile:', error);
+      res.status(500).json({ message: 'Failed to fetch bot profile' });
+    }
+  });
+
+  // PUT /api/servers/:serverId/bot-profile - Update bot profile
+  app.put('/api/servers/:serverId/bot-profile', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const serverId = req.params.serverId;
+      
+      const hasAccess = await userHasServerAccess(user, serverId);
+      if (!hasAccess) {
+        return res.status(403).json({ message: 'Access denied to this server' });
+      }
+      
+      const { nickname, avatarUrl, avatarAssetId, autoSyncEnabled } = req.body;
+      
+      let profile = await guildIdentityService.getProfile(serverId);
+      
+      if (!profile) {
+        profile = await guildIdentityService.createProfile(serverId, {
+          nickname: nickname || null,
+          avatarUrl: avatarUrl || null,
+          avatarAssetId: avatarAssetId || null,
+          autoSyncEnabled: autoSyncEnabled !== undefined ? autoSyncEnabled : true
+        });
+      } else {
+        if (nickname !== undefined) {
+          await guildIdentityService.updateNickname(serverId, nickname);
+        }
+        if (avatarUrl !== undefined || avatarAssetId !== undefined) {
+          await guildIdentityService.updateAvatarUrl(serverId, avatarUrl || null, avatarAssetId || null);
+        }
+        
+        profile = await guildIdentityService.getProfile(serverId);
+      }
+      
+      res.json(profile);
+      broadcast({ type: 'BOT_PROFILE_UPDATED', data: { serverId, profile } });
+    } catch (error) {
+      console.error('Error updating bot profile:', error);
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ message: 'Invalid profile data', errors: error.errors });
+      } else {
+        res.status(500).json({ message: 'Failed to update bot profile' });
+      }
+    }
+  });
+
+  // POST /api/servers/:serverId/bot-profile/sync - Force sync to Discord
+  app.post('/api/servers/:serverId/bot-profile/sync', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const serverId = req.params.serverId;
+      
+      const hasAccess = await userHasServerAccess(user, serverId);
+      if (!hasAccess) {
+        return res.status(403).json({ message: 'Access denied to this server' });
+      }
+      
+      const success = await guildIdentityService.syncToDiscord(serverId);
+      
+      if (!success) {
+        return res.status(500).json({ message: 'Failed to sync bot profile to Discord' });
+      }
+      
+      const profile = await guildIdentityService.getProfile(serverId);
+      
+      res.json({ 
+        message: 'Bot profile synced successfully',
+        profile 
+      });
+    } catch (error) {
+      console.error('Error syncing bot profile:', error);
+      res.status(500).json({ message: 'Failed to sync bot profile to Discord' });
     }
   });
 

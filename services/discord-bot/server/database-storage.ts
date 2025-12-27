@@ -99,6 +99,8 @@ import {
   type MediaRequest,
   type InsertMediaRequest,
   type UpdateMediaRequest,
+  type CommandVariable,
+  type InsertCommandVariable,
   users,
   discordUsers,
   servers,
@@ -139,7 +141,8 @@ import {
   scheduledMessages,
   customCommands,
   userEmbeds,
-  mediaRequests
+  mediaRequests,
+  commandVariables
 } from "@shared/schema";
 import { IStorage } from "./storage";
 import { db } from "./db";
@@ -2070,6 +2073,69 @@ export class DatabaseStorage implements IStorage {
   async deleteMediaRequest(id: number): Promise<boolean> {
     const result = await db.delete(mediaRequests)
       .where(eq(mediaRequests.id, id));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  // Custom Command by ID operations
+  async getCustomCommandById(id: number): Promise<CustomCommand | null> {
+    const [command] = await db.select()
+      .from(customCommands)
+      .where(eq(customCommands.id, id))
+      .limit(1);
+    return command || null;
+  }
+
+  async updateCustomCommandById(id: number, updates: UpdateCustomCommand): Promise<CustomCommand | null> {
+    const [updated] = await db.update(customCommands)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(customCommands.id, id))
+      .returning();
+    return updated || null;
+  }
+
+  async deleteCustomCommandById(id: number): Promise<boolean> {
+    const result = await db.delete(customCommands)
+      .where(eq(customCommands.id, id));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  // Command Variable operations
+  async getCommandVariables(serverId: string): Promise<CommandVariable[]> {
+    return await db.select()
+      .from(commandVariables)
+      .where(eq(commandVariables.serverId, serverId));
+  }
+
+  async getCommandVariable(id: number): Promise<CommandVariable | null> {
+    const [variable] = await db.select()
+      .from(commandVariables)
+      .where(eq(commandVariables.id, id))
+      .limit(1);
+    return variable || null;
+  }
+
+  async createCommandVariable(data: InsertCommandVariable): Promise<CommandVariable> {
+    const [newVariable] = await db.insert(commandVariables)
+      .values({
+        ...data,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
+      .returning();
+    return newVariable;
+  }
+
+  async updateCommandVariable(id: number, updates: Partial<InsertCommandVariable>): Promise<CommandVariable | null> {
+    const [updated] = await db.update(commandVariables)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(commandVariables.id, id))
+      .returning();
+    return updated || null;
+  }
+
+  async deleteCommandVariable(id: number): Promise<boolean> {
+    const result = await db.delete(commandVariables)
+      .where(eq(commandVariables.id, id));
     return result.rowCount ? result.rowCount > 0 : false;
   }
 }

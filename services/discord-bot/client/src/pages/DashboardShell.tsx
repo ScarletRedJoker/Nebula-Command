@@ -18,13 +18,15 @@ import {
   Bot,
   Radio,
   User,
-  BarChart3
+  BarChart3,
+  Terminal
 } from "lucide-react";
 
 import OverviewTab from "@/components/tabs/OverviewTab";
 import PanelsTab from "@/components/tabs/PanelsTab";
 import StreamNotificationsTab from "@/components/tabs/StreamNotificationsTab";
 import AnalyticsTab from "@/components/tabs/AnalyticsTab";
+import CustomCommandsPage from "@/pages/CustomCommandsPage";
 
 /**
  * DashboardShell Component
@@ -222,6 +224,14 @@ export default function DashboardShell() {
                         <BarChart3 className="h-4 w-4 mr-2" />
                         <span>Analytics</span>
                       </TabsTrigger>
+                      <TabsTrigger 
+                        value="commands" 
+                        className="data-[state=active]:bg-discord-blue data-[state=active]:text-white flex-shrink-0 h-11 px-4"
+                        data-testid="tab-commands"
+                      >
+                        <Terminal className="h-4 w-4 mr-2" />
+                        <span>Commands</span>
+                      </TabsTrigger>
                     </>
                   )}
                 </TabsList>
@@ -229,7 +239,7 @@ export default function DashboardShell() {
 
               {/* Desktop: Grid Layout */}
               <TabsList className="hidden md:grid w-full bg-transparent gap-2" style={{ 
-                gridTemplateColumns: isAdmin ? 'repeat(4, 1fr)' : 'repeat(1, 1fr)' 
+                gridTemplateColumns: isAdmin ? 'repeat(5, 1fr)' : 'repeat(1, 1fr)' 
               }}>
                 <TabsTrigger 
                   value="overview" 
@@ -266,6 +276,14 @@ export default function DashboardShell() {
                       <BarChart3 className="h-4 w-4 mr-2" />
                       <span>Analytics</span>
                     </TabsTrigger>
+                    <TabsTrigger 
+                      value="commands" 
+                      className="data-[state=active]:bg-discord-blue data-[state=active]:text-white h-11"
+                      data-testid="tab-commands-desktop"
+                    >
+                      <Terminal className="h-4 w-4 mr-2" />
+                      <span>Commands</span>
+                    </TabsTrigger>
                   </>
                 )}
               </TabsList>
@@ -287,6 +305,9 @@ export default function DashboardShell() {
               </TabsContent>
               <TabsContent value="analytics" className="space-y-6 mt-6">
                 <AnalyticsTab />
+              </TabsContent>
+              <TabsContent value="commands" className="space-y-6 mt-6">
+                <CustomCommandsPage />
               </TabsContent>
             </>
           )}
@@ -351,6 +372,19 @@ export default function DashboardShell() {
               >
                 <BarChart3 className="h-5 w-5" />
                 <span className="text-[10px] mt-1 font-medium">Analytics</span>
+              </button>
+              
+              <button
+                onClick={() => setActiveTab("commands")}
+                className={`flex flex-col items-center justify-center flex-1 h-full touch-action-manipulation transition-colors ${
+                  activeTab === "commands" 
+                    ? "text-discord-blue" 
+                    : "text-discord-muted hover:text-discord-text"
+                }`}
+                data-testid="nav-commands"
+              >
+                <Terminal className="h-5 w-5" />
+                <span className="text-[10px] mt-1 font-medium">Commands</span>
               </button>
             </>
           )}
