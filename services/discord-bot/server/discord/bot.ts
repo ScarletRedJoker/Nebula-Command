@@ -2224,6 +2224,19 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
         
         console.log(`[Thread Integration] New thread detected: "${thread.name}" in channel "${parent.name}"`);
         
+        // IMPORTANT: Only process threads that were created as tickets
+        // Check if this thread was created by the ticket system (has ticket naming pattern)
+        const isTicketThread = thread.name.startsWith('🎫 Ticket #') || thread.name.startsWith('Ticket #');
+        
+        // Check if thread was created by the bot itself
+        const wasCreatedByBot = thread.ownerId === client?.user?.id;
+        
+        // Only sync threads that are explicitly ticket threads
+        if (!isTicketThread && !wasCreatedByBot) {
+          console.log(`[Thread Integration] Thread "${thread.name}" is not a ticket thread (created by user), skipping`);
+          return;
+        }
+        
         // Check if thread integration is enabled for this server
         const botSettings = await storage.getBotSettings(serverId);
         if (!botSettings?.threadIntegrationEnabled) {
@@ -2231,15 +2244,15 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
           return;
         }
         
-        // Check if thread is in the configured channel (if specified)
+        // If a specific ticket channel is configured, only process threads in that channel
         if (botSettings.threadChannelId && parent.id !== botSettings.threadChannelId) {
-          console.log(`[Thread Integration] Thread not in configured channel, skipping`);
+          console.log(`[Thread Integration] Thread not in configured ticket channel, skipping`);
           return;
         }
         
-        // Check if auto-create is enabled
-        if (!botSettings.threadAutoCreate) {
-          console.log(`[Thread Integration] Auto-create disabled for server ${serverId}`);
+        // Skip if auto-create is disabled (threads must be created via ticket panel)
+        if (!botSettings.threadAutoCreate && !wasCreatedByBot) {
+          console.log(`[Thread Integration] Auto-create disabled and thread not created by bot, skipping`);
           return;
         }
         
@@ -2333,7 +2346,7 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
       }
     });
 
-    // Handle thread updates (status changes)
+    // Handle thread updates (status changes) - ONLY for threads with ticket mappings
     client.on(Events.ThreadUpdate, async (oldThread, newThread) => {
       try {
         const { ChannelType } = await import('discord.js');
@@ -2343,7 +2356,14 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
           return;
         }
         
-        console.log(`[Thread Integration] Thread updated: "${newThread.name}"`);
+        // Only process threads that have a ticket mapping (were explicitly created as tickets)
+        const mapping = await storage.getThreadMapping(newThread.id);
+        if (!mapping) {
+          // This is a regular thread, not a ticket thread - ignore it
+          return;
+        }
+        
+        console.log(`[Thread Integration] Ticket thread updated: "${newThread.name}"`);
         
         // Check if status changed (archived or locked)
         const wasArchived = oldThread.archived;
