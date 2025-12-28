@@ -100,6 +100,11 @@ import {
   type InsertMediaRequest,
   type UpdateMediaRequest,
   type CommandVariable,
+  type CustomForm,
+  type InsertCustomForm,
+  type UpdateCustomForm,
+  type FormSubmission,
+  type InsertFormSubmission,
   type InsertCommandVariable,
   type AutomationWorkflow,
   type InsertAutomationWorkflow,
@@ -112,6 +117,31 @@ import {
   type WorkflowCooldown,
   type InsertWorkflowCooldown,
   type WorkflowTemplate,
+  type EmbedTemplate,
+  type InsertEmbedTemplate,
+  type UpdateEmbedTemplate,
+  type EconomySettings,
+  type InsertEconomySettings,
+  type UpdateEconomySettings,
+  type UserBalance,
+  type InsertUserBalance,
+  type UpdateUserBalance,
+  type ShopItem,
+  type InsertShopItem,
+  type UpdateShopItem,
+  type EconomyTransaction,
+  type InsertEconomyTransaction,
+  type UserPurchase,
+  type InsertUserPurchase,
+  type ScheduledPost,
+  type InsertScheduledPost,
+  type UpdateScheduledPost,
+  type OnboardingProgress,
+  type InsertOnboardingProgress,
+  type UpdateOnboardingProgress,
+  type OnboardingStatus,
+  type InsertOnboardingStatus,
+  type UpdateOnboardingStatus,
   users,
   discordUsers,
   servers,
@@ -159,7 +189,18 @@ import {
   workflowActions,
   workflowLogs,
   workflowCooldowns,
-  workflowTemplates
+  workflowTemplates,
+  embedTemplates,
+  customForms,
+  formSubmissions,
+  economySettings,
+  userBalances,
+  shopItems,
+  economyTransactions,
+  userPurchases,
+  scheduledPosts,
+  onboardingProgress,
+  onboardingStatus
 } from "@shared/schema";
 import { IStorage } from "./storage";
 import { db } from "./db";
@@ -2351,6 +2392,491 @@ export class DatabaseStorage implements IStorage {
       .from(workflowTemplates)
       .where(eq(workflowTemplates.id, id));
     return template;
+  }
+
+  // Embed Template operations
+  async getEmbedTemplates(serverId: string): Promise<EmbedTemplate[]> {
+    return await db.select()
+      .from(embedTemplates)
+      .where(eq(embedTemplates.serverId, serverId))
+      .orderBy(desc(embedTemplates.updatedAt));
+  }
+
+  async getEmbedTemplate(id: number): Promise<EmbedTemplate | undefined> {
+    const [template] = await db.select()
+      .from(embedTemplates)
+      .where(eq(embedTemplates.id, id));
+    return template;
+  }
+
+  async createEmbedTemplate(data: InsertEmbedTemplate): Promise<EmbedTemplate> {
+    const [newTemplate] = await db.insert(embedTemplates)
+      .values({
+        ...data,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
+      .returning();
+    return newTemplate;
+  }
+
+  async updateEmbedTemplate(id: number, data: UpdateEmbedTemplate): Promise<EmbedTemplate | undefined> {
+    const [updated] = await db.update(embedTemplates)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(embedTemplates.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteEmbedTemplate(id: number): Promise<void> {
+    await db.delete(embedTemplates).where(eq(embedTemplates.id, id));
+  }
+
+  // Custom Forms operations
+  async getCustomForms(serverId: string): Promise<CustomForm[]> {
+    return await db.select()
+      .from(customForms)
+      .where(eq(customForms.serverId, serverId))
+      .orderBy(desc(customForms.updatedAt));
+  }
+
+  async getCustomForm(id: number): Promise<CustomForm | undefined> {
+    const [form] = await db.select()
+      .from(customForms)
+      .where(eq(customForms.id, id));
+    return form;
+  }
+
+  async createCustomForm(data: InsertCustomForm): Promise<CustomForm> {
+    const [newForm] = await db.insert(customForms)
+      .values({
+        ...data,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
+      .returning();
+    return newForm;
+  }
+
+  async updateCustomForm(id: number, data: UpdateCustomForm): Promise<CustomForm | undefined> {
+    const [updated] = await db.update(customForms)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(customForms.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteCustomForm(id: number): Promise<void> {
+    await db.delete(customForms).where(eq(customForms.id, id));
+  }
+
+  // Form Submissions operations
+  async getFormSubmissions(formId: number): Promise<FormSubmission[]> {
+    return await db.select()
+      .from(formSubmissions)
+      .where(eq(formSubmissions.formId, formId))
+      .orderBy(desc(formSubmissions.submittedAt));
+  }
+
+  async getFormSubmission(id: number): Promise<FormSubmission | undefined> {
+    const [submission] = await db.select()
+      .from(formSubmissions)
+      .where(eq(formSubmissions.id, id));
+    return submission;
+  }
+
+  async createFormSubmission(data: InsertFormSubmission): Promise<FormSubmission> {
+    const [newSubmission] = await db.insert(formSubmissions)
+      .values({
+        ...data,
+        submittedAt: new Date()
+      })
+      .returning();
+    return newSubmission;
+  }
+
+  async getFormSubmissionsByServer(serverId: string): Promise<FormSubmission[]> {
+    return await db.select()
+      .from(formSubmissions)
+      .where(eq(formSubmissions.serverId, serverId))
+      .orderBy(desc(formSubmissions.submittedAt));
+  }
+
+  // =============================================
+  // ECONOMY SYSTEM OPERATIONS
+  // =============================================
+
+  // Economy Settings operations
+  async getEconomySettings(serverId: string): Promise<EconomySettings | undefined> {
+    const [settings] = await db.select()
+      .from(economySettings)
+      .where(eq(economySettings.serverId, serverId));
+    return settings;
+  }
+
+  async createEconomySettings(data: InsertEconomySettings): Promise<EconomySettings> {
+    const [newSettings] = await db.insert(economySettings)
+      .values({
+        ...data,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
+      .returning();
+    return newSettings;
+  }
+
+  async updateEconomySettings(serverId: string, data: UpdateEconomySettings): Promise<EconomySettings | undefined> {
+    const [updated] = await db.update(economySettings)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(economySettings.serverId, serverId))
+      .returning();
+    return updated;
+  }
+
+  async getOrCreateEconomySettings(serverId: string): Promise<EconomySettings> {
+    const existing = await this.getEconomySettings(serverId);
+    if (existing) return existing;
+    return this.createEconomySettings({ serverId });
+  }
+
+  // User Balance operations
+  async getUserBalance(serverId: string, userId: string): Promise<UserBalance | undefined> {
+    const [balance] = await db.select()
+      .from(userBalances)
+      .where(and(
+        eq(userBalances.serverId, serverId),
+        eq(userBalances.userId, userId)
+      ));
+    return balance;
+  }
+
+  async createUserBalance(data: InsertUserBalance): Promise<UserBalance> {
+    const [newBalance] = await db.insert(userBalances)
+      .values({
+        ...data,
+        createdAt: new Date()
+      })
+      .returning();
+    return newBalance;
+  }
+
+  async updateUserBalance(serverId: string, userId: string, data: UpdateUserBalance): Promise<UserBalance | undefined> {
+    const [updated] = await db.update(userBalances)
+      .set(data)
+      .where(and(
+        eq(userBalances.serverId, serverId),
+        eq(userBalances.userId, userId)
+      ))
+      .returning();
+    return updated;
+  }
+
+  async getOrCreateUserBalance(serverId: string, userId: string): Promise<UserBalance> {
+    const existing = await this.getUserBalance(serverId, userId);
+    if (existing) return existing;
+    return this.createUserBalance({ serverId, userId });
+  }
+
+  async getEconomyLeaderboard(serverId: string, limit: number = 10): Promise<UserBalance[]> {
+    return await db.select()
+      .from(userBalances)
+      .where(eq(userBalances.serverId, serverId))
+      .orderBy(desc(userBalances.balance))
+      .limit(limit);
+  }
+
+  async addBalance(serverId: string, userId: string, amount: number, type: string, description?: string): Promise<UserBalance> {
+    const balance = await this.getOrCreateUserBalance(serverId, userId);
+    const newBalance = (balance.balance || 0) + amount;
+    const newTotalEarned = amount > 0 ? (balance.totalEarned || 0) + amount : balance.totalEarned || 0;
+    
+    const updated = await this.updateUserBalance(serverId, userId, {
+      balance: newBalance,
+      totalEarned: newTotalEarned
+    });
+
+    await this.createEconomyTransaction({
+      serverId,
+      userId,
+      amount,
+      type,
+      description
+    });
+
+    return updated || balance;
+  }
+
+  // Shop Item operations
+  async getShopItems(serverId: string): Promise<ShopItem[]> {
+    return await db.select()
+      .from(shopItems)
+      .where(eq(shopItems.serverId, serverId))
+      .orderBy(shopItems.price);
+  }
+
+  async getShopItem(id: number): Promise<ShopItem | undefined> {
+    const [item] = await db.select()
+      .from(shopItems)
+      .where(eq(shopItems.id, id));
+    return item;
+  }
+
+  async createShopItem(data: InsertShopItem): Promise<ShopItem> {
+    const [newItem] = await db.insert(shopItems)
+      .values({
+        ...data,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
+      .returning();
+    return newItem;
+  }
+
+  async updateShopItem(id: number, data: UpdateShopItem): Promise<ShopItem | undefined> {
+    const [updated] = await db.update(shopItems)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(shopItems.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteShopItem(id: number): Promise<void> {
+    await db.delete(shopItems).where(eq(shopItems.id, id));
+  }
+
+  // Economy Transaction operations
+  async createEconomyTransaction(data: InsertEconomyTransaction): Promise<EconomyTransaction> {
+    const [newTransaction] = await db.insert(economyTransactions)
+      .values({
+        ...data,
+        createdAt: new Date()
+      })
+      .returning();
+    return newTransaction;
+  }
+
+  async getEconomyTransactions(serverId: string, limit: number = 50): Promise<EconomyTransaction[]> {
+    return await db.select()
+      .from(economyTransactions)
+      .where(eq(economyTransactions.serverId, serverId))
+      .orderBy(desc(economyTransactions.createdAt))
+      .limit(limit);
+  }
+
+  async getUserTransactions(serverId: string, userId: string, limit: number = 20): Promise<EconomyTransaction[]> {
+    return await db.select()
+      .from(economyTransactions)
+      .where(and(
+        eq(economyTransactions.serverId, serverId),
+        eq(economyTransactions.userId, userId)
+      ))
+      .orderBy(desc(economyTransactions.createdAt))
+      .limit(limit);
+  }
+
+  // User Purchase operations
+  async createUserPurchase(data: InsertUserPurchase): Promise<UserPurchase> {
+    const [newPurchase] = await db.insert(userPurchases)
+      .values({
+        ...data,
+        purchasedAt: new Date()
+      })
+      .returning();
+    return newPurchase;
+  }
+
+  async getUserPurchases(serverId: string, userId: string): Promise<UserPurchase[]> {
+    return await db.select()
+      .from(userPurchases)
+      .where(and(
+        eq(userPurchases.serverId, serverId),
+        eq(userPurchases.userId, userId)
+      ))
+      .orderBy(desc(userPurchases.purchasedAt));
+  }
+
+  async hasUserPurchasedItem(serverId: string, userId: string, shopItemId: number): Promise<boolean> {
+    const [purchase] = await db.select()
+      .from(userPurchases)
+      .where(and(
+        eq(userPurchases.serverId, serverId),
+        eq(userPurchases.userId, userId),
+        eq(userPurchases.shopItemId, shopItemId)
+      ));
+    return !!purchase;
+  }
+
+  // Scheduled Posts operations
+  async getScheduledPosts(serverId: string): Promise<ScheduledPost[]> {
+    return await db.select()
+      .from(scheduledPosts)
+      .where(eq(scheduledPosts.serverId, serverId))
+      .orderBy(scheduledPosts.nextRunAt);
+  }
+
+  async getScheduledPost(id: number): Promise<ScheduledPost | undefined> {
+    const [post] = await db.select()
+      .from(scheduledPosts)
+      .where(eq(scheduledPosts.id, id));
+    return post;
+  }
+
+  async getDueScheduledPosts(): Promise<ScheduledPost[]> {
+    const now = new Date();
+    return await db.select()
+      .from(scheduledPosts)
+      .where(and(
+        eq(scheduledPosts.isEnabled, true),
+        lte(scheduledPosts.nextRunAt, now)
+      ));
+  }
+
+  async createScheduledPost(data: InsertScheduledPost): Promise<ScheduledPost> {
+    const [newPost] = await db.insert(scheduledPosts)
+      .values({
+        ...data,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
+      .returning();
+    return newPost;
+  }
+
+  async updateScheduledPost(id: number, data: UpdateScheduledPost): Promise<ScheduledPost | undefined> {
+    const [updated] = await db.update(scheduledPosts)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(scheduledPosts.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteScheduledPost(id: number): Promise<void> {
+    await db.delete(scheduledPosts).where(eq(scheduledPosts.id, id));
+  }
+
+  // Onboarding operations
+  async getOnboardingStatus(serverId: string): Promise<OnboardingStatus | undefined> {
+    const [status] = await db.select()
+      .from(onboardingStatus)
+      .where(eq(onboardingStatus.serverId, serverId));
+    return status;
+  }
+
+  async getOrCreateOnboardingStatus(serverId: string): Promise<OnboardingStatus> {
+    const existing = await this.getOnboardingStatus(serverId);
+    if (existing) return existing;
+
+    const [newStatus] = await db.insert(onboardingStatus)
+      .values({
+        serverId,
+        isSkipped: false,
+        isCompleted: false,
+        currentStep: "welcome",
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
+      .returning();
+    return newStatus;
+  }
+
+  async updateOnboardingStatus(serverId: string, data: UpdateOnboardingStatus): Promise<OnboardingStatus | undefined> {
+    const [updated] = await db.update(onboardingStatus)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(onboardingStatus.serverId, serverId))
+      .returning();
+    return updated;
+  }
+
+  async getOnboardingProgress(serverId: string): Promise<OnboardingProgress[]> {
+    return await db.select()
+      .from(onboardingProgress)
+      .where(eq(onboardingProgress.serverId, serverId))
+      .orderBy(onboardingProgress.createdAt);
+  }
+
+  async getOnboardingStepProgress(serverId: string, step: string): Promise<OnboardingProgress | undefined> {
+    const [progress] = await db.select()
+      .from(onboardingProgress)
+      .where(and(
+        eq(onboardingProgress.serverId, serverId),
+        eq(onboardingProgress.step, step)
+      ));
+    return progress;
+  }
+
+  async createOnboardingProgress(data: InsertOnboardingProgress): Promise<OnboardingProgress> {
+    const [newProgress] = await db.insert(onboardingProgress)
+      .values({
+        ...data,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
+      .returning();
+    return newProgress;
+  }
+
+  async updateOnboardingProgress(serverId: string, step: string, data: UpdateOnboardingProgress): Promise<OnboardingProgress | undefined> {
+    const [updated] = await db.update(onboardingProgress)
+      .set({ ...data, updatedAt: new Date() })
+      .where(and(
+        eq(onboardingProgress.serverId, serverId),
+        eq(onboardingProgress.step, step)
+      ))
+      .returning();
+    return updated;
+  }
+
+  async markStepComplete(serverId: string, step: string, stepData?: string): Promise<OnboardingProgress> {
+    const existing = await this.getOnboardingStepProgress(serverId, step);
+    
+    if (existing) {
+      const [updated] = await db.update(onboardingProgress)
+        .set({ 
+          isCompleted: true, 
+          completedAt: new Date(),
+          stepData: stepData || existing.stepData,
+          updatedAt: new Date() 
+        })
+        .where(eq(onboardingProgress.id, existing.id))
+        .returning();
+      return updated;
+    }
+
+    return await this.createOnboardingProgress({
+      serverId,
+      step,
+      isCompleted: true,
+      completedAt: new Date(),
+      stepData
+    });
+  }
+
+  async skipOnboarding(serverId: string): Promise<OnboardingStatus> {
+    await this.getOrCreateOnboardingStatus(serverId);
+    const [updated] = await db.update(onboardingStatus)
+      .set({ 
+        isSkipped: true, 
+        skippedAt: new Date(),
+        updatedAt: new Date() 
+      })
+      .where(eq(onboardingStatus.serverId, serverId))
+      .returning();
+    return updated;
+  }
+
+  async completeOnboarding(serverId: string, template?: string): Promise<OnboardingStatus> {
+    await this.getOrCreateOnboardingStatus(serverId);
+    const [updated] = await db.update(onboardingStatus)
+      .set({ 
+        isCompleted: true, 
+        currentStep: "complete",
+        appliedTemplate: template || null,
+        completedAt: new Date(),
+        updatedAt: new Date() 
+      })
+      .where(eq(onboardingStatus.serverId, serverId))
+      .returning();
+    return updated;
   }
 }
 

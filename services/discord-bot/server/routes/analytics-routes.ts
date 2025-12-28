@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import { db } from "../db";
-import { tickets, ticketMessages, ticketCategories, ticketResolutions, discordUsers } from "@shared/schema";
-import { eq, sql, and, gte, lte, count, avg, desc, asc } from "drizzle-orm";
+import { tickets, ticketMessages, ticketCategories, ticketResolutions, discordUsers, serverMetrics, commandUsage, commandAnalytics, workflowMetrics, workflows } from "@shared/schema";
+import { eq, sql, and, gte, lte, count, avg, desc, asc, sum } from "drizzle-orm";
 import { isAuthenticated, isAdmin } from "../auth";
 import { getBotGuilds } from "../discord/bot";
 
@@ -449,6 +449,349 @@ router.post("/tickets/:ticketId/satisfaction", isAuthenticated, async (req: Requ
   } catch (error) {
     console.error("Error submitting satisfaction rating:", error);
     res.status(500).json({ error: "Failed to submit satisfaction rating" });
+  }
+});
+
+// =============================================
+// SERVER ANALYTICS ENDPOINTS
+// =============================================
+
+router.get("/server/:serverId/overview", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
+  try {
+    const { serverId } = req.params;
+    const { days = "7" } = req.query;
+    const user = req.user as any;
+
+    const hasAccess = await userHasServerAccess(user, serverId);
+    if (!hasAccess) {
+      return res.status(403).json({ error: "You don't have access to analytics for this server" });
+    }
+
+    const daysBack = parseInt(days as string, 10);
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - daysBack);
+
+    const metricsResult = await db.execute(sql`
+      SELECT 
+        COALESCE(SUM(message_count), 0) as total_messages,
+        COALESCE(SUM(voice_minutes), 0) as total_voice_minutes,
+        COALESCE(SUM(new_members), 0) as total_new_members,
+        COALESCE(SUM(left_members), 0) as total_left_members,
+        COALESCE(MAX(member_count), 0) as current_members,
+        COALESCE(AVG(active_users), 0) as avg_active_users
+      FROM server_metrics
+      WHERE server_id = ${serverId}
+        AND date >= ${startDate}
+    `);
+
+    const metrics = metricsResult.rows[0] as any;
+
+    const commandsResult = await db.execute(sql`
+      SELECT COUNT(*) as total_commands
+      FROM command_usage
+      WHERE server_id = ${serverId}
+        AND used_at >= ${startDate}
+    `);
+
+    const commandCount = (commandsResult.rows[0] as any)?.total_commands || 0;
+
+    const workflowsResult = await db.execute(sql`
+      SELECT 
+        COALESCE(SUM(executions), 0) as total_executions,
+        COALESCE(SUM(successes), 0) as total_successes,
+        COALESCE(SUM(failures), 0) as total_failures
+      FROM workflow_metrics
+      WHERE server_id = ${serverId}
+        AND date >= ${startDate}
+    `);
+
+    const workflowStats = workflowsResult.rows[0] as any;
+
+    res.json({
+      overview: {
+        totalMembers: parseInt(metrics.current_members, 10) || 0,
+        totalMessages: parseInt(metrics.total_messages, 10) || 0,
+        voiceMinutes: parseInt(metrics.total_voice_minutes, 10) || 0,
+        newMembers: parseInt(metrics.total_new_members, 10) || 0,
+        leftMembers: parseInt(metrics.total_left_members, 10) || 0,
+        avgActiveUsers: Math.round(parseFloat(metrics.avg_active_users) || 0),
+        totalCommands: parseInt(commandCount, 10) || 0,
+        workflowExecutions: parseInt(workflowStats.total_executions, 10) || 0,
+        workflowSuccessRate: workflowStats.total_executions > 0
+          ? Math.round((workflowStats.total_successes / workflowStats.total_executions) * 100)
+          : 100,
+      },
+      periodDays: daysBack,
+    });
+  } catch (error) {
+    console.error("Error fetching server overview:", error);
+    res.status(500).json({ error: "Failed to fetch server overview" });
+  }
+});
+
+router.get("/server/:serverId/members", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
+  try {
+    const { serverId } = req.params;
+    const { days = "30" } = req.query;
+    const user = req.user as any;
+
+    const hasAccess = await userHasServerAccess(user, serverId);
+    if (!hasAccess) {
+      return res.status(403).json({ error: "You don't have access to analytics for this server" });
+    }
+
+    const daysBack = parseInt(days as string, 10);
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - daysBack);
+
+    const memberTrends = await db.execute(sql`
+      SELECT 
+        DATE(date) as date,
+        member_count,
+        new_members,
+        left_members
+      FROM server_metrics
+      WHERE server_id = ${serverId}
+        AND date >= ${startDate}
+      ORDER BY date ASC
+    `);
+
+    const trends = memberTrends.rows.map((row: any) => ({
+      date: row.date,
+      memberCount: parseInt(row.member_count, 10) || 0,
+      newMembers: parseInt(row.new_members, 10) || 0,
+      leftMembers: parseInt(row.left_members, 10) || 0,
+      netGrowth: (parseInt(row.new_members, 10) || 0) - (parseInt(row.left_members, 10) || 0),
+    }));
+
+    res.json({
+      memberTrends: trends,
+      periodDays: daysBack,
+    });
+  } catch (error) {
+    console.error("Error fetching member trends:", error);
+    res.status(500).json({ error: "Failed to fetch member trends" });
+  }
+});
+
+router.get("/server/:serverId/activity", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
+  try {
+    const { serverId } = req.params;
+    const { days = "30" } = req.query;
+    const user = req.user as any;
+
+    const hasAccess = await userHasServerAccess(user, serverId);
+    if (!hasAccess) {
+      return res.status(403).json({ error: "You don't have access to analytics for this server" });
+    }
+
+    const daysBack = parseInt(days as string, 10);
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - daysBack);
+
+    const activityTrends = await db.execute(sql`
+      SELECT 
+        DATE(date) as date,
+        message_count,
+        voice_minutes,
+        active_users
+      FROM server_metrics
+      WHERE server_id = ${serverId}
+        AND date >= ${startDate}
+      ORDER BY date ASC
+    `);
+
+    const trends = activityTrends.rows.map((row: any) => ({
+      date: row.date,
+      messages: parseInt(row.message_count, 10) || 0,
+      voiceMinutes: parseInt(row.voice_minutes, 10) || 0,
+      activeUsers: parseInt(row.active_users, 10) || 0,
+    }));
+
+    const hourlyActivity = await db.execute(sql`
+      SELECT 
+        EXTRACT(HOUR FROM used_at) as hour,
+        COUNT(*) as count
+      FROM command_usage
+      WHERE server_id = ${serverId}
+        AND used_at >= ${startDate}
+      GROUP BY EXTRACT(HOUR FROM used_at)
+      ORDER BY hour
+    `);
+
+    const hourlyDistribution = hourlyActivity.rows.map((row: any) => ({
+      hour: parseInt(row.hour, 10),
+      count: parseInt(row.count, 10),
+    }));
+
+    res.json({
+      activityTrends: trends,
+      hourlyDistribution,
+      periodDays: daysBack,
+    });
+  } catch (error) {
+    console.error("Error fetching activity data:", error);
+    res.status(500).json({ error: "Failed to fetch activity data" });
+  }
+});
+
+router.get("/server/:serverId/commands", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
+  try {
+    const { serverId } = req.params;
+    const { days = "30" } = req.query;
+    const user = req.user as any;
+
+    const hasAccess = await userHasServerAccess(user, serverId);
+    if (!hasAccess) {
+      return res.status(403).json({ error: "You don't have access to analytics for this server" });
+    }
+
+    const daysBack = parseInt(days as string, 10);
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - daysBack);
+
+    const topCommands = await db.execute(sql`
+      SELECT 
+        command_name,
+        COUNT(*) as usage_count,
+        COUNT(DISTINCT user_id) as unique_users
+      FROM command_usage
+      WHERE server_id = ${serverId}
+        AND used_at >= ${startDate}
+      GROUP BY command_name
+      ORDER BY usage_count DESC
+      LIMIT 20
+    `);
+
+    const commands = topCommands.rows.map((row: any) => ({
+      commandName: row.command_name,
+      usageCount: parseInt(row.usage_count, 10),
+      uniqueUsers: parseInt(row.unique_users, 10),
+    }));
+
+    const dailyUsage = await db.execute(sql`
+      SELECT 
+        DATE(used_at) as date,
+        COUNT(*) as count
+      FROM command_usage
+      WHERE server_id = ${serverId}
+        AND used_at >= ${startDate}
+      GROUP BY DATE(used_at)
+      ORDER BY date ASC
+    `);
+
+    const dailyTrends = dailyUsage.rows.map((row: any) => ({
+      date: row.date,
+      count: parseInt(row.count, 10),
+    }));
+
+    const topUsers = await db.execute(sql`
+      SELECT 
+        cu.user_id,
+        COALESCE(du.username, cu.user_id) as username,
+        COUNT(*) as command_count
+      FROM command_usage cu
+      LEFT JOIN discord_users du ON cu.user_id = du.id
+      WHERE cu.server_id = ${serverId}
+        AND cu.used_at >= ${startDate}
+      GROUP BY cu.user_id, du.username
+      ORDER BY command_count DESC
+      LIMIT 10
+    `);
+
+    const topCommandUsers = topUsers.rows.map((row: any) => ({
+      userId: row.user_id,
+      username: row.username,
+      commandCount: parseInt(row.command_count, 10),
+    }));
+
+    res.json({
+      topCommands: commands,
+      dailyTrends,
+      topUsers: topCommandUsers,
+      periodDays: daysBack,
+    });
+  } catch (error) {
+    console.error("Error fetching command stats:", error);
+    res.status(500).json({ error: "Failed to fetch command stats" });
+  }
+});
+
+router.get("/server/:serverId/workflows", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
+  try {
+    const { serverId } = req.params;
+    const { days = "30" } = req.query;
+    const user = req.user as any;
+
+    const hasAccess = await userHasServerAccess(user, serverId);
+    if (!hasAccess) {
+      return res.status(403).json({ error: "You don't have access to analytics for this server" });
+    }
+
+    const daysBack = parseInt(days as string, 10);
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - daysBack);
+
+    const workflowStats = await db.execute(sql`
+      SELECT 
+        wm.workflow_id,
+        w.name as workflow_name,
+        w.trigger_type,
+        SUM(wm.executions) as total_executions,
+        SUM(wm.successes) as total_successes,
+        SUM(wm.failures) as total_failures,
+        AVG(wm.avg_duration_ms) as avg_duration
+      FROM workflow_metrics wm
+      LEFT JOIN workflows w ON wm.workflow_id = w.id
+      WHERE wm.server_id = ${serverId}
+        AND wm.date >= ${startDate}
+      GROUP BY wm.workflow_id, w.name, w.trigger_type
+      ORDER BY total_executions DESC
+    `);
+
+    const workflows = workflowStats.rows.map((row: any) => {
+      const executions = parseInt(row.total_executions, 10) || 0;
+      const successes = parseInt(row.total_successes, 10) || 0;
+      return {
+        workflowId: row.workflow_id,
+        workflowName: row.workflow_name || `Workflow ${row.workflow_id}`,
+        triggerType: row.trigger_type || 'unknown',
+        executions,
+        successes,
+        failures: parseInt(row.total_failures, 10) || 0,
+        successRate: executions > 0 ? Math.round((successes / executions) * 100) : 100,
+        avgDurationMs: Math.round(parseFloat(row.avg_duration) || 0),
+      };
+    });
+
+    const dailyTrends = await db.execute(sql`
+      SELECT 
+        DATE(date) as date,
+        SUM(executions) as executions,
+        SUM(successes) as successes,
+        SUM(failures) as failures
+      FROM workflow_metrics
+      WHERE server_id = ${serverId}
+        AND date >= ${startDate}
+      GROUP BY DATE(date)
+      ORDER BY date ASC
+    `);
+
+    const trends = dailyTrends.rows.map((row: any) => ({
+      date: row.date,
+      executions: parseInt(row.executions, 10) || 0,
+      successes: parseInt(row.successes, 10) || 0,
+      failures: parseInt(row.failures, 10) || 0,
+    }));
+
+    res.json({
+      workflows,
+      dailyTrends: trends,
+      periodDays: daysBack,
+    });
+  } catch (error) {
+    console.error("Error fetching workflow stats:", error);
+    res.status(500).json({ error: "Failed to fetch workflow stats" });
   }
 });
 

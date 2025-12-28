@@ -10,6 +10,8 @@ import ServerSelector from "@/components/ServerSelector";
 import BotInviteCard from "@/components/BotInviteCard";
 import SettingsPage from "@/pages/SettingsPage";
 import ConnectionStatus from "@/components/ConnectionStatus";
+import OnboardingWizard from "@/components/OnboardingWizard";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { 
   LayoutDashboard, 
   Settings, 
@@ -21,7 +23,11 @@ import {
   BarChart3,
   Terminal,
   UserPlus,
-  Workflow
+  Workflow,
+  MessageSquare,
+  FileText,
+  Coins,
+  Calendar
 } from "lucide-react";
 
 import OverviewTab from "@/components/tabs/OverviewTab";
@@ -31,6 +37,23 @@ import AnalyticsTab from "@/components/tabs/AnalyticsTab";
 import CustomCommandsPage from "@/pages/CustomCommandsPage";
 import WelcomeCardDesigner from "@/pages/WelcomeCardDesigner";
 import InteractionStudio from "@/pages/InteractionStudio";
+import EmbedBuilder from "@/pages/EmbedBuilder";
+import FormBuilder from "@/pages/FormBuilder";
+import EconomyManager from "@/pages/EconomyManager";
+import ContentScheduler from "@/pages/ContentScheduler";
+
+interface OnboardingData {
+  status: {
+    isSkipped: boolean;
+    isCompleted: boolean;
+  };
+  isComplete: boolean;
+}
+
+interface ServerInfo {
+  id: string;
+  name: string;
+}
 
 /**
  * DashboardShell Component
@@ -55,10 +78,49 @@ export default function DashboardShell() {
   const [activeTab, setActiveTab] = useState("overview");
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const queryClient = useQueryClient();
+
+  const { data: onboardingData } = useQuery<OnboardingData>({
+    queryKey: [`/api/servers/${selectedServerId}/onboarding`],
+    enabled: !!selectedServerId && isAdmin,
+    staleTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false,
+  });
+
+  const { data: serverData } = useQuery<ServerInfo>({
+    queryKey: [`/api/servers/${selectedServerId}`],
+    enabled: !!selectedServerId,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const needsOnboarding = isAdmin && selectedServerId && onboardingData && !onboardingData.isComplete;
+
+  const handleOnboardingComplete = () => {
+    setShowOnboarding(false);
+    queryClient.invalidateQueries({ queryKey: [`/api/servers/${selectedServerId}/onboarding`] });
+    queryClient.invalidateQueries({ queryKey: [`/api/servers/${selectedServerId}/settings`] });
+  };
+
+  const handleOnboardingSkip = () => {
+    setShowOnboarding(false);
+    queryClient.invalidateQueries({ queryKey: [`/api/servers/${selectedServerId}/onboarding`] });
+  };
 
   const handleLogout = async () => {
     await logout();
   };
+
+  if (showOnboarding && selectedServerId && serverData) {
+    return (
+      <OnboardingWizard
+        serverId={selectedServerId}
+        serverName={serverData.name || 'Your Server'}
+        onComplete={handleOnboardingComplete}
+        onSkip={handleOnboardingSkip}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-discord-bg">
@@ -186,6 +248,31 @@ export default function DashboardShell() {
 
       {/* Main Content with Tabs */}
       <main className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 mb-bottom-nav">
+        {/* Onboarding Banner */}
+        {needsOnboarding && (
+          <Card className="bg-gradient-to-r from-discord-blue/20 to-indigo-600/20 border-discord-blue/30 mb-4">
+            <CardContent className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-discord-blue/20 rounded-lg flex items-center justify-center">
+                  <Workflow className="h-5 w-5 text-discord-blue" />
+                </div>
+                <div>
+                  <h3 className="text-white font-semibold">Complete Your Server Setup</h3>
+                  <p className="text-sm text-discord-muted">
+                    Set up your bot in just a few minutes with our guided wizard.
+                  </p>
+                </div>
+              </div>
+              <Button 
+                onClick={() => setShowOnboarding(true)}
+                className="bg-discord-blue hover:bg-blue-600 text-white whitespace-nowrap"
+              >
+                Start Setup Wizard
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 sm:space-y-6">
           {/* Tab Navigation */}
           <Card className="bg-discord-sidebar border-discord-dark">
@@ -252,6 +339,38 @@ export default function DashboardShell() {
                         <Workflow className="h-4 w-4 mr-2" />
                         <span>Automations</span>
                       </TabsTrigger>
+                      <TabsTrigger 
+                        value="embeds" 
+                        className="data-[state=active]:bg-discord-blue data-[state=active]:text-white flex-shrink-0 h-11 px-4"
+                        data-testid="tab-embeds"
+                      >
+                        <MessageSquare className="h-4 w-4 mr-2" />
+                        <span>Embeds</span>
+                      </TabsTrigger>
+                      <TabsTrigger 
+                        value="forms" 
+                        className="data-[state=active]:bg-discord-blue data-[state=active]:text-white flex-shrink-0 h-11 px-4"
+                        data-testid="tab-forms"
+                      >
+                        <FileText className="h-4 w-4 mr-2" />
+                        <span>Forms</span>
+                      </TabsTrigger>
+                      <TabsTrigger 
+                        value="economy" 
+                        className="data-[state=active]:bg-discord-blue data-[state=active]:text-white flex-shrink-0 h-11 px-4"
+                        data-testid="tab-economy"
+                      >
+                        <Coins className="h-4 w-4 mr-2" />
+                        <span>Economy</span>
+                      </TabsTrigger>
+                      <TabsTrigger 
+                        value="scheduler" 
+                        className="data-[state=active]:bg-discord-blue data-[state=active]:text-white flex-shrink-0 h-11 px-4"
+                        data-testid="tab-scheduler"
+                      >
+                        <Calendar className="h-4 w-4 mr-2" />
+                        <span>Scheduler</span>
+                      </TabsTrigger>
                     </>
                   )}
                 </TabsList>
@@ -259,7 +378,7 @@ export default function DashboardShell() {
 
               {/* Desktop: Grid Layout */}
               <TabsList className="hidden md:grid w-full bg-transparent gap-2" style={{ 
-                gridTemplateColumns: isAdmin ? 'repeat(7, 1fr)' : 'repeat(1, 1fr)' 
+                gridTemplateColumns: isAdmin ? 'repeat(11, 1fr)' : 'repeat(1, 1fr)' 
               }}>
                 <TabsTrigger 
                   value="overview" 
@@ -320,6 +439,38 @@ export default function DashboardShell() {
                       <Workflow className="h-4 w-4 mr-2" />
                       <span>Automations</span>
                     </TabsTrigger>
+                    <TabsTrigger 
+                      value="embeds" 
+                      className="data-[state=active]:bg-discord-blue data-[state=active]:text-white h-11"
+                      data-testid="tab-embeds-desktop"
+                    >
+                      <MessageSquare className="h-4 w-4 mr-2" />
+                      <span>Embeds</span>
+                    </TabsTrigger>
+                    <TabsTrigger 
+                      value="forms" 
+                      className="data-[state=active]:bg-discord-blue data-[state=active]:text-white h-11"
+                      data-testid="tab-forms-desktop"
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      <span>Forms</span>
+                    </TabsTrigger>
+                    <TabsTrigger 
+                      value="economy" 
+                      className="data-[state=active]:bg-discord-blue data-[state=active]:text-white h-11"
+                      data-testid="tab-economy-desktop"
+                    >
+                      <Coins className="h-4 w-4 mr-2" />
+                      <span>Economy</span>
+                    </TabsTrigger>
+                    <TabsTrigger 
+                      value="scheduler" 
+                      className="data-[state=active]:bg-discord-blue data-[state=active]:text-white h-11"
+                      data-testid="tab-scheduler-desktop"
+                    >
+                      <Calendar className="h-4 w-4 mr-2" />
+                      <span>Scheduler</span>
+                    </TabsTrigger>
                   </>
                 )}
               </TabsList>
@@ -350,6 +501,18 @@ export default function DashboardShell() {
               </TabsContent>
               <TabsContent value="workflows" className="space-y-6 mt-6">
                 <InteractionStudio />
+              </TabsContent>
+              <TabsContent value="embeds" className="space-y-6 mt-6">
+                <EmbedBuilder />
+              </TabsContent>
+              <TabsContent value="forms" className="space-y-6 mt-6">
+                <FormBuilder />
+              </TabsContent>
+              <TabsContent value="economy" className="space-y-6 mt-6">
+                <EconomyManager />
+              </TabsContent>
+              <TabsContent value="scheduler" className="space-y-6 mt-6">
+                <ContentScheduler />
               </TabsContent>
             </>
           )}

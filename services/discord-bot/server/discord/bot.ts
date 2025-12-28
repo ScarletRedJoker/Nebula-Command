@@ -36,6 +36,10 @@ import { eq, and } from 'drizzle-orm';
 import { db } from '../db';
 import { AttachmentBuilder } from 'discord.js';
 import { workflowEngine, EventContext } from '../services/workflowEngine';
+import { dbStorage } from '../database-storage';
+import { metricsTracker } from '../services/metricsTracker';
+
+const voiceTimeTracker = new Map<string, { joinTime: number; guildId: string }>();
 
 // Discord bot instance
 let client: Client | null = null;
@@ -189,6 +193,16 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
       if (interaction.isChatInputCommand()) {
         const command = commands.get(interaction.commandName);
         if (!command) return;
+        
+        // Track command usage for analytics (fire-and-forget)
+        if (interaction.guildId) {
+          metricsTracker.trackCommandUsage(
+            interaction.guildId,
+            interaction.commandName,
+            interaction.user.id,
+            interaction.channelId || undefined
+          ).catch(() => {});
+        }
         
         try {
           await command.execute(interaction, { storage, broadcast });
@@ -2028,6 +2042,41 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
         console.error('[AutoMod] Error in automod handler:', autoModError);
       }
       
+      // Track message metrics for analytics (fire-and-forget)
+      if (message.guild) {
+        metricsTracker.trackMessage(message.guild.id, message.author.id).catch(() => {});
+      }
+      
+      // Economy message rewards (fire-and-forget, no blocking)
+      if (message.guild) {
+        (async () => {
+          try {
+            const economySettings = await dbStorage.getEconomySettings(message.guild!.id);
+            if (!economySettings?.isEnabled || !economySettings.messageReward) return;
+            
+            const userBalance = await dbStorage.getOrCreateUserBalance(message.guild!.id, message.author.id);
+            const now = new Date();
+            const cooldownMs = (economySettings.messageRewardCooldown || 60) * 1000;
+            
+            if (userBalance.lastMessageReward) {
+              const lastReward = new Date(userBalance.lastMessageReward);
+              if (now.getTime() - lastReward.getTime() < cooldownMs) return;
+            }
+            
+            await dbStorage.addBalance(
+              message.guild!.id, 
+              message.author.id, 
+              economySettings.messageReward, 
+              'message', 
+              'Message activity reward'
+            );
+            await dbStorage.updateUserBalance(message.guild!.id, message.author.id, { lastMessageReward: now });
+          } catch (e) {
+            // Silently ignore economy errors to not block message processing
+          }
+        })();
+      }
+      
       // Handle custom commands using commandEngine
       if (message.guild) {
         try {
@@ -2543,6 +2592,9 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
     // Handle voice state updates for workflows
     client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
       try {
+        const userId = newState.member?.id || oldState.member?.id;
+        const guildId = newState.guild.id;
+        
         // If user joined a voice channel
         if (!oldState.channel && newState.channel) {
           workflowEngine.handleEvent({
@@ -2552,6 +2604,11 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
             voiceChannelId: newState.channel.id,
             client: client!
           }).catch(console.error);
+          
+          // Track voice join time for economy rewards
+          if (userId) {
+            voiceTimeTracker.set(`${guildId}-${userId}`, { joinTime: Date.now(), guildId });
+          }
         }
         // If user left a voice channel
         if (oldState.channel && !newState.channel) {
@@ -2562,6 +2619,43 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
             voiceChannelId: oldState.channel.id,
             client: client!
           }).catch(console.error);
+          
+          // Calculate and award voice time rewards
+          if (userId) {
+            const trackerKey = `${guildId}-${userId}`;
+            const tracker = voiceTimeTracker.get(trackerKey);
+            if (tracker) {
+              voiceTimeTracker.delete(trackerKey);
+              
+              const minutesInVoice = Math.floor((Date.now() - tracker.joinTime) / 60000);
+              
+              // Track voice minutes for analytics (fire-and-forget)
+              if (minutesInVoice >= 1) {
+                metricsTracker.trackVoiceMinutes(guildId, minutesInVoice).catch(() => {});
+              }
+              
+              // Fire-and-forget voice reward calculation
+              (async () => {
+                try {
+                  const economySettings = await dbStorage.getEconomySettings(guildId);
+                  if (!economySettings?.isEnabled || !economySettings.voiceRewardPerMin) return;
+                  
+                  if (minutesInVoice < 1) return;
+                  
+                  const reward = minutesInVoice * economySettings.voiceRewardPerMin;
+                  await dbStorage.addBalance(
+                    guildId, 
+                    userId, 
+                    reward, 
+                    'voice', 
+                    `Voice chat reward (${minutesInVoice} minutes)`
+                  );
+                } catch (e) {
+                  // Silently ignore economy errors
+                }
+              })();
+            }
+          }
         }
       } catch (workflowError) {
         console.error('[WorkflowEngine] Error triggering voice workflow:', workflowError);
@@ -2856,6 +2950,9 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
     client.on(Events.GuildMemberAdd, async (member) => {
       console.log(`[Discord] Member joined: ${member.user.tag} in guild ${member.guild.name}`);
       
+      // Track member join for analytics (fire-and-forget)
+      metricsTracker.trackMemberJoin(member.guild.id, member.guild.memberCount).catch(() => {});
+      
       // Broadcast member add event for real-time updates
       broadcast({
         type: 'GUILD_MEMBER_ADD',
@@ -2936,6 +3033,9 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
     // Handle guild member remove (members leaving/being kicked)
     client.on(Events.GuildMemberRemove, async (member) => {
       console.log(`[Discord] Member left: ${member.user.tag} from guild ${member.guild.name}`);
+      
+      // Track member leave for analytics (fire-and-forget)
+      metricsTracker.trackMemberLeave(member.guild.id, member.guild.memberCount).catch(() => {});
       
       // Broadcast member remove event for real-time updates
       broadcast({

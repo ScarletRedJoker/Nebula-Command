@@ -11,7 +11,8 @@ import {
 } from "recharts";
 import { 
   TrendingUp, Users, Clock, Star, BarChart3, Calendar, 
-  CheckCircle, AlertCircle, Timer, Award, ThumbsUp
+  CheckCircle, AlertCircle, Timer, Award, ThumbsUp, MessageSquare, 
+  Mic, Terminal, Zap, Activity
 } from "lucide-react";
 
 interface StaffMetric {
@@ -57,6 +58,54 @@ interface SatisfactionData {
     negativeRatings: number;
     positiveRate: string | null;
   };
+  periodDays: number;
+}
+
+interface ServerOverviewData {
+  overview: {
+    totalMembers: number;
+    totalMessages: number;
+    voiceMinutes: number;
+    newMembers: number;
+    leftMembers: number;
+    avgActiveUsers: number;
+    totalCommands: number;
+    workflowExecutions: number;
+    workflowSuccessRate: number;
+  };
+  periodDays: number;
+}
+
+interface MemberTrendsData {
+  memberTrends: Array<{ date: string; memberCount: number; newMembers: number; leftMembers: number; netGrowth: number }>;
+  periodDays: number;
+}
+
+interface ActivityData {
+  activityTrends: Array<{ date: string; messages: number; voiceMinutes: number; activeUsers: number }>;
+  hourlyDistribution: Array<{ hour: number; count: number }>;
+  periodDays: number;
+}
+
+interface CommandStatsData {
+  topCommands: Array<{ commandName: string; usageCount: number; uniqueUsers: number }>;
+  dailyTrends: Array<{ date: string; count: number }>;
+  topUsers: Array<{ userId: string; username: string; commandCount: number }>;
+  periodDays: number;
+}
+
+interface WorkflowStatsData {
+  workflows: Array<{ 
+    workflowId: number; 
+    workflowName: string; 
+    triggerType: string;
+    executions: number; 
+    successes: number; 
+    failures: number; 
+    successRate: number;
+    avgDurationMs: number;
+  }>;
+  dailyTrends: Array<{ date: string; executions: number; successes: number; failures: number }>;
   periodDays: number;
 }
 
@@ -208,6 +257,56 @@ export default function AnalyticsTab() {
     enabled: !!selectedServerId,
   });
 
+  const { data: serverOverview, isLoading: overviewLoading } = useQuery<ServerOverviewData>({
+    queryKey: ['/api/analytics/server/overview', selectedServerId, timeRange],
+    queryFn: async () => {
+      const res = await fetch(`/api/analytics/server/${selectedServerId}/overview?days=${timeRange}`);
+      if (!res.ok) throw new Error('Failed to fetch server overview');
+      return res.json();
+    },
+    enabled: !!selectedServerId,
+  });
+
+  const { data: memberTrends, isLoading: memberTrendsLoading } = useQuery<MemberTrendsData>({
+    queryKey: ['/api/analytics/server/members', selectedServerId, timeRange],
+    queryFn: async () => {
+      const res = await fetch(`/api/analytics/server/${selectedServerId}/members?days=${timeRange}`);
+      if (!res.ok) throw new Error('Failed to fetch member trends');
+      return res.json();
+    },
+    enabled: !!selectedServerId,
+  });
+
+  const { data: activityData, isLoading: activityLoading } = useQuery<ActivityData>({
+    queryKey: ['/api/analytics/server/activity', selectedServerId, timeRange],
+    queryFn: async () => {
+      const res = await fetch(`/api/analytics/server/${selectedServerId}/activity?days=${timeRange}`);
+      if (!res.ok) throw new Error('Failed to fetch activity data');
+      return res.json();
+    },
+    enabled: !!selectedServerId,
+  });
+
+  const { data: commandStats, isLoading: commandsLoading } = useQuery<CommandStatsData>({
+    queryKey: ['/api/analytics/server/commands', selectedServerId, timeRange],
+    queryFn: async () => {
+      const res = await fetch(`/api/analytics/server/${selectedServerId}/commands?days=${timeRange}`);
+      if (!res.ok) throw new Error('Failed to fetch command stats');
+      return res.json();
+    },
+    enabled: !!selectedServerId,
+  });
+
+  const { data: workflowStats, isLoading: workflowsLoading } = useQuery<WorkflowStatsData>({
+    queryKey: ['/api/analytics/server/workflows', selectedServerId, timeRange],
+    queryFn: async () => {
+      const res = await fetch(`/api/analytics/server/${selectedServerId}/workflows?days=${timeRange}`);
+      if (!res.ok) throw new Error('Failed to fetch workflow stats');
+      return res.json();
+    },
+    enabled: !!selectedServerId,
+  });
+
   if (!selectedServerId) {
     return (
       <Card className="bg-discord-sidebar border-discord-dark">
@@ -220,7 +319,7 @@ export default function AnalyticsTab() {
     );
   }
 
-  const isLoading = staffLoading || trendsLoading || satisfactionLoading;
+  const isLoading = staffLoading || trendsLoading || satisfactionLoading || overviewLoading;
 
   return (
     <div className="space-y-6">
@@ -290,10 +389,22 @@ export default function AnalyticsTab() {
           </div>
 
           <Tabs value={activeSubTab} onValueChange={setActiveSubTab}>
-            <TabsList className="bg-discord-dark border-discord-dark">
+            <TabsList className="bg-discord-dark border-discord-dark flex-wrap">
               <TabsTrigger value="overview" className="data-[state=active]:bg-discord-blue">
+                <Activity className="h-4 w-4 mr-2" />
+                Server
+              </TabsTrigger>
+              <TabsTrigger value="tickets" className="data-[state=active]:bg-discord-blue">
                 <TrendingUp className="h-4 w-4 mr-2" />
-                Trends
+                Tickets
+              </TabsTrigger>
+              <TabsTrigger value="commands" className="data-[state=active]:bg-discord-blue">
+                <Terminal className="h-4 w-4 mr-2" />
+                Commands
+              </TabsTrigger>
+              <TabsTrigger value="workflows" className="data-[state=active]:bg-discord-blue">
+                <Zap className="h-4 w-4 mr-2" />
+                Workflows
               </TabsTrigger>
               <TabsTrigger value="staff" className="data-[state=active]:bg-discord-blue">
                 <Users className="h-4 w-4 mr-2" />
@@ -306,6 +417,143 @@ export default function AnalyticsTab() {
             </TabsList>
 
             <TabsContent value="overview" className="mt-6 space-y-6">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <StatCard
+                  title="Total Members"
+                  value={serverOverview?.overview.totalMembers || 0}
+                  icon={Users}
+                />
+                <StatCard
+                  title="Messages"
+                  value={serverOverview?.overview.totalMessages || 0}
+                  subtitle={`Last ${timeRange} days`}
+                  icon={MessageSquare}
+                />
+                <StatCard
+                  title="Voice Minutes"
+                  value={Math.round((serverOverview?.overview.voiceMinutes || 0) / 60)}
+                  subtitle="hours"
+                  icon={Mic}
+                />
+                <StatCard
+                  title="Commands Used"
+                  value={serverOverview?.overview.totalCommands || 0}
+                  icon={Terminal}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card className="bg-discord-sidebar border-discord-dark">
+                  <CardHeader>
+                    <CardTitle className="text-white text-lg">Member Growth</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[300px]">
+                      {memberTrendsLoading ? (
+                        <div className="h-full flex items-center justify-center">
+                          <div className="animate-pulse text-discord-muted">Loading...</div>
+                        </div>
+                      ) : (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={memberTrends?.memberTrends || []}>
+                            <defs>
+                              <linearGradient id="colorMembers" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#5865F2" stopOpacity={0.3}/>
+                                <stop offset="95%" stopColor="#5865F2" stopOpacity={0}/>
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#40444b" />
+                            <XAxis 
+                              dataKey="date" 
+                              stroke="#72767d" 
+                              tick={{ fill: '#72767d', fontSize: 12 }}
+                              tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            />
+                            <YAxis stroke="#72767d" tick={{ fill: '#72767d', fontSize: 12 }} />
+                            <Tooltip 
+                              contentStyle={{ backgroundColor: '#2f3136', border: '1px solid #40444b', borderRadius: '8px' }}
+                              labelStyle={{ color: '#ffffff' }}
+                            />
+                            <Area type="monotone" dataKey="memberCount" name="Members" stroke="#5865F2" fill="url(#colorMembers)" />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-discord-sidebar border-discord-dark">
+                  <CardHeader>
+                    <CardTitle className="text-white text-lg">Daily Activity</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[300px]">
+                      {activityLoading ? (
+                        <div className="h-full flex items-center justify-center">
+                          <div className="animate-pulse text-discord-muted">Loading...</div>
+                        </div>
+                      ) : (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={activityData?.activityTrends || []}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#40444b" />
+                            <XAxis 
+                              dataKey="date" 
+                              stroke="#72767d" 
+                              tick={{ fill: '#72767d', fontSize: 12 }}
+                              tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            />
+                            <YAxis stroke="#72767d" tick={{ fill: '#72767d', fontSize: 12 }} />
+                            <Tooltip 
+                              contentStyle={{ backgroundColor: '#2f3136', border: '1px solid #40444b', borderRadius: '8px' }}
+                              labelStyle={{ color: '#ffffff' }}
+                            />
+                            <Legend />
+                            <Line type="monotone" dataKey="messages" name="Messages" stroke="#57F287" strokeWidth={2} />
+                            <Line type="monotone" dataKey="activeUsers" name="Active Users" stroke="#FEE75C" strokeWidth={2} />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <Card className="bg-discord-sidebar border-discord-dark">
+                <CardHeader>
+                  <CardTitle className="text-white text-lg">Member Changes</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[250px]">
+                    {memberTrendsLoading ? (
+                      <div className="h-full flex items-center justify-center">
+                        <div className="animate-pulse text-discord-muted">Loading...</div>
+                      </div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={memberTrends?.memberTrends || []}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#40444b" />
+                          <XAxis 
+                            dataKey="date" 
+                            stroke="#72767d" 
+                            tick={{ fill: '#72767d', fontSize: 12 }}
+                            tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          />
+                          <YAxis stroke="#72767d" tick={{ fill: '#72767d', fontSize: 12 }} />
+                          <Tooltip 
+                            contentStyle={{ backgroundColor: '#2f3136', border: '1px solid #40444b', borderRadius: '8px' }}
+                          />
+                          <Legend />
+                          <Bar dataKey="newMembers" name="Joined" fill="#57F287" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="leftMembers" name="Left" fill="#ED4245" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="tickets" className="mt-6 space-y-6">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <Card className="bg-discord-sidebar border-discord-dark">
                   <CardHeader>
@@ -453,6 +701,261 @@ export default function AnalyticsTab() {
                   </div>
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            <TabsContent value="commands" className="mt-6 space-y-6">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+                <StatCard
+                  title="Total Commands"
+                  value={commandStats?.topCommands?.reduce((acc, c) => acc + c.usageCount, 0) || 0}
+                  subtitle={`Last ${timeRange} days`}
+                  icon={Terminal}
+                />
+                <StatCard
+                  title="Unique Commands"
+                  value={commandStats?.topCommands?.length || 0}
+                  icon={BarChart3}
+                />
+                <StatCard
+                  title="Active Users"
+                  value={commandStats?.topUsers?.length || 0}
+                  icon={Users}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card className="bg-discord-sidebar border-discord-dark">
+                  <CardHeader>
+                    <CardTitle className="text-white text-lg">Most Used Commands</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[300px]">
+                      {commandsLoading ? (
+                        <div className="h-full flex items-center justify-center">
+                          <div className="animate-pulse text-discord-muted">Loading...</div>
+                        </div>
+                      ) : commandStats?.topCommands && commandStats.topCommands.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={commandStats.topCommands.slice(0, 10)} layout="vertical">
+                            <CartesianGrid strokeDasharray="3 3" stroke="#40444b" />
+                            <XAxis type="number" stroke="#72767d" tick={{ fill: '#72767d', fontSize: 12 }} />
+                            <YAxis 
+                              type="category" 
+                              dataKey="commandName" 
+                              stroke="#72767d" 
+                              tick={{ fill: '#72767d', fontSize: 12 }}
+                              width={100}
+                            />
+                            <Tooltip 
+                              contentStyle={{ backgroundColor: '#2f3136', border: '1px solid #40444b', borderRadius: '8px' }}
+                            />
+                            <Bar dataKey="usageCount" name="Uses" fill="#5865F2" radius={[0, 4, 4, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="h-full flex items-center justify-center text-discord-muted">
+                          No command usage data available
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-discord-sidebar border-discord-dark">
+                  <CardHeader>
+                    <CardTitle className="text-white text-lg">Command Usage Trend</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[300px]">
+                      {commandsLoading ? (
+                        <div className="h-full flex items-center justify-center">
+                          <div className="animate-pulse text-discord-muted">Loading...</div>
+                        </div>
+                      ) : commandStats?.dailyTrends && commandStats.dailyTrends.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={commandStats.dailyTrends}>
+                            <defs>
+                              <linearGradient id="colorCmds" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#57F287" stopOpacity={0.3}/>
+                                <stop offset="95%" stopColor="#57F287" stopOpacity={0}/>
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#40444b" />
+                            <XAxis 
+                              dataKey="date" 
+                              stroke="#72767d" 
+                              tick={{ fill: '#72767d', fontSize: 12 }}
+                              tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            />
+                            <YAxis stroke="#72767d" tick={{ fill: '#72767d', fontSize: 12 }} />
+                            <Tooltip 
+                              contentStyle={{ backgroundColor: '#2f3136', border: '1px solid #40444b', borderRadius: '8px' }}
+                              labelStyle={{ color: '#ffffff' }}
+                            />
+                            <Area type="monotone" dataKey="count" name="Commands" stroke="#57F287" fill="url(#colorCmds)" />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="h-full flex items-center justify-center text-discord-muted">
+                          No command trend data available
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <Card className="bg-discord-sidebar border-discord-dark">
+                <CardHeader>
+                  <CardTitle className="text-white text-lg">Top Command Users</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {commandStats?.topUsers && commandStats.topUsers.length > 0 ? (
+                    <div className="space-y-3">
+                      {commandStats.topUsers.map((user, index) => (
+                        <div key={user.userId} className="flex items-center justify-between p-3 bg-discord-dark rounded-lg">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-white ${
+                              index === 0 ? 'bg-yellow-500' :
+                              index === 1 ? 'bg-gray-400' :
+                              index === 2 ? 'bg-amber-700' :
+                              'bg-discord-blue'
+                            }`}>
+                              {index + 1}
+                            </div>
+                            <span className="text-white font-medium">{user.username}</span>
+                          </div>
+                          <Badge variant="secondary" className="bg-discord-blue/20 text-discord-blue">
+                            {user.commandCount} commands
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-discord-muted text-center py-8">No user data available</p>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="workflows" className="mt-6 space-y-6">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <StatCard
+                  title="Total Executions"
+                  value={workflowStats?.workflows?.reduce((acc, w) => acc + w.executions, 0) || 0}
+                  subtitle={`Last ${timeRange} days`}
+                  icon={Zap}
+                />
+                <StatCard
+                  title="Success Rate"
+                  value={`${serverOverview?.overview.workflowSuccessRate || 100}%`}
+                  icon={CheckCircle}
+                  trend="up"
+                />
+                <StatCard
+                  title="Active Workflows"
+                  value={workflowStats?.workflows?.length || 0}
+                  icon={Activity}
+                />
+                <StatCard
+                  title="Failures"
+                  value={workflowStats?.workflows?.reduce((acc, w) => acc + w.failures, 0) || 0}
+                  icon={AlertCircle}
+                  trend={workflowStats?.workflows?.reduce((acc, w) => acc + w.failures, 0) || 0 > 0 ? 'down' : 'neutral'}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card className="bg-discord-sidebar border-discord-dark">
+                  <CardHeader>
+                    <CardTitle className="text-white text-lg">Workflow Executions Trend</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[300px]">
+                      {workflowsLoading ? (
+                        <div className="h-full flex items-center justify-center">
+                          <div className="animate-pulse text-discord-muted">Loading...</div>
+                        </div>
+                      ) : workflowStats?.dailyTrends && workflowStats.dailyTrends.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={workflowStats.dailyTrends}>
+                            <defs>
+                              <linearGradient id="colorSuccess" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#57F287" stopOpacity={0.3}/>
+                                <stop offset="95%" stopColor="#57F287" stopOpacity={0}/>
+                              </linearGradient>
+                              <linearGradient id="colorFail" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#ED4245" stopOpacity={0.3}/>
+                                <stop offset="95%" stopColor="#ED4245" stopOpacity={0}/>
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#40444b" />
+                            <XAxis 
+                              dataKey="date" 
+                              stroke="#72767d" 
+                              tick={{ fill: '#72767d', fontSize: 12 }}
+                              tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            />
+                            <YAxis stroke="#72767d" tick={{ fill: '#72767d', fontSize: 12 }} />
+                            <Tooltip 
+                              contentStyle={{ backgroundColor: '#2f3136', border: '1px solid #40444b', borderRadius: '8px' }}
+                              labelStyle={{ color: '#ffffff' }}
+                            />
+                            <Legend />
+                            <Area type="monotone" dataKey="successes" name="Successes" stroke="#57F287" fill="url(#colorSuccess)" />
+                            <Area type="monotone" dataKey="failures" name="Failures" stroke="#ED4245" fill="url(#colorFail)" />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="h-full flex items-center justify-center text-discord-muted">
+                          No workflow trend data available
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-discord-sidebar border-discord-dark">
+                  <CardHeader>
+                    <CardTitle className="text-white text-lg">Workflow Performance</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {workflowStats?.workflows && workflowStats.workflows.length > 0 ? (
+                      <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                        {workflowStats.workflows.map((workflow) => (
+                          <div key={workflow.workflowId} className="p-3 bg-discord-dark rounded-lg">
+                            <div className="flex items-center justify-between mb-2">
+                              <div>
+                                <span className="text-white font-medium">{workflow.workflowName}</span>
+                                <span className="text-xs text-discord-muted ml-2">({workflow.triggerType})</span>
+                              </div>
+                              <Badge 
+                                variant="secondary" 
+                                className={workflow.successRate >= 90 
+                                  ? 'bg-green-500/20 text-green-400' 
+                                  : workflow.successRate >= 70 
+                                    ? 'bg-yellow-500/20 text-yellow-400'
+                                    : 'bg-red-500/20 text-red-400'
+                                }
+                              >
+                                {workflow.successRate}% success
+                              </Badge>
+                            </div>
+                            <div className="flex items-center gap-4 text-sm text-discord-muted">
+                              <span>{workflow.executions} runs</span>
+                              <span>{workflow.successes} ✓</span>
+                              <span>{workflow.failures} ✗</span>
+                              <span>~{workflow.avgDurationMs}ms</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-discord-muted text-center py-8">No workflow data available</p>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
             </TabsContent>
 
             <TabsContent value="staff" className="mt-6 space-y-6">

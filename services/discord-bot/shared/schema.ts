@@ -1923,6 +1923,65 @@ export interface TriggerConfig {
   customIds?: string[];
 }
 
+// Embed Templates - stores reusable embed templates per server
+export const embedTemplates = pgTable("embed_templates", {
+  id: serial("id").primaryKey(),
+  serverId: text("server_id").notNull(),
+  name: text("name").notNull(),
+  embedData: text("embed_data").notNull(), // JSON with title, description, color, fields, footer, image, thumbnail, author, timestamp
+  createdBy: text("created_by").notNull(), // Discord user ID
+  createdByUsername: text("created_by_username"), // Cached username
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Embed Templates validation schemas
+export const insertEmbedTemplateSchema = createInsertSchema(embedTemplates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+export type InsertEmbedTemplate = z.infer<typeof insertEmbedTemplateSchema>;
+export type EmbedTemplate = typeof embedTemplates.$inferSelect;
+
+export const updateEmbedTemplateSchema = createInsertSchema(embedTemplates).omit({
+  id: true,
+  serverId: true,
+  createdBy: true,
+  createdAt: true,
+  updatedAt: true
+}).partial();
+export type UpdateEmbedTemplate = z.infer<typeof updateEmbedTemplateSchema>;
+
+// Embed data structure interface
+export interface EmbedData {
+  title?: string;
+  description?: string;
+  color?: string;
+  url?: string;
+  timestamp?: boolean;
+  footer?: {
+    text?: string;
+    iconUrl?: string;
+  };
+  image?: {
+    url?: string;
+  };
+  thumbnail?: {
+    url?: string;
+  };
+  author?: {
+    name?: string;
+    iconUrl?: string;
+    url?: string;
+  };
+  fields?: Array<{
+    name: string;
+    value: string;
+    inline?: boolean;
+  }>;
+}
+
 export interface ConditionConfig {
   // Role conditions
   roleIds?: string[];
@@ -2039,3 +2098,445 @@ export const WORKFLOW_VARIABLES = {
     choice: "{random.choice:option1,option2,option3}", // Random from list
   },
 } as const;
+
+// =============================================
+// CUSTOM FORMS / INTAKE SYSTEM
+// =============================================
+
+// Custom Forms - stores form templates per server
+export const customForms = pgTable("custom_forms", {
+  id: serial("id").primaryKey(),
+  serverId: text("server_id").notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  fields: text("fields").notNull(), // JSON array of {label, type, required, options, placeholder}
+  submitChannelId: text("submit_channel_id"), // Channel to post submissions
+  createTicket: boolean("create_ticket").default(false), // Create ticket on submission
+  ticketCategoryId: integer("ticket_category_id"), // Category for auto-created tickets
+  isEnabled: boolean("is_enabled").default(true),
+  buttonLabel: text("button_label").default("Open Form"),
+  buttonEmoji: text("button_emoji"),
+  buttonStyle: text("button_style").default("Primary"), // Primary, Secondary, Success, Danger
+  embedColor: text("embed_color").default("#5865F2"),
+  successMessage: text("success_message").default("Thank you for your submission!"),
+  createdBy: text("created_by"),
+  createdByUsername: text("created_by_username"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Form field type definition for JSONB
+export interface FormField {
+  id: string;
+  label: string;
+  type: "text" | "textarea" | "select" | "number";
+  required: boolean;
+  placeholder?: string;
+  options?: string[]; // For select type
+  minLength?: number;
+  maxLength?: number;
+}
+
+// Custom Forms validation schemas
+export const insertCustomFormSchema = createInsertSchema(customForms).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+export type InsertCustomForm = z.infer<typeof insertCustomFormSchema>;
+export type CustomForm = typeof customForms.$inferSelect;
+
+export const updateCustomFormSchema = createInsertSchema(customForms).omit({
+  id: true,
+  serverId: true,
+  createdBy: true,
+  createdAt: true,
+  updatedAt: true
+}).partial();
+export type UpdateCustomForm = z.infer<typeof updateCustomFormSchema>;
+
+// Form Submissions - stores submitted form data
+export const formSubmissions = pgTable("form_submissions", {
+  id: serial("id").primaryKey(),
+  formId: integer("form_id").notNull().references(() => customForms.id, { onDelete: "cascade" }),
+  serverId: text("server_id").notNull(),
+  userId: text("user_id").notNull(), // Discord user ID
+  username: text("username"), // Cached username
+  responses: text("responses").notNull(), // JSON object of {fieldId: value}
+  ticketId: integer("ticket_id"), // Optional reference to created ticket
+  messageId: text("message_id"), // Discord message ID of the submission embed
+  channelId: text("channel_id"), // Channel where submission was posted
+  submittedAt: timestamp("submitted_at").defaultNow(),
+});
+
+// Form submission response type definition
+export interface FormResponse {
+  [fieldId: string]: string | number;
+}
+
+// Form Submissions validation schemas
+export const insertFormSubmissionSchema = createInsertSchema(formSubmissions).omit({
+  id: true,
+  submittedAt: true
+});
+export type InsertFormSubmission = z.infer<typeof insertFormSubmissionSchema>;
+export type FormSubmission = typeof formSubmissions.$inferSelect;
+
+// =============================================
+// ECONOMY SYSTEM
+// =============================================
+
+// Economy Settings - per-server economy configuration
+export const economySettings = pgTable("economy_settings", {
+  id: serial("id").primaryKey(),
+  serverId: text("server_id").notNull().unique(),
+  currencyName: text("currency_name").default("Coins"),
+  currencyEmoji: text("currency_emoji").default("🪙"),
+  dailyAmount: integer("daily_amount").default(100),
+  messageReward: integer("message_reward").default(5),
+  voiceRewardPerMin: integer("voice_reward_per_min").default(2),
+  messageRewardCooldown: integer("message_reward_cooldown").default(60), // Seconds between message rewards
+  isEnabled: boolean("is_enabled").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Economy Settings validation schemas
+export const insertEconomySettingsSchema = createInsertSchema(economySettings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+export type InsertEconomySettings = z.infer<typeof insertEconomySettingsSchema>;
+export type EconomySettings = typeof economySettings.$inferSelect;
+
+export const updateEconomySettingsSchema = createInsertSchema(economySettings).omit({
+  id: true,
+  serverId: true,
+  createdAt: true,
+  updatedAt: true
+}).partial();
+export type UpdateEconomySettings = z.infer<typeof updateEconomySettingsSchema>;
+
+// User Balances - tracks user currency per server
+export const userBalances = pgTable("user_balances", {
+  id: serial("id").primaryKey(),
+  serverId: text("server_id").notNull(),
+  userId: text("user_id").notNull(), // Discord user ID
+  balance: integer("balance").default(0),
+  bank: integer("bank").default(0),
+  lastDaily: timestamp("last_daily"),
+  lastMessageReward: timestamp("last_message_reward"),
+  totalEarned: integer("total_earned").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// User Balances validation schemas
+export const insertUserBalanceSchema = createInsertSchema(userBalances).omit({
+  id: true,
+  createdAt: true
+});
+export type InsertUserBalance = z.infer<typeof insertUserBalanceSchema>;
+export type UserBalance = typeof userBalances.$inferSelect;
+
+export const updateUserBalanceSchema = createInsertSchema(userBalances).omit({
+  id: true,
+  serverId: true,
+  userId: true,
+  createdAt: true
+}).partial();
+export type UpdateUserBalance = z.infer<typeof updateUserBalanceSchema>;
+
+// Shop Items - items users can purchase
+export const shopItems = pgTable("shop_items", {
+  id: serial("id").primaryKey(),
+  serverId: text("server_id").notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  price: integer("price").notNull(),
+  type: text("type").notNull().default("item"), // "role" | "item"
+  roleId: text("role_id"), // Discord role ID if type is "role"
+  stock: integer("stock"), // null = unlimited
+  isEnabled: boolean("is_enabled").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Shop Items validation schemas
+export const insertShopItemSchema = createInsertSchema(shopItems).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+export type InsertShopItem = z.infer<typeof insertShopItemSchema>;
+export type ShopItem = typeof shopItems.$inferSelect;
+
+export const updateShopItemSchema = createInsertSchema(shopItems).omit({
+  id: true,
+  serverId: true,
+  createdAt: true,
+  updatedAt: true
+}).partial();
+export type UpdateShopItem = z.infer<typeof updateShopItemSchema>;
+
+// Economy Transactions - audit log of all economy activity
+export const economyTransactions = pgTable("economy_transactions", {
+  id: serial("id").primaryKey(),
+  serverId: text("server_id").notNull(),
+  userId: text("user_id").notNull(),
+  amount: integer("amount").notNull(), // Positive = gain, negative = loss
+  type: text("type").notNull(), // "daily", "message", "voice", "gamble", "pay", "purchase", "admin"
+  description: text("description"),
+  relatedUserId: text("related_user_id"), // For transfers
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Economy Transactions validation schemas
+export const insertEconomyTransactionSchema = createInsertSchema(economyTransactions).omit({
+  id: true,
+  createdAt: true
+});
+export type InsertEconomyTransaction = z.infer<typeof insertEconomyTransactionSchema>;
+export type EconomyTransaction = typeof economyTransactions.$inferSelect;
+
+// User Purchases - tracks what users have bought
+export const userPurchases = pgTable("user_purchases", {
+  id: serial("id").primaryKey(),
+  serverId: text("server_id").notNull(),
+  userId: text("user_id").notNull(),
+  shopItemId: integer("shop_item_id").notNull().references(() => shopItems.id, { onDelete: "cascade" }),
+  purchasedAt: timestamp("purchased_at").defaultNow(),
+});
+
+// User Purchases validation schemas
+export const insertUserPurchaseSchema = createInsertSchema(userPurchases).omit({
+  id: true,
+  purchasedAt: true
+});
+export type InsertUserPurchase = z.infer<typeof insertUserPurchaseSchema>;
+export type UserPurchase = typeof userPurchases.$inferSelect;
+
+// =============================================
+// CONTENT SCHEDULER
+// =============================================
+
+// Scheduled Posts - stores scheduled content per server
+export const scheduledPosts = pgTable("scheduled_posts", {
+  id: serial("id").primaryKey(),
+  serverId: text("server_id").notNull(),
+  name: text("name").notNull(),
+  content: text("content"), // Plain text content
+  embedData: text("embed_data"), // JSON embed data (optional)
+  channelId: text("channel_id").notNull(), // Target Discord channel
+  scheduleType: text("schedule_type").notNull().default("once"), // "once" | "recurring"
+  cronExpression: text("cron_expression"), // Cron expression for recurring posts
+  nextRunAt: timestamp("next_run_at"), // Next scheduled execution
+  lastRunAt: timestamp("last_run_at"), // Last execution time
+  timezone: text("timezone").default("UTC"),
+  isEnabled: boolean("is_enabled").default(true),
+  createdBy: text("created_by").notNull(), // Discord user ID
+  createdByUsername: text("created_by_username"), // Cached username
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Scheduled Posts validation schemas
+export const insertScheduledPostSchema = createInsertSchema(scheduledPosts).omit({
+  id: true,
+  lastRunAt: true,
+  createdAt: true,
+  updatedAt: true
+});
+export type InsertScheduledPost = z.infer<typeof insertScheduledPostSchema>;
+export type ScheduledPost = typeof scheduledPosts.$inferSelect;
+
+export const updateScheduledPostSchema = createInsertSchema(scheduledPosts).omit({
+  id: true,
+  serverId: true,
+  createdBy: true,
+  createdAt: true,
+  updatedAt: true
+}).partial();
+export type UpdateScheduledPost = z.infer<typeof updateScheduledPostSchema>;
+
+// Scheduled post embed data interface
+export interface ScheduledPostEmbedData {
+  title?: string;
+  description?: string;
+  color?: string;
+  url?: string;
+  timestamp?: boolean;
+  footer?: {
+    text?: string;
+    iconUrl?: string;
+  };
+  image?: {
+    url?: string;
+  };
+  thumbnail?: {
+    url?: string;
+  };
+  author?: {
+    name?: string;
+    iconUrl?: string;
+    url?: string;
+  };
+  fields?: Array<{
+    name: string;
+    value: string;
+    inline?: boolean;
+  }>;
+}
+
+// =============================================
+// ANALYTICS DASHBOARD TABLES
+// =============================================
+
+// Server Metrics - daily aggregate metrics per server
+export const serverMetrics = pgTable("server_metrics", {
+  id: serial("id").primaryKey(),
+  serverId: text("server_id").notNull(),
+  date: timestamp("date").notNull(),
+  memberCount: integer("member_count").default(0),
+  messageCount: integer("message_count").default(0),
+  voiceMinutes: integer("voice_minutes").default(0),
+  newMembers: integer("new_members").default(0),
+  leftMembers: integer("left_members").default(0),
+  activeUsers: integer("active_users").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Server Metrics validation schemas
+export const insertServerMetricsSchema = createInsertSchema(serverMetrics).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+export type InsertServerMetrics = z.infer<typeof insertServerMetricsSchema>;
+export type ServerMetrics = typeof serverMetrics.$inferSelect;
+
+export const updateServerMetricsSchema = createInsertSchema(serverMetrics).omit({
+  id: true,
+  serverId: true,
+  date: true,
+  createdAt: true,
+  updatedAt: true
+}).partial();
+export type UpdateServerMetrics = z.infer<typeof updateServerMetricsSchema>;
+
+// Command Usage - detailed command usage log (supplements commandAnalytics)
+export const commandUsage = pgTable("command_usage", {
+  id: serial("id").primaryKey(),
+  serverId: text("server_id").notNull(),
+  commandName: text("command_name").notNull(),
+  userId: text("user_id").notNull(),
+  channelId: text("channel_id"),
+  usedAt: timestamp("used_at").defaultNow(),
+});
+
+// Command Usage validation schemas
+export const insertCommandUsageSchema = createInsertSchema(commandUsage).omit({
+  id: true,
+  usedAt: true
+});
+export type InsertCommandUsage = z.infer<typeof insertCommandUsageSchema>;
+export type CommandUsage = typeof commandUsage.$inferSelect;
+
+// Workflow Metrics - daily workflow execution stats
+export const workflowMetrics = pgTable("workflow_metrics", {
+  id: serial("id").primaryKey(),
+  workflowId: integer("workflow_id").notNull(),
+  serverId: text("server_id").notNull(),
+  date: timestamp("date").notNull(),
+  executions: integer("executions").default(0),
+  successes: integer("successes").default(0),
+  failures: integer("failures").default(0),
+  avgDurationMs: integer("avg_duration_ms").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Workflow Metrics validation schemas
+export const insertWorkflowMetricsSchema = createInsertSchema(workflowMetrics).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+export type InsertWorkflowMetrics = z.infer<typeof insertWorkflowMetricsSchema>;
+export type WorkflowMetrics = typeof workflowMetrics.$inferSelect;
+
+export const updateWorkflowMetricsSchema = createInsertSchema(workflowMetrics).omit({
+  id: true,
+  workflowId: true,
+  serverId: true,
+  date: true,
+  createdAt: true,
+  updatedAt: true
+}).partial();
+export type UpdateWorkflowMetrics = z.infer<typeof updateWorkflowMetricsSchema>;
+
+// =============================================
+// ONBOARDING WIZARD
+// =============================================
+
+// Onboarding Progress - tracks setup wizard progress per server
+export const onboardingProgress = pgTable("onboarding_progress", {
+  id: serial("id").primaryKey(),
+  serverId: text("server_id").notNull(),
+  step: text("step").notNull(), // "welcome", "features", "welcome_channel", "moderation", "templates", "complete"
+  isCompleted: boolean("is_completed").default(false),
+  completedAt: timestamp("completed_at"),
+  stepData: text("step_data"), // JSON data for the step (e.g., selected features, channel configs)
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Onboarding Status - overall onboarding status per server
+export const onboardingStatus = pgTable("onboarding_status", {
+  id: serial("id").primaryKey(),
+  serverId: text("server_id").notNull().unique(),
+  isSkipped: boolean("is_skipped").default(false),
+  isCompleted: boolean("is_completed").default(false),
+  currentStep: text("current_step").default("welcome"),
+  appliedTemplate: text("applied_template"), // "gaming", "creator", "business", null
+  completedAt: timestamp("completed_at"),
+  skippedAt: timestamp("skipped_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Onboarding Progress validation schemas
+export const insertOnboardingProgressSchema = createInsertSchema(onboardingProgress).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+export type InsertOnboardingProgress = z.infer<typeof insertOnboardingProgressSchema>;
+export type OnboardingProgress = typeof onboardingProgress.$inferSelect;
+
+export const updateOnboardingProgressSchema = createInsertSchema(onboardingProgress).omit({
+  id: true,
+  serverId: true,
+  step: true,
+  createdAt: true,
+  updatedAt: true
+}).partial();
+export type UpdateOnboardingProgress = z.infer<typeof updateOnboardingProgressSchema>;
+
+// Onboarding Status validation schemas
+export const insertOnboardingStatusSchema = createInsertSchema(onboardingStatus).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+export type InsertOnboardingStatus = z.infer<typeof insertOnboardingStatusSchema>;
+export type OnboardingStatus = typeof onboardingStatus.$inferSelect;
+
+export const updateOnboardingStatusSchema = createInsertSchema(onboardingStatus).omit({
+  id: true,
+  serverId: true,
+  createdAt: true,
+  updatedAt: true
+}).partial();
+export type UpdateOnboardingStatus = z.infer<typeof updateOnboardingStatusSchema>;

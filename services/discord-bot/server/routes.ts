@@ -50,10 +50,16 @@ import guildProvisioningRoutes from "./routes/guild-provisioning-routes";
 import publicApiRoutes from "./api/public-api";
 import { isDeveloperMiddleware } from "./middleware/developerAuth";
 import { startRetentionService, stopRetentionService } from "./services/retention-service";
+import { contentSchedulerService } from "./services/contentScheduler";
 import { commandEngine } from "./services/commandEngine";
 import { guildIdentityService } from "./services/guildIdentityService";
 import welcomeCardsRoutes from "./routes/welcomeCards";
 import workflowRoutes from "./routes/workflows";
+import embedsRoutes from "./routes/embeds";
+import formsRoutes from "./routes/forms";
+import economyRoutes from "./routes/economy";
+import schedulerRoutes from "./routes/scheduler";
+import onboardingRoutes from "./routes/onboarding";
 
 // Configure multer for embed image uploads
 const EMBED_IMAGES_DIR = path.join(process.cwd(), 'attached_assets', 'embed-images');
@@ -3793,9 +3799,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Mount workflow/automation routes (Interaction Studio)
   app.use('/api', workflowRoutes);
+  
+  // Embed Builder routes
+  app.use('/api', embedsRoutes);
+
+  // Forms/Intake System routes
+  app.use('/api', formsRoutes);
+
+  // Economy system routes
+  app.use('/api', economyRoutes);
+
+  // Content scheduler routes
+  app.use('/api', schedulerRoutes);
+
+  // Onboarding wizard routes
+  app.use('/api', onboardingRoutes);
 
   // Start background services
   startRetentionService();
+  contentSchedulerService.start();
 
   // Start the Discord bot
   try {

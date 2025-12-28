@@ -13,7 +13,8 @@ import {
   TextInputBuilder,
   TextInputStyle,
   PermissionFlagsBits,
-  User
+  User,
+  TextChannel
 } from 'discord.js';
 import { IStorage } from '../storage';
 import { InsertTicket, InsertTicketMessage, PanelTemplate, PanelTemplateField, PanelTemplateButton } from '@shared/schema';
@@ -5598,6 +5599,432 @@ console.log('[Discord] Registered boosters command');
 // Export giveaway helper functions for scheduled job
 export { pickGiveawayWinners, announceGiveawayWinners };
 
+// =============================================
+// ECONOMY COMMANDS
+// =============================================
+import { dbStorage } from '../database-storage';
+
+const balanceCommand: Command = {
+  data: new SlashCommandBuilder()
+    .setName('balance')
+    .setDescription('Check your economy balance')
+    .addUserOption(option =>
+      option.setName('user')
+        .setDescription('User to check balance for (leave empty for yourself)')
+        .setRequired(false)
+    ),
+  async execute(interaction: ChatInputCommandInteraction, { storage }: CommandContext) {
+    const guildId = interaction.guildId;
+    if (!guildId) {
+      await interaction.reply({ content: '❌ This command can only be used in a server.', ephemeral: true });
+      return;
+    }
+
+    const settings = await dbStorage.getOrCreateEconomySettings(guildId);
+    if (!settings.isEnabled) {
+      await interaction.reply({ content: '❌ Economy is disabled on this server.', ephemeral: true });
+      return;
+    }
+
+    const targetUser = interaction.options.getUser('user') || interaction.user;
+    const balance = await dbStorage.getOrCreateUserBalance(guildId, targetUser.id);
+    
+    const emoji = settings.currencyEmoji || '🪙';
+    const name = settings.currencyName || 'Coins';
+    
+    const embed = new EmbedBuilder()
+      .setTitle(`${emoji} ${targetUser.username}'s Balance`)
+      .setThumbnail(targetUser.displayAvatarURL())
+      .setColor('#FFD700')
+      .addFields(
+        { name: 'Wallet', value: `${emoji} ${(balance.balance || 0).toLocaleString()} ${name}`, inline: true },
+        { name: 'Bank', value: `${emoji} ${(balance.bank || 0).toLocaleString()} ${name}`, inline: true },
+        { name: 'Net Worth', value: `${emoji} ${((balance.balance || 0) + (balance.bank || 0)).toLocaleString()} ${name}`, inline: true }
+      )
+      .setFooter({ text: `Total earned: ${(balance.totalEarned || 0).toLocaleString()} ${name}` })
+      .setTimestamp();
+    
+    await interaction.reply({ embeds: [embed] });
+  }
+};
+commands.set('balance', balanceCommand);
+console.log('[Discord] Registered balance command');
+
+const dailyCommand: Command = {
+  data: new SlashCommandBuilder()
+    .setName('daily')
+    .setDescription('Claim your daily reward'),
+  async execute(interaction: ChatInputCommandInteraction, { storage }: CommandContext) {
+    const guildId = interaction.guildId;
+    if (!guildId) {
+      await interaction.reply({ content: '❌ This command can only be used in a server.', ephemeral: true });
+      return;
+    }
+
+    const settings = await dbStorage.getOrCreateEconomySettings(guildId);
+    if (!settings.isEnabled) {
+      await interaction.reply({ content: '❌ Economy is disabled on this server.', ephemeral: true });
+      return;
+    }
+
+    const balance = await dbStorage.getOrCreateUserBalance(guildId, interaction.user.id);
+    const now = new Date();
+    const lastDaily = balance.lastDaily ? new Date(balance.lastDaily) : null;
+    
+    if (lastDaily) {
+      const timeSinceLastDaily = now.getTime() - lastDaily.getTime();
+      const twentyFourHours = 24 * 60 * 60 * 1000;
+      
+      if (timeSinceLastDaily < twentyFourHours) {
+        const timeLeft = twentyFourHours - timeSinceLastDaily;
+        const hours = Math.floor(timeLeft / (60 * 60 * 1000));
+        const minutes = Math.floor((timeLeft % (60 * 60 * 1000)) / (60 * 1000));
+        await interaction.reply({ 
+          content: `⏰ You can claim your daily reward again in **${hours}h ${minutes}m**!`, 
+          ephemeral: true 
+        });
+        return;
+      }
+    }
+
+    const amount = settings.dailyAmount || 100;
+    const emoji = settings.currencyEmoji || '🪙';
+    const name = settings.currencyName || 'Coins';
+
+    await dbStorage.addBalance(guildId, interaction.user.id, amount, 'daily', 'Daily reward');
+    await dbStorage.updateUserBalance(guildId, interaction.user.id, { lastDaily: now });
+
+    const newBalance = await dbStorage.getUserBalance(guildId, interaction.user.id);
+    
+    const embed = new EmbedBuilder()
+      .setTitle('✅ Daily Reward Claimed!')
+      .setColor('#00FF00')
+      .setDescription(`You received ${emoji} **${amount.toLocaleString()}** ${name}!`)
+      .addFields(
+        { name: 'New Balance', value: `${emoji} ${(newBalance?.balance || 0).toLocaleString()} ${name}`, inline: true }
+      )
+      .setFooter({ text: 'Come back in 24 hours for another reward!' })
+      .setTimestamp();
+    
+    await interaction.reply({ embeds: [embed] });
+  }
+};
+commands.set('daily', dailyCommand);
+console.log('[Discord] Registered daily command');
+
+const payCommand: Command = {
+  data: new SlashCommandBuilder()
+    .setName('pay')
+    .setDescription('Transfer currency to another user')
+    .addUserOption(option =>
+      option.setName('user')
+        .setDescription('User to pay')
+        .setRequired(true)
+    )
+    .addIntegerOption(option =>
+      option.setName('amount')
+        .setDescription('Amount to transfer')
+        .setMinValue(1)
+        .setRequired(true)
+    ),
+  async execute(interaction: ChatInputCommandInteraction, { storage }: CommandContext) {
+    const guildId = interaction.guildId;
+    if (!guildId) {
+      await interaction.reply({ content: '❌ This command can only be used in a server.', ephemeral: true });
+      return;
+    }
+
+    const settings = await dbStorage.getOrCreateEconomySettings(guildId);
+    if (!settings.isEnabled) {
+      await interaction.reply({ content: '❌ Economy is disabled on this server.', ephemeral: true });
+      return;
+    }
+
+    const targetUser = interaction.options.getUser('user', true);
+    const amount = interaction.options.getInteger('amount', true);
+
+    if (targetUser.id === interaction.user.id) {
+      await interaction.reply({ content: '❌ You cannot pay yourself!', ephemeral: true });
+      return;
+    }
+
+    if (targetUser.bot) {
+      await interaction.reply({ content: '❌ You cannot pay bots!', ephemeral: true });
+      return;
+    }
+
+    const senderBalance = await dbStorage.getOrCreateUserBalance(guildId, interaction.user.id);
+    if ((senderBalance.balance || 0) < amount) {
+      await interaction.reply({ content: '❌ You don\'t have enough coins for this transfer!', ephemeral: true });
+      return;
+    }
+
+    const emoji = settings.currencyEmoji || '🪙';
+    const name = settings.currencyName || 'Coins';
+
+    await dbStorage.addBalance(guildId, interaction.user.id, -amount, 'pay', `Paid to ${targetUser.username}`);
+    await dbStorage.addBalance(guildId, targetUser.id, amount, 'pay', `Received from ${interaction.user.username}`);
+
+    const embed = new EmbedBuilder()
+      .setTitle('💸 Transfer Complete!')
+      .setColor('#00FF00')
+      .setDescription(`You sent ${emoji} **${amount.toLocaleString()}** ${name} to ${targetUser}!`)
+      .setTimestamp();
+    
+    await interaction.reply({ embeds: [embed] });
+  }
+};
+commands.set('pay', payCommand);
+console.log('[Discord] Registered pay command');
+
+const shopCommand: Command = {
+  data: new SlashCommandBuilder()
+    .setName('shop')
+    .setDescription('View the server shop'),
+  async execute(interaction: ChatInputCommandInteraction, { storage }: CommandContext) {
+    const guildId = interaction.guildId;
+    if (!guildId) {
+      await interaction.reply({ content: '❌ This command can only be used in a server.', ephemeral: true });
+      return;
+    }
+
+    const settings = await dbStorage.getOrCreateEconomySettings(guildId);
+    if (!settings.isEnabled) {
+      await interaction.reply({ content: '❌ Economy is disabled on this server.', ephemeral: true });
+      return;
+    }
+
+    const items = await dbStorage.getShopItems(guildId);
+    const enabledItems = items.filter(item => item.isEnabled);
+
+    const emoji = settings.currencyEmoji || '🪙';
+    const name = settings.currencyName || 'Coins';
+
+    if (enabledItems.length === 0) {
+      await interaction.reply({ content: '🏪 The shop is empty! Check back later.', ephemeral: true });
+      return;
+    }
+
+    const itemsList = enabledItems.map((item, index) => {
+      const stockText = item.stock !== null ? ` (${item.stock} left)` : '';
+      const typeEmoji = item.type === 'role' ? '👑' : '📦';
+      return `**${index + 1}.** ${typeEmoji} **${item.name}** - ${emoji} ${item.price.toLocaleString()} ${name}${stockText}\n   ${item.description || 'No description'}`;
+    }).join('\n\n');
+
+    const embed = new EmbedBuilder()
+      .setTitle('🏪 Server Shop')
+      .setColor('#5865F2')
+      .setDescription(itemsList)
+      .setFooter({ text: `Use /buy <item number> to purchase • ${enabledItems.length} items available` })
+      .setTimestamp();
+    
+    await interaction.reply({ embeds: [embed] });
+  }
+};
+commands.set('shop', shopCommand);
+console.log('[Discord] Registered shop command');
+
+const buyCommand: Command = {
+  data: new SlashCommandBuilder()
+    .setName('buy')
+    .setDescription('Buy an item from the shop')
+    .addIntegerOption(option =>
+      option.setName('item')
+        .setDescription('Item number to buy (from /shop)')
+        .setMinValue(1)
+        .setRequired(true)
+    ),
+  async execute(interaction: ChatInputCommandInteraction, { storage }: CommandContext) {
+    const guildId = interaction.guildId;
+    if (!guildId) {
+      await interaction.reply({ content: '❌ This command can only be used in a server.', ephemeral: true });
+      return;
+    }
+
+    await interaction.deferReply({ ephemeral: true });
+
+    const settings = await dbStorage.getOrCreateEconomySettings(guildId);
+    if (!settings.isEnabled) {
+      await interaction.editReply({ content: '❌ Economy is disabled on this server.' });
+      return;
+    }
+
+    const itemNumber = interaction.options.getInteger('item', true);
+    const items = await dbStorage.getShopItems(guildId);
+    const enabledItems = items.filter(item => item.isEnabled);
+
+    if (itemNumber > enabledItems.length || itemNumber < 1) {
+      await interaction.editReply({ content: '❌ Invalid item number. Use /shop to see available items.' });
+      return;
+    }
+
+    const item = enabledItems[itemNumber - 1];
+    const balance = await dbStorage.getOrCreateUserBalance(guildId, interaction.user.id);
+    const emoji = settings.currencyEmoji || '🪙';
+    const name = settings.currencyName || 'Coins';
+
+    if ((balance.balance || 0) < item.price) {
+      await interaction.editReply({ content: `❌ You don't have enough ${name}! You need ${emoji} ${item.price.toLocaleString()} but only have ${emoji} ${(balance.balance || 0).toLocaleString()}.` });
+      return;
+    }
+
+    if (item.stock !== null && item.stock <= 0) {
+      await interaction.editReply({ content: '❌ This item is out of stock!' });
+      return;
+    }
+
+    const alreadyOwned = await dbStorage.hasUserPurchasedItem(guildId, interaction.user.id, item.id);
+    if (item.type === 'role' && alreadyOwned) {
+      await interaction.editReply({ content: '❌ You already own this role!' });
+      return;
+    }
+
+    await dbStorage.addBalance(guildId, interaction.user.id, -item.price, 'purchase', `Bought ${item.name}`);
+    await dbStorage.createUserPurchase({ serverId: guildId, userId: interaction.user.id, shopItemId: item.id });
+
+    if (item.stock !== null) {
+      await dbStorage.updateShopItem(item.id, { stock: item.stock - 1 });
+    }
+
+    if (item.type === 'role' && item.roleId && interaction.guild) {
+      try {
+        const member = await interaction.guild.members.fetch(interaction.user.id);
+        await member.roles.add(item.roleId);
+      } catch (error) {
+        console.error('Failed to add role:', error);
+      }
+    }
+
+    await interaction.editReply({ content: `✅ You purchased **${item.name}** for ${emoji} ${item.price.toLocaleString()} ${name}!` });
+  }
+};
+commands.set('buy', buyCommand);
+console.log('[Discord] Registered buy command');
+
+const economyLeaderboardCommand: Command = {
+  data: new SlashCommandBuilder()
+    .setName('richest')
+    .setDescription('View the economy leaderboard')
+    .addIntegerOption(option =>
+      option.setName('page')
+        .setDescription('Page number (default: 1)')
+        .setMinValue(1)
+        .setRequired(false)
+    ),
+  async execute(interaction: ChatInputCommandInteraction, { storage }: CommandContext) {
+    const guildId = interaction.guildId;
+    if (!guildId) {
+      await interaction.reply({ content: '❌ This command can only be used in a server.', ephemeral: true });
+      return;
+    }
+
+    await interaction.deferReply();
+
+    const settings = await dbStorage.getOrCreateEconomySettings(guildId);
+    if (!settings.isEnabled) {
+      await interaction.editReply({ content: '❌ Economy is disabled on this server.' });
+      return;
+    }
+
+    const page = interaction.options.getInteger('page') || 1;
+    const emoji = settings.currencyEmoji || '🪙';
+    const name = settings.currencyName || 'Coins';
+
+    const leaderboard = await dbStorage.getEconomyLeaderboard(guildId, 100);
+    
+    if (leaderboard.length === 0) {
+      await interaction.editReply('📊 No one has any coins yet. Start earning!');
+      return;
+    }
+
+    const perPage = 10;
+    const startIndex = (page - 1) * perPage;
+    const endIndex = startIndex + perPage;
+    const pageData = leaderboard.slice(startIndex, endIndex);
+
+    if (pageData.length === 0) {
+      await interaction.editReply('📊 No more entries on this page.');
+      return;
+    }
+
+    const entries = pageData.map((entry, index) => {
+      const position = startIndex + index + 1;
+      const medal = position === 1 ? '🥇' : position === 2 ? '🥈' : position === 3 ? '🥉' : `**${position}.**`;
+      const total = (entry.balance || 0) + (entry.bank || 0);
+      return `${medal} <@${entry.userId}> - ${emoji} ${total.toLocaleString()} ${name}`;
+    }).join('\n');
+
+    const embed = new EmbedBuilder()
+      .setTitle(`💰 ${interaction.guild?.name || 'Server'} Richest Users`)
+      .setDescription(entries)
+      .setColor('#FFD700')
+      .setFooter({ text: `Page ${page} • Use /richest page:${page + 1} for more` })
+      .setTimestamp();
+    
+    await interaction.editReply({ embeds: [embed] });
+  }
+};
+commands.set('richest', economyLeaderboardCommand);
+console.log('[Discord] Registered richest command');
+
+const gambleCommand: Command = {
+  data: new SlashCommandBuilder()
+    .setName('gamble')
+    .setDescription('Gamble your coins - double or nothing!')
+    .addIntegerOption(option =>
+      option.setName('amount')
+        .setDescription('Amount to gamble')
+        .setMinValue(1)
+        .setRequired(true)
+    ),
+  async execute(interaction: ChatInputCommandInteraction, { storage }: CommandContext) {
+    const guildId = interaction.guildId;
+    if (!guildId) {
+      await interaction.reply({ content: '❌ This command can only be used in a server.', ephemeral: true });
+      return;
+    }
+
+    const settings = await dbStorage.getOrCreateEconomySettings(guildId);
+    if (!settings.isEnabled) {
+      await interaction.reply({ content: '❌ Economy is disabled on this server.', ephemeral: true });
+      return;
+    }
+
+    const amount = interaction.options.getInteger('amount', true);
+    const balance = await dbStorage.getOrCreateUserBalance(guildId, interaction.user.id);
+    const emoji = settings.currencyEmoji || '🪙';
+    const name = settings.currencyName || 'Coins';
+
+    if ((balance.balance || 0) < amount) {
+      await interaction.reply({ content: `❌ You don't have ${emoji} ${amount.toLocaleString()} ${name} to gamble!`, ephemeral: true });
+      return;
+    }
+
+    const won = Math.random() < 0.45;
+    const winnings = won ? amount : -amount;
+    
+    await dbStorage.addBalance(guildId, interaction.user.id, winnings, 'gamble', won ? 'Won gamble' : 'Lost gamble');
+    const newBalance = await dbStorage.getUserBalance(guildId, interaction.user.id);
+
+    const embed = new EmbedBuilder()
+      .setTitle(won ? '🎰 You Won!' : '🎰 You Lost!')
+      .setColor(won ? '#00FF00' : '#FF0000')
+      .setDescription(won 
+        ? `🎉 You doubled your money! You won ${emoji} **${amount.toLocaleString()}** ${name}!`
+        : `💸 Bad luck! You lost ${emoji} **${amount.toLocaleString()}** ${name}.`
+      )
+      .addFields(
+        { name: 'New Balance', value: `${emoji} ${(newBalance?.balance || 0).toLocaleString()} ${name}`, inline: true }
+      )
+      .setFooter({ text: 'Gamble responsibly!' })
+      .setTimestamp();
+    
+    await interaction.reply({ embeds: [embed] });
+  }
+};
+commands.set('gamble', gambleCommand);
+console.log('[Discord] Registered gamble command');
+
 // Register developer commands (imported in bot.ts and registered there)
 // Developer commands will be imported and added to the collection in bot.ts
 
@@ -5860,6 +6287,72 @@ export function registerCommands(client: Client, storage: IStorage, broadcast: (
           }
         }
       }
+    } else if (action === 'openForm') {
+      // Handle custom form button - open the form modal
+      try {
+        // @ts-ignore - We're accessing a property we set on client
+        const storage = client.storage as IStorage;
+        if (!storage) throw new Error('Storage not available');
+        
+        const { dbStorage } = await import('../database-storage');
+        const form = await dbStorage.getCustomForm(id);
+        
+        if (!form) {
+          await interaction.reply({ content: '❌ Form not found.', ephemeral: true });
+          return;
+        }
+        
+        if (!form.isEnabled) {
+          await interaction.reply({ content: '❌ This form is currently disabled.', ephemeral: true });
+          return;
+        }
+        
+        const fields = JSON.parse(form.fields) as Array<{
+          id: string;
+          label: string;
+          type: 'text' | 'textarea' | 'select' | 'number';
+          required: boolean;
+          placeholder?: string;
+          options?: string[];
+        }>;
+        
+        // Discord modals can have max 5 components
+        const modalFields = fields.slice(0, 5);
+        
+        const modal = new ModalBuilder()
+          .setCustomId(`formModal_${form.id}`)
+          .setTitle(form.name.slice(0, 45));
+        
+        for (const field of modalFields) {
+          const input = new TextInputBuilder()
+            .setCustomId(field.id)
+            .setLabel(field.label.slice(0, 45))
+            .setStyle(field.type === 'textarea' ? TextInputStyle.Paragraph : TextInputStyle.Short)
+            .setRequired(field.required);
+          
+          if (field.placeholder) {
+            input.setPlaceholder(field.placeholder.slice(0, 100));
+          }
+          
+          if (field.type === 'select' && field.options?.length) {
+            input.setPlaceholder(`Options: ${field.options.join(', ')}`.slice(0, 100));
+          }
+          
+          const row = new ActionRowBuilder<TextInputBuilder>().addComponents(input);
+          modal.addComponents(row);
+        }
+        
+        await interaction.showModal(modal);
+      } catch (error) {
+        console.error('Error showing form modal:', error);
+        if (!interaction.replied && !interaction.deferred) {
+          try {
+            await interaction.reply({ content: '❌ Failed to show form. Please try again.', ephemeral: true });
+          } catch (replyError) {
+            console.error('Failed to send error message:', replyError);
+          }
+        }
+      }
     } else if (interaction.customId.startsWith('help_')) {
       // Handle help navigation buttons
       try {
@@ -6051,6 +6544,155 @@ export function registerCommands(client: Client, storage: IStorage, broadcast: (
               await interaction.editReply('❌ Failed to create ticket. Please try again later.');
             } catch (editError) {
               console.error('Failed to send error message to user:', editError);
+            }
+          }
+        }
+      } else if (action === 'formModal') {
+        // Handle custom form modal submissions
+        let deferred = false;
+        try {
+          await interaction.deferReply({ ephemeral: true });
+          deferred = true;
+        } catch (error) {
+          console.error('Failed to defer form modal interaction:', error);
+          return;
+        }
+
+        try {
+          const formId = parseInt(categoryIdStr);
+          const { dbStorage } = await import('../database-storage');
+          
+          const form = await dbStorage.getCustomForm(formId);
+          if (!form) {
+            await interaction.editReply('❌ Form not found.');
+            return;
+          }
+          
+          const fields = JSON.parse(form.fields) as Array<{
+            id: string;
+            label: string;
+            type: string;
+            required: boolean;
+          }>;
+          
+          // Collect responses from the modal
+          const responses: Record<string, string> = {};
+          for (const field of fields.slice(0, 5)) {
+            try {
+              const value = interaction.fields.getTextInputValue(field.id);
+              responses[field.id] = value;
+            } catch {
+              // Field might not exist in this modal
+            }
+          }
+          
+          // Create submission record
+          const submission = await dbStorage.createFormSubmission({
+            formId: form.id,
+            serverId: form.serverId,
+            userId: interaction.user.id,
+            username: interaction.user.username,
+            responses: JSON.stringify(responses),
+            ticketId: null,
+            messageId: null,
+            channelId: null
+          });
+          
+          console.log(`[Discord Form] Form submission created: ${submission.id} for form ${form.name}`);
+          
+          // Post submission to the configured channel
+          if (form.submitChannelId) {
+            try {
+              const channel = await interaction.client.channels.fetch(form.submitChannelId);
+              if (channel && channel.isTextBased()) {
+                const textChannel = channel as TextChannel;
+                
+                const embed = new EmbedBuilder()
+                  .setTitle(`📝 ${form.name} - New Submission`)
+                  .setDescription(form.description || 'Form submission received')
+                  .setColor(parseInt((form.embedColor || '#5865F2').replace('#', ''), 16))
+                  .setAuthor({
+                    name: interaction.user.username,
+                    iconURL: interaction.user.displayAvatarURL()
+                  })
+                  .setTimestamp();
+                
+                // Add each field response to the embed
+                for (const field of fields.slice(0, 5)) {
+                  const value = responses[field.id] || '(no response)';
+                  embed.addFields({
+                    name: field.label,
+                    value: value.slice(0, 1024) || '(empty)',
+                    inline: false
+                  });
+                }
+                
+                const message = await textChannel.send({ embeds: [embed] });
+                
+                // Update submission with message info
+                // Note: We don't have an updateFormSubmission method yet, but the data is recorded
+                console.log(`[Discord Form] Submission posted to channel ${form.submitChannelId}, message ${message.id}`);
+              }
+            } catch (channelError) {
+              console.error('Error posting form submission to channel:', channelError);
+            }
+          }
+          
+          // Optionally create a ticket
+          if (form.createTicket) {
+            try {
+              // @ts-ignore - We're accessing a property we set on client
+              const storage = client.storage as IStorage;
+              if (storage) {
+                // Ensure user exists
+                const discordUser = await storage.getDiscordUser(interaction.user.id);
+                if (!discordUser) {
+                  await storage.createDiscordUser({
+                    id: interaction.user.id,
+                    username: interaction.user.username,
+                    discriminator: interaction.user.discriminator || '0000',
+                    avatar: interaction.user.avatarURL() || undefined,
+                    isAdmin: false
+                  });
+                }
+                
+                // Build ticket description from form responses
+                let ticketDescription = `**Form Submission: ${form.name}**\n\n`;
+                for (const field of fields.slice(0, 5)) {
+                  const value = responses[field.id] || '(no response)';
+                  ticketDescription += `**${field.label}:** ${value}\n`;
+                }
+                
+                const ticket = await storage.createTicket({
+                  title: `Form: ${form.name}`,
+                  description: ticketDescription.slice(0, 1000),
+                  status: 'open',
+                  priority: 'normal',
+                  categoryId: form.ticketCategoryId || undefined,
+                  creatorId: interaction.user.id,
+                  serverId: form.serverId
+                });
+                
+                console.log(`[Discord Form] Ticket ${ticket.id} created from form submission ${submission.id}`);
+              }
+            } catch (ticketError) {
+              console.error('Error creating ticket from form:', ticketError);
+            }
+          }
+          
+          // Send success message
+          const successMessage = form.successMessage || 'Thank you for your submission!';
+          await interaction.editReply({
+            content: `✅ ${successMessage}`
+          });
+          
+        } catch (error) {
+          console.error('Error processing form submission:', error);
+          if (deferred && !interaction.replied) {
+            try {
+              await interaction.editReply('❌ Failed to submit form. Please try again later.');
+            } catch (editError) {
+              console.error('Failed to send error message:', editError);
             }
           }
         }
