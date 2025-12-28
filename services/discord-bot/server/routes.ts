@@ -53,6 +53,7 @@ import { startRetentionService, stopRetentionService } from "./services/retentio
 import { commandEngine } from "./services/commandEngine";
 import { guildIdentityService } from "./services/guildIdentityService";
 import welcomeCardsRoutes from "./routes/welcomeCards";
+import workflowRoutes from "./routes/workflows";
 
 // Configure multer for embed image uploads
 const EMBED_IMAGES_DIR = path.join(process.cwd(), 'attached_assets', 'embed-images');
@@ -3789,6 +3790,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Mount welcome cards routes
   app.use('/api', welcomeCardsRoutes);
+
+  // Mount workflow/automation routes (Interaction Studio)
+  app.use('/api', workflowRoutes);
 
   // Start background services
   startRetentionService();

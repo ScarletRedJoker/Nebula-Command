@@ -101,6 +101,17 @@ import {
   type UpdateMediaRequest,
   type CommandVariable,
   type InsertCommandVariable,
+  type AutomationWorkflow,
+  type InsertAutomationWorkflow,
+  type WorkflowCondition,
+  type InsertWorkflowCondition,
+  type WorkflowAction,
+  type InsertWorkflowAction,
+  type WorkflowLog,
+  type InsertWorkflowLog,
+  type WorkflowCooldown,
+  type InsertWorkflowCooldown,
+  type WorkflowTemplate,
   users,
   discordUsers,
   servers,
@@ -142,11 +153,17 @@ import {
   customCommands,
   userEmbeds,
   mediaRequests,
-  commandVariables
+  commandVariables,
+  automationWorkflows,
+  workflowConditions,
+  workflowActions,
+  workflowLogs,
+  workflowCooldowns,
+  workflowTemplates
 } from "@shared/schema";
 import { IStorage } from "./storage";
 import { db } from "./db";
-import { eq, and, lte } from "drizzle-orm";
+import { eq, and, lte, desc } from "drizzle-orm";
 import type { PgTransaction } from "drizzle-orm/pg-core";
 
 export class DatabaseStorage implements IStorage {
@@ -2137,6 +2154,203 @@ export class DatabaseStorage implements IStorage {
     const result = await db.delete(commandVariables)
       .where(eq(commandVariables.id, id));
     return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  // ============================================================
+  // INTERACTION STUDIO - Workflow Automation Storage
+  // ============================================================
+
+  // Workflow CRUD operations
+  async getWorkflowsByServerId(serverId: string): Promise<AutomationWorkflow[]> {
+    return await db.select()
+      .from(automationWorkflows)
+      .where(eq(automationWorkflows.serverId, serverId))
+      .orderBy(desc(automationWorkflows.createdAt));
+  }
+
+  async getWorkflow(id: number): Promise<AutomationWorkflow | undefined> {
+    const [workflow] = await db.select()
+      .from(automationWorkflows)
+      .where(eq(automationWorkflows.id, id));
+    return workflow;
+  }
+
+  async createWorkflow(data: InsertAutomationWorkflow): Promise<AutomationWorkflow> {
+    const [newWorkflow] = await db.insert(automationWorkflows)
+      .values({
+        ...data,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
+      .returning();
+    return newWorkflow;
+  }
+
+  async updateWorkflow(id: number, data: Partial<InsertAutomationWorkflow>): Promise<AutomationWorkflow> {
+    const [updated] = await db.update(automationWorkflows)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(automationWorkflows.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteWorkflow(id: number): Promise<void> {
+    await db.delete(workflowConditions).where(eq(workflowConditions.workflowId, id));
+    await db.delete(workflowActions).where(eq(workflowActions.workflowId, id));
+    await db.delete(workflowCooldowns).where(eq(workflowCooldowns.workflowId, id));
+    await db.delete(automationWorkflows).where(eq(automationWorkflows.id, id));
+  }
+
+  // Workflow Conditions operations
+  async getWorkflowConditions(workflowId: number): Promise<WorkflowCondition[]> {
+    return await db.select()
+      .from(workflowConditions)
+      .where(eq(workflowConditions.workflowId, workflowId))
+      .orderBy(workflowConditions.sortOrder);
+  }
+
+  async createWorkflowCondition(data: InsertWorkflowCondition): Promise<WorkflowCondition> {
+    const [newCondition] = await db.insert(workflowConditions)
+      .values(data)
+      .returning();
+    return newCondition;
+  }
+
+  async updateWorkflowCondition(id: number, data: Partial<InsertWorkflowCondition>): Promise<WorkflowCondition> {
+    const [updated] = await db.update(workflowConditions)
+      .set(data)
+      .where(eq(workflowConditions.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteWorkflowCondition(id: number): Promise<void> {
+    await db.delete(workflowConditions).where(eq(workflowConditions.id, id));
+  }
+
+  async deleteWorkflowConditionsByWorkflowId(workflowId: number): Promise<void> {
+    await db.delete(workflowConditions).where(eq(workflowConditions.workflowId, workflowId));
+  }
+
+  // Workflow Actions operations
+  async getWorkflowActions(workflowId: number): Promise<WorkflowAction[]> {
+    return await db.select()
+      .from(workflowActions)
+      .where(eq(workflowActions.workflowId, workflowId))
+      .orderBy(workflowActions.sortOrder);
+  }
+
+  async createWorkflowAction(data: InsertWorkflowAction): Promise<WorkflowAction> {
+    const [newAction] = await db.insert(workflowActions)
+      .values(data)
+      .returning();
+    return newAction;
+  }
+
+  async updateWorkflowAction(id: number, data: Partial<InsertWorkflowAction>): Promise<WorkflowAction> {
+    const [updated] = await db.update(workflowActions)
+      .set(data)
+      .where(eq(workflowActions.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteWorkflowAction(id: number): Promise<void> {
+    await db.delete(workflowActions).where(eq(workflowActions.id, id));
+  }
+
+  async deleteWorkflowActionsByWorkflowId(workflowId: number): Promise<void> {
+    await db.delete(workflowActions).where(eq(workflowActions.workflowId, workflowId));
+  }
+
+  // Workflow Logs operations
+  async getWorkflowLogs(workflowId: number, limit: number = 100): Promise<WorkflowLog[]> {
+    return await db.select()
+      .from(workflowLogs)
+      .where(eq(workflowLogs.workflowId, workflowId))
+      .orderBy(desc(workflowLogs.startedAt))
+      .limit(limit);
+  }
+
+  async getServerWorkflowLogs(serverId: string, limit: number = 100): Promise<WorkflowLog[]> {
+    return await db.select()
+      .from(workflowLogs)
+      .where(eq(workflowLogs.serverId, serverId))
+      .orderBy(desc(workflowLogs.startedAt))
+      .limit(limit);
+  }
+
+  async createWorkflowLog(data: InsertWorkflowLog): Promise<WorkflowLog> {
+    const [newLog] = await db.insert(workflowLogs)
+      .values({
+        ...data,
+        startedAt: new Date()
+      })
+      .returning();
+    return newLog;
+  }
+
+  async updateWorkflowLog(id: number, data: Partial<InsertWorkflowLog>): Promise<void> {
+    await db.update(workflowLogs)
+      .set(data)
+      .where(eq(workflowLogs.id, id));
+  }
+
+  // Workflow Cooldowns operations
+  async getWorkflowCooldown(workflowId: number, cooldownType: string, targetId?: string): Promise<WorkflowCooldown | undefined> {
+    if (targetId) {
+      const [cooldown] = await db.select()
+        .from(workflowCooldowns)
+        .where(and(
+          eq(workflowCooldowns.workflowId, workflowId),
+          eq(workflowCooldowns.cooldownType, cooldownType),
+          eq(workflowCooldowns.targetId, targetId)
+        ));
+      return cooldown;
+    } else {
+      const [cooldown] = await db.select()
+        .from(workflowCooldowns)
+        .where(and(
+          eq(workflowCooldowns.workflowId, workflowId),
+          eq(workflowCooldowns.cooldownType, cooldownType)
+        ));
+      return cooldown;
+    }
+  }
+
+  async setWorkflowCooldown(data: InsertWorkflowCooldown): Promise<WorkflowCooldown> {
+    const [newCooldown] = await db.insert(workflowCooldowns)
+      .values({
+        ...data,
+        createdAt: new Date()
+      })
+      .returning();
+    return newCooldown;
+  }
+
+  async clearExpiredCooldowns(): Promise<void> {
+    await db.delete(workflowCooldowns)
+      .where(lte(workflowCooldowns.expiresAt, new Date()));
+  }
+
+  // Workflow Templates operations
+  async getWorkflowTemplates(category?: string): Promise<WorkflowTemplate[]> {
+    if (category) {
+      return await db.select()
+        .from(workflowTemplates)
+        .where(eq(workflowTemplates.category, category))
+        .orderBy(desc(workflowTemplates.installCount));
+    }
+    return await db.select()
+      .from(workflowTemplates)
+      .orderBy(desc(workflowTemplates.installCount));
+  }
+
+  async getWorkflowTemplate(id: number): Promise<WorkflowTemplate | undefined> {
+    const [template] = await db.select()
+      .from(workflowTemplates)
+      .where(eq(workflowTemplates.id, id));
+    return template;
   }
 }
 
