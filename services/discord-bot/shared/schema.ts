@@ -1671,3 +1671,371 @@ export const insertModLogSchema = createInsertSchema(modLogs).omit({
 });
 export type InsertModLog = z.infer<typeof insertModLogSchema>;
 export type ModLog = typeof modLogs.$inferSelect;
+
+// ============================================================
+// INTERACTION STUDIO - Visual Workflow Automation Builder
+// ============================================================
+
+// Automation Workflows - Main workflow definitions with triggers
+export const automationWorkflows = pgTable("automation_workflows", {
+  id: serial("id").primaryKey(),
+  serverId: text("server_id").notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  
+  // Trigger configuration
+  triggerType: text("trigger_type").notNull(), // message_received, member_join, member_leave, reaction_add, reaction_remove, button_click, select_menu, scheduled, voice_join, voice_leave, role_add, role_remove, channel_create, thread_create
+  triggerConfig: text("trigger_config").default("{}"), // JSON: channel filters, keyword matches, role filters, etc.
+  
+  // Workflow settings
+  isEnabled: boolean("is_enabled").default(true),
+  priority: integer("priority").default(0), // Higher = runs first when multiple match
+  
+  // Cooldown settings
+  cooldownEnabled: boolean("cooldown_enabled").default(false),
+  cooldownSeconds: integer("cooldown_seconds").default(60),
+  cooldownType: text("cooldown_type").default("user"), // user, channel, server
+  
+  // Rate limiting
+  maxExecutionsPerHour: integer("max_executions_per_hour").default(100),
+  
+  // Metadata
+  createdBy: text("created_by"),
+  lastTriggeredAt: timestamp("last_triggered_at"),
+  executionCount: integer("execution_count").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertAutomationWorkflowSchema = createInsertSchema(automationWorkflows).omit({
+  id: true,
+  lastTriggeredAt: true,
+  executionCount: true,
+  createdAt: true,
+  updatedAt: true
+});
+export type InsertAutomationWorkflow = z.infer<typeof insertAutomationWorkflowSchema>;
+export type AutomationWorkflow = typeof automationWorkflows.$inferSelect;
+
+// Workflow Conditions - Filters that must pass for workflow to execute
+export const workflowConditions = pgTable("workflow_conditions", {
+  id: serial("id").primaryKey(),
+  workflowId: integer("workflow_id").notNull(),
+  
+  // Condition grouping (for AND/OR logic)
+  groupIndex: integer("group_index").default(0), // Conditions in same group = AND, different groups = OR
+  
+  // Condition type and configuration
+  conditionType: text("condition_type").notNull(), // user_has_role, user_missing_role, channel_is, channel_is_not, message_contains, message_starts_with, message_matches_regex, user_is, user_is_not, has_permission, time_between, day_of_week, user_joined_after, user_joined_before, member_count_above, member_count_below
+  conditionConfig: text("condition_config").notNull(), // JSON with condition-specific data
+  
+  // Negation support
+  isNegated: boolean("is_negated").default(false),
+  
+  // Order for display
+  sortOrder: integer("sort_order").default(0),
+});
+
+export const insertWorkflowConditionSchema = createInsertSchema(workflowConditions).omit({
+  id: true
+});
+export type InsertWorkflowCondition = z.infer<typeof insertWorkflowConditionSchema>;
+export type WorkflowCondition = typeof workflowConditions.$inferSelect;
+
+// Workflow Actions - Ordered actions to execute
+export const workflowActions = pgTable("workflow_actions", {
+  id: serial("id").primaryKey(),
+  workflowId: integer("workflow_id").notNull(),
+  
+  // Action ordering
+  sortOrder: integer("sort_order").default(0),
+  
+  // Action type and configuration
+  actionType: text("action_type").notNull(), // send_message, send_embed, send_dm, add_role, remove_role, create_thread, delete_message, add_reaction, timeout_user, kick_user, ban_user, set_nickname, move_to_voice, disconnect_from_voice, wait_delay, call_webhook, set_variable, branch_if
+  actionConfig: text("action_config").notNull(), // JSON with action-specific data
+  
+  // Branching support (for if/else logic)
+  branchParentId: integer("branch_parent_id"), // Points to the branch_if action this belongs to
+  branchType: text("branch_type"), // "then" or "else" - which branch this action is in
+  
+  // Error handling
+  continueOnError: boolean("continue_on_error").default(true),
+  errorMessage: text("error_message"), // Custom error message to log
+});
+
+export const insertWorkflowActionSchema = createInsertSchema(workflowActions).omit({
+  id: true
+});
+export type InsertWorkflowAction = z.infer<typeof insertWorkflowActionSchema>;
+export type WorkflowAction = typeof workflowActions.$inferSelect;
+
+// Workflow Variables - Persistent variables per workflow/server
+export const workflowVariables = pgTable("workflow_variables", {
+  id: serial("id").primaryKey(),
+  serverId: text("server_id").notNull(),
+  workflowId: integer("workflow_id"), // null = server-wide variable
+  
+  name: text("name").notNull(),
+  value: text("value").default(""),
+  valueType: text("value_type").default("string"), // string, number, boolean, json
+  
+  // Scope
+  scope: text("scope").default("server"), // server, channel, user
+  scopeId: text("scope_id"), // Channel ID or User ID if scoped
+  
+  // Metadata
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertWorkflowVariableSchema = createInsertSchema(workflowVariables).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+export type InsertWorkflowVariable = z.infer<typeof insertWorkflowVariableSchema>;
+export type WorkflowVariable = typeof workflowVariables.$inferSelect;
+
+// Workflow Execution Logs - For debugging and monitoring
+export const workflowLogs = pgTable("workflow_logs", {
+  id: serial("id").primaryKey(),
+  workflowId: integer("workflow_id").notNull(),
+  serverId: text("server_id").notNull(),
+  
+  // Trigger context
+  triggerUserId: text("trigger_user_id"),
+  triggerChannelId: text("trigger_channel_id"),
+  triggerMessageId: text("trigger_message_id"),
+  triggerData: text("trigger_data"), // JSON snapshot of trigger context
+  
+  // Execution result
+  status: text("status").notNull(), // started, success, failed, skipped, rate_limited, cooldown
+  
+  // Timing
+  startedAt: timestamp("started_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+  durationMs: integer("duration_ms"),
+  
+  // Action execution details
+  actionsExecuted: integer("actions_executed").default(0),
+  actionResults: text("action_results"), // JSON array of action results
+  
+  // Error details
+  errorMessage: text("error_message"),
+  errorActionId: integer("error_action_id"), // Which action failed
+  errorStack: text("error_stack"),
+});
+
+export const insertWorkflowLogSchema = createInsertSchema(workflowLogs).omit({
+  id: true,
+  startedAt: true,
+  completedAt: true
+});
+export type InsertWorkflowLog = z.infer<typeof insertWorkflowLogSchema>;
+export type WorkflowLog = typeof workflowLogs.$inferSelect;
+
+// Workflow Templates - Pre-built workflows that can be installed
+export const workflowTemplates = pgTable("workflow_templates", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  category: text("category").notNull(), // moderation, welcome, engagement, utility, fun
+  
+  // Template content
+  triggerType: text("trigger_type").notNull(),
+  triggerConfig: text("trigger_config").default("{}"),
+  conditions: text("conditions").default("[]"), // JSON array of condition configs
+  actions: text("actions").default("[]"), // JSON array of action configs
+  
+  // Template metadata
+  author: text("author").default("System"),
+  version: text("version").default("1.0.0"),
+  tags: text("tags"), // JSON array of tags for search
+  previewImage: text("preview_image"), // URL to preview image
+  
+  // Usage stats
+  installCount: integer("install_count").default(0),
+  rating: integer("rating").default(0), // 1-5 star rating
+  
+  isOfficial: boolean("is_official").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertWorkflowTemplateSchema = createInsertSchema(workflowTemplates).omit({
+  id: true,
+  installCount: true,
+  rating: true,
+  createdAt: true,
+  updatedAt: true
+});
+export type InsertWorkflowTemplate = z.infer<typeof insertWorkflowTemplateSchema>;
+export type WorkflowTemplate = typeof workflowTemplates.$inferSelect;
+
+// Workflow Cooldowns - Track cooldown state
+export const workflowCooldowns = pgTable("workflow_cooldowns", {
+  id: serial("id").primaryKey(),
+  workflowId: integer("workflow_id").notNull(),
+  serverId: text("server_id").notNull(),
+  
+  // Cooldown target
+  cooldownType: text("cooldown_type").notNull(), // user, channel, server
+  targetId: text("target_id"), // User ID, Channel ID, or null for server-wide
+  
+  // Timing
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertWorkflowCooldownSchema = createInsertSchema(workflowCooldowns).omit({
+  id: true,
+  createdAt: true
+});
+export type InsertWorkflowCooldown = z.infer<typeof insertWorkflowCooldownSchema>;
+export type WorkflowCooldown = typeof workflowCooldowns.$inferSelect;
+
+// Type definitions for workflow configuration
+export interface TriggerConfig {
+  // Message triggers
+  channelIds?: string[];
+  excludeChannelIds?: string[];
+  keywords?: string[];
+  keywordMatchType?: "contains" | "starts_with" | "ends_with" | "exact" | "regex";
+  ignoreBots?: boolean;
+  ignoreCommands?: boolean;
+  
+  // Reaction triggers
+  emojiNames?: string[];
+  messageId?: string;
+  
+  // Role triggers
+  roleIds?: string[];
+  
+  // Scheduled triggers
+  cronExpression?: string;
+  timezone?: string;
+  
+  // Voice triggers
+  voiceChannelIds?: string[];
+  
+  // Button/Select triggers
+  customIds?: string[];
+}
+
+export interface ConditionConfig {
+  // Role conditions
+  roleIds?: string[];
+  
+  // Channel conditions
+  channelIds?: string[];
+  categoryIds?: string[];
+  
+  // User conditions
+  userIds?: string[];
+  
+  // Permission conditions
+  permissions?: string[];
+  
+  // Content conditions
+  pattern?: string;
+  caseSensitive?: boolean;
+  
+  // Time conditions
+  startTime?: string; // HH:mm format
+  endTime?: string;
+  daysOfWeek?: number[]; // 0=Sunday, 1=Monday, etc.
+  
+  // Numeric conditions
+  value?: number;
+  operator?: "gt" | "gte" | "lt" | "lte" | "eq" | "neq";
+}
+
+export interface ActionConfig {
+  // Message actions
+  content?: string; // Supports variables like {user.mention}, {channel.name}
+  embedConfig?: {
+    title?: string;
+    description?: string;
+    color?: string;
+    fields?: { name: string; value: string; inline?: boolean }[];
+    thumbnail?: string;
+    image?: string;
+    footer?: string;
+  };
+  channelId?: string; // Override target channel
+  replyToTrigger?: boolean;
+  ephemeral?: boolean;
+  
+  // Role actions
+  roleId?: string;
+  roleIds?: string[];
+  
+  // Thread actions
+  threadName?: string;
+  autoArchiveDuration?: number;
+  
+  // Reaction actions
+  emoji?: string;
+  
+  // Moderation actions
+  reason?: string;
+  duration?: number; // In seconds for timeout
+  deleteMessageDays?: number; // For ban
+  
+  // Delay actions
+  delayMs?: number;
+  
+  // Webhook actions
+  webhookUrl?: string;
+  webhookBody?: string;
+  
+  // Variable actions
+  variableName?: string;
+  variableValue?: string;
+  variableOperation?: "set" | "increment" | "decrement" | "append";
+  
+  // Branch actions
+  branchCondition?: ConditionConfig;
+}
+
+// Supported variables for dynamic content
+export const WORKFLOW_VARIABLES = {
+  user: {
+    id: "{user.id}",
+    mention: "{user.mention}",
+    name: "{user.name}",
+    displayName: "{user.displayName}",
+    avatar: "{user.avatar}",
+    joinedAt: "{user.joinedAt}",
+    createdAt: "{user.createdAt}",
+    roles: "{user.roles}",
+  },
+  channel: {
+    id: "{channel.id}",
+    name: "{channel.name}",
+    mention: "{channel.mention}",
+    topic: "{channel.topic}",
+  },
+  server: {
+    id: "{server.id}",
+    name: "{server.name}",
+    memberCount: "{server.memberCount}",
+    icon: "{server.icon}",
+  },
+  message: {
+    id: "{message.id}",
+    content: "{message.content}",
+    link: "{message.link}",
+  },
+  trigger: {
+    timestamp: "{trigger.timestamp}",
+    date: "{trigger.date}",
+    time: "{trigger.time}",
+  },
+  random: {
+    number: "{random.number}", // Random number 1-100
+    uuid: "{random.uuid}",
+    choice: "{random.choice:option1,option2,option3}", // Random from list
+  },
+} as const;
