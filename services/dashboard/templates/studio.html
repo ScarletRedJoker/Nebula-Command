@@ -1,0 +1,3343 @@
+{% extends "base.html" %}
+
+{% block title %}Nebula Studio - Project Workspace Manager{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/rust/rust.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/clike/clike.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/htmlmixed/htmlmixed.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/css/css.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/yaml/yaml.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/markdown/markdown.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/shell/shell.min.js"></script>
+<style>
+    .studio-container {
+        display: grid;
+        grid-template-columns: 320px 1fr;
+        gap: 20px;
+        height: calc(100vh - 100px);
+        padding: 20px;
+    }
+
+    .studio-container.no-project {
+        grid-template-columns: 1fr;
+    }
+
+    .projects-sidebar {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .sidebar-header {
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%);
+    }
+
+    .sidebar-header h3 {
+        margin: 0;
+        font-size: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .btn-create {
+        background: linear-gradient(135deg, #8B5CF6 0%, #3B82F6 100%);
+        border: none;
+        color: white;
+        padding: 8px 16px;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .btn-create:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+    }
+
+    .projects-list {
+        flex: 1;
+        overflow-y: auto;
+        padding: 12px;
+    }
+
+    .project-card {
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        padding: 14px;
+        margin-bottom: 10px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .project-card:hover {
+        border-color: var(--accent-blue);
+        transform: translateX(4px);
+    }
+
+    .project-card.active {
+        border-color: var(--accent-purple);
+        background: rgba(139, 92, 246, 0.1);
+    }
+
+    .project-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 8px;
+    }
+
+    .project-name {
+        font-weight: 600;
+        font-size: 0.95rem;
+        color: var(--text-primary);
+    }
+
+    .project-status {
+        font-size: 0.7rem;
+        padding: 3px 8px;
+        border-radius: 12px;
+        font-weight: 500;
+        text-transform: uppercase;
+    }
+
+    .project-status.draft {
+        background: rgba(107, 114, 128, 0.2);
+        color: #9CA3AF;
+    }
+
+    .project-status.building {
+        background: rgba(251, 191, 36, 0.2);
+        color: var(--accent-yellow);
+    }
+
+    .project-status.ready {
+        background: rgba(59, 130, 246, 0.2);
+        color: var(--accent-blue);
+    }
+
+    .project-status.deployed {
+        background: rgba(63, 185, 80, 0.2);
+        color: var(--accent-green);
+    }
+
+    .project-meta {
+        display: flex;
+        gap: 12px;
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    .project-meta span {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .workspace-panel {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .workspace-header {
+        padding: 12px 20px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+    }
+
+    .workspace-header h3 {
+        margin: 0;
+        font-size: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .workspace-actions {
+        display: flex;
+        gap: 10px;
+    }
+
+    .btn-action {
+        padding: 8px 16px;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        border: 1px solid var(--border-color);
+        background: var(--bg-tertiary);
+        color: var(--text-primary);
+        transition: all 0.2s;
+    }
+
+    .btn-action:hover {
+        background: var(--border-color);
+    }
+
+    .btn-action.primary {
+        background: var(--accent-blue);
+        border-color: var(--accent-blue);
+        color: white;
+    }
+
+    .btn-action.primary:hover {
+        background: #2563eb;
+    }
+
+    .btn-action.success {
+        background: var(--accent-green);
+        border-color: var(--accent-green);
+        color: white;
+    }
+
+    .btn-action.success:hover {
+        background: #22c55e;
+    }
+
+    .btn-action.danger {
+        background: var(--accent-red);
+        border-color: var(--accent-red);
+        color: white;
+    }
+
+    .workspace-content {
+        flex: 1;
+        display: grid;
+        grid-template-columns: 250px 1fr;
+        grid-template-rows: 1fr 200px;
+        overflow: hidden;
+    }
+
+    .file-tree {
+        grid-row: 1 / 3;
+        border-right: 1px solid var(--border-color);
+        overflow-y: auto;
+        padding: 12px;
+    }
+
+    .file-tree-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .file-tree-header span {
+        font-weight: 600;
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+    }
+
+    .file-tree-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.85rem;
+        transition: background 0.15s;
+    }
+
+    .file-tree-item:hover {
+        background: var(--bg-tertiary);
+    }
+
+    .file-tree-item.active {
+        background: rgba(59, 130, 246, 0.2);
+        color: var(--accent-blue);
+    }
+
+    .file-tree-item i {
+        width: 16px;
+        text-align: center;
+    }
+
+    .code-editor-container {
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .editor-tabs {
+        display: flex;
+        gap: 2px;
+        padding: 8px 12px;
+        background: var(--bg-tertiary);
+        border-bottom: 1px solid var(--border-color);
+        overflow-x: auto;
+    }
+
+    .editor-tab {
+        padding: 6px 12px;
+        background: transparent;
+        border: none;
+        color: var(--text-secondary);
+        font-size: 0.8rem;
+        cursor: pointer;
+        border-radius: 6px 6px 0 0;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.15s;
+    }
+
+    .editor-tab:hover {
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+    }
+
+    .editor-tab.active {
+        background: var(--bg-secondary);
+        color: var(--accent-blue);
+        border-bottom: 2px solid var(--accent-blue);
+    }
+
+    .editor-tab .close-tab {
+        font-size: 0.7rem;
+        padding: 2px 4px;
+        border-radius: 4px;
+    }
+
+    .editor-tab .close-tab:hover {
+        background: var(--accent-red);
+        color: white;
+    }
+
+    .editor-wrapper {
+        flex: 1;
+        overflow: hidden;
+    }
+
+    .CodeMirror {
+        height: 100%;
+        font-size: 0.9rem;
+    }
+
+    .build-logs {
+        border-top: 1px solid var(--border-color);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .build-logs-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 16px;
+        background: var(--bg-tertiary);
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .build-logs-header span {
+        font-weight: 600;
+        font-size: 0.8rem;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .logs-content {
+        flex: 1;
+        overflow-y: auto;
+        padding: 12px 16px;
+        font-family: 'Fira Code', 'Monaco', monospace;
+        font-size: 0.8rem;
+        background: #1a1a2e;
+        color: #e6e6e6;
+        white-space: pre-wrap;
+    }
+
+    .log-line {
+        padding: 2px 0;
+    }
+
+    .log-line.success {
+        color: var(--accent-green);
+    }
+
+    .log-line.error {
+        color: var(--accent-red);
+    }
+
+    .log-line.warning {
+        color: var(--accent-yellow);
+    }
+
+    .log-line.info {
+        color: var(--accent-blue);
+    }
+
+    .empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        padding: 40px;
+        text-align: center;
+    }
+
+    .empty-state i {
+        font-size: 4rem;
+        color: var(--text-secondary);
+        margin-bottom: 20px;
+        opacity: 0.5;
+    }
+
+    .empty-state h3 {
+        margin: 0 0 10px;
+        color: var(--text-primary);
+    }
+
+    .empty-state p {
+        color: var(--text-secondary);
+        margin: 0 0 20px;
+    }
+
+    .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        z-index: 1100;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .modal.show {
+        display: flex;
+    }
+
+    .modal-content {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 16px;
+        width: 100%;
+        max-width: 600px;
+        max-height: 80vh;
+        overflow: hidden;
+        animation: modalSlideIn 0.3s ease;
+    }
+
+    @keyframes modalSlideIn {
+        from {
+            opacity: 0;
+            transform: translateY(-20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .modal-header {
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .modal-header h3 {
+        margin: 0;
+        font-size: 1.2rem;
+    }
+
+    .modal-close {
+        background: none;
+        border: none;
+        color: var(--text-secondary);
+        font-size: 1.5rem;
+        cursor: pointer;
+        padding: 4px;
+    }
+
+    .modal-close:hover {
+        color: var(--accent-red);
+    }
+
+    .modal-body {
+        padding: 24px;
+        overflow-y: auto;
+    }
+
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 500;
+        font-size: 0.9rem;
+    }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+        width: 100%;
+        padding: 12px 16px;
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        color: var(--text-primary);
+        font-size: 0.95rem;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+        outline: none;
+        border-color: var(--accent-blue);
+    }
+
+    .type-selector {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 10px;
+    }
+
+    .type-option {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 16px 8px;
+        background: var(--bg-tertiary);
+        border: 2px solid var(--border-color);
+        border-radius: 10px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .type-option:hover {
+        border-color: var(--accent-blue);
+    }
+
+    .type-option.selected {
+        border-color: var(--accent-purple);
+        background: rgba(139, 92, 246, 0.1);
+    }
+
+    .type-option i {
+        font-size: 1.5rem;
+        margin-bottom: 8px;
+    }
+
+    .type-option span {
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .modal-footer {
+        padding: 16px 24px;
+        border-top: 1px solid var(--border-color);
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+    }
+
+    .btn-cancel {
+        padding: 10px 20px;
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        color: var(--text-primary);
+        cursor: pointer;
+    }
+
+    .btn-submit {
+        padding: 10px 24px;
+        background: linear-gradient(135deg, #8B5CF6 0%, #3B82F6 100%);
+        border: none;
+        border-radius: 8px;
+        color: white;
+        font-weight: 500;
+        cursor: pointer;
+    }
+
+    .btn-submit:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+    }
+
+    .language-selector {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 10px;
+    }
+
+    .lang-option {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 12px 8px;
+        background: var(--bg-tertiary);
+        border: 2px solid var(--border-color);
+        border-radius: 10px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .lang-option:hover {
+        border-color: var(--accent-blue);
+    }
+
+    .lang-option.selected {
+        border-color: var(--accent-green);
+        background: rgba(63, 185, 80, 0.1);
+    }
+
+    .lang-option span {
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .lang-icon {
+        font-size: 1.2rem;
+        margin-bottom: 6px;
+    }
+
+    .deploy-targets {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+    }
+
+    .deploy-target {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 16px 12px;
+        background: var(--bg-tertiary);
+        border: 2px solid var(--border-color);
+        border-radius: 10px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .deploy-target:hover {
+        border-color: var(--accent-green);
+    }
+
+    .deploy-target.selected {
+        border-color: var(--accent-green);
+        background: rgba(63, 185, 80, 0.1);
+    }
+
+    .deploy-target i {
+        font-size: 1.5rem;
+        margin-bottom: 8px;
+    }
+
+    .deploy-target span {
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+
+    .toast {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        padding: 16px 24px;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+        z-index: 1200;
+        display: none;
+        animation: toastSlideIn 0.3s ease;
+    }
+
+    .toast.show {
+        display: block;
+    }
+
+    .toast.success {
+        border-color: var(--accent-green);
+    }
+
+    .toast.error {
+        border-color: var(--accent-red);
+    }
+
+    @keyframes toastSlideIn {
+        from {
+            opacity: 0;
+            transform: translateX(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+
+    .btn-add-file {
+        background: none;
+        border: 1px dashed var(--border-color);
+        color: var(--text-secondary);
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        cursor: pointer;
+    }
+
+    .btn-add-file:hover {
+        border-color: var(--accent-blue);
+        color: var(--accent-blue);
+    }
+
+    .workspace-content.with-ai-panel {
+        grid-template-columns: 250px 1fr 380px;
+    }
+
+    .ai-chat-panel {
+        grid-row: 1 / 3;
+        border-left: 1px solid var(--border-color);
+        display: flex;
+        flex-direction: column;
+        background: var(--bg-secondary);
+        overflow: hidden;
+    }
+
+    .ai-chat-panel.collapsed {
+        display: none;
+    }
+
+    .ai-panel-header {
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--border-color);
+        background: linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(59, 130, 246, 0.15) 100%);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .ai-panel-header h4 {
+        margin: 0;
+        font-size: 0.9rem;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--accent-purple);
+    }
+
+    .ai-panel-header .ai-badge {
+        background: linear-gradient(135deg, #8B5CF6 0%, #3B82F6 100%);
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 0.65rem;
+        color: white;
+        font-weight: 600;
+    }
+
+    .ai-toggle-btn {
+        background: none;
+        border: none;
+        color: var(--text-secondary);
+        cursor: pointer;
+        padding: 4px;
+        font-size: 1rem;
+    }
+
+    .ai-toggle-btn:hover {
+        color: var(--text-primary);
+    }
+
+    .ai-actions {
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+
+    .ai-action-btn {
+        padding: 5px 10px;
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        transition: all 0.15s;
+    }
+
+    .ai-action-btn:hover {
+        background: rgba(139, 92, 246, 0.2);
+        border-color: var(--accent-purple);
+        color: var(--accent-purple);
+    }
+
+    .ai-action-btn.active {
+        background: rgba(139, 92, 246, 0.25);
+        border-color: var(--accent-purple);
+        color: var(--accent-purple);
+    }
+
+    .ai-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 12px;
+    }
+
+    .ai-message {
+        margin-bottom: 14px;
+        animation: messageSlideIn 0.2s ease;
+    }
+
+    @keyframes messageSlideIn {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .ai-message-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 6px;
+        font-size: 0.75rem;
+    }
+
+    .ai-message-avatar {
+        width: 24px;
+        height: 24px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+    }
+
+    .ai-message.user .ai-message-avatar {
+        background: var(--accent-blue);
+        color: white;
+    }
+
+    .ai-message.assistant .ai-message-avatar {
+        background: linear-gradient(135deg, #8B5CF6, #3B82F6);
+        color: white;
+    }
+
+    .ai-message-role {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .ai-message-content {
+        padding: 10px 14px;
+        background: var(--bg-tertiary);
+        border-radius: 10px;
+        font-size: 0.85rem;
+        line-height: 1.5;
+        color: var(--text-primary);
+    }
+
+    .ai-message.assistant .ai-message-content {
+        border-left: 3px solid var(--accent-purple);
+    }
+
+    .ai-message-content pre {
+        background: #1a1a2e;
+        border-radius: 6px;
+        padding: 10px;
+        margin: 8px 0;
+        overflow-x: auto;
+        font-family: 'Fira Code', monospace;
+        font-size: 0.8rem;
+        position: relative;
+    }
+
+    .ai-message-content code {
+        font-family: 'Fira Code', monospace;
+        background: rgba(139, 92, 246, 0.15);
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 0.8rem;
+    }
+
+    .ai-message-content pre code {
+        background: none;
+        padding: 0;
+    }
+
+    .ai-code-actions {
+        display: flex;
+        gap: 6px;
+        margin-top: 8px;
+    }
+
+    .ai-code-action-btn {
+        padding: 4px 10px;
+        background: rgba(59, 130, 246, 0.2);
+        border: 1px solid var(--accent-blue);
+        border-radius: 5px;
+        font-size: 0.7rem;
+        color: var(--accent-blue);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .ai-code-action-btn:hover {
+        background: var(--accent-blue);
+        color: white;
+    }
+
+    .ai-input-area {
+        padding: 12px;
+        border-top: 1px solid var(--border-color);
+        background: var(--bg-tertiary);
+    }
+
+    .ai-input-wrapper {
+        display: flex;
+        gap: 8px;
+    }
+
+    .ai-input {
+        flex: 1;
+        padding: 10px 14px;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        color: var(--text-primary);
+        font-size: 0.85rem;
+        resize: none;
+    }
+
+    .ai-input:focus {
+        outline: none;
+        border-color: var(--accent-purple);
+    }
+
+    .ai-send-btn {
+        padding: 10px 16px;
+        background: linear-gradient(135deg, #8B5CF6 0%, #3B82F6 100%);
+        border: none;
+        border-radius: 8px;
+        color: white;
+        cursor: pointer;
+        font-size: 0.9rem;
+        transition: transform 0.15s;
+    }
+
+    .ai-send-btn:hover {
+        transform: scale(1.05);
+    }
+
+    .ai-send-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    .ai-context-toggle {
+        margin-top: 8px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    .ai-context-toggle input {
+        accent-color: var(--accent-purple);
+    }
+
+    .ai-typing-indicator {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 6px 10px;
+        font-size: 0.75rem;
+        color: var(--accent-purple);
+    }
+
+    .ai-typing-indicator span {
+        width: 6px;
+        height: 6px;
+        background: var(--accent-purple);
+        border-radius: 50%;
+        animation: typingPulse 1.2s infinite;
+    }
+
+    .ai-typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+    .ai-typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes typingPulse {
+        0%, 60%, 100% { opacity: 0.3; transform: scale(1); }
+        30% { opacity: 1; transform: scale(1.2); }
+    }
+
+    .btn-ai-toggle {
+        background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(59, 130, 246, 0.2));
+        border: 1px solid var(--accent-purple);
+        color: var(--accent-purple);
+    }
+
+    .btn-ai-toggle:hover {
+        background: linear-gradient(135deg, rgba(139, 92, 246, 0.3), rgba(59, 130, 246, 0.3));
+    }
+
+    .code-context-menu {
+        position: fixed;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        z-index: 1100;
+        min-width: 180px;
+        padding: 6px;
+        display: none;
+    }
+
+    .code-context-menu.show {
+        display: block;
+        animation: contextMenuSlide 0.15s ease;
+    }
+
+    @keyframes contextMenuSlide {
+        from { opacity: 0; transform: scale(0.95); }
+        to { opacity: 1; transform: scale(1); }
+    }
+
+    .context-menu-item {
+        padding: 8px 12px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        cursor: pointer;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        color: var(--text-primary);
+        transition: background 0.1s;
+    }
+
+    .context-menu-item:hover {
+        background: rgba(139, 92, 246, 0.2);
+    }
+
+    .context-menu-item i {
+        width: 16px;
+        color: var(--accent-purple);
+    }
+
+    .context-menu-divider {
+        height: 1px;
+        background: var(--border-color);
+        margin: 4px 0;
+    }
+
+    .template-modal .modal-content {
+        max-width: 900px;
+        max-height: 85vh;
+    }
+
+    .template-browser {
+        display: flex;
+        gap: 20px;
+        height: 500px;
+    }
+
+    .template-categories {
+        width: 200px;
+        border-right: 1px solid var(--border-color);
+        padding-right: 16px;
+        overflow-y: auto;
+    }
+
+    .category-item {
+        padding: 12px 14px;
+        border-radius: 8px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 6px;
+        transition: all 0.15s;
+        font-size: 0.9rem;
+    }
+
+    .category-item:hover {
+        background: var(--bg-tertiary);
+    }
+
+    .category-item.active {
+        background: rgba(139, 92, 246, 0.2);
+        color: var(--accent-purple);
+        border: 1px solid var(--accent-purple);
+    }
+
+    .category-item i {
+        font-size: 1.1rem;
+        width: 20px;
+        text-align: center;
+    }
+
+    .category-count {
+        margin-left: auto;
+        background: var(--bg-tertiary);
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    .template-grid {
+        flex: 1;
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+        overflow-y: auto;
+        padding-right: 8px;
+    }
+
+    .template-card {
+        background: var(--bg-tertiary);
+        border: 2px solid var(--border-color);
+        border-radius: 12px;
+        padding: 16px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .template-card:hover {
+        border-color: var(--accent-blue);
+        transform: translateY(-2px);
+    }
+
+    .template-card.selected {
+        border-color: var(--accent-purple);
+        background: rgba(139, 92, 246, 0.1);
+    }
+
+    .template-card-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 10px;
+    }
+
+    .template-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(59, 130, 246, 0.2));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+        color: var(--accent-purple);
+    }
+
+    .template-info h4 {
+        margin: 0 0 4px 0;
+        font-size: 0.95rem;
+        color: var(--text-primary);
+    }
+
+    .template-info .lang-badge {
+        font-size: 0.7rem;
+        padding: 2px 8px;
+        background: var(--bg-secondary);
+        border-radius: 10px;
+        color: var(--text-secondary);
+    }
+
+    .template-card p {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        margin: 0;
+        line-height: 1.4;
+    }
+
+    .template-tags {
+        display: flex;
+        gap: 6px;
+        margin-top: 10px;
+        flex-wrap: wrap;
+    }
+
+    .template-tag {
+        font-size: 0.7rem;
+        padding: 3px 8px;
+        background: var(--bg-secondary);
+        border-radius: 6px;
+        color: var(--text-secondary);
+    }
+
+    .template-preview {
+        width: 280px;
+        border-left: 1px solid var(--border-color);
+        padding-left: 20px;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .template-preview.hidden {
+        display: none;
+    }
+
+    .template-preview h4 {
+        margin: 0 0 12px 0;
+        font-size: 1rem;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .preview-section {
+        margin-bottom: 16px;
+    }
+
+    .preview-section h5 {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        margin: 0 0 8px 0;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .preview-files {
+        background: var(--bg-tertiary);
+        border-radius: 8px;
+        padding: 10px;
+        max-height: 180px;
+        overflow-y: auto;
+    }
+
+    .preview-file {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 6px;
+        font-size: 0.8rem;
+        color: var(--text-primary);
+    }
+
+    .preview-file i {
+        color: var(--accent-blue);
+        font-size: 0.9rem;
+    }
+
+    .preview-commands {
+        background: var(--bg-tertiary);
+        border-radius: 8px;
+        padding: 10px;
+        font-family: monospace;
+        font-size: 0.75rem;
+    }
+
+    .preview-command {
+        padding: 4px 0;
+        color: var(--accent-green);
+    }
+
+    .preview-command span {
+        color: var(--text-secondary);
+        margin-right: 8px;
+    }
+
+    .btn-use-template {
+        margin-top: auto;
+        padding: 12px 20px;
+        background: linear-gradient(135deg, #8B5CF6 0%, #3B82F6 100%);
+        border: none;
+        border-radius: 10px;
+        color: white;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        transition: all 0.2s;
+    }
+
+    .btn-use-template:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(139, 92, 246, 0.4);
+    }
+
+    .btn-use-template:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    .btn-templates {
+        background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(59, 130, 246, 0.2));
+        border: 1px solid var(--accent-purple);
+        color: var(--accent-purple);
+    }
+
+    .btn-templates:hover {
+        background: linear-gradient(135deg, rgba(139, 92, 246, 0.3), rgba(59, 130, 246, 0.3));
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="header">
+    <h2><i class="bi bi-terminal"></i> Nebula Studio</h2>
+    <button class="theme-toggle" onclick="toggleTheme()">
+        <i class="bi bi-moon-stars"></i>
+        <span id="themeLabel">Dark Mode</span>
+    </button>
+</div>
+
+<div class="studio-container" id="studioContainer">
+    <div class="projects-sidebar">
+        <div class="sidebar-header">
+            <h3><i class="bi bi-folder2-open"></i> Projects</h3>
+            <div style="display: flex; gap: 8px;">
+                <button class="btn-action btn-templates" onclick="openTemplateModal()" style="padding: 8px 12px; font-size: 0.8rem;">
+                    <i class="bi bi-grid-3x3-gap"></i> Templates
+                </button>
+                <button class="btn-create" onclick="openCreateModal()">
+                    <i class="bi bi-plus-lg"></i> New
+                </button>
+            </div>
+        </div>
+        <div class="projects-list" id="projectsList">
+            <div class="empty-state" id="noProjectsMessage">
+                <i class="bi bi-folder-x"></i>
+                <h3>No Projects Yet</h3>
+                <p>Create your first project to get started</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="workspace-panel" id="workspacePanel" style="display: none;">
+        <div class="workspace-header">
+            <h3 id="workspaceTitle"><i class="bi bi-code-square"></i> <span>Select a project</span></h3>
+            <div class="workspace-actions">
+                <button class="btn-action" id="btnOpenCodeServer" onclick="openInCodeServer()" title="Open in Code Server (VS Code in browser)">
+                    <i class="bi bi-braces"></i> Code Server
+                </button>
+                <button class="btn-action btn-ai-toggle" id="btnAIToggle" onclick="toggleAIPanel()">
+                    <i class="bi bi-stars"></i> AI Copilot
+                </button>
+                <button class="btn-action" id="btnSaveFile" onclick="saveCurrentFile()">
+                    <i class="bi bi-save"></i> Save
+                </button>
+                <div class="build-controls" style="display: flex; gap: 4px;">
+                    <select id="buildTypeSelect" class="btn-action" style="padding: 6px 12px; font-size: 0.8rem; background: var(--bg-tertiary); cursor: pointer;">
+                        <option value="run">Run</option>
+                        <option value="build" selected>Build</option>
+                        <option value="test">Test</option>
+                        <option value="install">Install</option>
+                    </select>
+                    <button class="btn-action primary" id="btnBuild" onclick="triggerBuildStream()">
+                        <i class="bi bi-play-fill"></i> <span id="buildBtnText">Build</span>
+                    </button>
+                    <button class="btn-action" id="btnCancelBuild" onclick="cancelBuild()" style="display: none;">
+                        <i class="bi bi-stop-fill"></i>
+                    </button>
+                </div>
+                <button class="btn-action success" id="btnDeploy" onclick="openDeployModal()">
+                    <i class="bi bi-rocket-takeoff"></i> Deploy
+                </button>
+                <button class="btn-action danger" id="btnDelete" onclick="deleteCurrentProject()">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        </div>
+        <div class="workspace-content">
+            <div class="file-tree">
+                <div class="file-tree-header">
+                    <span>Files</span>
+                    <div style="display: flex; gap: 4px;">
+                        <button class="btn-add-file" onclick="syncFromCodeServer()" title="Sync changes from Code Server">
+                            <i class="bi bi-arrow-repeat"></i>
+                        </button>
+                        <button class="btn-add-file" onclick="openAddFileModal()">
+                            <i class="bi bi-plus"></i> Add
+                        </button>
+                    </div>
+                </div>
+                <div id="fileTreeContent"></div>
+            </div>
+            <div class="code-editor-container">
+                <div class="editor-tabs" id="editorTabs"></div>
+                <div class="editor-wrapper">
+                    <textarea id="codeEditor"></textarea>
+                </div>
+            </div>
+            <div class="build-logs">
+                <div class="build-logs-header">
+                    <span><i class="bi bi-terminal"></i> Build Output <span id="buildStatus" style="margin-left: 8px; font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; display: none;"></span></span>
+                    <div style="display: flex; gap: 6px; align-items: center;">
+                        <button class="btn-action" id="btnDownloadArtifact" onclick="downloadArtifact()" style="padding: 4px 10px; font-size: 0.75rem; display: none;">
+                            <i class="bi bi-download"></i> Download
+                        </button>
+                        <button class="btn-action" id="btnBuildHistory" onclick="toggleBuildHistory()" style="padding: 4px 10px; font-size: 0.75rem;">
+                            <i class="bi bi-clock-history"></i> History
+                        </button>
+                        <button class="btn-action" onclick="clearLogs()" style="padding: 4px 8px; font-size: 0.75rem;">
+                            <i class="bi bi-x-lg"></i> Clear
+                        </button>
+                    </div>
+                </div>
+                <div class="logs-content" id="buildLogs">
+                    <div class="log-line info">Ready to build...</div>
+                </div>
+                <div class="build-history-panel" id="buildHistoryPanel" style="display: none; background: var(--bg-tertiary); border-top: 1px solid var(--border-color); max-height: 150px; overflow-y: auto;">
+                    <div style="padding: 8px 12px; font-size: 0.75rem; color: var(--text-secondary); border-bottom: 1px solid var(--border-color);">Recent Builds</div>
+                    <div id="buildHistoryList"></div>
+                </div>
+            </div>
+            <div class="ai-chat-panel collapsed" id="aiChatPanel">
+                <div class="ai-panel-header">
+                    <h4><i class="bi bi-stars"></i> AI Copilot <span class="ai-badge">GPT-4o</span></h4>
+                    <button class="ai-toggle-btn" onclick="toggleAIPanel()"><i class="bi bi-x-lg"></i></button>
+                </div>
+                <div class="ai-actions">
+                    <button class="ai-action-btn" onclick="aiAction('generate')"><i class="bi bi-code-slash"></i> Generate</button>
+                    <button class="ai-action-btn" onclick="aiAction('explain')"><i class="bi bi-lightbulb"></i> Explain</button>
+                    <button class="ai-action-btn" onclick="aiAction('refactor')"><i class="bi bi-arrow-repeat"></i> Refactor</button>
+                    <button class="ai-action-btn" onclick="aiAction('debug')"><i class="bi bi-bug"></i> Debug</button>
+                    <button class="ai-action-btn" onclick="aiAction('tests')"><i class="bi bi-check2-square"></i> Tests</button>
+                </div>
+                <div class="ai-messages" id="aiMessages">
+                    <div class="ai-message assistant">
+                        <div class="ai-message-header">
+                            <div class="ai-message-avatar"><i class="bi bi-stars"></i></div>
+                            <span class="ai-message-role">AI Copilot</span>
+                        </div>
+                        <div class="ai-message-content">
+                            Hi! I'm your AI coding assistant. I can help you:
+                            <br><br>
+                            • <strong>Generate</strong> code from descriptions<br>
+                            • <strong>Explain</strong> complex code snippets<br>
+                            • <strong>Refactor</strong> code for better quality<br>
+                            • <strong>Debug</strong> issues and suggest fixes<br>
+                            • <strong>Generate tests</strong> for your code
+                            <br><br>
+                            Select code in the editor or ask me anything!
+                        </div>
+                    </div>
+                </div>
+                <div class="ai-input-area">
+                    <div class="ai-input-wrapper">
+                        <textarea class="ai-input" id="aiInput" placeholder="Ask me to generate, explain, or debug code..." rows="2" onkeydown="handleAIInputKey(event)"></textarea>
+                        <button class="ai-send-btn" id="aiSendBtn" onclick="sendAIMessage()"><i class="bi bi-send-fill"></i></button>
+                    </div>
+                    <div class="ai-context-toggle">
+                        <input type="checkbox" id="aiIncludeContext" checked>
+                        <label for="aiIncludeContext">Include current file as context</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="empty-state" id="noProjectSelected">
+        <i class="bi bi-code-square"></i>
+        <h3>Welcome to Nebula Studio</h3>
+        <p>Select a project from the sidebar or create a new one to start coding</p>
+        <button class="btn-create" onclick="openCreateModal()">
+            <i class="bi bi-plus-lg"></i> Create New Project
+        </button>
+    </div>
+</div>
+
+<div class="modal" id="createModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3><i class="bi bi-plus-circle"></i> Create New Project</h3>
+            <button class="modal-close" onclick="closeCreateModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Project Name</label>
+                <input type="text" id="projectName" placeholder="My Awesome Project">
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea id="projectDesc" rows="2" placeholder="What does this project do?"></textarea>
+            </div>
+            <div class="form-group">
+                <label>Project Type</label>
+                <div class="type-selector">
+                    <div class="type-option selected" data-type="web" onclick="selectType(this)">
+                        <i class="bi bi-globe"></i>
+                        <span>Web</span>
+                    </div>
+                    <div class="type-option" data-type="cli" onclick="selectType(this)">
+                        <i class="bi bi-terminal"></i>
+                        <span>CLI</span>
+                    </div>
+                    <div class="type-option" data-type="game" onclick="selectType(this)">
+                        <i class="bi bi-controller"></i>
+                        <span>Game</span>
+                    </div>
+                    <div class="type-option" data-type="desktop" onclick="selectType(this)">
+                        <i class="bi bi-window"></i>
+                        <span>Desktop</span>
+                    </div>
+                    <div class="type-option" data-type="automation" onclick="selectType(this)">
+                        <i class="bi bi-robot"></i>
+                        <span>Automation</span>
+                    </div>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Language</label>
+                <div class="language-selector">
+                    <div class="lang-option selected" data-lang="python" onclick="selectLang(this)">
+                        <span class="lang-icon">🐍</span>
+                        <span>Python</span>
+                    </div>
+                    <div class="lang-option" data-lang="nodejs" onclick="selectLang(this)">
+                        <span class="lang-icon">⬢</span>
+                        <span>Node.js</span>
+                    </div>
+                    <div class="lang-option" data-lang="rust" onclick="selectLang(this)">
+                        <span class="lang-icon">🦀</span>
+                        <span>Rust</span>
+                    </div>
+                    <div class="lang-option" data-lang="cpp" onclick="selectLang(this)">
+                        <span class="lang-icon">⚡</span>
+                        <span>C++</span>
+                    </div>
+                    <div class="lang-option" data-lang="csharp" onclick="selectLang(this)">
+                        <span class="lang-icon">#</span>
+                        <span>C#</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-cancel" onclick="closeCreateModal()">Cancel</button>
+            <button class="btn-submit" onclick="createProject()">Create Project</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="deployModal">
+    <div class="modal-content" style="max-width: 600px;">
+        <div class="modal-header">
+            <h3><i class="bi bi-rocket-takeoff"></i> Deploy Project</h3>
+            <button class="modal-close" onclick="closeDeployModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Select Deployment Target</label>
+                <div class="deploy-targets">
+                    <div class="deploy-target selected" data-target="docker" onclick="selectDeployTarget(this)">
+                        <i class="bi bi-box-seam"></i>
+                        <span>Docker</span>
+                    </div>
+                    <div class="deploy-target" data-target="kvm" onclick="selectDeployTarget(this)">
+                        <i class="bi bi-pc-display"></i>
+                        <span>KVM</span>
+                    </div>
+                    <div class="deploy-target" data-target="native" onclick="selectDeployTarget(this)">
+                        <i class="bi bi-hdd"></i>
+                        <span>Native</span>
+                    </div>
+                    <div class="deploy-target" data-target="tailscale" onclick="selectDeployTarget(this)">
+                        <i class="bi bi-diagram-3"></i>
+                        <span>Tailscale</span>
+                    </div>
+                </div>
+            </div>
+            <div class="form-group" id="deployHostGroup" style="display: none;">
+                <label>Target Host / Device</label>
+                <select id="deployTargetHost" class="form-control" style="width: 100%; padding: 10px; background: var(--surface-dark); border: 1px solid var(--border-subtle); border-radius: 8px; color: var(--text-primary);">
+                    <option value="">Select a device...</option>
+                </select>
+                <small style="color: var(--text-secondary); margin-top: 5px; display: block;">Select a Tailscale device or enter a hostname</small>
+            </div>
+            <div class="form-group" id="deployPortGroup">
+                <label>Port (for web deployments)</label>
+                <input type="number" id="deployPort" value="8080" min="1024" max="65535" class="form-control" style="width: 100%; padding: 10px; background: var(--surface-dark); border: 1px solid var(--border-subtle); border-radius: 8px; color: var(--text-primary);">
+            </div>
+            <div class="deploy-logs-container" id="deployLogsContainer" style="display: none;">
+                <label><i class="bi bi-terminal"></i> Deployment Logs</label>
+                <div id="deployLogs" style="background: var(--surface-dark); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 10px; max-height: 200px; overflow-y: auto; font-family: 'JetBrains Mono', monospace; font-size: 11px;"></div>
+            </div>
+            <div class="deploy-status" id="deployStatus" style="display: none; margin-top: 15px; padding: 15px; border-radius: 8px; background: var(--surface-dark);">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <span id="deployStatusIcon"><i class="bi bi-hourglass-split"></i></span>
+                        <span id="deployStatusText">Deploying...</span>
+                    </div>
+                    <div id="deployUrlContainer" style="display: none;">
+                        <a href="#" id="deployUrl" target="_blank" style="color: var(--accent-primary);"><i class="bi bi-box-arrow-up-right"></i> Open</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer" id="deployFooterInitial">
+            <button class="btn-cancel" onclick="closeDeployModal()">Cancel</button>
+            <button class="btn-submit" id="btnStartDeploy" onclick="startDeployment()">
+                <i class="bi bi-rocket-takeoff"></i> Deploy
+            </button>
+        </div>
+        <div class="modal-footer" id="deployFooterActive" style="display: none;">
+            <button class="btn-cancel" onclick="stopCurrentDeployment()" id="btnStopDeploy">
+                <i class="bi bi-stop-circle"></i> Stop
+            </button>
+            <button class="btn-cancel" style="background: var(--accent-red);" onclick="removeCurrentDeployment()" id="btnRemoveDeploy">
+                <i class="bi bi-trash"></i> Remove
+            </button>
+            <button class="btn-submit" onclick="closeDeployModal()">Close</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="addFileModal">
+    <div class="modal-content" style="max-width: 400px;">
+        <div class="modal-header">
+            <h3><i class="bi bi-file-earmark-plus"></i> Add New File</h3>
+            <button class="modal-close" onclick="closeAddFileModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>File Path</label>
+                <input type="text" id="newFilePath" placeholder="src/main.py">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-cancel" onclick="closeAddFileModal()">Cancel</button>
+            <button class="btn-submit" onclick="createNewFile()">Create File</button>
+        </div>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="modal template-modal" id="templateModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3><i class="bi bi-grid-3x3-gap"></i> Template Library</h3>
+            <button class="modal-close" onclick="closeTemplateModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="template-browser">
+                <div class="template-categories" id="templateCategories">
+                    <div class="category-item active" data-category="all" onclick="filterTemplates('all', this)">
+                        <i class="bi bi-collection"></i>
+                        <span>All Templates</span>
+                        <span class="category-count" id="countAll">0</span>
+                    </div>
+                </div>
+                <div class="template-grid" id="templateGrid">
+                    <div style="text-align: center; padding: 40px; color: var(--text-secondary);">
+                        <i class="bi bi-hourglass-split" style="font-size: 2rem; margin-bottom: 10px; display: block;"></i>
+                        Loading templates...
+                    </div>
+                </div>
+                <div class="template-preview hidden" id="templatePreview">
+                    <h4><i class="bi bi-eye"></i> Preview</h4>
+                    <div class="preview-section">
+                        <h5>Files</h5>
+                        <div class="preview-files" id="previewFiles"></div>
+                    </div>
+                    <div class="preview-section">
+                        <h5>Commands</h5>
+                        <div class="preview-commands" id="previewCommands"></div>
+                    </div>
+                    <div class="form-group" style="margin-top: auto;">
+                        <label>Project Name</label>
+                        <input type="text" id="templateProjectName" placeholder="My New Project">
+                    </div>
+                    <button class="btn-use-template" id="btnUseTemplate" onclick="createFromTemplate()" disabled>
+                        <i class="bi bi-plus-circle"></i> Use This Template
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="code-context-menu" id="codeContextMenu">
+    <div class="context-menu-item" onclick="contextMenuAction('explain')">
+        <i class="bi bi-lightbulb"></i> Explain Selection
+    </div>
+    <div class="context-menu-item" onclick="contextMenuAction('refactor')">
+        <i class="bi bi-arrow-repeat"></i> Refactor Selection
+    </div>
+    <div class="context-menu-item" onclick="contextMenuAction('debug')">
+        <i class="bi bi-bug"></i> Debug Selection
+    </div>
+    <div class="context-menu-divider"></div>
+    <div class="context-menu-item" onclick="contextMenuAction('tests')">
+        <i class="bi bi-check2-square"></i> Generate Tests
+    </div>
+    <div class="context-menu-item" onclick="contextMenuAction('generate')">
+        <i class="bi bi-code-slash"></i> Generate Code Here
+    </div>
+</div>
+
+<script>
+let projects = [];
+let currentProject = null;
+let currentFile = null;
+let editor = null;
+let openFiles = [];
+let selectedType = 'web';
+let selectedLang = 'python';
+let selectedDeployTarget = 'docker';
+
+document.addEventListener('DOMContentLoaded', function() {
+    initEditor();
+    loadProjects();
+});
+
+function initEditor() {
+    editor = CodeMirror.fromTextArea(document.getElementById('codeEditor'), {
+        theme: 'dracula',
+        lineNumbers: true,
+        mode: 'python',
+        indentUnit: 4,
+        tabSize: 4,
+        indentWithTabs: false,
+        lineWrapping: true,
+        autofocus: true
+    });
+}
+
+async function loadProjects() {
+    try {
+        const response = await fetch('/api/studio/projects');
+        const data = await response.json();
+        
+        if (data.success) {
+            projects = data.projects;
+            renderProjectsList();
+        } else {
+            showToast('Failed to load projects', 'error');
+        }
+    } catch (error) {
+        console.error('Error loading projects:', error);
+        showToast('Error loading projects', 'error');
+    }
+}
+
+function renderProjectsList() {
+    const container = document.getElementById('projectsList');
+    const noProjectsMessage = document.getElementById('noProjectsMessage');
+    
+    if (projects.length === 0) {
+        noProjectsMessage.style.display = 'flex';
+        container.innerHTML = '';
+        container.appendChild(noProjectsMessage);
+        return;
+    }
+    
+    noProjectsMessage.style.display = 'none';
+    container.innerHTML = projects.map(p => `
+        <div class="project-card ${currentProject && currentProject.id === p.id ? 'active' : ''}" 
+             onclick="selectProject('${p.id}')">
+            <div class="project-card-header">
+                <span class="project-name">${escapeHtml(p.name)}</span>
+                <span class="project-status ${p.status}">${p.status}</span>
+            </div>
+            <div class="project-meta">
+                <span><i class="bi bi-code-slash"></i> ${p.language}</span>
+                <span><i class="bi bi-folder2"></i> ${p.project_type}</span>
+                <span><i class="bi bi-file-earmark"></i> ${p.file_count} files</span>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function selectProject(projectId) {
+    try {
+        const response = await fetch(`/api/studio/projects/${projectId}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            currentProject = data.project;
+            openFiles = [];
+            currentFile = null;
+            
+            document.getElementById('noProjectSelected').style.display = 'none';
+            document.getElementById('workspacePanel').style.display = 'flex';
+            document.getElementById('workspaceTitle').innerHTML = 
+                `<i class="bi bi-code-square"></i> <span>${escapeHtml(currentProject.name)}</span>`;
+            
+            renderFileTree();
+            renderProjectsList();
+            clearEditorTabs();
+            
+            if (currentProject.files && currentProject.files.length > 0) {
+                openFile(currentProject.files[0]);
+            } else {
+                editor.setValue('// No files yet. Add a file to start coding.');
+            }
+        } else {
+            showToast('Failed to load project', 'error');
+        }
+    } catch (error) {
+        console.error('Error selecting project:', error);
+        showToast('Error selecting project', 'error');
+    }
+}
+
+function renderFileTree() {
+    const container = document.getElementById('fileTreeContent');
+    
+    if (!currentProject || !currentProject.files || currentProject.files.length === 0) {
+        container.innerHTML = '<p style="color: var(--text-secondary); font-size: 0.85rem; padding: 10px;">No files yet</p>';
+        return;
+    }
+    
+    container.innerHTML = currentProject.files.map(f => {
+        const icon = getFileIcon(f.file_path);
+        return `
+            <div class="file-tree-item ${currentFile && currentFile.id === f.id ? 'active' : ''}" 
+                 onclick="openFile(${JSON.stringify(f).replace(/"/g, '&quot;')})">
+                <i class="bi ${icon}"></i>
+                <span>${escapeHtml(f.file_path)}</span>
+            </div>
+        `;
+    }).join('');
+}
+
+function getFileIcon(path) {
+    if (path.endsWith('.py')) return 'bi-filetype-py';
+    if (path.endsWith('.js')) return 'bi-filetype-js';
+    if (path.endsWith('.ts')) return 'bi-filetype-tsx';
+    if (path.endsWith('.html')) return 'bi-filetype-html';
+    if (path.endsWith('.css')) return 'bi-filetype-css';
+    if (path.endsWith('.json')) return 'bi-filetype-json';
+    if (path.endsWith('.md')) return 'bi-filetype-md';
+    if (path.endsWith('.rs')) return 'bi-file-code';
+    if (path.endsWith('.cpp') || path.endsWith('.c')) return 'bi-file-code';
+    if (path.endsWith('.cs')) return 'bi-file-code';
+    return 'bi-file-earmark-code';
+}
+
+function openFile(file) {
+    currentFile = file;
+    
+    if (!openFiles.find(f => f.id === file.id)) {
+        openFiles.push(file);
+    }
+    
+    renderEditorTabs();
+    renderFileTree();
+    
+    const mode = getEditorMode(file.file_path);
+    editor.setOption('mode', mode);
+    editor.setValue(file.content || '');
+}
+
+function renderEditorTabs() {
+    const container = document.getElementById('editorTabs');
+    container.innerHTML = openFiles.map(f => `
+        <div class="editor-tab ${currentFile && currentFile.id === f.id ? 'active' : ''}" 
+             onclick="openFile(${JSON.stringify(f).replace(/"/g, '&quot;')})">
+            <span>${escapeHtml(f.file_path.split('/').pop())}</span>
+            <span class="close-tab" onclick="event.stopPropagation(); closeTab('${f.id}')">&times;</span>
+        </div>
+    `).join('');
+}
+
+function closeTab(fileId) {
+    openFiles = openFiles.filter(f => f.id !== fileId);
+    if (currentFile && currentFile.id === fileId) {
+        if (openFiles.length > 0) {
+            openFile(openFiles[openFiles.length - 1]);
+        } else {
+            currentFile = null;
+            editor.setValue('');
+        }
+    }
+    renderEditorTabs();
+}
+
+function clearEditorTabs() {
+    openFiles = [];
+    document.getElementById('editorTabs').innerHTML = '';
+}
+
+function getEditorMode(path) {
+    if (path.endsWith('.py')) return 'python';
+    if (path.endsWith('.js') || path.endsWith('.ts') || path.endsWith('.json')) return 'javascript';
+    if (path.endsWith('.html')) return 'htmlmixed';
+    if (path.endsWith('.css')) return 'css';
+    if (path.endsWith('.rs')) return 'rust';
+    if (path.endsWith('.cpp') || path.endsWith('.c') || path.endsWith('.h') || path.endsWith('.cs')) return 'clike';
+    if (path.endsWith('.yaml') || path.endsWith('.yml')) return 'yaml';
+    if (path.endsWith('.md')) return 'markdown';
+    if (path.endsWith('.sh')) return 'shell';
+    return 'text';
+}
+
+async function saveCurrentFile() {
+    if (!currentProject || !currentFile) {
+        showToast('No file selected', 'error');
+        return;
+    }
+    
+    try {
+        const content = editor.getValue();
+        const response = await fetch(`/api/studio/projects/${currentProject.id}/files/${currentFile.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            currentFile.content = content;
+            const idx = currentProject.files.findIndex(f => f.id === currentFile.id);
+            if (idx >= 0) currentProject.files[idx].content = content;
+            showToast('File saved successfully', 'success');
+        } else {
+            showToast('Failed to save file: ' + data.error, 'error');
+        }
+    } catch (error) {
+        console.error('Error saving file:', error);
+        showToast('Error saving file', 'error');
+    }
+}
+
+async function openInCodeServer() {
+    if (!currentProject) {
+        showToast('No project selected', 'error');
+        return;
+    }
+    
+    const btn = document.getElementById('btnOpenCodeServer');
+    const originalContent = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Syncing...';
+    btn.disabled = true;
+    
+    try {
+        const response = await fetch(`/api/studio/projects/${currentProject.id}/open-in-codeserver`);
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast('Opening in Code Server...', 'success');
+            window.open(data.url, '_blank');
+        } else {
+            showToast('Failed to open in Code Server: ' + data.error, 'error');
+        }
+    } catch (error) {
+        console.error('Error opening in Code Server:', error);
+        showToast('Error opening in Code Server', 'error');
+    } finally {
+        btn.innerHTML = originalContent;
+        btn.disabled = false;
+    }
+}
+
+async function syncFromCodeServer() {
+    if (!currentProject) {
+        showToast('No project selected', 'error');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/studio/projects/${currentProject.id}/sync-from-filesystem`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast(`Synced ${data.updated} updated, ${data.created} new files`, 'success');
+            await loadProject(currentProject.id);
+        } else {
+            showToast('Failed to sync: ' + data.error, 'error');
+        }
+    } catch (error) {
+        console.error('Error syncing from filesystem:', error);
+        showToast('Error syncing from filesystem', 'error');
+    }
+}
+
+let currentBuildId = null;
+let buildEventSource = null;
+let currentArtifacts = [];
+
+async function triggerBuild() {
+    if (!currentProject) {
+        showToast('No project selected', 'error');
+        return;
+    }
+    
+    const buildType = document.getElementById('buildTypeSelect').value;
+    addLogLine(`Starting ${buildType}...`, 'info');
+    
+    try {
+        const response = await fetch(`/api/studio/projects/${currentProject.id}/build`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ build_type: buildType })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            addLogLine('Build completed successfully!', 'success');
+            if (data.build && data.build.logs) {
+                data.build.logs.split('\n').forEach(line => {
+                    if (line.trim()) addLogLine(line);
+                });
+            }
+            currentProject.status = 'ready';
+            currentBuildId = data.build.id;
+            currentArtifacts = data.artifacts || [];
+            if (currentArtifacts.length > 0) {
+                document.getElementById('btnDownloadArtifact').style.display = 'inline-flex';
+            }
+            renderProjectsList();
+        } else {
+            addLogLine('Build failed: ' + data.error, 'error');
+        }
+    } catch (error) {
+        console.error('Error triggering build:', error);
+        addLogLine('Error triggering build: ' + error.message, 'error');
+    }
+}
+
+function triggerBuildStream() {
+    if (!currentProject) {
+        showToast('No project selected', 'error');
+        return;
+    }
+    
+    if (buildEventSource) {
+        buildEventSource.close();
+    }
+    
+    const buildType = document.getElementById('buildTypeSelect').value;
+    clearLogs();
+    addLogLine(`Starting ${buildType} with real-time streaming...`, 'info');
+    
+    setBuildUIState('building');
+    
+    const url = `/api/studio/projects/${currentProject.id}/build/stream?build_type=${buildType}`;
+    buildEventSource = new EventSource(url);
+    
+    buildEventSource.onmessage = function(event) {
+        try {
+            const data = JSON.parse(event.data);
+            
+            if (data.type === 'start') {
+                currentBuildId = data.build_id;
+                addLogLine(`Build ID: ${data.build_id}`, 'info');
+            } else if (data.type === 'log') {
+                addLogLineRaw(data.message, data.level);
+            } else if (data.type === 'complete') {
+                buildEventSource.close();
+                buildEventSource = null;
+                
+                if (data.success) {
+                    setBuildUIState('success');
+                    currentProject.status = 'ready';
+                    currentArtifacts = data.artifacts || [];
+                    currentBuildId = data.build_id;
+                    
+                    if (currentArtifacts.length > 0) {
+                        document.getElementById('btnDownloadArtifact').style.display = 'inline-flex';
+                        addLogLine(`Artifacts available: ${currentArtifacts.join(', ')}`, 'success');
+                    }
+                    
+                    showToast('Build completed successfully!', 'success');
+                } else {
+                    setBuildUIState('failed');
+                    currentProject.status = 'draft';
+                    showToast('Build failed', 'error');
+                }
+                
+                renderProjectsList();
+                loadBuildHistory();
+            } else if (data.type === 'error') {
+                addLogLine(`Error: ${data.message}`, 'error');
+                setBuildUIState('failed');
+                buildEventSource.close();
+                buildEventSource = null;
+            }
+        } catch (e) {
+            console.error('Error parsing SSE data:', e);
+        }
+    };
+    
+    buildEventSource.onerror = function(error) {
+        console.error('SSE Error:', error);
+        addLogLine('Connection to build server lost', 'error');
+        setBuildUIState('failed');
+        if (buildEventSource) {
+            buildEventSource.close();
+            buildEventSource = null;
+        }
+    };
+}
+
+function setBuildUIState(state) {
+    const btnBuild = document.getElementById('btnBuild');
+    const btnCancel = document.getElementById('btnCancelBuild');
+    const buildStatus = document.getElementById('buildStatus');
+    const btnDownload = document.getElementById('btnDownloadArtifact');
+    
+    if (state === 'building') {
+        btnBuild.disabled = true;
+        btnBuild.innerHTML = '<i class="bi bi-hourglass-split"></i> <span>Building...</span>';
+        btnCancel.style.display = 'inline-flex';
+        buildStatus.style.display = 'inline';
+        buildStatus.textContent = 'RUNNING';
+        buildStatus.style.background = 'rgba(251, 191, 36, 0.2)';
+        buildStatus.style.color = 'var(--accent-yellow)';
+        btnDownload.style.display = 'none';
+    } else if (state === 'success') {
+        btnBuild.disabled = false;
+        btnBuild.innerHTML = '<i class="bi bi-play-fill"></i> <span id="buildBtnText">Build</span>';
+        btnCancel.style.display = 'none';
+        buildStatus.style.display = 'inline';
+        buildStatus.textContent = 'SUCCESS';
+        buildStatus.style.background = 'rgba(63, 185, 80, 0.2)';
+        buildStatus.style.color = 'var(--accent-green)';
+    } else if (state === 'failed') {
+        btnBuild.disabled = false;
+        btnBuild.innerHTML = '<i class="bi bi-play-fill"></i> <span id="buildBtnText">Build</span>';
+        btnCancel.style.display = 'none';
+        buildStatus.style.display = 'inline';
+        buildStatus.textContent = 'FAILED';
+        buildStatus.style.background = 'rgba(239, 68, 68, 0.2)';
+        buildStatus.style.color = 'var(--accent-red)';
+    } else {
+        btnBuild.disabled = false;
+        btnBuild.innerHTML = '<i class="bi bi-play-fill"></i> <span id="buildBtnText">Build</span>';
+        btnCancel.style.display = 'none';
+        buildStatus.style.display = 'none';
+    }
+}
+
+async function cancelBuild() {
+    if (!currentProject || !currentBuildId) {
+        showToast('No active build to cancel', 'error');
+        return;
+    }
+    
+    if (buildEventSource) {
+        buildEventSource.close();
+        buildEventSource = null;
+    }
+    
+    try {
+        await fetch(`/api/studio/projects/${currentProject.id}/builds/${currentBuildId}/cancel`, {
+            method: 'POST'
+        });
+        addLogLine('Build cancelled by user', 'warning');
+        setBuildUIState('failed');
+    } catch (error) {
+        console.error('Error cancelling build:', error);
+    }
+}
+
+async function downloadArtifact() {
+    if (!currentProject || !currentBuildId || currentArtifacts.length === 0) {
+        showToast('No artifacts available', 'error');
+        return;
+    }
+    
+    const artifact = currentArtifacts[0];
+    const url = `/api/studio/projects/${currentProject.id}/builds/${currentBuildId}/artifacts/${artifact}`;
+    window.open(url, '_blank');
+}
+
+function toggleBuildHistory() {
+    const panel = document.getElementById('buildHistoryPanel');
+    if (panel.style.display === 'none') {
+        panel.style.display = 'block';
+        loadBuildHistory();
+    } else {
+        panel.style.display = 'none';
+    }
+}
+
+async function loadBuildHistory() {
+    if (!currentProject) return;
+    
+    try {
+        const response = await fetch(`/api/studio/projects/${currentProject.id}/builds`);
+        const data = await response.json();
+        
+        if (data.success) {
+            const list = document.getElementById('buildHistoryList');
+            if (data.builds.length === 0) {
+                list.innerHTML = '<div style="padding: 12px; font-size: 0.8rem; color: var(--text-secondary);">No builds yet</div>';
+                return;
+            }
+            
+            list.innerHTML = data.builds.slice(0, 10).map(build => {
+                const statusColor = build.status === 'success' ? 'var(--accent-green)' : 
+                                   build.status === 'failed' ? 'var(--accent-red)' : 
+                                   build.status === 'running' ? 'var(--accent-yellow)' : 'var(--text-secondary)';
+                const statusIcon = build.status === 'success' ? 'check-circle-fill' : 
+                                  build.status === 'failed' ? 'x-circle-fill' : 
+                                  build.status === 'running' ? 'hourglass-split' : 'circle';
+                const time = build.started_at ? new Date(build.started_at).toLocaleString() : 'Unknown';
+                
+                return `
+                    <div class="build-history-item" style="padding: 8px 12px; border-bottom: 1px solid var(--border-color); cursor: pointer; display: flex; align-items: center; gap: 10px; font-size: 0.8rem;" onclick="viewBuildLogs('${build.id}')">
+                        <i class="bi bi-${statusIcon}" style="color: ${statusColor};"></i>
+                        <span style="flex: 1;">${build.build_type || 'build'}</span>
+                        <span style="color: var(--text-secondary); font-size: 0.7rem;">${time}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+    } catch (error) {
+        console.error('Error loading build history:', error);
+    }
+}
+
+async function viewBuildLogs(buildId) {
+    if (!currentProject) return;
+    
+    try {
+        const response = await fetch(`/api/studio/projects/${currentProject.id}/builds`);
+        const data = await response.json();
+        
+        if (data.success) {
+            const build = data.builds.find(b => b.id === buildId);
+            if (build && build.logs) {
+                clearLogs();
+                addLogLine(`=== Build ${buildId} Logs ===`, 'info');
+                build.logs.split('\n').forEach(line => {
+                    if (line.trim()) addLogLineRaw(line);
+                });
+                
+                if (build.status === 'success') {
+                    setBuildUIState('success');
+                    currentBuildId = buildId;
+                } else if (build.status === 'failed') {
+                    setBuildUIState('failed');
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Error loading build logs:', error);
+    }
+}
+
+function addLogLineRaw(text, level = '') {
+    const container = document.getElementById('buildLogs');
+    const line = document.createElement('div');
+    
+    if (!level) {
+        if (text.includes('[ERROR]')) level = 'error';
+        else if (text.includes('[WARNING]')) level = 'warning';
+        else if (text.includes('[SUCCESS]')) level = 'success';
+        else level = 'info';
+    }
+    
+    line.className = `log-line ${level}`;
+    line.textContent = text;
+    container.appendChild(line);
+    container.scrollTop = container.scrollHeight;
+}
+
+let currentDeploymentId = null;
+let tailscaleDevices = [];
+
+async function loadTailscaleDevices() {
+    try {
+        const response = await fetch('/api/studio/tailscale/devices');
+        const data = await response.json();
+        if (data.success) {
+            tailscaleDevices = data.devices;
+            const select = document.getElementById('deployTargetHost');
+            select.innerHTML = '<option value="">Select a device...</option>';
+            tailscaleDevices.forEach(device => {
+                const option = document.createElement('option');
+                option.value = device.ip;
+                option.textContent = `${device.name} (${device.ip})`;
+                select.appendChild(option);
+            });
+        }
+    } catch (error) {
+        console.error('Error loading Tailscale devices:', error);
+    }
+}
+
+function addDeployLog(text, type = 'info') {
+    const container = document.getElementById('deployLogs');
+    const line = document.createElement('div');
+    const colors = {
+        'info': 'var(--text-secondary)',
+        'success': 'var(--accent-green)',
+        'error': 'var(--accent-red)',
+        'warning': 'var(--accent-yellow)'
+    };
+    
+    if (text.includes('[ERROR]')) type = 'error';
+    else if (text.includes('[SUCCESS]')) type = 'success';
+    else if (text.includes('[WARNING]')) type = 'warning';
+    
+    line.style.color = colors[type] || colors.info;
+    line.textContent = text;
+    container.appendChild(line);
+    container.scrollTop = container.scrollHeight;
+}
+
+async function startDeployment() {
+    if (!currentProject) {
+        showToast('No project selected', 'error');
+        return;
+    }
+    
+    const port = parseInt(document.getElementById('deployPort').value) || 8080;
+    const targetHost = document.getElementById('deployTargetHost').value;
+    
+    if ((selectedDeployTarget === 'tailscale') && !targetHost) {
+        showToast('Please select a target device', 'error');
+        return;
+    }
+    
+    document.getElementById('deployLogsContainer').style.display = 'block';
+    document.getElementById('deployLogs').innerHTML = '';
+    document.getElementById('deployStatus').style.display = 'block';
+    document.getElementById('deployStatusText').textContent = 'Deploying...';
+    document.getElementById('deployStatusIcon').innerHTML = '<i class="bi bi-hourglass-split" style="animation: spin 1s linear infinite;"></i>';
+    document.getElementById('deployUrlContainer').style.display = 'none';
+    document.getElementById('btnStartDeploy').disabled = true;
+    document.getElementById('btnStartDeploy').innerHTML = '<i class="bi bi-hourglass-split"></i> Deploying...';
+    
+    addDeployLog(`Starting deployment to ${selectedDeployTarget}...`, 'info');
+    addLogLine(`Deploying to ${selectedDeployTarget}...`, 'info');
+    
+    try {
+        const response = await fetch(`/api/studio/projects/${currentProject.id}/deploy`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                target: selectedDeployTarget,
+                target_host: targetHost,
+                port: port
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.logs) {
+            data.logs.forEach(log => addDeployLog(log));
+        }
+        
+        if (data.success) {
+            currentDeploymentId = data.deployment.id;
+            document.getElementById('deployStatusIcon').innerHTML = '<i class="bi bi-check-circle-fill" style="color: var(--accent-green);"></i>';
+            document.getElementById('deployStatusText').textContent = 'Deployed Successfully';
+            
+            if (data.deployment && data.deployment.url) {
+                document.getElementById('deployUrlContainer').style.display = 'block';
+                document.getElementById('deployUrl').href = data.deployment.url;
+                addDeployLog(`URL: ${data.deployment.url}`, 'success');
+                addLogLine(`Deployment URL: ${data.deployment.url}`, 'info');
+            }
+            
+            currentProject.status = 'deployed';
+            renderProjectsList();
+            showToast('Project deployed successfully!', 'success');
+            
+            document.getElementById('deployFooterInitial').style.display = 'none';
+            document.getElementById('deployFooterActive').style.display = 'flex';
+        } else {
+            document.getElementById('deployStatusIcon').innerHTML = '<i class="bi bi-x-circle-fill" style="color: var(--accent-red);"></i>';
+            document.getElementById('deployStatusText').textContent = 'Deployment Failed';
+            addDeployLog('Deployment failed: ' + (data.error || 'Unknown error'), 'error');
+            addLogLine('Deployment failed: ' + (data.error || 'Unknown error'), 'error');
+            showToast('Deployment failed', 'error');
+        }
+    } catch (error) {
+        console.error('Error deploying project:', error);
+        document.getElementById('deployStatusIcon').innerHTML = '<i class="bi bi-x-circle-fill" style="color: var(--accent-red);"></i>';
+        document.getElementById('deployStatusText').textContent = 'Deployment Error';
+        addDeployLog('Error: ' + error.message, 'error');
+        addLogLine('Error deploying: ' + error.message, 'error');
+    } finally {
+        document.getElementById('btnStartDeploy').disabled = false;
+        document.getElementById('btnStartDeploy').innerHTML = '<i class="bi bi-rocket-takeoff"></i> Deploy';
+    }
+}
+
+async function stopCurrentDeployment() {
+    if (!currentProject || !currentDeploymentId) {
+        showToast('No active deployment', 'error');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/studio/projects/${currentProject.id}/deployments/${currentDeploymentId}/stop`, {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast('Deployment stopped', 'success');
+            addDeployLog('Deployment stopped', 'warning');
+            document.getElementById('deployStatusIcon').innerHTML = '<i class="bi bi-stop-circle" style="color: var(--accent-yellow);"></i>';
+            document.getElementById('deployStatusText').textContent = 'Stopped';
+        } else {
+            showToast('Failed to stop: ' + (data.message || data.error), 'error');
+        }
+    } catch (error) {
+        console.error('Error stopping deployment:', error);
+        showToast('Error stopping deployment', 'error');
+    }
+}
+
+async function removeCurrentDeployment() {
+    if (!currentProject || !currentDeploymentId) {
+        showToast('No active deployment', 'error');
+        return;
+    }
+    
+    if (!confirm('Are you sure you want to remove this deployment?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/studio/projects/${currentProject.id}/deployments/${currentDeploymentId}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast('Deployment removed', 'success');
+            addDeployLog('Deployment removed', 'info');
+            currentDeploymentId = null;
+            
+            document.getElementById('deployFooterInitial').style.display = 'flex';
+            document.getElementById('deployFooterActive').style.display = 'none';
+            document.getElementById('deployStatus').style.display = 'none';
+            document.getElementById('deployLogsContainer').style.display = 'none';
+            
+            currentProject.status = 'ready';
+            renderProjectsList();
+        } else {
+            showToast('Failed to remove: ' + (data.message || data.error), 'error');
+        }
+    } catch (error) {
+        console.error('Error removing deployment:', error);
+        showToast('Error removing deployment', 'error');
+    }
+}
+
+async function deployProject() {
+    await startDeployment();
+}
+
+async function deleteCurrentProject() {
+    if (!currentProject) return;
+    
+    if (!confirm(`Are you sure you want to delete "${currentProject.name}"? This action cannot be undone.`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/studio/projects/${currentProject.id}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast('Project deleted', 'success');
+            currentProject = null;
+            currentFile = null;
+            openFiles = [];
+            
+            document.getElementById('workspacePanel').style.display = 'none';
+            document.getElementById('noProjectSelected').style.display = 'flex';
+            
+            loadProjects();
+        } else {
+            showToast('Failed to delete project', 'error');
+        }
+    } catch (error) {
+        console.error('Error deleting project:', error);
+        showToast('Error deleting project', 'error');
+    }
+}
+
+function addLogLine(text, type = '') {
+    const container = document.getElementById('buildLogs');
+    const line = document.createElement('div');
+    line.className = `log-line ${type}`;
+    line.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
+    container.appendChild(line);
+    container.scrollTop = container.scrollHeight;
+}
+
+function clearLogs() {
+    document.getElementById('buildLogs').innerHTML = '<div class="log-line info">Logs cleared</div>';
+}
+
+function openCreateModal() {
+    document.getElementById('createModal').classList.add('show');
+    document.getElementById('projectName').value = '';
+    document.getElementById('projectDesc').value = '';
+}
+
+function closeCreateModal() {
+    document.getElementById('createModal').classList.remove('show');
+}
+
+function openDeployModal() {
+    if (!currentProject) {
+        showToast('No project selected', 'error');
+        return;
+    }
+    
+    document.getElementById('deployFooterInitial').style.display = 'flex';
+    document.getElementById('deployFooterActive').style.display = 'none';
+    document.getElementById('deployStatus').style.display = 'none';
+    document.getElementById('deployLogsContainer').style.display = 'none';
+    document.getElementById('deployLogs').innerHTML = '';
+    
+    document.querySelectorAll('.deploy-target').forEach(el => {
+        el.classList.remove('selected');
+        if (el.dataset.target === 'docker') {
+            el.classList.add('selected');
+        }
+    });
+    selectedDeployTarget = 'docker';
+    updateDeployHostVisibility();
+    
+    loadTailscaleDevices();
+    
+    document.getElementById('deployModal').classList.add('show');
+}
+
+function closeDeployModal() {
+    document.getElementById('deployModal').classList.remove('show');
+}
+
+function updateDeployHostVisibility() {
+    const hostGroup = document.getElementById('deployHostGroup');
+    const needsHost = ['tailscale', 'kvm', 'native'].includes(selectedDeployTarget);
+    hostGroup.style.display = needsHost ? 'block' : 'none';
+    
+    const label = hostGroup.querySelector('label');
+    const small = hostGroup.querySelector('small');
+    
+    if (selectedDeployTarget === 'tailscale') {
+        label.textContent = 'Target Device';
+        small.textContent = 'Select a Tailscale-connected device';
+    } else if (selectedDeployTarget === 'kvm') {
+        label.textContent = 'VM Name';
+        small.textContent = 'Enter KVM VM name (default: RDPWindows)';
+    } else if (selectedDeployTarget === 'native') {
+        label.textContent = 'Target Host';
+        small.textContent = 'Enter hostname or leave empty for localhost';
+    }
+}
+
+function openAddFileModal() {
+    if (!currentProject) {
+        showToast('No project selected', 'error');
+        return;
+    }
+    document.getElementById('addFileModal').classList.add('show');
+    document.getElementById('newFilePath').value = '';
+}
+
+function closeAddFileModal() {
+    document.getElementById('addFileModal').classList.remove('show');
+}
+
+function selectType(el) {
+    document.querySelectorAll('.type-option').forEach(o => o.classList.remove('selected'));
+    el.classList.add('selected');
+    selectedType = el.dataset.type;
+}
+
+function selectLang(el) {
+    document.querySelectorAll('.lang-option').forEach(o => o.classList.remove('selected'));
+    el.classList.add('selected');
+    selectedLang = el.dataset.lang;
+}
+
+function selectDeployTarget(el) {
+    document.querySelectorAll('.deploy-target').forEach(o => o.classList.remove('selected'));
+    el.classList.add('selected');
+    selectedDeployTarget = el.dataset.target;
+    updateDeployHostVisibility();
+}
+
+async function createProject() {
+    const name = document.getElementById('projectName').value.trim();
+    const description = document.getElementById('projectDesc').value.trim();
+    
+    if (!name) {
+        showToast('Please enter a project name', 'error');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/studio/projects', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name,
+                description,
+                project_type: selectedType,
+                language: selectedLang
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            closeCreateModal();
+            showToast('Project created!', 'success');
+            await loadProjects();
+            selectProject(data.project.id);
+        } else {
+            showToast('Failed to create project: ' + data.error, 'error');
+        }
+    } catch (error) {
+        console.error('Error creating project:', error);
+        showToast('Error creating project', 'error');
+    }
+}
+
+async function createNewFile() {
+    const filePath = document.getElementById('newFilePath').value.trim();
+    
+    if (!filePath) {
+        showToast('Please enter a file path', 'error');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/studio/projects/${currentProject.id}/files`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                file_path: filePath,
+                content: getDefaultFileContent(filePath)
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            closeAddFileModal();
+            showToast('File created!', 'success');
+            
+            currentProject.files = currentProject.files || [];
+            currentProject.files.push(data.file);
+            renderFileTree();
+            openFile(data.file);
+        } else {
+            showToast('Failed to create file: ' + data.error, 'error');
+        }
+    } catch (error) {
+        console.error('Error creating file:', error);
+        showToast('Error creating file', 'error');
+    }
+}
+
+function getDefaultFileContent(path) {
+    if (path.endsWith('.py')) return '#!/usr/bin/env python3\n\ndef main():\n    print("Hello, World!")\n\nif __name__ == "__main__":\n    main()\n';
+    if (path.endsWith('.js')) return '// Node.js application\n\nfunction main() {\n    console.log("Hello, World!");\n}\n\nmain();\n';
+    if (path.endsWith('.rs')) return 'fn main() {\n    println!("Hello, World!");\n}\n';
+    if (path.endsWith('.cpp')) return '#include <iostream>\n\nint main() {\n    std::cout << "Hello, World!" << std::endl;\n    return 0;\n}\n';
+    if (path.endsWith('.cs')) return 'using System;\n\nclass Program {\n    static void Main() {\n        Console.WriteLine("Hello, World!");\n    }\n}\n';
+    if (path.endsWith('.html')) return '<!DOCTYPE html>\n<html>\n<head>\n    <title>My App</title>\n</head>\n<body>\n    <h1>Hello, World!</h1>\n</body>\n</html>\n';
+    return '';
+}
+
+function showToast(message, type = 'info') {
+    const toast = document.getElementById('toast');
+    toast.textContent = message;
+    toast.className = `toast show ${type}`;
+    
+    setTimeout(() => {
+        toast.classList.remove('show');
+    }, 3000);
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+document.addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        saveCurrentFile();
+    }
+});
+
+let aiConversationHistory = [];
+let aiIsProcessing = false;
+let currentAIAction = null;
+
+function toggleAIPanel() {
+    const panel = document.getElementById('aiChatPanel');
+    const content = document.querySelector('.workspace-content');
+    const toggleBtn = document.getElementById('btnAIToggle');
+    
+    if (panel.classList.contains('collapsed')) {
+        panel.classList.remove('collapsed');
+        content.classList.add('with-ai-panel');
+        toggleBtn.innerHTML = '<i class="bi bi-x-lg"></i> Close AI';
+        if (editor) editor.refresh();
+    } else {
+        panel.classList.add('collapsed');
+        content.classList.remove('with-ai-panel');
+        toggleBtn.innerHTML = '<i class="bi bi-stars"></i> AI Copilot';
+        if (editor) editor.refresh();
+    }
+}
+
+function aiAction(action) {
+    currentAIAction = action;
+    const selectedCode = editor ? editor.getSelection() : '';
+    const input = document.getElementById('aiInput');
+    
+    document.querySelectorAll('.ai-action-btn').forEach(b => b.classList.remove('active'));
+    event.target.closest('.ai-action-btn').classList.add('active');
+    
+    if (action === 'generate') {
+        input.placeholder = 'Describe the code you want to generate...';
+        input.focus();
+    } else if (selectedCode) {
+        performAIAction(action, selectedCode);
+    } else {
+        const currentCode = editor ? editor.getValue() : '';
+        if (currentCode) {
+            performAIAction(action, currentCode);
+        } else {
+            input.placeholder = `Select code or paste it to ${action}...`;
+            input.focus();
+        }
+    }
+}
+
+function handleAIInputKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendAIMessage();
+    }
+}
+
+async function sendAIMessage() {
+    const input = document.getElementById('aiInput');
+    const message = input.value.trim();
+    
+    if (!message || aiIsProcessing) return;
+    
+    input.value = '';
+    
+    if (currentAIAction === 'generate') {
+        await generateCode(message);
+    } else {
+        await chatWithAI(message);
+    }
+    
+    currentAIAction = null;
+    document.querySelectorAll('.ai-action-btn').forEach(b => b.classList.remove('active'));
+}
+
+async function performAIAction(action, code) {
+    const language = detectLanguageFromFile();
+    
+    switch (action) {
+        case 'explain':
+            await explainCode(code, language);
+            break;
+        case 'refactor':
+            await refactorCode(code, language);
+            break;
+        case 'debug':
+            await debugCode(code, language);
+            break;
+        case 'tests':
+            await generateTests(code, language);
+            break;
+    }
+}
+
+function detectLanguageFromFile() {
+    if (!currentFile) return 'python';
+    const path = currentFile.file_path || currentFile.path || '';
+    const ext = path.split('.').pop().toLowerCase();
+    const langMap = {
+        'py': 'python', 'js': 'javascript', 'ts': 'typescript',
+        'jsx': 'javascript', 'tsx': 'typescript', 'rs': 'rust',
+        'cpp': 'cpp', 'c': 'c', 'cs': 'csharp', 'go': 'go'
+    };
+    return langMap[ext] || 'python';
+}
+
+function addUserMessage(content) {
+    const messagesEl = document.getElementById('aiMessages');
+    const msgHtml = `
+        <div class="ai-message user">
+            <div class="ai-message-header">
+                <div class="ai-message-avatar"><i class="bi bi-person-fill"></i></div>
+                <span class="ai-message-role">You</span>
+            </div>
+            <div class="ai-message-content">${escapeHtml(content)}</div>
+        </div>
+    `;
+    messagesEl.insertAdjacentHTML('beforeend', msgHtml);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function addAssistantMessage(initialContent = '') {
+    const messagesEl = document.getElementById('aiMessages');
+    const msgId = 'ai-msg-' + Date.now();
+    const msgHtml = `
+        <div class="ai-message assistant" id="${msgId}">
+            <div class="ai-message-header">
+                <div class="ai-message-avatar"><i class="bi bi-stars"></i></div>
+                <span class="ai-message-role">AI Copilot</span>
+            </div>
+            <div class="ai-message-content">${initialContent || '<div class="ai-typing-indicator"><span></span><span></span><span></span></div>'}</div>
+        </div>
+    `;
+    messagesEl.insertAdjacentHTML('beforeend', msgHtml);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    return msgId;
+}
+
+function updateAssistantMessage(msgId, content, append = false) {
+    const msgEl = document.getElementById(msgId);
+    if (!msgEl) return;
+    
+    const contentEl = msgEl.querySelector('.ai-message-content');
+    const formattedContent = formatAIResponse(content);
+    
+    if (append) {
+        const typingIndicator = contentEl.querySelector('.ai-typing-indicator');
+        if (typingIndicator) typingIndicator.remove();
+        contentEl.innerHTML += formattedContent;
+    } else {
+        contentEl.innerHTML = formattedContent;
+    }
+    
+    document.getElementById('aiMessages').scrollTop = document.getElementById('aiMessages').scrollHeight;
+}
+
+function finalizeAssistantMessage(msgId, fullContent) {
+    const msgEl = document.getElementById(msgId);
+    if (!msgEl) return;
+    
+    const contentEl = msgEl.querySelector('.ai-message-content');
+    contentEl.innerHTML = formatAIResponse(fullContent);
+    
+    const codeBlocks = contentEl.querySelectorAll('pre code');
+    if (codeBlocks.length > 0) {
+        const actionsHtml = `
+            <div class="ai-code-actions">
+                <button class="ai-code-action-btn" onclick="copyCodeToClipboard(this)">
+                    <i class="bi bi-clipboard"></i> Copy
+                </button>
+                <button class="ai-code-action-btn" onclick="applyCodeToEditor(this)">
+                    <i class="bi bi-plus-circle"></i> Apply to Editor
+                </button>
+            </div>
+        `;
+        contentEl.insertAdjacentHTML('beforeend', actionsHtml);
+    }
+    
+    document.getElementById('aiMessages').scrollTop = document.getElementById('aiMessages').scrollHeight;
+}
+
+function formatAIResponse(text) {
+    text = text.replace(/```(\w*)\n([\s\S]*?)```/g, (match, lang, code) => {
+        return `<pre><code class="language-${lang || 'plaintext'}">${escapeHtml(code.trim())}</code></pre>`;
+    });
+    text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+    text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    text = text.replace(/\*(.*?)\*/g, '<em>$1</em>');
+    text = text.replace(/^### (.*$)/gm, '<h4>$1</h4>');
+    text = text.replace(/^## (.*$)/gm, '<h3>$1</h3>');
+    text = text.replace(/^# (.*$)/gm, '<h2>$1</h2>');
+    text = text.replace(/\n/g, '<br>');
+    return text;
+}
+
+function copyCodeToClipboard(btn) {
+    const preEl = btn.closest('.ai-message-content').querySelector('pre code');
+    if (preEl) {
+        navigator.clipboard.writeText(preEl.textContent);
+        showToast('Code copied to clipboard!', 'success');
+    }
+}
+
+function applyCodeToEditor(btn) {
+    const preEl = btn.closest('.ai-message-content').querySelector('pre code');
+    if (preEl && editor) {
+        const code = preEl.textContent;
+        const cursor = editor.getCursor();
+        editor.replaceRange(code, cursor);
+        showToast('Code applied to editor!', 'success');
+    }
+}
+
+async function streamAIRequest(endpoint, body) {
+    const sendBtn = document.getElementById('aiSendBtn');
+    sendBtn.disabled = true;
+    aiIsProcessing = true;
+    
+    const msgId = addAssistantMessage();
+    let fullContent = '';
+    
+    try {
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            
+            const chunk = decoder.decode(value);
+            const lines = chunk.split('\n');
+            
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    const data = line.slice(6);
+                    if (data === '[DONE]') {
+                        finalizeAssistantMessage(msgId, fullContent);
+                        break;
+                    }
+                    
+                    try {
+                        const parsed = JSON.parse(data);
+                        if (parsed.error) {
+                            updateAssistantMessage(msgId, `Error: ${parsed.error}`);
+                            break;
+                        }
+                        if (parsed.content) {
+                            fullContent += parsed.content;
+                            updateAssistantMessage(msgId, fullContent);
+                        }
+                    } catch (e) {}
+                }
+            }
+        }
+    } catch (error) {
+        console.error('AI request error:', error);
+        updateAssistantMessage(msgId, `Error: ${error.message}`);
+    } finally {
+        sendBtn.disabled = false;
+        aiIsProcessing = false;
+    }
+    
+    return fullContent;
+}
+
+async function generateCode(description) {
+    addUserMessage(`Generate: ${description}`);
+    const language = detectLanguageFromFile();
+    const projectFiles = getProjectContext();
+    
+    await streamAIRequest('/api/studio/ai/generate', {
+        description,
+        language,
+        project_files: projectFiles,
+        stream: true
+    });
+}
+
+async function explainCode(code, language) {
+    addUserMessage(`Explain this ${language} code`);
+    
+    await streamAIRequest('/api/studio/ai/explain', {
+        code,
+        language,
+        stream: true
+    });
+}
+
+async function refactorCode(code, language) {
+    addUserMessage(`Refactor this ${language} code`);
+    
+    await streamAIRequest('/api/studio/ai/refactor', {
+        code,
+        language,
+        stream: true
+    });
+}
+
+async function debugCode(code, language) {
+    addUserMessage(`Debug this ${language} code`);
+    
+    await streamAIRequest('/api/studio/ai/debug', {
+        code,
+        language,
+        stream: true
+    });
+}
+
+async function generateTests(code, language) {
+    addUserMessage(`Generate tests for this ${language} code`);
+    
+    await streamAIRequest('/api/studio/ai/tests', {
+        code,
+        language,
+        stream: true
+    });
+}
+
+async function chatWithAI(message) {
+    addUserMessage(message);
+    
+    const projectFiles = getProjectContext();
+    aiConversationHistory.push({ role: 'user', content: message });
+    
+    const response = await streamAIRequest('/api/studio/ai/chat', {
+        message,
+        conversation_history: aiConversationHistory.slice(-10),
+        project_files: projectFiles,
+        stream: true
+    });
+    
+    aiConversationHistory.push({ role: 'assistant', content: response });
+}
+
+function getProjectContext() {
+    const includeContext = document.getElementById('aiIncludeContext').checked;
+    if (!includeContext || !currentFile || !editor) return [];
+    
+    return [{
+        path: currentFile.file_path || currentFile.path,
+        content: editor.getValue()
+    }];
+}
+
+function contextMenuAction(action) {
+    hideContextMenu();
+    
+    const selectedCode = editor ? editor.getSelection() : '';
+    if (selectedCode) {
+        const panel = document.getElementById('aiChatPanel');
+        if (panel.classList.contains('collapsed')) {
+            toggleAIPanel();
+        }
+        
+        if (action === 'generate') {
+            document.getElementById('aiInput').focus();
+            currentAIAction = 'generate';
+        } else {
+            performAIAction(action, selectedCode);
+        }
+    } else if (action === 'generate') {
+        const panel = document.getElementById('aiChatPanel');
+        if (panel.classList.contains('collapsed')) {
+            toggleAIPanel();
+        }
+        document.getElementById('aiInput').focus();
+        currentAIAction = 'generate';
+    } else {
+        showToast('Please select some code first', 'error');
+    }
+}
+
+function showContextMenu(x, y) {
+    const menu = document.getElementById('codeContextMenu');
+    menu.style.left = x + 'px';
+    menu.style.top = y + 'px';
+    menu.classList.add('show');
+}
+
+function hideContextMenu() {
+    document.getElementById('codeContextMenu').classList.remove('show');
+}
+
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.code-context-menu')) {
+        hideContextMenu();
+    }
+});
+
+document.addEventListener('contextmenu', function(e) {
+    const editorWrapper = document.querySelector('.editor-wrapper');
+    if (editorWrapper && editorWrapper.contains(e.target)) {
+        e.preventDefault();
+        showContextMenu(e.clientX, e.clientY);
+    }
+});
+
+let allTemplates = [];
+let templateCategories = [];
+let selectedTemplate = null;
+let currentTemplateFilter = 'all';
+
+async function openTemplateModal() {
+    document.getElementById('templateModal').classList.add('show');
+    selectedTemplate = null;
+    document.getElementById('templatePreview').classList.add('hidden');
+    document.getElementById('btnUseTemplate').disabled = true;
+    document.getElementById('templateProjectName').value = '';
+    await loadTemplates();
+}
+
+function closeTemplateModal() {
+    document.getElementById('templateModal').classList.remove('show');
+}
+
+async function loadTemplates() {
+    try {
+        const [templatesRes, categoriesRes] = await Promise.all([
+            fetch('/api/studio/templates'),
+            fetch('/api/studio/templates/categories')
+        ]);
+        
+        const templatesData = await templatesRes.json();
+        const categoriesData = await categoriesRes.json();
+        
+        if (templatesData.success) {
+            allTemplates = templatesData.templates;
+            document.getElementById('countAll').textContent = allTemplates.length;
+        }
+        
+        if (categoriesData.success) {
+            templateCategories = categoriesData.categories;
+            renderCategories();
+        }
+        
+        renderTemplateGrid(allTemplates);
+    } catch (error) {
+        console.error('Error loading templates:', error);
+        document.getElementById('templateGrid').innerHTML = `
+            <div style="text-align: center; padding: 40px; color: var(--accent-red);">
+                <i class="bi bi-exclamation-triangle" style="font-size: 2rem; margin-bottom: 10px; display: block;"></i>
+                Failed to load templates
+            </div>
+        `;
+    }
+}
+
+function renderCategories() {
+    const container = document.getElementById('templateCategories');
+    const categoryInfo = {
+        'games': { icon: 'bi-joystick', name: 'Games' },
+        'cli': { icon: 'bi-terminal', name: 'CLI Tools' },
+        'desktop': { icon: 'bi-window', name: 'Desktop Apps' },
+        'web': { icon: 'bi-server', name: 'Web Services' },
+        'automation': { icon: 'bi-gear-wide-connected', name: 'Automations' },
+        'discord': { icon: 'bi-discord', name: 'Discord Bots' }
+    };
+    
+    container.innerHTML = `
+        <div class="category-item ${currentTemplateFilter === 'all' ? 'active' : ''}" data-category="all" onclick="filterTemplates('all', this)">
+            <i class="bi bi-collection"></i>
+            <span>All Templates</span>
+            <span class="category-count">${allTemplates.length}</span>
+        </div>
+    `;
+    
+    templateCategories.forEach(cat => {
+        const info = categoryInfo[cat.id] || { icon: 'bi-folder', name: cat.name };
+        container.innerHTML += `
+            <div class="category-item ${currentTemplateFilter === cat.id ? 'active' : ''}" data-category="${cat.id}" onclick="filterTemplates('${cat.id}', this)">
+                <i class="bi ${info.icon}"></i>
+                <span>${info.name}</span>
+                <span class="category-count">${cat.count}</span>
+            </div>
+        `;
+    });
+}
+
+function filterTemplates(category, el) {
+    currentTemplateFilter = category;
+    
+    document.querySelectorAll('.category-item').forEach(item => item.classList.remove('active'));
+    if (el) el.classList.add('active');
+    
+    let filtered = allTemplates;
+    if (category !== 'all') {
+        filtered = allTemplates.filter(t => t.category === category);
+    }
+    
+    renderTemplateGrid(filtered);
+    
+    selectedTemplate = null;
+    document.getElementById('templatePreview').classList.add('hidden');
+    document.getElementById('btnUseTemplate').disabled = true;
+}
+
+function renderTemplateGrid(templates) {
+    const container = document.getElementById('templateGrid');
+    
+    if (templates.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 40px; color: var(--text-secondary); grid-column: 1 / -1;">
+                <i class="bi bi-inbox" style="font-size: 2rem; margin-bottom: 10px; display: block;"></i>
+                No templates in this category
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = templates.map(t => `
+        <div class="template-card ${selectedTemplate && selectedTemplate.id === t.id ? 'selected' : ''}" 
+             onclick="selectTemplate('${t.id}')" data-template-id="${t.id}">
+            <div class="template-card-header">
+                <div class="template-icon">
+                    <i class="bi ${t.icon || 'bi-folder'}"></i>
+                </div>
+                <div class="template-info">
+                    <h4>${escapeHtml(t.name)}</h4>
+                    <span class="lang-badge">${t.language}</span>
+                </div>
+            </div>
+            <p>${escapeHtml(t.description)}</p>
+            <div class="template-tags">
+                ${(t.tags || []).slice(0, 3).map(tag => `<span class="template-tag">${tag}</span>`).join('')}
+            </div>
+        </div>
+    `).join('');
+}
+
+async function selectTemplate(templateId) {
+    try {
+        const response = await fetch(`/api/studio/templates/${templateId}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            selectedTemplate = data.template;
+            
+            document.querySelectorAll('.template-card').forEach(card => {
+                card.classList.toggle('selected', card.dataset.templateId === templateId);
+            });
+            
+            const preview = document.getElementById('templatePreview');
+            preview.classList.remove('hidden');
+            
+            const filesHtml = (selectedTemplate.files || []).map(f => `
+                <div class="preview-file">
+                    <i class="bi ${getFileIcon(f.path)}"></i>
+                    <span>${escapeHtml(f.path)}</span>
+                </div>
+            `).join('');
+            document.getElementById('previewFiles').innerHTML = filesHtml || '<div class="preview-file">No files</div>';
+            
+            const commands = selectedTemplate.build_commands || {};
+            let commandsHtml = '';
+            if (commands.install) {
+                commandsHtml += `<div class="preview-command"><span>install:</span>${escapeHtml(commands.install)}</div>`;
+            }
+            if (commands.run) {
+                commandsHtml += `<div class="preview-command"><span>run:</span>${escapeHtml(commands.run)}</div>`;
+            }
+            if (commands.build) {
+                commandsHtml += `<div class="preview-command"><span>build:</span>${escapeHtml(commands.build)}</div>`;
+            }
+            document.getElementById('previewCommands').innerHTML = commandsHtml || '<div class="preview-command">No commands defined</div>';
+            
+            const suggestedName = selectedTemplate.name.replace(/\s+/g, '-').toLowerCase() + '-project';
+            document.getElementById('templateProjectName').value = '';
+            document.getElementById('templateProjectName').placeholder = suggestedName;
+            document.getElementById('btnUseTemplate').disabled = false;
+        }
+    } catch (error) {
+        console.error('Error selecting template:', error);
+        showToast('Failed to load template details', 'error');
+    }
+}
+
+async function createFromTemplate() {
+    if (!selectedTemplate) {
+        showToast('Please select a template first', 'error');
+        return;
+    }
+    
+    let projectName = document.getElementById('templateProjectName').value.trim();
+    if (!projectName) {
+        projectName = selectedTemplate.name.replace(/\s+/g, '-').toLowerCase() + '-project';
+    }
+    
+    const btn = document.getElementById('btnUseTemplate');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Creating...';
+    
+    try {
+        const response = await fetch('/api/studio/projects/from-template', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                template_id: selectedTemplate.id,
+                name: projectName,
+                description: selectedTemplate.description
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast(`Project "${projectName}" created from template!`, 'success');
+            closeTemplateModal();
+            await loadProjects();
+            await selectProject(data.project.id);
+        } else {
+            showToast(data.error || 'Failed to create project', 'error');
+        }
+    } catch (error) {
+        console.error('Error creating project from template:', error);
+        showToast('Failed to create project from template', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-plus-circle"></i> Use This Template';
+    }
+}
+</script>
+{% endblock %}

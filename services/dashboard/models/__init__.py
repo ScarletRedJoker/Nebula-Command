@@ -51,6 +51,11 @@ from .settings import SystemSetting
 from .notification import Alert, AlertSeverity, NotificationSettings
 from .organization import Organization, OrganizationMember, APIKey, OrganizationTier, MemberRole, ROLE_HIERARCHY
 from .network_resource import NetworkResource, NetworkDiscoveryLog, ResourceType, HealthStatus
+from .studio import (
+    StudioProject, ProjectFile, ProjectBuild, ProjectDeployment,
+    ProjectType, ProjectLanguage, ProjectStatus, BuildStatus as StudioBuildStatus,
+    DeploymentTarget, DeploymentStatus as StudioDeploymentStatus
+)
 
 __all__ = [
     'Base',
@@ -138,5 +143,15 @@ __all__ = [
     'NetworkResource',
     'NetworkDiscoveryLog',
     'ResourceType',
-    'HealthStatus'
+    'HealthStatus',
+    'StudioProject',
+    'ProjectFile',
+    'ProjectBuild',
+    'ProjectDeployment',
+    'ProjectType',
+    'ProjectLanguage',
+    'ProjectStatus',
+    'StudioBuildStatus',
+    'DeploymentTarget',
+    'StudioDeploymentStatus'
 ]

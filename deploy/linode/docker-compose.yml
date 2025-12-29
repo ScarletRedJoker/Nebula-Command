@@ -13,6 +13,7 @@ volumes:
   grafana_data:
   loki_data:
   tailscale_state:
+  studio_projects:
 
 services:
   tailscale:
@@ -149,6 +150,7 @@ services:
       - ./services/dashboard/logs:/app/logs
       - /root/.ssh:/root/.ssh:ro
       - /var/run/docker.sock:/var/run/docker.sock
+      - studio_projects:/opt/homelab/studio-projects
 
   homelab-celery-worker:
     build:
@@ -354,6 +356,7 @@ services:
     volumes:
       - code_server_data:/config
       - ./workspace:/config/workspace
+      - studio_projects:/opt/homelab/studio-projects
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8443/healthz"]
       interval: 30s
