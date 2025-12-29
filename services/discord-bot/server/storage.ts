@@ -88,7 +88,16 @@ import {
   type InsertPoll,
   type UpdatePoll,
   type PollVote,
-  type InsertPollVote
+  type InsertPollVote,
+  type AutomodRule,
+  type InsertAutomodRule,
+  type UpdateAutomodRule,
+  type ModerationAction,
+  type InsertModerationAction,
+  type Warning,
+  type InsertWarning,
+  type TempBan,
+  type InsertTempBan
 } from "@shared/schema";
 
 // Define the storage interface
@@ -349,6 +358,28 @@ export interface IStorage {
   getPollVoteByUser(pollId: number, odUserId: string): Promise<PollVote | null>;
   createPollVote(data: InsertPollVote): Promise<PollVote>;
   deletePollVote(id: number): Promise<boolean>;
+  
+  // Automod Rule operations
+  getAutomodRule(id: number): Promise<AutomodRule | null>;
+  getAutomodRules(serverId: string): Promise<AutomodRule[]>;
+  createAutomodRule(data: InsertAutomodRule): Promise<AutomodRule>;
+  updateAutomodRule(id: number, updates: UpdateAutomodRule): Promise<AutomodRule | null>;
+  deleteAutomodRule(id: number): Promise<boolean>;
+  
+  // Moderation Action operations
+  getModerationHistory(serverId: string, userId: string, limit?: number): Promise<ModerationAction[]>;
+  createModerationAction(data: InsertModerationAction): Promise<ModerationAction>;
+  
+  // Warning operations
+  getActiveWarnings(serverId: string, userId: string): Promise<Warning[]>;
+  createWarning(data: InsertWarning): Promise<Warning>;
+  removeWarning(id: number): Promise<boolean>;
+  
+  // Temp Ban operations
+  getExpiredTempBans(): Promise<TempBan[]>;
+  getActiveTempBan(serverId: string, userId: string): Promise<TempBan | null>;
+  createTempBan(data: InsertTempBan): Promise<TempBan>;
+  deactivateTempBan(id: number): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
@@ -1616,6 +1647,66 @@ export class MemStorage implements IStorage {
   
   async deletePollVote(id: number): Promise<boolean> {
     throw new Error('deletePollVote not implemented in MemStorage - use DatabaseStorage');
+  }
+  
+  // Automod Rule operations (stub implementations for MemStorage)
+  async getAutomodRule(id: number): Promise<AutomodRule | null> {
+    throw new Error('getAutomodRule not implemented in MemStorage - use DatabaseStorage');
+  }
+  
+  async getAutomodRules(serverId: string): Promise<AutomodRule[]> {
+    throw new Error('getAutomodRules not implemented in MemStorage - use DatabaseStorage');
+  }
+  
+  async createAutomodRule(data: InsertAutomodRule): Promise<AutomodRule> {
+    throw new Error('createAutomodRule not implemented in MemStorage - use DatabaseStorage');
+  }
+  
+  async updateAutomodRule(id: number, updates: UpdateAutomodRule): Promise<AutomodRule | null> {
+    throw new Error('updateAutomodRule not implemented in MemStorage - use DatabaseStorage');
+  }
+  
+  async deleteAutomodRule(id: number): Promise<boolean> {
+    throw new Error('deleteAutomodRule not implemented in MemStorage - use DatabaseStorage');
+  }
+  
+  // Moderation Action operations (stub implementations for MemStorage)
+  async getModerationHistory(serverId: string, userId: string, limit?: number): Promise<ModerationAction[]> {
+    throw new Error('getModerationHistory not implemented in MemStorage - use DatabaseStorage');
+  }
+  
+  async createModerationAction(data: InsertModerationAction): Promise<ModerationAction> {
+    throw new Error('createModerationAction not implemented in MemStorage - use DatabaseStorage');
+  }
+  
+  // Warning operations (stub implementations for MemStorage)
+  async getActiveWarnings(serverId: string, userId: string): Promise<Warning[]> {
+    throw new Error('getActiveWarnings not implemented in MemStorage - use DatabaseStorage');
+  }
+  
+  async createWarning(data: InsertWarning): Promise<Warning> {
+    throw new Error('createWarning not implemented in MemStorage - use DatabaseStorage');
+  }
+  
+  async removeWarning(id: number): Promise<boolean> {
+    throw new Error('removeWarning not implemented in MemStorage - use DatabaseStorage');
+  }
+  
+  // Temp Ban operations (stub implementations for MemStorage)
+  async getExpiredTempBans(): Promise<TempBan[]> {
+    throw new Error('getExpiredTempBans not implemented in MemStorage - use DatabaseStorage');
+  }
+  
+  async getActiveTempBan(serverId: string, userId: string): Promise<TempBan | null> {
+    throw new Error('getActiveTempBan not implemented in MemStorage - use DatabaseStorage');
+  }
+  
+  async createTempBan(data: InsertTempBan): Promise<TempBan> {
+    throw new Error('createTempBan not implemented in MemStorage - use DatabaseStorage');
+  }
+  
+  async deactivateTempBan(id: number): Promise<boolean> {
+    throw new Error('deactivateTempBan not implemented in MemStorage - use DatabaseStorage');
   }
 }
 

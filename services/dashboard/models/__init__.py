@@ -66,6 +66,8 @@ from .activity import (
 from .automation_workflow import (
     AutomationWorkflow, WorkflowExecution, TriggerType, ExecutionStatus
 )
+from .backups import Backup, BackupSchedule
+from .logs import LogEntry, LogStream, LogLevel, SourceType
 
 __all__ = [
     'Base',
@@ -177,5 +179,11 @@ __all__ = [
     'AutomationWorkflow',
     'WorkflowExecution',
     'TriggerType',
-    'ExecutionStatus'
+    'ExecutionStatus',
+    'Backup',
+    'BackupSchedule',
+    'LogEntry',
+    'LogStream',
+    'LogLevel',
+    'SourceType'
 ]

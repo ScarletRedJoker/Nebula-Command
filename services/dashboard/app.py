@@ -61,6 +61,8 @@ from routes.monitoring_routes import monitoring_bp, monitoring_web_bp
 from routes.alert_routes import alert_bp, alert_web_bp
 from routes.activity_routes import activity_bp, activity_web_bp
 from routes.workflow_routes import workflow_bp, workflow_web_bp
+from routes.backup_routes import backup_bp
+from routes.log_routes import log_bp, log_web_bp
 # DISABLED: Subscription/licensing features removed per user request - "Remove subscriptions and don't block access. I never wanted that."
 # from routes.subscription_api import subscription_bp
 from services.activity_service import activity_service
@@ -131,6 +133,8 @@ csrf.exempt(monitoring_bp)  # System Monitoring API (real-time metrics)
 csrf.exempt(alert_bp)  # Monitoring Alerts API (threshold-based alerting)
 csrf.exempt(activity_bp)  # Activity Feed API (cross-service activity logging)
 csrf.exempt(workflow_bp)  # Workflow Builder API (visual automation)
+csrf.exempt(backup_bp)  # Backup Management API
+csrf.exempt(log_bp)  # Log Viewer/Aggregator API
 
 limiter.init_app(app)
 logger.info("✓ CSRF Protection and Rate Limiting initialized")
@@ -253,6 +257,9 @@ app.register_blueprint(activity_bp)
 app.register_blueprint(activity_web_bp)
 app.register_blueprint(workflow_bp)
 app.register_blueprint(workflow_web_bp)
+app.register_blueprint(backup_bp)
+app.register_blueprint(log_bp)
+app.register_blueprint(log_web_bp)
 # DISABLED: Subscription blueprint disabled - no subscription/licensing checks
 # app.register_blueprint(subscription_bp)
 

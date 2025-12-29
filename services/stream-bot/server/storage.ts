@@ -30,6 +30,7 @@ import {
   chatbotResponses,
   chatbotContext,
   chatbotPersonalities,
+  chatbotMemory,
   polls,
   pollVotes,
   predictions,
@@ -63,6 +64,7 @@ import {
   type ChatbotResponse,
   type ChatbotContext,
   type ChatbotPersonality,
+  type ChatbotMemory,
   type Poll,
   type PollVote,
   type Prediction,
@@ -96,6 +98,7 @@ import {
   type InsertChatbotResponse,
   type InsertChatbotContext,
   type InsertChatbotPersonality,
+  type InsertChatbotMemory,
   type InsertPoll,
   type InsertPollVote,
   type InsertPrediction,
@@ -123,6 +126,7 @@ type UpdateChatbotSettings = Partial<Omit<ChatbotSettings, 'id' | 'userId' | 'cr
 type UpdateChatbotResponse = Partial<Omit<ChatbotResponse, 'id' | 'userId' | 'createdAt'>>;
 type UpdateChatbotContext = Partial<Omit<ChatbotContext, 'id' | 'userId' | 'createdAt'>>;
 type UpdateChatbotPersonality = Partial<Omit<ChatbotPersonality, 'id' | 'userId' | 'createdAt'>>;
+type UpdateChatbotMemory = Partial<Omit<ChatbotMemory, 'id' | 'personalityId' | 'createdAt'>>;
 import { db } from "./db";
 import { eq, desc, gte, lt, sql, and } from "drizzle-orm";
 import { UserStorage } from "./user-storage";
@@ -315,6 +319,13 @@ export interface IStorage {
   updateChatbotPersonality(userId: string, id: string, data: UpdateChatbotPersonality): Promise<ChatbotPersonality>;
   deleteChatbotPersonality(userId: string, id: string): Promise<void>;
   getPresetPersonalities(): Promise<ChatbotPersonality[]>;
+
+  // Chatbot Memory
+  getChatbotMemoriesByPersonality(personalityId: string): Promise<ChatbotMemory[]>;
+  getChatbotMemory(personalityId: string, contextKey: string): Promise<ChatbotMemory | undefined>;
+  upsertChatbotMemory(personalityId: string, contextKey: string, contextValue: string, expiresAt?: Date): Promise<ChatbotMemory>;
+  deleteChatbotMemory(personalityId: string, contextKey: string): Promise<void>;
+  clearExpiredChatbotMemories(): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1941,6 +1952,80 @@ export class DatabaseStorage implements IStorage {
       .from(chatbotPersonalities)
       .where(eq(chatbotPersonalities.isPreset, true))
       .orderBy(chatbotPersonalities.name);
+  }
+
+  // Chatbot Memory
+  async getChatbotMemoriesByPersonality(personalityId: string): Promise<ChatbotMemory[]> {
+    return await db
+      .select()
+      .from(chatbotMemory)
+      .where(eq(chatbotMemory.personalityId, personalityId))
+      .orderBy(chatbotMemory.createdAt);
+  }
+
+  async getChatbotMemory(personalityId: string, contextKey: string): Promise<ChatbotMemory | undefined> {
+    const [memory] = await db
+      .select()
+      .from(chatbotMemory)
+      .where(
+        and(
+          eq(chatbotMemory.personalityId, personalityId),
+          eq(chatbotMemory.contextKey, contextKey)
+        )
+      );
+    return memory || undefined;
+  }
+
+  async upsertChatbotMemory(personalityId: string, contextKey: string, contextValue: string, expiresAt?: Date): Promise<ChatbotMemory> {
+    const existing = await this.getChatbotMemory(personalityId, contextKey);
+    
+    if (existing) {
+      const [updated] = await db
+        .update(chatbotMemory)
+        .set({ 
+          contextValue, 
+          expiresAt: expiresAt || null, 
+          updatedAt: new Date() 
+        })
+        .where(eq(chatbotMemory.id, existing.id))
+        .returning();
+      return updated;
+    }
+    
+    const [memory] = await db
+      .insert(chatbotMemory)
+      .values({ 
+        personalityId, 
+        contextKey, 
+        contextValue, 
+        expiresAt: expiresAt || null 
+      })
+      .returning();
+    return memory;
+  }
+
+  async deleteChatbotMemory(personalityId: string, contextKey: string): Promise<void> {
+    await db
+      .delete(chatbotMemory)
+      .where(
+        and(
+          eq(chatbotMemory.personalityId, personalityId),
+          eq(chatbotMemory.contextKey, contextKey)
+        )
+      );
+  }
+
+  async clearExpiredChatbotMemories(): Promise<number> {
+    const result = await db
+      .delete(chatbotMemory)
+      .where(
+        and(
+          lt(chatbotMemory.expiresAt, new Date()),
+          sql`${chatbotMemory.expiresAt} IS NOT NULL`
+        )
+      )
+      .returning();
+    return result.length;
   }
 
   async updateUser(userId: string, data: Partial<{

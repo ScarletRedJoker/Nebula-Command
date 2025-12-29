@@ -1,89 +1,1041 @@
 {% extends "base.html" %}
 
-{% block title %}Logs - Nebula Command{% endblock %}
+{% block title %}Log Viewer - Nebula Command{% endblock %}
+
+{% block extra_head %}
+<style>
+    .log-viewer-container {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        padding: 0 4px;
+    }
+
+    .log-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 16px;
+    }
+
+    .log-header h2 {
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .status-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+
+    .status-indicator.live {
+        background: rgba(63, 185, 80, 0.15);
+        color: var(--accent-green);
+    }
+
+    .status-indicator.paused {
+        background: rgba(251, 191, 36, 0.15);
+        color: var(--accent-yellow);
+    }
+
+    .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        animation: pulse 2s infinite;
+    }
+
+    .status-dot.live {
+        background: var(--accent-green);
+    }
+
+    .status-dot.paused {
+        background: var(--accent-yellow);
+        animation: none;
+    }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+
+    .log-controls {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 16px 20px;
+    }
+
+    .controls-row {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    .control-group {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .control-label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        font-weight: 600;
+        letter-spacing: 0.5px;
+    }
+
+    .source-select, .search-input {
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 8px 14px;
+        color: var(--text-primary);
+        font-size: 0.875rem;
+        min-width: 200px;
+    }
+
+    .source-select:focus, .search-input:focus {
+        outline: none;
+        border-color: var(--accent-blue);
+    }
+
+    .search-input {
+        flex: 1;
+        min-width: 300px;
+    }
+
+    .level-filters {
+        display: flex;
+        gap: 8px;
+    }
+
+    .level-btn {
+        padding: 6px 12px;
+        border-radius: 6px;
+        border: 1px solid var(--border-color);
+        background: var(--bg-tertiary);
+        color: var(--text-secondary);
+        cursor: pointer;
+        font-size: 0.8rem;
+        font-weight: 500;
+        transition: all 0.15s;
+    }
+
+    .level-btn:hover {
+        border-color: var(--accent-blue);
+    }
+
+    .level-btn.active {
+        color: white;
+    }
+
+    .level-btn.debug.active {
+        background: #6b7280;
+        border-color: #6b7280;
+    }
+
+    .level-btn.info.active {
+        background: var(--accent-blue);
+        border-color: var(--accent-blue);
+    }
+
+    .level-btn.warning.active {
+        background: var(--accent-yellow);
+        border-color: var(--accent-yellow);
+    }
+
+    .level-btn.error.active {
+        background: var(--accent-red);
+        border-color: var(--accent-red);
+    }
+
+    .action-buttons {
+        display: flex;
+        gap: 8px;
+        margin-left: auto;
+    }
+
+    .btn-action {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 14px;
+        border-radius: 8px;
+        border: 1px solid var(--border-color);
+        background: var(--bg-tertiary);
+        color: var(--text-primary);
+        font-size: 0.875rem;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+
+    .btn-action:hover {
+        background: var(--border-color);
+    }
+
+    .btn-action.primary {
+        background: var(--accent-blue);
+        border-color: var(--accent-blue);
+        color: white;
+    }
+
+    .btn-action.primary:hover {
+        background: #2563eb;
+    }
+
+    .btn-action.paused {
+        background: var(--accent-yellow);
+        border-color: var(--accent-yellow);
+        color: black;
+    }
+
+    .log-stats {
+        display: flex;
+        gap: 20px;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 12px 20px;
+    }
+
+    .stat-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.85rem;
+    }
+
+    .stat-icon {
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.9rem;
+    }
+
+    .stat-icon.total {
+        background: rgba(59, 130, 246, 0.15);
+        color: var(--accent-blue);
+    }
+
+    .stat-icon.errors {
+        background: rgba(248, 81, 73, 0.15);
+        color: var(--accent-red);
+    }
+
+    .stat-icon.warnings {
+        background: rgba(251, 191, 36, 0.15);
+        color: var(--accent-yellow);
+    }
+
+    .stat-icon.streams {
+        background: rgba(139, 92, 246, 0.15);
+        color: var(--accent-purple);
+    }
+
+    .stat-value {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .stat-label {
+        color: var(--text-secondary);
+    }
+
+    .log-container {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        min-height: 500px;
+        max-height: calc(100vh - 320px);
+    }
+
+    .log-container-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 16px;
+        background: linear-gradient(135deg, rgba(59, 130, 246, 0.05) 0%, rgba(139, 92, 246, 0.05) 100%);
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .log-container-title {
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .log-count {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        background: var(--bg-tertiary);
+        padding: 2px 8px;
+        border-radius: 12px;
+    }
+
+    .log-content {
+        flex: 1;
+        overflow-y: auto;
+        font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+        font-size: 0.82rem;
+        line-height: 1.6;
+        padding: 0;
+    }
+
+    .log-entry {
+        display: flex;
+        padding: 6px 16px;
+        border-bottom: 1px solid rgba(48, 54, 61, 0.5);
+        transition: background 0.1s;
+    }
+
+    .log-entry:hover {
+        background: var(--bg-tertiary);
+    }
+
+    .log-timestamp {
+        color: var(--text-secondary);
+        min-width: 200px;
+        flex-shrink: 0;
+    }
+
+    .log-level {
+        min-width: 70px;
+        flex-shrink: 0;
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.75rem;
+        display: flex;
+        align-items: center;
+    }
+
+    .log-level.debug {
+        color: #6b7280;
+    }
+
+    .log-level.info {
+        color: var(--accent-blue);
+    }
+
+    .log-level.warning {
+        color: var(--accent-yellow);
+    }
+
+    .log-level.error {
+        color: var(--accent-red);
+    }
+
+    .log-source {
+        color: var(--accent-purple);
+        min-width: 150px;
+        max-width: 150px;
+        flex-shrink: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .log-message {
+        flex: 1;
+        word-break: break-word;
+        white-space: pre-wrap;
+    }
+
+    .log-entry.error {
+        background: rgba(248, 81, 73, 0.05);
+    }
+
+    .log-entry.warning {
+        background: rgba(251, 191, 36, 0.05);
+    }
+
+    .empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 60px 20px;
+        color: var(--text-secondary);
+    }
+
+    .empty-state i {
+        font-size: 3rem;
+        margin-bottom: 16px;
+        opacity: 0.5;
+    }
+
+    .empty-state p {
+        font-size: 1rem;
+        margin: 0;
+    }
+
+    .regex-toggle {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        cursor: pointer;
+    }
+
+    .regex-toggle input {
+        cursor: pointer;
+    }
+
+    .loading-spinner {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 40px;
+    }
+
+    .spinner {
+        width: 32px;
+        height: 32px;
+        border: 3px solid var(--border-color);
+        border-top-color: var(--accent-blue);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    .add-source-modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .add-source-modal.show {
+        display: flex;
+    }
+
+    .modal-content {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 24px;
+        max-width: 500px;
+        width: 90%;
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+
+    .modal-header h3 {
+        margin: 0;
+    }
+
+    .modal-close {
+        background: none;
+        border: none;
+        color: var(--text-secondary);
+        cursor: pointer;
+        font-size: 1.5rem;
+    }
+
+    .form-group {
+        margin-bottom: 16px;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+    }
+
+    .form-group input, .form-group select, .form-group textarea {
+        width: 100%;
+        padding: 10px 14px;
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        color: var(--text-primary);
+        font-size: 0.875rem;
+    }
+
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+        outline: none;
+        border-color: var(--accent-blue);
+    }
+
+    .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+        margin-top: 20px;
+    }
+
+    @media (max-width: 768px) {
+        .controls-row {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        
+        .search-input {
+            min-width: 100%;
+        }
+        
+        .action-buttons {
+            margin-left: 0;
+            justify-content: center;
+        }
+        
+        .log-stats {
+            flex-wrap: wrap;
+        }
+    }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="row mb-4">
-    <div class="col-12">
-        <h2><i class="bi bi-terminal"></i> Container Logs</h2>
-    </div>
-</div>
-
-<div class="row mb-3">
-    <div class="col-md-6">
-        <label for="containerSelect" class="form-label">Select Container</label>
-        <select class="form-select" id="containerSelect">
-            <option value="">Loading containers...</option>
-        </select>
-    </div>
-    <div class="col-md-3">
-        <label for="logLines" class="form-label">Lines to Show</label>
-        <input type="number" class="form-control" id="logLines" value="100" min="10" max="1000">
-    </div>
-    <div class="col-md-3">
-        <label class="form-label">&nbsp;</label>
+<div class="log-viewer-container">
+    <div class="log-header">
         <div>
-            <button class="btn btn-primary w-100" onclick="loadLogs()">
-                <i class="bi bi-arrow-clockwise"></i> Load Logs
+            <h2>
+                <i class="bi bi-terminal"></i>
+                Log Viewer
+                <span class="status-indicator live" id="streamStatus">
+                    <span class="status-dot live"></span>
+                    Live
+                </span>
+            </h2>
+        </div>
+        <div class="action-buttons">
+            <button class="btn-action" onclick="showAddSourceModal()">
+                <i class="bi bi-plus-circle"></i>
+                Add Source
+            </button>
+            <button class="btn-action" onclick="downloadLogs()">
+                <i class="bi bi-download"></i>
+                Download
+            </button>
+            <button class="btn-action" id="clearBtn" onclick="clearLogs()">
+                <i class="bi bi-trash"></i>
+                Clear
             </button>
         </div>
     </div>
-</div>
 
-<div class="row mb-3">
-    <div class="col-12">
-        <input type="text" class="form-control" id="logSearch" placeholder="Search logs...">
-    </div>
-</div>
+    <div class="log-controls">
+        <div class="controls-row">
+            <div class="control-group">
+                <span class="control-label">Source</span>
+                <select class="source-select" id="sourceSelect" onchange="onSourceChange()">
+                    <option value="">All Sources</option>
+                </select>
+            </div>
 
-<div class="row mb-3">
-    <div class="col-12">
-        <button class="btn btn-success" onclick="analyzeWithAI()">
-            <i class="bi bi-robot"></i> Analyze with AI
-        </button>
-        <button class="btn btn-secondary" onclick="downloadLogs()">
-            <i class="bi bi-download"></i> Download
-        </button>
-        <div class="btn-group ms-2">
-            <button class="btn btn-info" onclick="downloadAllLogs('text')">
-                <i class="bi bi-file-earmark-zip"></i> Download All Logs (TXT)
-            </button>
-            <button class="btn btn-info dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false">
-                <span class="visually-hidden">Toggle Dropdown</span>
-            </button>
-            <ul class="dropdown-menu">
-                <li><a class="dropdown-item" href="#" onclick="downloadAllLogs('text'); return false;"><i class="bi bi-file-text"></i> Text Format (.txt)</a></li>
-                <li><a class="dropdown-item" href="#" onclick="downloadAllLogs('json'); return false;"><i class="bi bi-filetype-json"></i> JSON Format (.json)</a></li>
-                <li><hr class="dropdown-divider"></li>
-                <li><span class="dropdown-item-text text-muted small">500 lines per container</span></li>
-            </ul>
+            <div class="control-group">
+                <span class="control-label">Level Filters</span>
+                <div class="level-filters">
+                    <button class="level-btn debug active" data-level="debug" onclick="toggleLevel(this)">DEBUG</button>
+                    <button class="level-btn info active" data-level="info" onclick="toggleLevel(this)">INFO</button>
+                    <button class="level-btn warning active" data-level="warning" onclick="toggleLevel(this)">WARN</button>
+                    <button class="level-btn error active" data-level="error" onclick="toggleLevel(this)">ERROR</button>
+                </div>
+            </div>
+
+            <div class="control-group" style="flex: 1;">
+                <span class="control-label">Search</span>
+                <div style="display: flex; gap: 12px; align-items: center;">
+                    <input type="text" class="search-input" id="searchInput" placeholder="Search logs... (supports regex)" onkeyup="handleSearchKey(event)">
+                    <label class="regex-toggle">
+                        <input type="checkbox" id="regexToggle">
+                        Regex
+                    </label>
+                </div>
+            </div>
+
+            <div class="control-group" style="align-self: flex-end;">
+                <button class="btn-action primary" id="pauseBtn" onclick="togglePause()">
+                    <i class="bi bi-pause-fill" id="pauseIcon"></i>
+                    <span id="pauseText">Pause</span>
+                </button>
+            </div>
         </div>
     </div>
-</div>
 
-<div class="row">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-body">
-                <pre id="logsContent" class="logs-container"></pre>
+    <div class="log-stats" id="logStats">
+        <div class="stat-item">
+            <div class="stat-icon total">
+                <i class="bi bi-list-ul"></i>
+            </div>
+            <span class="stat-value" id="totalLogs">0</span>
+            <span class="stat-label">Total</span>
+        </div>
+        <div class="stat-item">
+            <div class="stat-icon errors">
+                <i class="bi bi-x-circle"></i>
+            </div>
+            <span class="stat-value" id="errorCount">0</span>
+            <span class="stat-label">Errors</span>
+        </div>
+        <div class="stat-item">
+            <div class="stat-icon warnings">
+                <i class="bi bi-exclamation-triangle"></i>
+            </div>
+            <span class="stat-value" id="warningCount">0</span>
+            <span class="stat-label">Warnings</span>
+        </div>
+        <div class="stat-item">
+            <div class="stat-icon streams">
+                <i class="bi bi-broadcast"></i>
+            </div>
+            <span class="stat-value" id="sourceCount">0</span>
+            <span class="stat-label">Sources</span>
+        </div>
+    </div>
+
+    <div class="log-container">
+        <div class="log-container-header">
+            <div class="log-container-title">
+                <i class="bi bi-terminal"></i>
+                Live Log Stream
+                <span class="log-count" id="displayedCount">0 entries</span>
+            </div>
+            <div>
+                <label style="font-size: 0.8rem; color: var(--text-secondary); cursor: pointer;">
+                    <input type="checkbox" id="autoScrollToggle" checked>
+                    Auto-scroll
+                </label>
+            </div>
+        </div>
+        <div class="log-content" id="logContent">
+            <div class="loading-spinner">
+                <div class="spinner"></div>
             </div>
         </div>
     </div>
 </div>
 
-<div class="modal fade" id="aiAnalysisModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">AI Log Analysis</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div id="aiAnalysisContent">Analyzing...</div>
-            </div>
+<div class="add-source-modal" id="addSourceModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3><i class="bi bi-plus-circle"></i> Add Log Source</h3>
+            <button class="modal-close" onclick="hideAddSourceModal()">&times;</button>
         </div>
+        <form id="addSourceForm" onsubmit="submitAddSource(event)">
+            <div class="form-group">
+                <label>Name *</label>
+                <input type="text" name="name" required placeholder="My Application Logs">
+            </div>
+            <div class="form-group">
+                <label>Source Type *</label>
+                <select name="source_type" required onchange="onSourceTypeChange(this)">
+                    <option value="file">File</option>
+                    <option value="docker">Docker Container</option>
+                    <option value="systemd">Systemd Unit</option>
+                    <option value="application">Application</option>
+                </select>
+            </div>
+            <div class="form-group" id="filePathGroup">
+                <label>File Path</label>
+                <input type="text" name="source_path" placeholder="/var/log/myapp.log">
+            </div>
+            <div class="form-group" id="containerGroup" style="display: none;">
+                <label>Container Name</label>
+                <input type="text" name="container_name" placeholder="my-container">
+            </div>
+            <div class="form-group" id="systemdGroup" style="display: none;">
+                <label>Systemd Unit</label>
+                <input type="text" name="systemd_unit" placeholder="myservice.service">
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea name="description" rows="2" placeholder="Optional description"></textarea>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn-action" onclick="hideAddSourceModal()">Cancel</button>
+                <button type="submit" class="btn-action primary">Add Source</button>
+            </div>
+        </form>
     </div>
 </div>
 
-<script src="{{ url_for('static', filename='js/logs.js') }}"></script>
+<script>
+let eventSource = null;
+let isPaused = false;
+let logs = [];
+let activeLevels = ['debug', 'info', 'warning', 'error'];
+let currentSource = '';
+let currentSearch = '';
+let autoScroll = true;
+let stats = { total: 0, errors: 0, warnings: 0 };
+
+function formatTimestamp(isoString) {
+    try {
+        const date = new Date(isoString);
+        return date.toLocaleString('en-US', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+        });
+    } catch {
+        return isoString;
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function createLogEntry(log) {
+    const level = (log.level || 'info').toLowerCase();
+    const timestamp = formatTimestamp(log.timestamp);
+    const source = log.source || 'unknown';
+    const message = escapeHtml(log.message || '');
+    
+    return `
+        <div class="log-entry ${level}">
+            <span class="log-timestamp">${timestamp}</span>
+            <span class="log-level ${level}">${level}</span>
+            <span class="log-source" title="${source}">${source}</span>
+            <span class="log-message">${message}</span>
+        </div>
+    `;
+}
+
+function updateStats() {
+    document.getElementById('totalLogs').textContent = logs.length;
+    document.getElementById('errorCount').textContent = logs.filter(l => l.level === 'error').length;
+    document.getElementById('warningCount').textContent = logs.filter(l => l.level === 'warning').length;
+}
+
+function filterLogs() {
+    let filtered = logs;
+    
+    if (activeLevels.length < 4) {
+        filtered = filtered.filter(l => activeLevels.includes((l.level || 'info').toLowerCase()));
+    }
+    
+    if (currentSource) {
+        filtered = filtered.filter(l => l.source === currentSource);
+    }
+    
+    if (currentSearch) {
+        const isRegex = document.getElementById('regexToggle').checked;
+        if (isRegex) {
+            try {
+                const regex = new RegExp(currentSearch, 'i');
+                filtered = filtered.filter(l => regex.test(l.message || ''));
+            } catch (e) {
+                filtered = filtered.filter(l => (l.message || '').toLowerCase().includes(currentSearch.toLowerCase()));
+            }
+        } else {
+            const search = currentSearch.toLowerCase();
+            filtered = filtered.filter(l => (l.message || '').toLowerCase().includes(search));
+        }
+    }
+    
+    return filtered;
+}
+
+function renderLogs() {
+    const content = document.getElementById('logContent');
+    const filtered = filterLogs();
+    
+    if (filtered.length === 0) {
+        content.innerHTML = `
+            <div class="empty-state">
+                <i class="bi bi-inbox"></i>
+                <p>No logs to display</p>
+            </div>
+        `;
+    } else {
+        content.innerHTML = filtered.map(createLogEntry).join('');
+    }
+    
+    document.getElementById('displayedCount').textContent = `${filtered.length} entries`;
+    
+    if (autoScroll) {
+        content.scrollTop = content.scrollHeight;
+    }
+}
+
+function addLog(log) {
+    logs.push(log);
+    if (logs.length > 1000) {
+        logs = logs.slice(-500);
+    }
+    
+    if (!isPaused) {
+        updateStats();
+        renderLogs();
+    }
+}
+
+function toggleLevel(btn) {
+    const level = btn.dataset.level;
+    btn.classList.toggle('active');
+    
+    if (btn.classList.contains('active')) {
+        if (!activeLevels.includes(level)) {
+            activeLevels.push(level);
+        }
+    } else {
+        activeLevels = activeLevels.filter(l => l !== level);
+    }
+    
+    renderLogs();
+}
+
+function onSourceChange() {
+    currentSource = document.getElementById('sourceSelect').value;
+    reconnectStream();
+}
+
+function handleSearchKey(event) {
+    if (event.key === 'Enter') {
+        currentSearch = event.target.value;
+        renderLogs();
+    }
+}
+
+function togglePause() {
+    isPaused = !isPaused;
+    
+    const btn = document.getElementById('pauseBtn');
+    const icon = document.getElementById('pauseIcon');
+    const text = document.getElementById('pauseText');
+    const status = document.getElementById('streamStatus');
+    const dot = status.querySelector('.status-dot');
+    
+    if (isPaused) {
+        btn.classList.add('paused');
+        icon.className = 'bi bi-play-fill';
+        text.textContent = 'Resume';
+        status.className = 'status-indicator paused';
+        status.innerHTML = '<span class="status-dot paused"></span> Paused';
+    } else {
+        btn.classList.remove('paused');
+        icon.className = 'bi bi-pause-fill';
+        text.textContent = 'Pause';
+        status.className = 'status-indicator live';
+        status.innerHTML = '<span class="status-dot live"></span> Live';
+        updateStats();
+        renderLogs();
+    }
+}
+
+function clearLogs() {
+    logs = [];
+    updateStats();
+    renderLogs();
+}
+
+function downloadLogs() {
+    const filtered = filterLogs();
+    const content = filtered.map(l => {
+        const ts = l.timestamp || '';
+        const level = (l.level || 'INFO').toUpperCase();
+        const source = l.source || '';
+        const message = l.message || '';
+        return `[${ts}] [${level}] [${source}] ${message}`;
+    }).join('\n');
+    
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `logs-${new Date().toISOString().slice(0, 10)}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+function loadSources() {
+    fetch('/api/logs/sources')
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                const select = document.getElementById('sourceSelect');
+                select.innerHTML = '<option value="">All Sources</option>';
+                
+                const sources = data.sources || [];
+                document.getElementById('sourceCount').textContent = sources.length;
+                
+                const grouped = {};
+                sources.forEach(s => {
+                    const type = s.type || 'other';
+                    if (!grouped[type]) grouped[type] = [];
+                    grouped[type].push(s);
+                });
+                
+                Object.keys(grouped).sort().forEach(type => {
+                    const group = document.createElement('optgroup');
+                    group.label = type.charAt(0).toUpperCase() + type.slice(1);
+                    
+                    grouped[type].forEach(s => {
+                        const option = document.createElement('option');
+                        option.value = s.name;
+                        option.textContent = s.display_name || s.name;
+                        if (!s.available) option.disabled = true;
+                        group.appendChild(option);
+                    });
+                    
+                    select.appendChild(group);
+                });
+            }
+        })
+        .catch(e => console.error('Load sources error:', e));
+}
+
+function connectStream() {
+    if (eventSource) {
+        eventSource.close();
+    }
+    
+    let url = '/api/logs/stream';
+    const params = new URLSearchParams();
+    if (currentSource) params.set('source', currentSource);
+    if (activeLevels.length < 4) params.set('level', activeLevels.join(','));
+    if (currentSearch) params.set('search', currentSearch);
+    
+    if (params.toString()) {
+        url += '?' + params.toString();
+    }
+    
+    eventSource = new EventSource(url);
+    
+    eventSource.onmessage = function(event) {
+        try {
+            const data = JSON.parse(event.data);
+            
+            if (data.type === 'connected') {
+                console.log('SSE connected:', data.client_id);
+            } else if (data.type === 'log' && data.data) {
+                addLog(data.data);
+            } else if (data.type === 'heartbeat') {
+            }
+        } catch (e) {
+            console.error('Parse error:', e);
+        }
+    };
+    
+    eventSource.onerror = function(e) {
+        console.error('SSE error:', e);
+        const status = document.getElementById('streamStatus');
+        status.className = 'status-indicator paused';
+        status.innerHTML = '<span class="status-dot paused"></span> Disconnected';
+        
+        setTimeout(connectStream, 5000);
+    };
+}
+
+function reconnectStream() {
+    logs = [];
+    updateStats();
+    document.getElementById('logContent').innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
+    connectStream();
+}
+
+function showAddSourceModal() {
+    document.getElementById('addSourceModal').classList.add('show');
+}
+
+function hideAddSourceModal() {
+    document.getElementById('addSourceModal').classList.remove('show');
+    document.getElementById('addSourceForm').reset();
+}
+
+function onSourceTypeChange(select) {
+    const type = select.value;
+    document.getElementById('filePathGroup').style.display = type === 'file' ? 'block' : 'none';
+    document.getElementById('containerGroup').style.display = type === 'docker' ? 'block' : 'none';
+    document.getElementById('systemdGroup').style.display = type === 'systemd' ? 'block' : 'none';
+}
+
+function submitAddSource(event) {
+    event.preventDefault();
+    
+    const formData = new FormData(event.target);
+    const data = Object.fromEntries(formData.entries());
+    
+    fetch('/api/logs/sources', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+        },
+        body: JSON.stringify(data)
+    })
+    .then(r => r.json())
+    .then(result => {
+        if (result.success) {
+            hideAddSourceModal();
+            loadSources();
+            alert('Source added successfully!');
+        } else {
+            alert('Error: ' + (result.error || 'Failed to add source'));
+        }
+    })
+    .catch(e => {
+        alert('Error: ' + e.message);
+    });
+}
+
+document.getElementById('autoScrollToggle').addEventListener('change', function() {
+    autoScroll = this.checked;
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadSources();
+    connectStream();
+    
+    setInterval(() => {
+        fetch('/api/logs/stats')
+            .then(r => r.json())
+            .then(data => {
+                if (data.success && data.stats) {
+                }
+            })
+            .catch(() => {});
+    }, 30000);
+});
+
+window.addEventListener('beforeunload', function() {
+    if (eventSource) {
+        eventSource.close();
+    }
+});
+</script>
 {% endblock %}

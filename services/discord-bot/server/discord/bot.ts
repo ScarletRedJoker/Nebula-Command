@@ -31,6 +31,7 @@ import { registerScheduledCommands, calculateNextRun } from './scheduled-command
 import { registerLevelingCommands, initializeLevelingEvents } from './features/leveling';
 import { registerCustomCommandCommands, initializeCustomCommandEvents } from './features/customCommands';
 import { registerPollCommands, handlePollButtonInteraction, handlePollSelectMenuInteraction, startPollScheduler, stopPollScheduler } from './features/polls';
+import { registerModerationCommands, registerAutomodConfigCommands, initializeAutomodEvents } from './features/moderation';
 import { commandEngine } from '../services/commandEngine';
 import { guildIdentityService } from '../services/guildIdentityService';
 import { welcomeCardRenderer } from '../services/welcomeCardRenderer';
@@ -71,6 +72,8 @@ registerScheduledCommands();
 registerLevelingCommands(commands);
 registerCustomCommandCommands(commands);
 registerPollCommands(commands);
+registerModerationCommands(commands);
+registerAutomodConfigCommands(commands);
 console.log('[Discord] Total commands after all registrations:', Array.from(commands.keys()).join(', '));
 
 export async function startBot(storage: IStorage, broadcast: (data: any) => void): Promise<void> {
@@ -2966,6 +2969,15 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
         console.log('[Bot] ✅ Moderation features initialized successfully');
       } catch (modError) {
         console.error('[Bot] Failed to initialize moderation features:', modError);
+      }
+      
+      // Initialize automod events (Advanced rule-based moderation)
+      console.log('[Bot] Initializing automod events...');
+      try {
+        initializeAutomodEvents(client!, storage);
+        console.log('[Bot] ✅ Automod events initialized successfully');
+      } catch (automodError) {
+        console.error('[Bot] Failed to initialize automod events:', automodError);
       }
     });
 

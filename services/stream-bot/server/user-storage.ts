@@ -488,6 +488,27 @@ export class UserStorage {
     return storage.getPresetPersonalities();
   }
 
+  // Chatbot Memory
+  async getChatbotMemoriesByPersonality(personalityId: string) {
+    return storage.getChatbotMemoriesByPersonality(personalityId);
+  }
+
+  async getChatbotMemory(personalityId: string, contextKey: string) {
+    return storage.getChatbotMemory(personalityId, contextKey);
+  }
+
+  async upsertChatbotMemory(personalityId: string, contextKey: string, contextValue: string, expiresAt?: Date) {
+    return storage.upsertChatbotMemory(personalityId, contextKey, contextValue, expiresAt);
+  }
+
+  async deleteChatbotMemory(personalityId: string, contextKey: string) {
+    return storage.deleteChatbotMemory(personalityId, contextKey);
+  }
+
+  async clearExpiredChatbotMemories() {
+    return storage.clearExpiredChatbotMemories();
+  }
+
   // Alert Settings
   async getAlertSettings(): Promise<AlertSettings | undefined> {
     return storage.getAlertSettings(this.userId);

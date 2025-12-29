@@ -752,6 +752,12 @@ export const chatbotPersonalities = pgTable("chatbot_personalities", {
   systemPrompt: text("system_prompt").notNull(), // The full system prompt for this personality
   temperature: integer("temperature").default(10).notNull(), // Stored as integer (0-20), divided by 10 in app (0.0-2.0)
   traits: jsonb("traits").default(sql`'[]'::jsonb`).notNull(), // Array of personality traits/keywords
+  tone: text("tone").default("friendly").notNull(), // 'friendly', 'sarcastic', 'professional', 'funny'
+  responseStyle: text("response_style").default("medium").notNull(), // 'short', 'medium', 'verbose'
+  triggerWords: jsonb("trigger_words").default(sql`'[]'::jsonb`).notNull(), // Array of words that trigger the bot to respond
+  replyChance: integer("reply_chance").default(100).notNull(), // 0-100 percentage chance to reply when triggered
+  cooldown: integer("cooldown").default(30).notNull(), // Minimum seconds between responses for same user
+  lastReply: timestamp("last_reply"), // Last time this personality was used to reply
   isPreset: boolean("is_preset").default(false).notNull(), // True for built-in personalities, false for custom
   isActive: boolean("is_active").default(true).notNull(),
   usageCount: integer("usage_count").default(0).notNull(), // Track how often this personality is used
@@ -759,6 +765,20 @@ export const chatbotPersonalities = pgTable("chatbot_personalities", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => ({
   userNameIdx: uniqueIndex("chatbot_personalities_user_id_name_unique").on(table.userId, table.name),
+}));
+
+// Chatbot Memory - Contextual memory for ongoing conversations with expiration
+export const chatbotMemory = pgTable("chatbot_memory", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  personalityId: varchar("personality_id").notNull().references(() => chatbotPersonalities.id, { onDelete: "cascade" }),
+  contextKey: text("context_key").notNull(), // Key for the context (e.g., "user:username", "topic:gaming")
+  contextValue: text("context_value").notNull(), // The stored context value
+  expiresAt: timestamp("expires_at"), // Optional expiration time for the memory
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  personalityContextIdx: uniqueIndex("chatbot_memory_personality_id_context_key_unique").on(table.personalityId, table.contextKey),
+  expiresAtIdx: index("chatbot_memory_expires_at_idx").on(table.expiresAt),
 }));
 
 // Analytics Snapshots - Daily snapshots of streamer metrics
@@ -1713,6 +1733,20 @@ export const insertChatbotPersonalitySchema = createInsertSchema(chatbotPersonal
   systemPrompt: z.string().min(10, "System prompt is required").max(2000, "Prompt too long"),
   temperature: z.coerce.number().min(0).max(20), // 0-20 representing 0.0-2.0
   traits: z.array(z.string()).optional(),
+  tone: z.enum(["friendly", "sarcastic", "professional", "funny"]).optional(),
+  responseStyle: z.enum(["short", "medium", "verbose"]).optional(),
+  triggerWords: z.array(z.string()).optional(),
+  replyChance: z.coerce.number().min(0).max(100).optional(),
+  cooldown: z.coerce.number().min(0).max(3600).optional(),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertChatbotMemorySchema = createInsertSchema(chatbotMemory, {
+  contextKey: z.string().min(1, "Context key is required").max(200, "Context key too long"),
+  contextValue: z.string().min(1, "Context value is required").max(5000, "Context value too long"),
 }).omit({
   id: true,
   createdAt: true,
@@ -2004,6 +2038,7 @@ export const updateChatbotSettingsSchema = insertChatbotSettingsSchema.partial()
 export const updateChatbotResponseSchema = insertChatbotResponseSchema.partial();
 export const updateChatbotContextSchema = insertChatbotContextSchema.partial();
 export const updateChatbotPersonalitySchema = insertChatbotPersonalitySchema.partial();
+export const updateChatbotMemorySchema = insertChatbotMemorySchema.partial();
 export const updateOBSConnectionSchema = insertOBSConnectionSchema.partial();
 export const updateOBSAutomationSchema = insertOBSAutomationSchema.partial();
 
@@ -2072,6 +2107,7 @@ export type ChatbotSettings = typeof chatbotSettings.$inferSelect;
 export type ChatbotResponse = typeof chatbotResponses.$inferSelect;
 export type ChatbotContext = typeof chatbotContext.$inferSelect;
 export type ChatbotPersonality = typeof chatbotPersonalities.$inferSelect;
+export type ChatbotMemory = typeof chatbotMemory.$inferSelect;
 export type AnalyticsSnapshot = typeof analyticsSnapshots.$inferSelect;
 export type SentimentAnalysis = typeof sentimentAnalysis.$inferSelect;
 export type OBSConnection = typeof obsConnections.$inferSelect;
@@ -2146,6 +2182,7 @@ export type InsertChatbotSettings = z.infer<typeof insertChatbotSettingsSchema>;
 export type InsertChatbotResponse = z.infer<typeof insertChatbotResponseSchema>;
 export type InsertChatbotContext = z.infer<typeof insertChatbotContextSchema>;
 export type InsertChatbotPersonality = z.infer<typeof insertChatbotPersonalitySchema>;
+export type InsertChatbotMemory = z.infer<typeof insertChatbotMemorySchema>;
 export type InsertAnalyticsSnapshot = z.infer<typeof insertAnalyticsSnapshotSchema>;
 export type InsertSentimentAnalysis = z.infer<typeof insertSentimentAnalysisSchema>;
 export type InsertOBSConnection = z.infer<typeof insertOBSConnectionSchema>;

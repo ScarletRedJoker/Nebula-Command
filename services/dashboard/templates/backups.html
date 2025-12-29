@@ -1,0 +1,1780 @@
+{% extends "base.html" %}
+
+{% block title %}Backup Management - Dashboard{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+    .backup-container {
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+        padding: 0 4px;
+    }
+
+    .backup-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 16px;
+    }
+
+    .backup-header h2 {
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 16px;
+        border-radius: 8px;
+        font-weight: 500;
+        font-size: 0.875rem;
+        cursor: pointer;
+        border: 1px solid transparent;
+        transition: all 0.2s;
+    }
+
+    .btn-primary {
+        background: var(--accent-blue);
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: #2563eb;
+    }
+
+    .btn-secondary {
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+    }
+
+    .btn-secondary:hover {
+        background: var(--border-color);
+    }
+
+    .btn-success {
+        background: var(--accent-green);
+        color: white;
+    }
+
+    .btn-danger {
+        background: var(--accent-red);
+        color: white;
+    }
+
+    .btn-warning {
+        background: var(--accent-yellow);
+        color: white;
+    }
+
+    .btn-sm {
+        padding: 6px 12px;
+        font-size: 0.8rem;
+    }
+
+    .storage-overview {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+    }
+
+    .stat-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        transition: all 0.2s;
+    }
+
+    .stat-card:hover {
+        border-color: var(--accent-blue);
+    }
+
+    .stat-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .stat-card-title {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .stat-card-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+    }
+
+    .stat-card-icon.database { background: rgba(59, 130, 246, 0.15); color: var(--accent-blue); }
+    .stat-card-icon.files { background: rgba(139, 92, 246, 0.15); color: var(--accent-purple); }
+    .stat-card-icon.docker { background: rgba(63, 185, 80, 0.15); color: var(--accent-green); }
+    .stat-card-icon.studio { background: rgba(251, 191, 36, 0.15); color: var(--accent-yellow); }
+    .stat-card-icon.total { background: rgba(248, 81, 73, 0.15); color: var(--accent-red); }
+
+    .stat-card-value {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .stat-card-sub {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+    }
+
+    .content-grid {
+        display: grid;
+        grid-template-columns: 1fr 350px;
+        gap: 24px;
+    }
+
+    @media (max-width: 1200px) {
+        .content-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .panel {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    .panel-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--border-color);
+        background: linear-gradient(135deg, rgba(59, 130, 246, 0.05) 0%, rgba(139, 92, 246, 0.05) 100%);
+    }
+
+    .panel-title {
+        font-weight: 600;
+        font-size: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .panel-body {
+        padding: 20px;
+    }
+
+    .backup-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .backup-table th {
+        text-align: left;
+        padding: 12px;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        border-bottom: 1px solid var(--border-color);
+        font-weight: 600;
+    }
+
+    .backup-table td {
+        padding: 12px;
+        font-size: 0.875rem;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .backup-table tr:hover td {
+        background: var(--bg-tertiary);
+    }
+
+    .backup-name {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .backup-source {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        max-width: 200px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .badge-success { background: rgba(63, 185, 80, 0.15); color: var(--accent-green); }
+    .badge-warning { background: rgba(251, 191, 36, 0.15); color: var(--accent-yellow); }
+    .badge-danger { background: rgba(248, 81, 73, 0.15); color: var(--accent-red); }
+    .badge-info { background: rgba(59, 130, 246, 0.15); color: var(--accent-blue); }
+    .badge-purple { background: rgba(139, 92, 246, 0.15); color: var(--accent-purple); }
+
+    .type-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .type-database { background: rgba(59, 130, 246, 0.15); color: var(--accent-blue); }
+    .type-files { background: rgba(139, 92, 246, 0.15); color: var(--accent-purple); }
+    .type-docker_volume { background: rgba(63, 185, 80, 0.15); color: var(--accent-green); }
+    .type-studio_project { background: rgba(251, 191, 36, 0.15); color: var(--accent-yellow); }
+    .type-full { background: rgba(248, 81, 73, 0.15); color: var(--accent-red); }
+    .type-configs { background: rgba(88, 166, 255, 0.15); color: #58a6ff; }
+
+    .action-btns {
+        display: flex;
+        gap: 6px;
+    }
+
+    .action-btn {
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px;
+        border: 1px solid var(--border-color);
+        background: var(--bg-tertiary);
+        color: var(--text-secondary);
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .action-btn:hover {
+        background: var(--border-color);
+        color: var(--text-primary);
+    }
+
+    .action-btn.restore:hover { color: var(--accent-green); border-color: var(--accent-green); }
+    .action-btn.delete:hover { color: var(--accent-red); border-color: var(--accent-red); }
+
+    .schedule-item {
+        background: var(--bg-tertiary);
+        border-radius: 10px;
+        padding: 16px;
+        margin-bottom: 12px;
+    }
+
+    .schedule-item:last-child {
+        margin-bottom: 0;
+    }
+
+    .schedule-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+
+    .schedule-name {
+        font-weight: 600;
+        font-size: 0.95rem;
+    }
+
+    .schedule-toggle {
+        position: relative;
+        width: 40px;
+        height: 22px;
+    }
+
+    .schedule-toggle input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+
+    .toggle-slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: var(--border-color);
+        transition: .3s;
+        border-radius: 22px;
+    }
+
+    .toggle-slider:before {
+        position: absolute;
+        content: "";
+        height: 16px;
+        width: 16px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: .3s;
+        border-radius: 50%;
+    }
+
+    .schedule-toggle input:checked + .toggle-slider {
+        background-color: var(--accent-green);
+    }
+
+    .schedule-toggle input:checked + .toggle-slider:before {
+        transform: translateX(18px);
+    }
+
+    .schedule-info {
+        display: flex;
+        gap: 16px;
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+    }
+
+    .schedule-info span {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .schedule-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 12px;
+    }
+
+    .disk-usage {
+        margin-bottom: 20px;
+    }
+
+    .disk-usage-header {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 8px;
+        font-size: 0.875rem;
+    }
+
+    .disk-usage-bar {
+        height: 10px;
+        background: var(--bg-tertiary);
+        border-radius: 5px;
+        overflow: hidden;
+    }
+
+    .disk-usage-fill {
+        height: 100%;
+        border-radius: 5px;
+        transition: width 0.5s ease;
+    }
+
+    .disk-usage-fill.low { background: var(--accent-green); }
+    .disk-usage-fill.medium { background: var(--accent-yellow); }
+    .disk-usage-fill.high { background: var(--accent-red); }
+
+    .chart-wrapper {
+        height: 200px;
+        margin-top: 16px;
+    }
+
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.2s;
+    }
+
+    .modal-overlay.show {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    .modal {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        width: 90%;
+        max-width: 500px;
+        max-height: 90vh;
+        overflow: auto;
+        transform: translateY(-20px);
+        transition: transform 0.2s;
+    }
+
+    .modal-overlay.show .modal {
+        transform: translateY(0);
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .modal-title {
+        font-weight: 600;
+        font-size: 1.1rem;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .modal-close {
+        background: none;
+        border: none;
+        color: var(--text-secondary);
+        cursor: pointer;
+        font-size: 1.5rem;
+        line-height: 1;
+    }
+
+    .modal-close:hover {
+        color: var(--text-primary);
+    }
+
+    .modal-body {
+        padding: 20px;
+    }
+
+    .modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        padding: 16px 20px;
+        border-top: 1px solid var(--border-color);
+    }
+
+    .form-group {
+        margin-bottom: 16px;
+    }
+
+    .form-label {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: var(--text-secondary);
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 10px 12px;
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        color: var(--text-primary);
+        font-size: 0.875rem;
+        transition: border-color 0.2s;
+    }
+
+    .form-control:focus {
+        outline: none;
+        border-color: var(--accent-blue);
+    }
+
+    .form-control::placeholder {
+        color: var(--text-secondary);
+    }
+
+    select.form-control {
+        cursor: pointer;
+    }
+
+    .source-list {
+        max-height: 200px;
+        overflow-y: auto;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        margin-top: 6px;
+    }
+
+    .source-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--border-color);
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .source-item:last-child {
+        border-bottom: none;
+    }
+
+    .source-item:hover {
+        background: var(--bg-tertiary);
+    }
+
+    .source-item.selected {
+        background: rgba(59, 130, 246, 0.15);
+        border-left: 3px solid var(--accent-blue);
+    }
+
+    .source-item input[type="radio"] {
+        display: none;
+    }
+
+    .source-item i {
+        font-size: 1.1rem;
+        color: var(--text-secondary);
+    }
+
+    .source-item-text {
+        flex: 1;
+    }
+
+    .source-item-name {
+        font-weight: 500;
+        font-size: 0.875rem;
+    }
+
+    .source-item-path {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 40px 20px;
+        color: var(--text-secondary);
+    }
+
+    .empty-state i {
+        font-size: 3rem;
+        margin-bottom: 16px;
+        opacity: 0.5;
+    }
+
+    .empty-state h4 {
+        color: var(--text-primary);
+        margin-bottom: 8px;
+    }
+
+    .loading {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 40px;
+    }
+
+    .spinner {
+        width: 40px;
+        height: 40px;
+        border: 3px solid var(--border-color);
+        border-top-color: var(--accent-blue);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    .text-muted {
+        color: var(--text-secondary);
+    }
+
+    .tabs {
+        display: flex;
+        gap: 4px;
+        background: var(--bg-tertiary);
+        padding: 4px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+    }
+
+    .tab-btn {
+        flex: 1;
+        padding: 8px 16px;
+        background: transparent;
+        border: none;
+        border-radius: 6px;
+        color: var(--text-secondary);
+        font-weight: 500;
+        font-size: 0.875rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .tab-btn.active {
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    }
+
+    .tab-btn:hover:not(.active) {
+        color: var(--text-primary);
+    }
+
+    .restore-warning {
+        background: rgba(248, 81, 73, 0.1);
+        border: 1px solid rgba(248, 81, 73, 0.3);
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 16px;
+        color: var(--accent-red);
+        font-size: 0.875rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="backup-container">
+    <div class="backup-header">
+        <div>
+            <h2>
+                <i class="bi bi-archive"></i>
+                Backup Management
+            </h2>
+            <p class="text-muted mt-2" style="margin: 0; color: var(--text-secondary);">
+                Create, manage, and restore backups for databases, files, and Docker volumes
+            </p>
+        </div>
+        <div class="header-actions">
+            <button class="btn btn-secondary" onclick="refreshData()">
+                <i class="bi bi-arrow-clockwise"></i>
+                Refresh
+            </button>
+            <button class="btn btn-success" onclick="openCleanupModal()">
+                <i class="bi bi-trash3"></i>
+                Cleanup
+            </button>
+            <button class="btn btn-primary" onclick="openCreateModal()">
+                <i class="bi bi-plus-lg"></i>
+                New Backup
+            </button>
+        </div>
+    </div>
+
+    <div class="storage-overview" id="storageOverview">
+        <div class="stat-card">
+            <div class="stat-card-header">
+                <span class="stat-card-title">Total Backups</span>
+                <div class="stat-card-icon total">
+                    <i class="bi bi-archive"></i>
+                </div>
+            </div>
+            <div class="stat-card-value" id="totalSize">--</div>
+            <div class="stat-card-sub" id="totalCount">-- backups</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-card-header">
+                <span class="stat-card-title">Databases</span>
+                <div class="stat-card-icon database">
+                    <i class="bi bi-database"></i>
+                </div>
+            </div>
+            <div class="stat-card-value" id="databaseSize">--</div>
+            <div class="stat-card-sub" id="databaseCount">-- backups</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-card-header">
+                <span class="stat-card-title">Files</span>
+                <div class="stat-card-icon files">
+                    <i class="bi bi-folder2"></i>
+                </div>
+            </div>
+            <div class="stat-card-value" id="filesSize">--</div>
+            <div class="stat-card-sub" id="filesCount">-- backups</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-card-header">
+                <span class="stat-card-title">Docker Volumes</span>
+                <div class="stat-card-icon docker">
+                    <i class="bi bi-box"></i>
+                </div>
+            </div>
+            <div class="stat-card-value" id="dockerSize">--</div>
+            <div class="stat-card-sub" id="dockerCount">-- backups</div>
+        </div>
+    </div>
+
+    <div class="content-grid">
+        <div class="panel">
+            <div class="panel-header">
+                <span class="panel-title">
+                    <i class="bi bi-archive"></i>
+                    Backup History
+                </span>
+                <div class="tabs" style="margin: 0; padding: 2px;">
+                    <button class="tab-btn active" data-filter="all">All</button>
+                    <button class="tab-btn" data-filter="database">Database</button>
+                    <button class="tab-btn" data-filter="files">Files</button>
+                    <button class="tab-btn" data-filter="docker_volume">Docker</button>
+                </div>
+            </div>
+            <div class="panel-body" style="padding: 0;">
+                <div id="backupsList">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 20px;">
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">
+                        <i class="bi bi-hdd-stack"></i>
+                        Disk Usage
+                    </span>
+                </div>
+                <div class="panel-body">
+                    <div class="disk-usage">
+                        <div class="disk-usage-header">
+                            <span>Backup Storage</span>
+                            <span id="diskPercent">--%</span>
+                        </div>
+                        <div class="disk-usage-bar">
+                            <div class="disk-usage-fill low" id="diskFill" style="width: 0%"></div>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-top: 8px; font-size: 0.8rem; color: var(--text-secondary);">
+                            <span id="diskUsed">-- used</span>
+                            <span id="diskFree">-- free</span>
+                        </div>
+                    </div>
+                    <div class="chart-wrapper">
+                        <canvas id="storageChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">
+                        <i class="bi bi-calendar-check"></i>
+                        Scheduled Backups
+                    </span>
+                    <button class="btn btn-sm btn-secondary" onclick="openScheduleModal()">
+                        <i class="bi bi-plus"></i>
+                        Add
+                    </button>
+                </div>
+                <div class="panel-body" id="schedulesList">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="createModal">
+    <div class="modal">
+        <div class="modal-header">
+            <span class="modal-title">
+                <i class="bi bi-plus-circle"></i>
+                Create New Backup
+            </span>
+            <button class="modal-close" onclick="closeModal('createModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Backup Name</label>
+                <input type="text" class="form-control" id="backupName" placeholder="My Backup">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Backup Type</label>
+                <select class="form-control" id="backupType" onchange="loadSources()">
+                    <option value="">Select type...</option>
+                    <option value="database">Database (PostgreSQL)</option>
+                    <option value="files">Files / Directory</option>
+                    <option value="docker_volume">Docker Volume</option>
+                    <option value="studio_project">Studio Project</option>
+                    <option value="configs">Configuration Files</option>
+                </select>
+            </div>
+            <div class="form-group" id="sourceGroup" style="display: none;">
+                <label class="form-label">Source</label>
+                <div class="source-list" id="sourceList"></div>
+                <input type="hidden" id="selectedSource">
+            </div>
+            <div class="form-group" id="customSourceGroup" style="display: none;">
+                <label class="form-label">Custom Path</label>
+                <input type="text" class="form-control" id="customSource" placeholder="/path/to/directory">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Destination</label>
+                <select class="form-control" id="destinationType">
+                    <option value="local">Local Storage</option>
+                    <option value="minio">MinIO / S3</option>
+                </select>
+                <small class="text-muted" id="minioStatus" style="color: var(--text-secondary); display: none; margin-top: 4px;">
+                    <i class="bi bi-check-circle" style="color: var(--accent-green);"></i> MinIO connected
+                </small>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Compression</label>
+                <select class="form-control" id="compression">
+                    <option value="gzip">GZip (Recommended)</option>
+                    <option value="none">No Compression</option>
+                </select>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('createModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="createBackup()">
+                <i class="bi bi-cloud-upload"></i>
+                Create Backup
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="restoreModal">
+    <div class="modal">
+        <div class="modal-header">
+            <span class="modal-title">
+                <i class="bi bi-arrow-counterclockwise"></i>
+                Restore Backup
+            </span>
+            <button class="modal-close" onclick="closeModal('restoreModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="restore-warning">
+                <i class="bi bi-exclamation-triangle"></i>
+                <strong>Warning:</strong> Restoring will overwrite existing data at the target location. This action cannot be undone.
+            </div>
+            <p id="restoreInfo"></p>
+            <div class="form-group">
+                <label class="form-label">Target Path (optional - leave empty for original location)</label>
+                <input type="text" class="form-control" id="restoreTarget" placeholder="Original location">
+            </div>
+            <input type="hidden" id="restoreBackupId">
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('restoreModal')">Cancel</button>
+            <button class="btn btn-warning" onclick="confirmRestore()">
+                <i class="bi bi-arrow-counterclockwise"></i>
+                Restore Backup
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="scheduleModal">
+    <div class="modal">
+        <div class="modal-header">
+            <span class="modal-title">
+                <i class="bi bi-calendar-plus"></i>
+                <span id="scheduleModalTitle">Create Backup Schedule</span>
+            </span>
+            <button class="modal-close" onclick="closeModal('scheduleModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Schedule Name</label>
+                <input type="text" class="form-control" id="scheduleName" placeholder="Daily Database Backup">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Backup Type</label>
+                <select class="form-control" id="scheduleBackupType">
+                    <option value="database">Database</option>
+                    <option value="files">Files</option>
+                    <option value="docker_volume">Docker Volume</option>
+                    <option value="studio_project">Studio Project</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Source</label>
+                <input type="text" class="form-control" id="scheduleSource" placeholder="Source path or database name">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Destination</label>
+                <select class="form-control" id="scheduleDestinationType">
+                    <option value="local">Local Storage</option>
+                    <option value="minio">MinIO / S3</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Schedule (Cron Expression)</label>
+                <select class="form-control" id="scheduleCron">
+                    <option value="0 2 * * *">Daily at 2:00 AM</option>
+                    <option value="0 3 * * *">Daily at 3:00 AM</option>
+                    <option value="0 0 * * 0">Weekly on Sunday</option>
+                    <option value="0 0 * * 1">Weekly on Monday</option>
+                    <option value="0 0 1 * *">Monthly (1st day)</option>
+                    <option value="*/15 * * * *">Every 15 minutes</option>
+                    <option value="0 */6 * * *">Every 6 hours</option>
+                    <option value="custom">Custom...</option>
+                </select>
+            </div>
+            <div class="form-group" id="customCronGroup" style="display: none;">
+                <label class="form-label">Custom Cron Expression</label>
+                <input type="text" class="form-control" id="customCron" placeholder="* * * * *">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Retention (days)</label>
+                <input type="number" class="form-control" id="scheduleRetention" value="30" min="1" max="365">
+            </div>
+            <input type="hidden" id="scheduleId">
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('scheduleModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="saveSchedule()">
+                <i class="bi bi-check-lg"></i>
+                Save Schedule
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="cleanupModal">
+    <div class="modal">
+        <div class="modal-header">
+            <span class="modal-title">
+                <i class="bi bi-trash3"></i>
+                Cleanup Old Backups
+            </span>
+            <button class="modal-close" onclick="closeModal('cleanupModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p>This will delete backups older than the retention period defined in each schedule.</p>
+            <p class="text-muted" style="color: var(--text-secondary);">Orphaned backups (not associated with a schedule) will not be affected.</p>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('cleanupModal')">Cancel</button>
+            <button class="btn btn-danger" onclick="runCleanup()">
+                <i class="bi bi-trash3"></i>
+                Run Cleanup
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+let backups = [];
+let schedules = [];
+let sources = {};
+let storageChart = null;
+let currentFilter = 'all';
+
+document.addEventListener('DOMContentLoaded', () => {
+    initStorageChart();
+    refreshData();
+    checkMinioStatus();
+    
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentFilter = btn.dataset.filter;
+            renderBackups();
+        });
+    });
+    
+    document.getElementById('scheduleCron').addEventListener('change', function() {
+        document.getElementById('customCronGroup').style.display = 
+            this.value === 'custom' ? 'block' : 'none';
+    });
+});
+
+async function refreshData() {
+    await Promise.all([
+        loadBackups(),
+        loadStorageStats(),
+        loadSchedules(),
+        loadSources()
+    ]);
+}
+
+async function loadBackups() {
+    try {
+        const response = await fetch('/api/backups', {
+            headers: { 'X-CSRFToken': csrfToken }
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            backups = data.backups || [];
+            renderBackups();
+        }
+    } catch (error) {
+        console.error('Error loading backups:', error);
+    }
+}
+
+function renderBackups() {
+    const container = document.getElementById('backupsList');
+    
+    let filtered = backups;
+    if (currentFilter !== 'all') {
+        filtered = backups.filter(b => b.backup_type === currentFilter);
+    }
+    
+    if (filtered.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <i class="bi bi-archive"></i>
+                <h4>No Backups Found</h4>
+                <p>Create your first backup to get started</p>
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = `
+        <table class="backup-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Size</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${filtered.map(backup => `
+                    <tr>
+                        <td>
+                            <div class="backup-name">${escapeHtml(backup.name)}</div>
+                            <div class="backup-source" title="${escapeHtml(backup.source)}">${escapeHtml(backup.source)}</div>
+                        </td>
+                        <td>
+                            <span class="type-badge type-${backup.backup_type}">
+                                <i class="bi bi-${getTypeIcon(backup.backup_type)}"></i>
+                                ${formatType(backup.backup_type)}
+                            </span>
+                        </td>
+                        <td>${backup.size_human || '--'}</td>
+                        <td>
+                            <span class="badge badge-${getStatusClass(backup.status)}">
+                                ${backup.status}
+                            </span>
+                        </td>
+                        <td>${formatDate(backup.created_at)}</td>
+                        <td>
+                            <div class="action-btns">
+                                <button class="action-btn" onclick="downloadBackup('${backup.id}')" title="Download">
+                                    <i class="bi bi-download"></i>
+                                </button>
+                                <button class="action-btn restore" onclick="openRestoreModal('${backup.id}')" title="Restore">
+                                    <i class="bi bi-arrow-counterclockwise"></i>
+                                </button>
+                                <button class="action-btn delete" onclick="deleteBackup('${backup.id}')" title="Delete">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
+}
+
+async function loadStorageStats() {
+    try {
+        const response = await fetch('/api/backups/storage', {
+            headers: { 'X-CSRFToken': csrfToken }
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            const byType = data.by_type || {};
+            
+            document.getElementById('totalSize').textContent = data.total_backup_size_human || '0 B';
+            
+            let totalCount = 0;
+            for (const type in byType) {
+                totalCount += byType[type].count || 0;
+            }
+            document.getElementById('totalCount').textContent = `${totalCount} backups`;
+            
+            const databases = byType.databases || {};
+            document.getElementById('databaseSize').textContent = databases.size_human || '0 B';
+            document.getElementById('databaseCount').textContent = `${databases.count || 0} backups`;
+            
+            const files = byType.files || {};
+            document.getElementById('filesSize').textContent = files.size_human || '0 B';
+            document.getElementById('filesCount').textContent = `${files.count || 0} backups`;
+            
+            const docker = byType.docker || {};
+            document.getElementById('dockerSize').textContent = docker.size_human || '0 B';
+            document.getElementById('dockerCount').textContent = `${docker.count || 0} backups`;
+            
+            if (data.disk) {
+                const percent = data.disk.percent_used;
+                document.getElementById('diskPercent').textContent = `${percent}%`;
+                document.getElementById('diskFill').style.width = `${percent}%`;
+                document.getElementById('diskFill').className = `disk-usage-fill ${percent > 80 ? 'high' : percent > 60 ? 'medium' : 'low'}`;
+                document.getElementById('diskUsed').textContent = formatBytes(data.disk.used) + ' used';
+                document.getElementById('diskFree').textContent = formatBytes(data.disk.free) + ' free';
+            }
+            
+            updateStorageChart(byType);
+        }
+    } catch (error) {
+        console.error('Error loading storage stats:', error);
+    }
+}
+
+function initStorageChart() {
+    const ctx = document.getElementById('storageChart').getContext('2d');
+    storageChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Databases', 'Files', 'Docker', 'Studio', 'Configs'],
+            datasets: [{
+                data: [0, 0, 0, 0, 0],
+                backgroundColor: [
+                    'rgba(59, 130, 246, 0.8)',
+                    'rgba(139, 92, 246, 0.8)',
+                    'rgba(63, 185, 80, 0.8)',
+                    'rgba(251, 191, 36, 0.8)',
+                    'rgba(88, 166, 255, 0.8)'
+                ],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        color: getComputedStyle(document.documentElement).getPropertyValue('--text-secondary').trim(),
+                        font: { size: 11 }
+                    }
+                }
+            },
+            cutout: '60%'
+        }
+    });
+}
+
+function updateStorageChart(byType) {
+    if (!storageChart) return;
+    
+    storageChart.data.datasets[0].data = [
+        byType.databases?.size_bytes || 0,
+        byType.files?.size_bytes || 0,
+        byType.docker?.size_bytes || 0,
+        byType.studio?.size_bytes || 0,
+        byType.configs?.size_bytes || 0
+    ];
+    storageChart.update();
+}
+
+async function loadSchedules() {
+    try {
+        const response = await fetch('/api/backups/schedules', {
+            headers: { 'X-CSRFToken': csrfToken }
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            schedules = data.schedules || [];
+            renderSchedules();
+        }
+    } catch (error) {
+        console.error('Error loading schedules:', error);
+    }
+}
+
+function renderSchedules() {
+    const container = document.getElementById('schedulesList');
+    
+    if (schedules.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state" style="padding: 20px;">
+                <i class="bi bi-calendar-x" style="font-size: 2rem;"></i>
+                <p>No scheduled backups</p>
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = schedules.map(schedule => `
+        <div class="schedule-item">
+            <div class="schedule-header">
+                <span class="schedule-name">${escapeHtml(schedule.name)}</span>
+                <label class="schedule-toggle">
+                    <input type="checkbox" ${schedule.enabled ? 'checked' : ''} onchange="toggleSchedule('${schedule.id}', this.checked)">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            <div class="schedule-info">
+                <span><i class="bi bi-clock"></i> ${schedule.cron_readable || schedule.cron_expression}</span>
+                <span><i class="bi bi-archive"></i> ${formatType(schedule.backup_type)}</span>
+            </div>
+            <div class="schedule-info" style="margin-top: 6px;">
+                <span><i class="bi bi-calendar-check"></i> Last: ${schedule.last_run ? formatDate(schedule.last_run) : 'Never'}</span>
+            </div>
+            <div class="schedule-actions">
+                <button class="btn btn-sm btn-secondary" onclick="runScheduledBackup('${schedule.id}')">
+                    <i class="bi bi-play"></i> Run Now
+                </button>
+                <button class="btn btn-sm btn-secondary" onclick="editSchedule('${schedule.id}')">
+                    <i class="bi bi-pencil"></i>
+                </button>
+                <button class="btn btn-sm btn-danger" onclick="deleteSchedule('${schedule.id}')">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function loadSources() {
+    const backupType = document.getElementById('backupType')?.value;
+    if (!backupType) return;
+    
+    try {
+        const response = await fetch('/api/backups/sources', {
+            headers: { 'X-CSRFToken': csrfToken }
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            sources = data.sources || {};
+            renderSources(backupType);
+        }
+    } catch (error) {
+        console.error('Error loading sources:', error);
+    }
+}
+
+function renderSources(backupType) {
+    const sourceGroup = document.getElementById('sourceGroup');
+    const customSourceGroup = document.getElementById('customSourceGroup');
+    const sourceList = document.getElementById('sourceList');
+    
+    let items = [];
+    let icon = 'folder';
+    
+    switch (backupType) {
+        case 'database':
+            items = sources.databases || [];
+            icon = 'database';
+            break;
+        case 'docker_volume':
+            items = sources.docker_volumes || [];
+            icon = 'box';
+            break;
+        case 'studio_project':
+            items = sources.studio_projects || [];
+            icon = 'terminal';
+            break;
+        case 'files':
+        case 'configs':
+            items = sources.directories || [];
+            icon = 'folder';
+            break;
+    }
+    
+    if (items.length > 0) {
+        sourceGroup.style.display = 'block';
+        customSourceGroup.style.display = backupType === 'files' ? 'block' : 'none';
+        
+        sourceList.innerHTML = items.map((item, index) => `
+            <label class="source-item" onclick="selectSource(this, '${item.path || item.name}')">
+                <input type="radio" name="source" value="${item.path || item.name}">
+                <i class="bi bi-${icon}"></i>
+                <div class="source-item-text">
+                    <div class="source-item-name">${escapeHtml(item.name)}</div>
+                    ${item.path ? `<div class="source-item-path">${escapeHtml(item.path)}</div>` : ''}
+                </div>
+            </label>
+        `).join('');
+    } else {
+        sourceGroup.style.display = 'none';
+        customSourceGroup.style.display = 'block';
+    }
+}
+
+function selectSource(element, value) {
+    document.querySelectorAll('.source-item').forEach(el => el.classList.remove('selected'));
+    element.classList.add('selected');
+    document.getElementById('selectedSource').value = value;
+}
+
+function openCreateModal() {
+    document.getElementById('backupName').value = '';
+    document.getElementById('backupType').value = '';
+    document.getElementById('sourceGroup').style.display = 'none';
+    document.getElementById('customSourceGroup').style.display = 'none';
+    document.getElementById('selectedSource').value = '';
+    document.getElementById('customSource').value = '';
+    document.getElementById('createModal').classList.add('show');
+}
+
+function openRestoreModal(backupId) {
+    const backup = backups.find(b => b.id === backupId);
+    if (!backup) return;
+    
+    document.getElementById('restoreBackupId').value = backupId;
+    document.getElementById('restoreTarget').value = '';
+    document.getElementById('restoreInfo').innerHTML = `
+        <strong>Backup:</strong> ${escapeHtml(backup.name)}<br>
+        <strong>Type:</strong> ${formatType(backup.backup_type)}<br>
+        <strong>Original Location:</strong> ${escapeHtml(backup.source)}
+    `;
+    document.getElementById('restoreModal').classList.add('show');
+}
+
+function openScheduleModal(scheduleId = null) {
+    if (scheduleId) {
+        const schedule = schedules.find(s => s.id === scheduleId);
+        if (!schedule) return;
+        
+        document.getElementById('scheduleModalTitle').textContent = 'Edit Schedule';
+        document.getElementById('scheduleId').value = scheduleId;
+        document.getElementById('scheduleName').value = schedule.name;
+        document.getElementById('scheduleBackupType').value = schedule.backup_type;
+        document.getElementById('scheduleSource').value = schedule.source;
+        document.getElementById('scheduleRetention').value = schedule.retention_days;
+        
+        const cronSelect = document.getElementById('scheduleCron');
+        const cronValue = schedule.cron_expression;
+        const option = Array.from(cronSelect.options).find(o => o.value === cronValue);
+        if (option) {
+            cronSelect.value = cronValue;
+            document.getElementById('customCronGroup').style.display = 'none';
+        } else {
+            cronSelect.value = 'custom';
+            document.getElementById('customCronGroup').style.display = 'block';
+            document.getElementById('customCron').value = cronValue;
+        }
+    } else {
+        document.getElementById('scheduleModalTitle').textContent = 'Create Backup Schedule';
+        document.getElementById('scheduleId').value = '';
+        document.getElementById('scheduleName').value = '';
+        document.getElementById('scheduleBackupType').value = 'database';
+        document.getElementById('scheduleSource').value = '';
+        document.getElementById('scheduleCron').value = '0 2 * * *';
+        document.getElementById('scheduleRetention').value = 30;
+        document.getElementById('customCronGroup').style.display = 'none';
+    }
+    
+    document.getElementById('scheduleModal').classList.add('show');
+}
+
+function openCleanupModal() {
+    document.getElementById('cleanupModal').classList.add('show');
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).classList.remove('show');
+}
+
+async function createBackup() {
+    const name = document.getElementById('backupName').value.trim();
+    const backupType = document.getElementById('backupType').value;
+    const source = document.getElementById('selectedSource').value || document.getElementById('customSource').value;
+    const compression = document.getElementById('compression').value;
+    const destinationType = document.getElementById('destinationType').value;
+    
+    if (!name || !backupType || !source) {
+        alert('Please fill in all required fields');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/backups', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({
+                name,
+                backup_type: backupType,
+                source,
+                compression,
+                destination_type: destinationType
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            closeModal('createModal');
+            refreshData();
+            const destLabel = destinationType === 'minio' ? ' (uploaded to MinIO)' : '';
+            showNotification('Backup created successfully' + destLabel, 'success');
+        } else {
+            alert('Error: ' + (data.error || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error creating backup:', error);
+        alert('Failed to create backup');
+    }
+}
+
+function downloadBackup(backupId) {
+    window.open(`/api/backups/${backupId}/download`, '_blank');
+}
+
+async function checkMinioStatus() {
+    try {
+        const response = await fetch('/api/backups/minio/status', {
+            headers: { 'X-CSRFToken': csrfToken }
+        });
+        const data = await response.json();
+        
+        if (data.success && data.minio_available) {
+            document.getElementById('minioStatus').style.display = 'block';
+        } else {
+            const minioOption = document.querySelector('#destinationType option[value="minio"]');
+            if (minioOption) {
+                minioOption.disabled = true;
+                minioOption.textContent = 'MinIO / S3 (Not configured)';
+            }
+        }
+    } catch (error) {
+        console.error('Error checking MinIO status:', error);
+    }
+}
+
+async function confirmRestore() {
+    const backupId = document.getElementById('restoreBackupId').value;
+    const targetPath = document.getElementById('restoreTarget').value.trim();
+    
+    try {
+        const response = await fetch(`/api/backups/${backupId}/restore`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({
+                target_path: targetPath || null
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            closeModal('restoreModal');
+            refreshData();
+            showNotification('Backup restored successfully', 'success');
+        } else {
+            alert('Error: ' + (data.error || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error restoring backup:', error);
+        alert('Failed to restore backup');
+    }
+}
+
+async function deleteBackup(backupId) {
+    if (!confirm('Are you sure you want to delete this backup? This action cannot be undone.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/backups/${backupId}`, {
+            method: 'DELETE',
+            headers: { 'X-CSRFToken': csrfToken }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            refreshData();
+            showNotification('Backup deleted', 'success');
+        } else {
+            alert('Error: ' + (data.error || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error deleting backup:', error);
+        alert('Failed to delete backup');
+    }
+}
+
+async function saveSchedule() {
+    const scheduleId = document.getElementById('scheduleId').value;
+    const name = document.getElementById('scheduleName').value.trim();
+    const backupType = document.getElementById('scheduleBackupType').value;
+    const source = document.getElementById('scheduleSource').value.trim();
+    const destinationType = document.getElementById('scheduleDestinationType').value;
+    let cronExpression = document.getElementById('scheduleCron').value;
+    const retention = parseInt(document.getElementById('scheduleRetention').value);
+    
+    if (cronExpression === 'custom') {
+        cronExpression = document.getElementById('customCron').value.trim();
+    }
+    
+    if (!name || !source || !cronExpression) {
+        alert('Please fill in all required fields');
+        return;
+    }
+    
+    const payload = {
+        name,
+        backup_type: backupType,
+        source,
+        cron_expression: cronExpression,
+        retention_days: retention,
+        enabled: true,
+        metadata: { destination_type: destinationType }
+    };
+    
+    try {
+        const url = scheduleId 
+            ? `/api/backups/schedules/${scheduleId}` 
+            : '/api/backups/schedules';
+        
+        const response = await fetch(url, {
+            method: scheduleId ? 'PUT' : 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify(payload)
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            closeModal('scheduleModal');
+            loadSchedules();
+            showNotification('Schedule saved', 'success');
+        } else {
+            alert('Error: ' + (data.error || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error saving schedule:', error);
+        alert('Failed to save schedule');
+    }
+}
+
+function editSchedule(scheduleId) {
+    openScheduleModal(scheduleId);
+}
+
+async function deleteSchedule(scheduleId) {
+    if (!confirm('Are you sure you want to delete this schedule?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/backups/schedules/${scheduleId}`, {
+            method: 'DELETE',
+            headers: { 'X-CSRFToken': csrfToken }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            loadSchedules();
+            showNotification('Schedule deleted', 'success');
+        } else {
+            alert('Error: ' + (data.error || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error deleting schedule:', error);
+        alert('Failed to delete schedule');
+    }
+}
+
+async function toggleSchedule(scheduleId, enabled) {
+    try {
+        const response = await fetch(`/api/backups/schedules/${scheduleId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({ enabled })
+        });
+        
+        const data = await response.json();
+        
+        if (!data.success) {
+            loadSchedules();
+            alert('Error: ' + (data.error || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error toggling schedule:', error);
+        loadSchedules();
+    }
+}
+
+async function runScheduledBackup(scheduleId) {
+    try {
+        const response = await fetch(`/api/backups/schedules/${scheduleId}/run`, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrfToken }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            refreshData();
+            showNotification('Backup started', 'success');
+        } else {
+            alert('Error: ' + (data.error || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error running backup:', error);
+        alert('Failed to run backup');
+    }
+}
+
+async function runCleanup() {
+    try {
+        const response = await fetch('/api/backups/cleanup', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            }
+        });
+        
+        const data = await response.json();
+        
+        closeModal('cleanupModal');
+        
+        if (data.success) {
+            refreshData();
+            showNotification(`Cleanup complete: ${data.deleted_count} backups removed, ${data.freed_human} freed`, 'success');
+        } else {
+            alert('Error: ' + (data.error || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error running cleanup:', error);
+        alert('Failed to run cleanup');
+    }
+}
+
+function getTypeIcon(type) {
+    const icons = {
+        'database': 'database',
+        'files': 'folder',
+        'docker_volume': 'box',
+        'studio_project': 'terminal',
+        'full': 'archive',
+        'incremental': 'layers',
+        'configs': 'gear'
+    };
+    return icons[type] || 'file';
+}
+
+function formatType(type) {
+    const labels = {
+        'database': 'Database',
+        'files': 'Files',
+        'docker_volume': 'Docker',
+        'studio_project': 'Studio',
+        'full': 'Full',
+        'incremental': 'Incremental',
+        'configs': 'Configs'
+    };
+    return labels[type] || type;
+}
+
+function getStatusClass(status) {
+    const classes = {
+        'completed': 'success',
+        'running': 'warning',
+        'failed': 'danger',
+        'pending': 'info',
+        'restoring': 'purple'
+    };
+    return classes[status] || 'info';
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '--';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+}
+
+function formatBytes(bytes) {
+    if (!bytes) return '0 B';
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return (bytes / Math.pow(1024, i)).toFixed(2) + ' ' + sizes[i];
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function showNotification(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.style.cssText = `
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: var(--bg-secondary);
+        border: 1px solid var(--accent-${type === 'success' ? 'green' : type === 'error' ? 'red' : 'blue'});
+        color: var(--text-primary);
+        padding: 12px 20px;
+        border-radius: 8px;
+        z-index: 9999;
+        animation: slideIn 0.3s ease;
+    `;
+    toast.innerHTML = `<i class="bi bi-${type === 'success' ? 'check-circle' : 'info-circle'}"></i> ${message}`;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.style.animation = 'slideOut 0.3s ease';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+</script>
+
+<style>
+@keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+@keyframes slideOut {
+    from { transform: translateX(0); opacity: 1; }
+    to { transform: translateX(100%); opacity: 0; }
+}
+</style>
+{% endblock %}

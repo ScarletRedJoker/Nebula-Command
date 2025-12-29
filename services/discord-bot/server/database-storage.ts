@@ -151,6 +151,15 @@ import {
   type UpdatePoll,
   type PollVote,
   type InsertPollVote,
+  type AutomodRule,
+  type InsertAutomodRule,
+  type UpdateAutomodRule,
+  type ModerationAction,
+  type InsertModerationAction,
+  type Warning,
+  type InsertWarning,
+  type TempBan,
+  type InsertTempBan,
   users,
   discordUsers,
   servers,
@@ -213,7 +222,11 @@ import {
   onboardingProgress,
   onboardingStatus,
   discordPolls,
-  discordPollVotes
+  discordPollVotes,
+  automodRules,
+  moderationActions,
+  warnings,
+  tempBans
 } from "@shared/schema";
 import { IStorage } from "./storage";
 import { db } from "./db";
@@ -3053,6 +3066,134 @@ export class DatabaseStorage implements IStorage {
   async deletePollVote(id: number): Promise<boolean> {
     const result = await db.delete(discordPollVotes).where(eq(discordPollVotes.id, id));
     return (result.rowCount || 0) > 0;
+  }
+
+  // Automod Rule operations
+  async getAutomodRule(id: number): Promise<AutomodRule | null> {
+    const [rule] = await db.select().from(automodRules).where(eq(automodRules.id, id));
+    return rule || null;
+  }
+
+  async getAutomodRules(serverId: string): Promise<AutomodRule[]> {
+    return await db.select()
+      .from(automodRules)
+      .where(eq(automodRules.serverId, serverId))
+      .orderBy(desc(automodRules.createdAt));
+  }
+
+  async createAutomodRule(data: InsertAutomodRule): Promise<AutomodRule> {
+    const [rule] = await db.insert(automodRules)
+      .values({
+        ...data,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
+      .returning();
+    return rule;
+  }
+
+  async updateAutomodRule(id: number, updates: UpdateAutomodRule): Promise<AutomodRule | null> {
+    const [rule] = await db.update(automodRules)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(automodRules.id, id))
+      .returning();
+    return rule || null;
+  }
+
+  async deleteAutomodRule(id: number): Promise<boolean> {
+    const result = await db.delete(automodRules).where(eq(automodRules.id, id));
+    return (result.rowCount || 0) > 0;
+  }
+
+  // Moderation Action operations
+  async getModerationHistory(serverId: string, userId: string, limit: number = 10): Promise<ModerationAction[]> {
+    return await db.select()
+      .from(moderationActions)
+      .where(and(
+        eq(moderationActions.serverId, serverId),
+        eq(moderationActions.userId, userId)
+      ))
+      .orderBy(desc(moderationActions.createdAt))
+      .limit(limit);
+  }
+
+  async createModerationAction(data: InsertModerationAction): Promise<ModerationAction> {
+    const [action] = await db.insert(moderationActions)
+      .values({
+        ...data,
+        createdAt: new Date()
+      })
+      .returning();
+    return action;
+  }
+
+  // Warning operations
+  async getActiveWarnings(serverId: string, userId: string): Promise<Warning[]> {
+    return await db.select()
+      .from(warnings)
+      .where(and(
+        eq(warnings.serverId, serverId),
+        eq(warnings.odUserId, userId),
+        eq(warnings.isActive, true)
+      ))
+      .orderBy(desc(warnings.createdAt));
+  }
+
+  async createWarning(data: InsertWarning): Promise<Warning> {
+    const [warning] = await db.insert(warnings)
+      .values({
+        ...data,
+        createdAt: new Date()
+      })
+      .returning();
+    return warning;
+  }
+
+  async removeWarning(id: number): Promise<boolean> {
+    const [result] = await db.update(warnings)
+      .set({ isActive: false })
+      .where(eq(warnings.id, id))
+      .returning();
+    return !!result;
+  }
+
+  // Temp Ban operations
+  async getExpiredTempBans(): Promise<TempBan[]> {
+    return await db.select()
+      .from(tempBans)
+      .where(and(
+        eq(tempBans.isActive, true),
+        lte(tempBans.expiresAt, new Date())
+      ));
+  }
+
+  async getActiveTempBan(serverId: string, userId: string): Promise<TempBan | null> {
+    const [ban] = await db.select()
+      .from(tempBans)
+      .where(and(
+        eq(tempBans.serverId, serverId),
+        eq(tempBans.odUserId, userId),
+        eq(tempBans.isActive, true)
+      ));
+    return ban || null;
+  }
+
+  async createTempBan(data: InsertTempBan): Promise<TempBan> {
+    const [ban] = await db.insert(tempBans)
+      .values({
+        ...data,
+        createdAt: new Date()
+      })
+      .returning();
+    return ban;
+  }
+
+  async deactivateTempBan(id: number): Promise<boolean> {
+    const [result] = await db.update(tempBans)
+      .set({ isActive: false })
+      .where(eq(tempBans.id, id))
+      .returning();
+    return !!result;
   }
 }
 

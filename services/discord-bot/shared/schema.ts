@@ -2656,3 +2656,144 @@ export interface PollOption {
 export interface PollVotesData {
   [optionIndex: string]: string[];
 }
+
+// =============================================
+// MODERATION / AUTOMOD SYSTEM
+// =============================================
+
+// Rule types for automod
+export type AutomodRuleType = 'banned_words' | 'spam' | 'links' | 'caps' | 'mentions' | 'invites';
+export type ModerationActionType = 'warn' | 'mute' | 'kick' | 'ban' | 'timeout' | 'unban' | 'unwarn';
+
+// Automod Rules table - configurable rules per server
+export const automodRules = pgTable("automod_rules", {
+  id: serial("id").primaryKey(),
+  serverId: text("server_id").notNull(),
+  name: text("name").notNull(),
+  ruleType: text("rule_type").notNull(), // banned_words, spam, links, caps, mentions, invites
+  config: text("config").notNull().default("{}"), // JSON config specific to rule type
+  action: text("action").notNull().default("warn"), // warn, mute, kick, ban
+  actionDuration: integer("action_duration"), // Duration in seconds for mute/ban (null = permanent)
+  enabled: boolean("enabled").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Moderation Actions table - logs all moderation actions taken
+export const moderationActions = pgTable("moderation_actions", {
+  id: serial("id").primaryKey(),
+  serverId: text("server_id").notNull(),
+  userId: text("user_id").notNull(), // Target user
+  moderatorId: text("moderator_id").notNull(), // Who performed the action
+  moderatorUsername: text("moderator_username"),
+  actionType: text("action_type").notNull(), // warn, mute, kick, ban, timeout, unban, unwarn
+  reason: text("reason"),
+  duration: integer("duration"), // Duration in seconds (for mute/ban/timeout)
+  expiresAt: timestamp("expires_at"), // When the action expires
+  isAutomod: boolean("is_automod").default(false), // Was this triggered by automod
+  ruleId: integer("rule_id"), // Reference to automod rule if automod triggered
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Warnings table - separate table for warnings with thresholds
+export const warnings = pgTable("warnings", {
+  id: serial("id").primaryKey(),
+  serverId: text("server_id").notNull(),
+  odUserId: text("od_user_id").notNull(), // Target user
+  odUsername: text("od_username"),
+  moderatorId: text("moderator_id").notNull(),
+  moderatorUsername: text("moderator_username"),
+  reason: text("reason").notNull(),
+  isActive: boolean("is_active").default(true), // Can be removed/pardoned
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Temp Bans table - tracks temporary bans for automatic unbanning
+export const tempBans = pgTable("temp_bans", {
+  id: serial("id").primaryKey(),
+  serverId: text("server_id").notNull(),
+  odUserId: text("od_user_id").notNull(), // Banned user
+  odUsername: text("od_username"),
+  moderatorId: text("moderator_id").notNull(),
+  moderatorUsername: text("moderator_username"),
+  reason: text("reason"),
+  expiresAt: timestamp("expires_at").notNull(), // When the ban expires
+  isActive: boolean("is_active").default(true), // False when unbanned
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Automod Rules validation schemas
+export const insertAutomodRuleSchema = createInsertSchema(automodRules).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+export type InsertAutomodRule = z.infer<typeof insertAutomodRuleSchema>;
+export type AutomodRule = typeof automodRules.$inferSelect;
+
+export const updateAutomodRuleSchema = createInsertSchema(automodRules).omit({
+  id: true,
+  serverId: true,
+  createdAt: true,
+  updatedAt: true
+}).partial();
+export type UpdateAutomodRule = z.infer<typeof updateAutomodRuleSchema>;
+
+// Moderation Actions validation schemas
+export const insertModerationActionSchema = createInsertSchema(moderationActions).omit({
+  id: true,
+  createdAt: true
+});
+export type InsertModerationAction = z.infer<typeof insertModerationActionSchema>;
+export type ModerationAction = typeof moderationActions.$inferSelect;
+
+// Warnings validation schemas
+export const insertWarningSchema = createInsertSchema(warnings).omit({
+  id: true,
+  createdAt: true
+});
+export type InsertWarning = z.infer<typeof insertWarningSchema>;
+export type Warning = typeof warnings.$inferSelect;
+
+// Temp Bans validation schemas
+export const insertTempBanSchema = createInsertSchema(tempBans).omit({
+  id: true,
+  createdAt: true
+});
+export type InsertTempBan = z.infer<typeof insertTempBanSchema>;
+export type TempBan = typeof tempBans.$inferSelect;
+
+// Automod rule config interfaces for JSON storage
+export interface BannedWordsConfig {
+  words: string[];
+  useWildcards: boolean;
+  matchCase: boolean;
+}
+
+export interface SpamConfig {
+  maxMessages: number;
+  timeWindowSeconds: number;
+  duplicateThreshold: number;
+}
+
+export interface LinksConfig {
+  blockAll: boolean;
+  whitelist: string[];
+  blacklist: string[];
+}
+
+export interface CapsConfig {
+  maxPercentage: number;
+  minLength: number;
+}
+
+export interface MentionsConfig {
+  maxMentions: number;
+  includeRoles: boolean;
+  includeEveryone: boolean;
+}
+
+export interface InvitesConfig {
+  blockAllInvites: boolean;
+  whitelistedServers: string[];
+}

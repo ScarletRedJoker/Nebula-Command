@@ -2829,7 +2829,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/chatbot/personalities", requireAuth, async (req, res) => {
     try {
-      const { name, systemPrompt, temperature, traits } = req.body;
+      const { 
+        name, 
+        systemPrompt, 
+        temperature, 
+        traits,
+        tone,
+        responseStyle,
+        triggerWords,
+        replyChance,
+        cooldown,
+        isActive
+      } = req.body;
       
       if (!name || !systemPrompt) {
         return res.status(400).json({ error: "Missing required fields: name, systemPrompt" });
@@ -2839,8 +2850,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const personality = await userStorage.createChatbotPersonality({
         name,
         systemPrompt,
-        temperature: temperature || 0.7,
-        traits: traits || []
+        temperature: temperature ?? 10,
+        traits: traits || [],
+        tone: tone || "friendly",
+        responseStyle: responseStyle || "medium",
+        triggerWords: triggerWords || [],
+        replyChance: replyChance ?? 100,
+        cooldown: cooldown ?? 30,
+        isActive: isActive ?? true
       });
       
       res.json(personality);
@@ -2908,6 +2925,111 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Failed to generate chatbot response:", error);
       res.status(500).json({ error: "Failed to generate chatbot response" });
+    }
+  });
+
+  app.post("/api/chatbot/test", requireAuth, async (req, res) => {
+    try {
+      const { message, personalityId, personality } = req.body;
+      
+      if (!message) {
+        return res.status(400).json({ error: "Missing required field: message" });
+      }
+      
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const chatbotService = new ChatbotService(userStorage);
+      
+      let result;
+      if (personality && typeof personality === 'object') {
+        result = await chatbotService.testPersonality(message, personality);
+      } else {
+        result = await chatbotService.testChat(message, personalityId);
+      }
+      
+      res.json(result);
+    } catch (error) {
+      console.error("Failed to test chatbot response:", error);
+      res.status(500).json({ error: "Failed to test chatbot response" });
+    }
+  });
+
+  app.get("/api/chatbot/stats", requireAuth, async (req, res) => {
+    try {
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const chatbotService = new ChatbotService(userStorage);
+      
+      const stats = await chatbotService.getStats();
+      res.json(stats);
+    } catch (error) {
+      console.error("Failed to get chatbot stats:", error);
+      res.status(500).json({ error: "Failed to get chatbot stats" });
+    }
+  });
+
+  app.post("/api/chatbot/check-trigger", requireAuth, async (req, res) => {
+    try {
+      const { message, username = "test_user", platform = "twitch" } = req.body;
+      
+      if (!message) {
+        return res.status(400).json({ error: "Missing required field: message" });
+      }
+      
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const chatbotService = new ChatbotService(userStorage);
+      
+      const result = await chatbotService.shouldReply(username, message, platform);
+      res.json(result);
+    } catch (error) {
+      console.error("Failed to check chatbot trigger:", error);
+      res.status(500).json({ error: "Failed to check chatbot trigger" });
+    }
+  });
+
+  app.get("/api/chatbot/memory/:personalityId", requireAuth, async (req, res) => {
+    try {
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const memories = await userStorage.getChatbotMemoriesByPersonality(req.params.personalityId);
+      res.json(memories);
+    } catch (error) {
+      console.error("Failed to get chatbot memories:", error);
+      res.status(500).json({ error: "Failed to get chatbot memories" });
+    }
+  });
+
+  app.post("/api/chatbot/memory/:personalityId", requireAuth, async (req, res) => {
+    try {
+      const { contextKey, contextValue, expiresInMinutes } = req.body;
+      
+      if (!contextKey || !contextValue) {
+        return res.status(400).json({ error: "Missing required fields: contextKey, contextValue" });
+      }
+      
+      const userStorage = storage.getUserStorage(req.user!.id);
+      const expiresAt = expiresInMinutes 
+        ? new Date(Date.now() + expiresInMinutes * 60 * 1000)
+        : undefined;
+      
+      const memory = await userStorage.upsertChatbotMemory(
+        req.params.personalityId, 
+        contextKey, 
+        contextValue, 
+        expiresAt
+      );
+      res.json(memory);
+    } catch (error) {
+      console.error("Failed to save chatbot memory:", error);
+      res.status(500).json({ error: "Failed to save chatbot memory" });
+    }
+  });
+
+  app.delete("/api/chatbot/memory/:personalityId/:contextKey", requireAuth, async (req, res) => {
+    try {
+      const userStorage = storage.getUserStorage(req.user!.id);
+      await userStorage.deleteChatbotMemory(req.params.personalityId, req.params.contextKey);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Failed to delete chatbot memory:", error);
+      res.status(500).json({ error: "Failed to delete chatbot memory" });
     }
   });
 
