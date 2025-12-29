@@ -1,0 +1,901 @@
+{% extends "base.html" %}
+
+{% block title %}API Documentation - Dashboard{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet">
+<style>
+    .docs-container {
+        display: flex;
+        gap: 24px;
+        min-height: calc(100vh - 100px);
+    }
+
+    .docs-sidebar {
+        width: 280px;
+        flex-shrink: 0;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 16px;
+        position: sticky;
+        top: 24px;
+        max-height: calc(100vh - 120px);
+        overflow-y: auto;
+    }
+
+    .docs-main {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .docs-search {
+        margin-bottom: 16px;
+    }
+
+    .docs-search input {
+        width: 100%;
+        padding: 10px 12px;
+        background: var(--bg-primary);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        color: var(--text-primary);
+        font-size: 0.875rem;
+    }
+
+    .docs-search input::placeholder {
+        color: var(--text-secondary);
+    }
+
+    .docs-search input:focus {
+        outline: none;
+        border-color: var(--accent-blue);
+    }
+
+    .docs-nav-section {
+        margin-bottom: 16px;
+    }
+
+    .docs-nav-header {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        padding: 8px 0;
+        border-bottom: 1px solid var(--border-color);
+        margin-bottom: 8px;
+    }
+
+    .docs-nav-item {
+        display: flex;
+        align-items: center;
+        padding: 8px 12px;
+        color: var(--text-secondary);
+        text-decoration: none;
+        border-radius: 6px;
+        font-size: 0.875rem;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+
+    .docs-nav-item:hover {
+        background: var(--bg-tertiary);
+        color: var(--text-primary);
+    }
+
+    .docs-nav-item.active {
+        background: rgba(59, 130, 246, 0.15);
+        color: var(--accent-blue);
+    }
+
+    .docs-nav-item i {
+        margin-right: 8px;
+        width: 16px;
+    }
+
+    .docs-nav-count {
+        margin-left: auto;
+        background: var(--bg-tertiary);
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 0.75rem;
+    }
+
+    .auth-section {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 24px;
+    }
+
+    .auth-section h3 {
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .auth-section h3 i {
+        color: var(--accent-yellow);
+    }
+
+    .auth-method {
+        background: var(--bg-tertiary);
+        border-radius: 6px;
+        padding: 12px 16px;
+        margin-bottom: 12px;
+    }
+
+    .auth-method h4 {
+        font-size: 0.9rem;
+        font-weight: 600;
+        margin-bottom: 8px;
+        color: var(--text-primary);
+    }
+
+    .auth-method p {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        margin-bottom: 8px;
+    }
+
+    .auth-method code {
+        background: var(--bg-primary);
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 0.8rem;
+    }
+
+    .category-section {
+        margin-bottom: 32px;
+    }
+
+    .category-header {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 16px;
+    }
+
+    .category-header h2 {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .category-header p {
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+    }
+
+    .endpoint-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        margin-bottom: 12px;
+        overflow: hidden;
+        transition: border-color 0.15s ease;
+    }
+
+    .endpoint-card:hover {
+        border-color: var(--accent-blue);
+    }
+
+    .endpoint-header {
+        display: flex;
+        align-items: center;
+        padding: 16px;
+        cursor: pointer;
+        gap: 12px;
+    }
+
+    .endpoint-method {
+        padding: 4px 10px;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        min-width: 60px;
+        text-align: center;
+    }
+
+    .method-get { background: rgba(63, 185, 80, 0.2); color: var(--accent-green); }
+    .method-post { background: rgba(59, 130, 246, 0.2); color: var(--accent-blue); }
+    .method-put { background: rgba(210, 153, 34, 0.2); color: var(--accent-yellow); }
+    .method-delete { background: rgba(248, 81, 73, 0.2); color: var(--accent-red); }
+
+    .endpoint-path {
+        font-family: 'SF Mono', Monaco, monospace;
+        font-size: 0.9rem;
+        color: var(--text-primary);
+        flex: 1;
+    }
+
+    .endpoint-path .param {
+        color: var(--accent-purple);
+    }
+
+    .endpoint-auth {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .endpoint-auth i { color: var(--accent-yellow); }
+
+    .endpoint-toggle {
+        color: var(--text-secondary);
+        transition: transform 0.2s ease;
+    }
+
+    .endpoint-card.expanded .endpoint-toggle {
+        transform: rotate(180deg);
+    }
+
+    .endpoint-body {
+        display: none;
+        padding: 0 16px 16px;
+        border-top: 1px solid var(--border-color);
+    }
+
+    .endpoint-card.expanded .endpoint-body {
+        display: block;
+    }
+
+    .endpoint-description {
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+        padding: 16px 0;
+    }
+
+    .endpoint-section {
+        margin-bottom: 16px;
+    }
+
+    .endpoint-section h4 {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 8px;
+    }
+
+    .params-table {
+        width: 100%;
+        font-size: 0.85rem;
+    }
+
+    .params-table th {
+        text-align: left;
+        padding: 8px;
+        background: var(--bg-tertiary);
+        border-bottom: 1px solid var(--border-color);
+        font-weight: 600;
+        color: var(--text-secondary);
+    }
+
+    .params-table td {
+        padding: 8px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .param-name {
+        font-family: 'SF Mono', Monaco, monospace;
+        color: var(--accent-purple);
+    }
+
+    .param-type {
+        color: var(--accent-blue);
+        font-size: 0.8rem;
+    }
+
+    .param-required {
+        color: var(--accent-red);
+        font-size: 0.75rem;
+    }
+
+    .code-block {
+        background: #1e1e1e;
+        border-radius: 6px;
+        overflow: hidden;
+    }
+
+    .code-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 12px;
+        background: #2d2d2d;
+        border-bottom: 1px solid #3d3d3d;
+    }
+
+    .code-header span {
+        font-size: 0.75rem;
+        color: #888;
+        text-transform: uppercase;
+    }
+
+    .code-copy {
+        background: transparent;
+        border: none;
+        color: #888;
+        cursor: pointer;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .code-copy:hover {
+        background: #3d3d3d;
+        color: #fff;
+    }
+
+    .code-content {
+        padding: 12px;
+        overflow-x: auto;
+    }
+
+    .code-content pre {
+        margin: 0;
+        font-size: 0.85rem;
+        line-height: 1.5;
+    }
+
+    .try-it-section {
+        background: var(--bg-tertiary);
+        border-radius: 6px;
+        padding: 16px;
+    }
+
+    .try-it-form {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .try-it-input-group {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+
+    .try-it-input-group label {
+        min-width: 100px;
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+    }
+
+    .try-it-input-group input,
+    .try-it-input-group textarea {
+        flex: 1;
+        padding: 8px 12px;
+        background: var(--bg-primary);
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        color: var(--text-primary);
+        font-size: 0.85rem;
+        font-family: 'SF Mono', Monaco, monospace;
+    }
+
+    .try-it-input-group textarea {
+        min-height: 100px;
+        resize: vertical;
+    }
+
+    .try-it-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 8px;
+    }
+
+    .try-it-response {
+        margin-top: 12px;
+    }
+
+    .try-it-response pre {
+        max-height: 300px;
+        overflow: auto;
+    }
+
+    .no-results {
+        text-align: center;
+        padding: 40px;
+        color: var(--text-secondary);
+    }
+
+    .no-results i {
+        font-size: 48px;
+        margin-bottom: 16px;
+        opacity: 0.5;
+    }
+
+    @media (max-width: 1024px) {
+        .docs-container {
+            flex-direction: column;
+        }
+
+        .docs-sidebar {
+            width: 100%;
+            position: static;
+            max-height: none;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="header">
+    <h2><i class="bi bi-book"></i> API Documentation</h2>
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-secondary" onclick="expandAll()">
+            <i class="bi bi-arrows-expand"></i> Expand All
+        </button>
+        <button class="btn btn-outline-secondary" onclick="collapseAll()">
+            <i class="bi bi-arrows-collapse"></i> Collapse All
+        </button>
+    </div>
+</div>
+
+<div class="docs-container">
+    <div class="docs-sidebar">
+        <div class="docs-search">
+            <input type="text" id="searchInput" placeholder="Search endpoints..." onkeyup="searchEndpoints()">
+        </div>
+        
+        <div class="docs-nav-section">
+            <div class="docs-nav-header">Categories</div>
+            <div class="docs-nav-item active" data-category="all" onclick="filterCategory('all')">
+                <i class="bi bi-grid"></i>
+                <span>All Endpoints</span>
+                <span class="docs-nav-count" id="totalCount">0</span>
+            </div>
+        </div>
+        
+        <div class="docs-nav-section" id="categoryNav">
+        </div>
+        
+        <div class="docs-nav-section">
+            <div class="docs-nav-header">Quick Links</div>
+            <a href="#auth-section" class="docs-nav-item">
+                <i class="bi bi-shield-lock"></i>
+                <span>Authentication</span>
+            </a>
+            <a href="#rate-limits" class="docs-nav-item">
+                <i class="bi bi-speedometer"></i>
+                <span>Rate Limits</span>
+            </a>
+        </div>
+    </div>
+    
+    <div class="docs-main">
+        <div class="auth-section" id="auth-section">
+            <h3><i class="bi bi-shield-lock"></i> Authentication</h3>
+            <p style="color: var(--text-secondary); margin-bottom: 16px;">
+                Most API endpoints require authentication. The dashboard supports multiple authentication methods:
+            </p>
+            
+            <div class="auth-method">
+                <h4>1. Session Authentication (Web)</h4>
+                <p>For browser-based access, log in through the web interface. Session cookies are automatically included with requests.</p>
+            </div>
+            
+            <div class="auth-method">
+                <h4>2. API Key Authentication</h4>
+                <p>For programmatic access, include your API key in the request header:</p>
+                <code>X-API-Key: your-api-key-here</code>
+                <p style="margin-top: 8px;">Set via environment variable: <code>DASHBOARD_API_KEY</code></p>
+            </div>
+            
+            <div class="auth-method">
+                <h4>3. Webhook Authentication</h4>
+                <p>For external service webhooks (Discord Bot, Stream Bot), use:</p>
+                <code>X-Service-Token: your-webhook-secret</code>
+                <p style="margin-top: 8px;">Set via environment variable: <code>ACTIVITY_WEBHOOK_SECRET</code></p>
+            </div>
+        </div>
+        
+        <div class="auth-section" id="rate-limits">
+            <h3><i class="bi bi-speedometer"></i> Rate Limits</h3>
+            <p style="color: var(--text-secondary);">
+                API requests are rate-limited to prevent abuse. Default limits:
+            </p>
+            <ul style="color: var(--text-secondary); margin-top: 12px; padding-left: 20px;">
+                <li>General API: 100 requests per minute</li>
+                <li>SSE Streams: 10 concurrent connections</li>
+                <li>Webhook endpoints: 60 requests per minute</li>
+            </ul>
+        </div>
+        
+        <div id="endpointsContainer">
+        </div>
+        
+        <div class="no-results" id="noResults" style="display: none;">
+            <i class="bi bi-search"></i>
+            <h4>No endpoints found</h4>
+            <p>Try adjusting your search or filters</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+<script>
+    let allEndpoints = {};
+    let currentCategory = 'all';
+    
+    const categoryIcons = {
+        monitoring: 'bi-activity',
+        alerts: 'bi-bell',
+        studio: 'bi-code-square',
+        backups: 'bi-cloud-arrow-up',
+        activity: 'bi-clock-history',
+        workflows: 'bi-diagram-3'
+    };
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        loadEndpoints();
+    });
+    
+    async function loadEndpoints() {
+        try {
+            const response = await fetch('/api/docs/endpoints');
+            const data = await response.json();
+            
+            if (data.success) {
+                allEndpoints = data.categories;
+                document.getElementById('totalCount').textContent = data.total_endpoints;
+                renderCategoryNav();
+                renderEndpoints();
+            }
+        } catch (error) {
+            console.error('Error loading endpoints:', error);
+        }
+    }
+    
+    function renderCategoryNav() {
+        const nav = document.getElementById('categoryNav');
+        nav.innerHTML = '';
+        
+        for (const [key, cat] of Object.entries(allEndpoints)) {
+            const item = document.createElement('div');
+            item.className = 'docs-nav-item';
+            item.dataset.category = key;
+            item.onclick = () => filterCategory(key);
+            item.innerHTML = `
+                <i class="bi ${categoryIcons[key] || 'bi-folder'}"></i>
+                <span>${cat.name}</span>
+                <span class="docs-nav-count">${cat.endpoints.length}</span>
+            `;
+            nav.appendChild(item);
+        }
+    }
+    
+    function renderEndpoints(searchQuery = '') {
+        const container = document.getElementById('endpointsContainer');
+        container.innerHTML = '';
+        
+        let hasResults = false;
+        
+        for (const [key, cat] of Object.entries(allEndpoints)) {
+            if (currentCategory !== 'all' && currentCategory !== key) continue;
+            
+            let endpoints = cat.endpoints;
+            
+            if (searchQuery) {
+                endpoints = endpoints.filter(ep => 
+                    ep.path.toLowerCase().includes(searchQuery) ||
+                    ep.description.toLowerCase().includes(searchQuery) ||
+                    ep.method.toLowerCase().includes(searchQuery)
+                );
+            }
+            
+            if (endpoints.length === 0) continue;
+            
+            hasResults = true;
+            
+            const section = document.createElement('div');
+            section.className = 'category-section';
+            section.id = `category-${key}`;
+            
+            section.innerHTML = `
+                <div class="category-header">
+                    <h2><i class="bi ${categoryIcons[key] || 'bi-folder'}"></i> ${cat.name}</h2>
+                    <p>${cat.description}</p>
+                </div>
+            `;
+            
+            endpoints.forEach(ep => {
+                section.appendChild(createEndpointCard(ep, key));
+            });
+            
+            container.appendChild(section);
+        }
+        
+        document.getElementById('noResults').style.display = hasResults ? 'none' : 'block';
+    }
+    
+    function createEndpointCard(endpoint, category) {
+        const card = document.createElement('div');
+        card.className = 'endpoint-card';
+        
+        const pathHtml = endpoint.path.replace(/\{(\w+)\}/g, '<span class="param">{$1}</span>');
+        
+        let paramsHtml = '';
+        if (endpoint.params && endpoint.params.length > 0) {
+            paramsHtml = `
+                <div class="endpoint-section">
+                    <h4>Query Parameters</h4>
+                    <table class="params-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Default</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${endpoint.params.map(p => `
+                                <tr>
+                                    <td><span class="param-name">${p.name}</span> ${p.required ? '<span class="param-required">required</span>' : ''}</td>
+                                    <td><span class="param-type">${p.type}</span></td>
+                                    <td>${p.default !== undefined ? p.default : '-'}</td>
+                                    <td>${p.description || '-'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+        
+        let requestBodyHtml = '';
+        if (endpoint.request_body) {
+            requestBodyHtml = `
+                <div class="endpoint-section">
+                    <h4>Request Body</h4>
+                    <div class="code-block">
+                        <div class="code-header">
+                            <span>JSON</span>
+                            <button class="code-copy" onclick="copyCode(this)">
+                                <i class="bi bi-clipboard"></i> Copy
+                            </button>
+                        </div>
+                        <div class="code-content">
+                            <pre><code class="language-json">${JSON.stringify(endpoint.request_body, null, 2)}</code></pre>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        let responseHtml = '';
+        if (endpoint.response_example) {
+            const responseContent = typeof endpoint.response_example === 'string' 
+                ? endpoint.response_example 
+                : JSON.stringify(endpoint.response_example, null, 2);
+            responseHtml = `
+                <div class="endpoint-section">
+                    <h4>Response Example</h4>
+                    <div class="code-block">
+                        <div class="code-header">
+                            <span>JSON</span>
+                            <button class="code-copy" onclick="copyCode(this)">
+                                <i class="bi bi-clipboard"></i> Copy
+                            </button>
+                        </div>
+                        <div class="code-content">
+                            <pre><code class="language-json">${responseContent}</code></pre>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        const tryItHtml = endpoint.method !== 'DELETE' ? `
+            <div class="endpoint-section">
+                <h4>Try It</h4>
+                <div class="try-it-section">
+                    <form class="try-it-form" onsubmit="return tryEndpoint(event, '${endpoint.method}', '${endpoint.path}')">
+                        ${endpoint.params ? endpoint.params.map(p => `
+                            <div class="try-it-input-group">
+                                <label>${p.name}</label>
+                                <input type="text" name="${p.name}" placeholder="${p.default !== undefined ? p.default : ''}" ${p.required ? 'required' : ''}>
+                            </div>
+                        `).join('') : ''}
+                        ${endpoint.request_body ? `
+                            <div class="try-it-input-group">
+                                <label>Body</label>
+                                <textarea name="_body" placeholder='${JSON.stringify(endpoint.request_body)}'></textarea>
+                            </div>
+                        ` : ''}
+                        <div class="try-it-actions">
+                            <button type="submit" class="btn btn-primary btn-sm">
+                                <i class="bi bi-play"></i> Send Request
+                            </button>
+                        </div>
+                        <div class="try-it-response" style="display: none;">
+                            <h4>Response</h4>
+                            <div class="code-block">
+                                <div class="code-header">
+                                    <span class="response-status">200 OK</span>
+                                    <span class="response-time"></span>
+                                </div>
+                                <div class="code-content">
+                                    <pre><code class="language-json response-body"></code></pre>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        ` : '';
+        
+        card.innerHTML = `
+            <div class="endpoint-header" onclick="toggleEndpoint(this)">
+                <span class="endpoint-method method-${endpoint.method.toLowerCase()}">${endpoint.method}</span>
+                <span class="endpoint-path">${pathHtml}</span>
+                ${endpoint.auth_required ? '<span class="endpoint-auth"><i class="bi bi-lock-fill"></i> Auth</span>' : ''}
+                <i class="bi bi-chevron-down endpoint-toggle"></i>
+            </div>
+            <div class="endpoint-body">
+                <p class="endpoint-description">${endpoint.description}</p>
+                ${paramsHtml}
+                ${requestBodyHtml}
+                ${responseHtml}
+                ${tryItHtml}
+            </div>
+        `;
+        
+        return card;
+    }
+    
+    function toggleEndpoint(header) {
+        const card = header.closest('.endpoint-card');
+        card.classList.toggle('expanded');
+        
+        if (card.classList.contains('expanded')) {
+            Prism.highlightAllUnder(card);
+        }
+    }
+    
+    function filterCategory(category) {
+        currentCategory = category;
+        
+        document.querySelectorAll('.docs-nav-item').forEach(item => {
+            item.classList.toggle('active', item.dataset.category === category);
+        });
+        
+        const searchQuery = document.getElementById('searchInput').value.toLowerCase();
+        renderEndpoints(searchQuery);
+    }
+    
+    function searchEndpoints() {
+        const query = document.getElementById('searchInput').value.toLowerCase();
+        renderEndpoints(query);
+    }
+    
+    function expandAll() {
+        document.querySelectorAll('.endpoint-card').forEach(card => {
+            card.classList.add('expanded');
+        });
+        Prism.highlightAll();
+    }
+    
+    function collapseAll() {
+        document.querySelectorAll('.endpoint-card').forEach(card => {
+            card.classList.remove('expanded');
+        });
+    }
+    
+    function copyCode(button) {
+        const codeBlock = button.closest('.code-block');
+        const code = codeBlock.querySelector('code').textContent;
+        
+        navigator.clipboard.writeText(code).then(() => {
+            const originalHtml = button.innerHTML;
+            button.innerHTML = '<i class="bi bi-check"></i> Copied!';
+            setTimeout(() => {
+                button.innerHTML = originalHtml;
+            }, 2000);
+        });
+    }
+    
+    async function tryEndpoint(event, method, path) {
+        event.preventDefault();
+        
+        const form = event.target;
+        const formData = new FormData(form);
+        const responseDiv = form.querySelector('.try-it-response');
+        const statusSpan = responseDiv.querySelector('.response-status');
+        const timeSpan = responseDiv.querySelector('.response-time');
+        const bodyCode = responseDiv.querySelector('.response-body');
+        
+        let url = path;
+        const queryParams = new URLSearchParams();
+        let requestBody = null;
+        
+        for (const [key, value] of formData.entries()) {
+            if (key === '_body') {
+                if (value) {
+                    try {
+                        requestBody = JSON.parse(value);
+                    } catch (e) {
+                        requestBody = value;
+                    }
+                }
+            } else if (value) {
+                if (url.includes(`{${key}}`)) {
+                    url = url.replace(`{${key}}`, encodeURIComponent(value));
+                } else {
+                    queryParams.append(key, value);
+                }
+            }
+        }
+        
+        if (queryParams.toString()) {
+            url += '?' + queryParams.toString();
+        }
+        
+        const startTime = performance.now();
+        
+        try {
+            const options = {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            };
+            
+            if (requestBody && (method === 'POST' || method === 'PUT')) {
+                options.body = JSON.stringify(requestBody);
+            }
+            
+            const response = await fetch(url, options);
+            const endTime = performance.now();
+            const duration = Math.round(endTime - startTime);
+            
+            let data;
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+                data = await response.json();
+            } else {
+                data = await response.text();
+            }
+            
+            statusSpan.textContent = `${response.status} ${response.statusText}`;
+            statusSpan.style.color = response.ok ? 'var(--accent-green)' : 'var(--accent-red)';
+            timeSpan.textContent = `${duration}ms`;
+            bodyCode.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+            
+            responseDiv.style.display = 'block';
+            Prism.highlightAllUnder(responseDiv);
+            
+        } catch (error) {
+            statusSpan.textContent = 'Error';
+            statusSpan.style.color = 'var(--accent-red)';
+            timeSpan.textContent = '';
+            bodyCode.textContent = error.message;
+            responseDiv.style.display = 'block';
+        }
+        
+        return false;
+    }
+</script>
+{% endblock %}

@@ -752,6 +752,26 @@
                 </li>
             </ul>
         </div>
+        
+        <div class="nav-section">
+            <div class="nav-section-header">
+                <i class="bi bi-question-circle"></i> Help
+            </div>
+            <ul>
+                <li class="nav-item">
+                    <a href="/docs" class="nav-link cosmic {% if request.path == '/docs' %}active{% endif %}">
+                        <i class="bi bi-book"></i>
+                        <span>API Documentation</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="/deployment-guide" class="nav-link cosmic {% if request.path == '/deployment-guide' %}active{% endif %}">
+                        <i class="bi bi-journal-text"></i>
+                        <span>Deploy Guide</span>
+                    </a>
+                </li>
+            </ul>
+        </div>
     </nav>
 
     <div class="main-content">

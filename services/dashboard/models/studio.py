@@ -117,6 +117,16 @@ class StudioProject(Base):
         back_populates="project", 
         cascade="all, delete-orphan"
     )
+    collaborators: Mapped[List["ProjectCollaborator"]] = relationship(
+        "ProjectCollaborator",
+        back_populates="project",
+        cascade="all, delete-orphan"
+    )
+    shares: Mapped[List["ProjectShare"]] = relationship(
+        "ProjectShare",
+        back_populates="project",
+        cascade="all, delete-orphan"
+    )
     
     def __repr__(self):
         return f"<StudioProject(id={self.id}, name='{self.name}', status='{self.status.value}')>"
@@ -267,6 +277,102 @@ class ProjectDeployment(Base):
             'url': self.url,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
+
+class CollaboratorRole(enum.Enum):
+    """Collaborator roles"""
+    OWNER = "owner"
+    EDITOR = "editor"
+    VIEWER = "viewer"
+
+
+class SharePermission(enum.Enum):
+    """Share link permissions"""
+    VIEW = "view"
+    EDIT = "edit"
+
+
+class ProjectCollaborator(Base):
+    """Project collaborators - users with access to a project"""
+    __tablename__ = 'project_collaborators'
+    
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), 
+        ForeignKey('studio_projects.id', ondelete='CASCADE')
+    )
+    user_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    username: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    role: Mapped[CollaboratorRole] = mapped_column(
+        SQLEnum(CollaboratorRole),
+        default=CollaboratorRole.VIEWER
+    )
+    invited_by: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    invited_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    accepted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    
+    project: Mapped["StudioProject"] = relationship("StudioProject", back_populates="collaborators")
+    
+    def __repr__(self):
+        return f"<ProjectCollaborator(id={self.id}, user_id='{self.user_id}', role='{self.role.value}')>"
+    
+    def to_dict(self):
+        return {
+            'id': str(self.id),
+            'project_id': str(self.project_id),
+            'user_id': self.user_id,
+            'username': self.username,
+            'email': self.email,
+            'role': self.role.value if self.role else None,
+            'invited_by': self.invited_by,
+            'invited_at': self.invited_at.isoformat() if self.invited_at else None,
+            'accepted_at': self.accepted_at.isoformat() if self.accepted_at else None,
+            'is_pending': self.accepted_at is None
+        }
+
+
+class ProjectShare(Base):
+    """Project share links - shareable links for project access"""
+    __tablename__ = 'project_shares'
+    
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), 
+        ForeignKey('studio_projects.id', ondelete='CASCADE')
+    )
+    share_token: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    permissions: Mapped[SharePermission] = mapped_column(
+        SQLEnum(SharePermission),
+        default=SharePermission.VIEW
+    )
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_by: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    
+    project: Mapped["StudioProject"] = relationship("StudioProject", back_populates="shares")
+    
+    def __repr__(self):
+        return f"<ProjectShare(id={self.id}, token='{self.share_token[:8]}...', permissions='{self.permissions.value}')>"
+    
+    def is_expired(self) -> bool:
+        if self.expires_at is None:
+            return False
+        return datetime.utcnow() > self.expires_at
+    
+    def to_dict(self):
+        return {
+            'id': str(self.id),
+            'project_id': str(self.project_id),
+            'share_token': self.share_token,
+            'permissions': self.permissions.value if self.permissions else None,
+            'expires_at': self.expires_at.isoformat() if self.expires_at else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'created_by': self.created_by,
+            'is_active': self.is_active,
+            'is_expired': self.is_expired()
         }
 
 

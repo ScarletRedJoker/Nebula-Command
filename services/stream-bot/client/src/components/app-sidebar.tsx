@@ -1,4 +1,4 @@
-import { Home, Settings, Activity, Zap, History, MessageSquare, Shield, Trophy, Megaphone, BarChart3, Gamepad2, Coins, Music, Vote, Bell, Bot, Sparkles, Video, Layers, Lightbulb } from "lucide-react";
+import { Home, Settings, Activity, Zap, History, MessageSquare, Shield, Trophy, Megaphone, BarChart3, Gamepad2, Coins, Music, Vote, Bell, Bot, Sparkles, Video, Layers, Lightbulb, Film } from "lucide-react";
 import { SiTwitch, SiYoutube, SiKick } from "react-icons/si";
 import {
   Sidebar,
@@ -82,6 +82,12 @@ const featureItems = [
     title: "Giveaways",
     url: "/giveaways",
     icon: Trophy,
+  },
+  {
+    title: "Clips",
+    url: "/clips",
+    icon: Film,
+    badge: "New",
   },
   {
     title: "Shoutouts",

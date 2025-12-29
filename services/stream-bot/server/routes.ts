@@ -13,7 +13,13 @@ import {
   updateModerationRuleSchema,
   insertGiveawaySchema,
   updateShoutoutSettingsSchema,
+  streamClips,
+  platformConnections,
+  type StreamClip,
+  insertStreamClipSchema,
 } from "@shared/schema";
+import { db } from "./db";
+import { eq, and, desc, asc, sql } from "drizzle-orm";
 import { getAvailableVariables } from "./command-variables";
 import authRoutes from "./auth/routes";
 import oauthSignInRoutes from "./auth/oauth-signin-routes";
@@ -4359,6 +4365,231 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("[STT API] Config failed:", error);
       res.status(500).json({ error: error.message || "Failed to get STT config" });
+    }
+  });
+
+  // ============================================================================
+  // STREAM CLIPS API - Capture and highlight stream moments
+  // ============================================================================
+
+  app.get("/api/clips", requireAuth, async (req, res) => {
+    try {
+      const { platform, sort, order, limit, offset, highlights } = req.query;
+      
+      const conditions = [eq(streamClips.userId, req.user!.id)];
+      
+      if (platform && typeof platform === "string") {
+        conditions.push(eq(streamClips.platform, platform));
+      }
+      
+      if (highlights === "true") {
+        conditions.push(eq(streamClips.isHighlight, true));
+      }
+      
+      const sortColumn = sort === "views" ? streamClips.viewCount : streamClips.clipCreatedAt;
+      const sortOrder = order === "asc" ? asc(sortColumn) : desc(sortColumn);
+      
+      const clips = await db
+        .select()
+        .from(streamClips)
+        .where(and(...conditions))
+        .orderBy(sortOrder)
+        .limit(limit ? parseInt(limit as string) : 50)
+        .offset(offset ? parseInt(offset as string) : 0);
+      
+      const total = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(streamClips)
+        .where(and(...conditions));
+      
+      res.json({
+        clips,
+        total: total[0]?.count || 0,
+        limit: limit ? parseInt(limit as string) : 50,
+        offset: offset ? parseInt(offset as string) : 0,
+      });
+    } catch (error: any) {
+      console.error("[Clips API] List failed:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch clips" });
+    }
+  });
+
+  app.get("/api/clips/highlights", requireAuth, async (req, res) => {
+    try {
+      const clips = await db
+        .select()
+        .from(streamClips)
+        .where(and(
+          eq(streamClips.userId, req.user!.id),
+          eq(streamClips.isHighlight, true)
+        ))
+        .orderBy(desc(streamClips.clipCreatedAt))
+        .limit(50);
+      
+      res.json({ clips });
+    } catch (error: any) {
+      console.error("[Clips API] Highlights failed:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch highlights" });
+    }
+  });
+
+  app.post("/api/clips/fetch", requireAuth, async (req, res) => {
+    try {
+      const { platform } = req.body;
+      
+      if (platform !== "twitch") {
+        return res.status(400).json({ error: "Only Twitch clips fetch is currently supported" });
+      }
+      
+      const connection = await db
+        .select()
+        .from(platformConnections)
+        .where(and(
+          eq(platformConnections.userId, req.user!.id),
+          eq(platformConnections.platform, "twitch")
+        ))
+        .limit(1);
+      
+      if (!connection[0]) {
+        return res.status(400).json({ error: "No Twitch connection found. Please connect your Twitch account." });
+      }
+      
+      const twitchConnection = connection[0];
+      
+      if (!twitchConnection.accessToken) {
+        return res.status(400).json({ error: "Twitch access token missing. Please reconnect your Twitch account." });
+      }
+      
+      const clientId = process.env.TWITCH_CLIENT_ID;
+      if (!clientId) {
+        return res.status(500).json({ error: "Twitch API not configured" });
+      }
+      
+      const clipsResponse = await fetch(
+        `https://api.twitch.tv/helix/clips?broadcaster_id=${twitchConnection.platformUserId}&first=100`,
+        {
+          headers: {
+            "Authorization": `Bearer ${twitchConnection.accessToken}`,
+            "Client-Id": clientId,
+          },
+        }
+      );
+      
+      if (!clipsResponse.ok) {
+        const errorText = await clipsResponse.text();
+        console.error("[Clips API] Twitch API error:", errorText);
+        return res.status(clipsResponse.status).json({ error: "Failed to fetch clips from Twitch" });
+      }
+      
+      const clipsData = await clipsResponse.json();
+      let inserted = 0;
+      let updated = 0;
+      
+      for (const clip of clipsData.data || []) {
+        const clipData = {
+          userId: req.user!.id,
+          platform: "twitch" as const,
+          clipId: clip.id,
+          title: clip.title,
+          url: clip.url,
+          embedUrl: clip.embed_url,
+          thumbnailUrl: clip.thumbnail_url,
+          duration: Math.round(clip.duration),
+          viewCount: clip.view_count,
+          gameId: clip.game_id,
+          broadcasterName: clip.broadcaster_name,
+          broadcasterId: clip.broadcaster_id,
+          clipCreatedAt: new Date(clip.created_at),
+        };
+        
+        const existing = await db
+          .select()
+          .from(streamClips)
+          .where(and(
+            eq(streamClips.userId, req.user!.id),
+            eq(streamClips.platform, "twitch"),
+            eq(streamClips.clipId, clip.id)
+          ))
+          .limit(1);
+        
+        if (existing[0]) {
+          await db
+            .update(streamClips)
+            .set({ viewCount: clip.view_count, updatedAt: new Date() })
+            .where(eq(streamClips.id, existing[0].id));
+          updated++;
+        } else {
+          await db.insert(streamClips).values(clipData);
+          inserted++;
+        }
+      }
+      
+      res.json({
+        success: true,
+        message: `Synced clips from Twitch`,
+        inserted,
+        updated,
+        total: clipsData.data?.length || 0,
+      });
+    } catch (error: any) {
+      console.error("[Clips API] Fetch failed:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch clips" });
+    }
+  });
+
+  app.delete("/api/clips/:id", requireAuth, async (req, res) => {
+    try {
+      const clip = await db
+        .select()
+        .from(streamClips)
+        .where(and(
+          eq(streamClips.id, req.params.id),
+          eq(streamClips.userId, req.user!.id)
+        ))
+        .limit(1);
+      
+      if (!clip[0]) {
+        return res.status(404).json({ error: "Clip not found" });
+      }
+      
+      await db
+        .delete(streamClips)
+        .where(eq(streamClips.id, req.params.id));
+      
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Clips API] Delete failed:", error);
+      res.status(500).json({ error: error.message || "Failed to delete clip" });
+    }
+  });
+
+  app.post("/api/clips/:id/highlight", requireAuth, async (req, res) => {
+    try {
+      const { isHighlight } = req.body;
+      
+      const clip = await db
+        .select()
+        .from(streamClips)
+        .where(and(
+          eq(streamClips.id, req.params.id),
+          eq(streamClips.userId, req.user!.id)
+        ))
+        .limit(1);
+      
+      if (!clip[0]) {
+        return res.status(404).json({ error: "Clip not found" });
+      }
+      
+      const [updated] = await db
+        .update(streamClips)
+        .set({ isHighlight: isHighlight !== undefined ? isHighlight : !clip[0].isHighlight, updatedAt: new Date() })
+        .where(eq(streamClips.id, req.params.id))
+        .returning();
+      
+      res.json({ clip: updated });
+    } catch (error: any) {
+      console.error("[Clips API] Highlight toggle failed:", error);
+      res.status(500).json({ error: error.message || "Failed to update clip" });
     }
   });
 

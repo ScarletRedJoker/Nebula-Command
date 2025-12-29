@@ -851,6 +851,34 @@ export const facts = pgTable("facts", {
   sourceIdx: index("facts_source_idx").on(table.source),
 }));
 
+// Stream Clips - Capture and highlight stream moments from connected platforms
+export const streamClips = pgTable("stream_clips", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  platform: text("platform").notNull(), // 'twitch', 'youtube', 'kick'
+  clipId: text("clip_id").notNull(), // External platform clip ID
+  title: text("title").notNull(),
+  url: text("url").notNull(),
+  embedUrl: text("embed_url"), // Embeddable player URL
+  thumbnailUrl: text("thumbnail_url"),
+  duration: integer("duration").default(0).notNull(), // Duration in seconds
+  viewCount: integer("view_count").default(0).notNull(),
+  gameId: text("game_id"), // Game/category ID from platform
+  gameName: text("game_name"), // Game/category name
+  broadcasterName: text("broadcaster_name"),
+  broadcasterId: text("broadcaster_id"),
+  isHighlight: boolean("is_highlight").default(false).notNull(), // User-marked as highlight/favorite
+  clipCreatedAt: timestamp("clip_created_at"), // When the clip was created on the platform
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  userIdIdx: index("stream_clips_user_id_idx").on(table.userId),
+  platformIdx: index("stream_clips_platform_idx").on(table.platform),
+  clipIdIdx: uniqueIndex("stream_clips_user_clip_unique").on(table.userId, table.platform, table.clipId),
+  isHighlightIdx: index("stream_clips_is_highlight_idx").on(table.isHighlight),
+  createdAtIdx: index("stream_clips_created_at_idx").on(table.createdAt),
+}));
+
 // ============================================================================
 // ENHANCED DATABASE AND AI FEATURES
 // Per-Platform Credentials, Analytics, Time-Series, Intent Detection, etc.
@@ -1816,6 +1844,29 @@ export const insertFactSchema = createInsertSchema(facts, {
   createdAt: true,
 });
 
+export const insertStreamClipSchema = createInsertSchema(streamClips, {
+  platform: z.enum(["twitch", "youtube", "kick"]),
+  clipId: z.string().min(1, "Clip ID is required"),
+  title: z.string().min(1, "Title is required").max(200, "Title too long"),
+  url: z.string().url("Invalid URL"),
+  embedUrl: z.string().url("Invalid embed URL").optional(),
+  thumbnailUrl: z.string().url("Invalid thumbnail URL").optional(),
+  duration: z.coerce.number().min(0).optional(),
+  viewCount: z.coerce.number().min(0).optional(),
+  gameId: z.string().optional(),
+  gameName: z.string().optional(),
+  broadcasterName: z.string().optional(),
+  broadcasterId: z.string().optional(),
+  isHighlight: z.boolean().optional(),
+  clipCreatedAt: z.coerce.date().optional(),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateStreamClipSchema = insertStreamClipSchema.partial();
+
 // ============================================================================
 // INSERT SCHEMAS FOR ENHANCED BACKEND FEATURES
 // ============================================================================
@@ -2113,6 +2164,7 @@ export type SentimentAnalysis = typeof sentimentAnalysis.$inferSelect;
 export type OBSConnection = typeof obsConnections.$inferSelect;
 export type OBSAutomation = typeof obsAutomations.$inferSelect;
 export type Fact = typeof facts.$inferSelect;
+export type StreamClip = typeof streamClips.$inferSelect;
 
 // Select types for enhanced backend features
 export type FeatureToggles = typeof featureToggles.$inferSelect;
@@ -2188,6 +2240,8 @@ export type InsertSentimentAnalysis = z.infer<typeof insertSentimentAnalysisSche
 export type InsertOBSConnection = z.infer<typeof insertOBSConnectionSchema>;
 export type InsertOBSAutomation = z.infer<typeof insertOBSAutomationSchema>;
 export type InsertFact = z.infer<typeof insertFactSchema>;
+export type InsertStreamClip = z.infer<typeof insertStreamClipSchema>;
+export type UpdateStreamClip = z.infer<typeof updateStreamClipSchema>;
 
 // Insert types for enhanced backend features
 export type InsertFeatureToggles = z.infer<typeof insertFeatureTogglesSchema>;

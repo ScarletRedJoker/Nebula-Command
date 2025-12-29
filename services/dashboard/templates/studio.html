@@ -723,6 +723,31 @@
         color: var(--accent-blue);
     }
 
+    .collab-tab {
+        padding: 8px 16px;
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        color: var(--text-secondary);
+        font-size: 0.85rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.2s;
+    }
+
+    .collab-tab:hover {
+        background: var(--border-color);
+        color: var(--text-primary);
+    }
+
+    .collab-tab.active {
+        background: linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(59, 130, 246, 0.2) 100%);
+        border-color: var(--accent-purple);
+        color: var(--accent-purple);
+    }
+
     .workspace-content.with-ai-panel {
         grid-template-columns: 250px 1fr 380px;
     }
@@ -2251,6 +2276,9 @@
                 <button class="btn-action btn-git" id="btnGit" onclick="toggleGitPanel()">
                     <i class="bi bi-git"></i> Git <span id="gitStatusBadge" class="git-badge" style="display: none;"></span>
                 </button>
+                <button class="btn-action" id="btnShare" onclick="openCollaboratorsModal()" title="Share & Collaborate">
+                    <i class="bi bi-people"></i> Share
+                </button>
                 <button class="btn-action success" id="btnDeploy" onclick="openDeployModal()">
                     <i class="bi bi-rocket-takeoff"></i> Deploy
                 </button>
@@ -2770,6 +2798,96 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<div class="modal" id="collaboratorsModal">
+    <div class="modal-content" style="max-width: 650px;">
+        <div class="modal-header">
+            <h3><i class="bi bi-people"></i> Share & Collaborate</h3>
+            <button class="modal-close" onclick="closeCollaboratorsModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="collab-tabs" style="display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
+                <button class="collab-tab active" onclick="switchCollabTab('collaborators')" id="tabCollaborators">
+                    <i class="bi bi-person-plus"></i> Collaborators
+                </button>
+                <button class="collab-tab" onclick="switchCollabTab('sharelink')" id="tabShareLink">
+                    <i class="bi bi-link-45deg"></i> Share Link
+                </button>
+            </div>
+            
+            <div id="collaboratorsTabContent">
+                <div class="form-group" style="margin-bottom: 20px;">
+                    <label style="margin-bottom: 8px; display: block;"><i class="bi bi-person-plus"></i> Invite Collaborator</label>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" id="inviteUserInput" placeholder="Username or email" style="flex: 1;">
+                        <select id="inviteRoleSelect" style="width: 120px; padding: 10px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary);">
+                            <option value="viewer">Viewer</option>
+                            <option value="editor">Editor</option>
+                        </select>
+                        <button class="btn-submit" onclick="inviteCollaborator()">
+                            <i class="bi bi-send"></i> Invite
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label style="margin-bottom: 12px; display: block;"><i class="bi bi-people-fill"></i> Current Collaborators</label>
+                    <div id="collaboratorsList" style="max-height: 250px; overflow-y: auto;">
+                        <div class="collab-empty" style="text-align: center; padding: 30px; color: var(--text-secondary);">
+                            <i class="bi bi-person-x" style="font-size: 2rem; margin-bottom: 10px; display: block;"></i>
+                            <span>No collaborators yet</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="shareLinkTabContent" style="display: none;">
+                <div class="form-group" style="margin-bottom: 20px;">
+                    <label style="margin-bottom: 8px; display: block;"><i class="bi bi-link-45deg"></i> Generate Share Link</label>
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                        <select id="shareLinkPermission" style="width: 120px; padding: 10px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary);">
+                            <option value="view">View Only</option>
+                            <option value="edit">Can Edit</option>
+                        </select>
+                        <select id="shareLinkExpiry" style="width: 150px; padding: 10px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary);">
+                            <option value="">Never Expires</option>
+                            <option value="1">1 Hour</option>
+                            <option value="24">24 Hours</option>
+                            <option value="168">7 Days</option>
+                            <option value="720">30 Days</option>
+                        </select>
+                        <button class="btn-submit" onclick="generateShareLink()">
+                            <i class="bi bi-plus-lg"></i> Generate Link
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="generatedLinkContainer" style="display: none; margin-bottom: 20px; padding: 15px; background: var(--bg-tertiary); border-radius: 10px; border: 1px solid var(--accent-green);">
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <input type="text" id="generatedLinkInput" readonly style="flex: 1; background: var(--bg-secondary); border: 1px solid var(--border-color); padding: 10px; border-radius: 6px;">
+                        <button class="btn-action" onclick="copyShareLink()" title="Copy Link">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </div>
+                    <small style="color: var(--text-secondary); margin-top: 8px; display: block;" id="generatedLinkInfo"></small>
+                </div>
+                
+                <div class="form-group">
+                    <label style="margin-bottom: 12px; display: block;"><i class="bi bi-list-ul"></i> Active Share Links</label>
+                    <div id="shareLinksList" style="max-height: 200px; overflow-y: auto;">
+                        <div class="collab-empty" style="text-align: center; padding: 30px; color: var(--text-secondary);">
+                            <i class="bi bi-link" style="font-size: 2rem; margin-bottom: 10px; display: block;"></i>
+                            <span>No share links created</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-cancel" onclick="closeCollaboratorsModal()">Close</button>
+        </div>
+    </div>
+</div>
 
 <div class="modal" id="packageDetailsModal">
     <div class="modal-content package-modal-content">
@@ -5671,6 +5789,313 @@ async function reloadFileTree() {
         }
     } catch (error) {
         console.error('Error reloading file tree:', error);
+    }
+}
+
+let projectCollaborators = [];
+let projectShareLinks = [];
+
+function openCollaboratorsModal() {
+    if (!currentProject) {
+        showToast('Select a project first', 'error');
+        return;
+    }
+    document.getElementById('collaboratorsModal').classList.add('show');
+    document.getElementById('generatedLinkContainer').style.display = 'none';
+    loadCollaborators();
+    loadShareLinks();
+}
+
+function closeCollaboratorsModal() {
+    document.getElementById('collaboratorsModal').classList.remove('show');
+}
+
+function switchCollabTab(tab) {
+    document.getElementById('tabCollaborators').classList.remove('active');
+    document.getElementById('tabShareLink').classList.remove('active');
+    document.getElementById('collaboratorsTabContent').style.display = 'none';
+    document.getElementById('shareLinkTabContent').style.display = 'none';
+    
+    if (tab === 'collaborators') {
+        document.getElementById('tabCollaborators').classList.add('active');
+        document.getElementById('collaboratorsTabContent').style.display = 'block';
+    } else {
+        document.getElementById('tabShareLink').classList.add('active');
+        document.getElementById('shareLinkTabContent').style.display = 'block';
+    }
+}
+
+async function loadCollaborators() {
+    if (!currentProject) return;
+    
+    try {
+        const response = await fetch(`/api/studio/projects/${currentProject.id}/collaborators`);
+        const data = await response.json();
+        
+        if (data.success) {
+            projectCollaborators = data.collaborators || [];
+            renderCollaboratorsList();
+        }
+    } catch (error) {
+        console.error('Error loading collaborators:', error);
+    }
+}
+
+function renderCollaboratorsList() {
+    const container = document.getElementById('collaboratorsList');
+    
+    if (projectCollaborators.length === 0) {
+        container.innerHTML = `
+            <div class="collab-empty" style="text-align: center; padding: 30px; color: var(--text-secondary);">
+                <i class="bi bi-person-x" style="font-size: 2rem; margin-bottom: 10px; display: block;"></i>
+                <span>No collaborators yet</span>
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = projectCollaborators.map(c => `
+        <div class="collab-item" style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--bg-tertiary); border-radius: 8px; margin-bottom: 8px;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <div style="width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #8B5CF6, #3B82F6); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600;">
+                    ${(c.username || c.email || c.user_id).charAt(0).toUpperCase()}
+                </div>
+                <div>
+                    <div style="font-weight: 500;">${escapeHtml(c.username || c.email || c.user_id)}</div>
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">
+                        <span class="role-badge ${c.role}" style="padding: 2px 8px; border-radius: 10px; font-size: 0.65rem; text-transform: uppercase; background: ${c.role === 'editor' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(107, 114, 128, 0.2)'}; color: ${c.role === 'editor' ? 'var(--accent-blue)' : 'var(--text-secondary)'};">
+                            ${c.role}
+                        </span>
+                        ${c.is_pending ? '<span style="margin-left: 8px; color: var(--accent-yellow);"><i class="bi bi-hourglass-split"></i> Pending</span>' : ''}
+                    </div>
+                </div>
+            </div>
+            <div style="display: flex; gap: 6px;">
+                <select onchange="updateCollaboratorRole('${c.id}', this.value)" style="padding: 4px 8px; font-size: 0.75rem; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-primary);">
+                    <option value="viewer" ${c.role === 'viewer' ? 'selected' : ''}>Viewer</option>
+                    <option value="editor" ${c.role === 'editor' ? 'selected' : ''}>Editor</option>
+                </select>
+                <button onclick="removeCollaborator('${c.id}')" class="btn-action danger" style="padding: 4px 8px; font-size: 0.75rem;">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function inviteCollaborator() {
+    if (!currentProject) return;
+    
+    const userInput = document.getElementById('inviteUserInput').value.trim();
+    const role = document.getElementById('inviteRoleSelect').value;
+    
+    if (!userInput) {
+        showToast('Please enter a username or email', 'error');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/studio/projects/${currentProject.id}/collaborators`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user: userInput, role })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast(data.message || 'Invitation sent', 'success');
+            document.getElementById('inviteUserInput').value = '';
+            loadCollaborators();
+        } else {
+            showToast(data.error || 'Failed to invite', 'error');
+        }
+    } catch (error) {
+        console.error('Error inviting collaborator:', error);
+        showToast('Failed to invite collaborator', 'error');
+    }
+}
+
+async function removeCollaborator(userId) {
+    if (!currentProject) return;
+    if (!confirm('Remove this collaborator?')) return;
+    
+    try {
+        const response = await fetch(`/api/studio/projects/${currentProject.id}/collaborators/${userId}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast(data.message || 'Collaborator removed', 'success');
+            loadCollaborators();
+        } else {
+            showToast(data.error || 'Failed to remove', 'error');
+        }
+    } catch (error) {
+        console.error('Error removing collaborator:', error);
+        showToast('Failed to remove collaborator', 'error');
+    }
+}
+
+async function updateCollaboratorRole(userId, newRole) {
+    if (!currentProject) return;
+    
+    try {
+        const response = await fetch(`/api/studio/projects/${currentProject.id}/collaborators/${userId}/role`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ role: newRole })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast(`Role updated to ${newRole}`, 'success');
+            loadCollaborators();
+        } else {
+            showToast(data.error || 'Failed to update role', 'error');
+        }
+    } catch (error) {
+        console.error('Error updating role:', error);
+        showToast('Failed to update role', 'error');
+    }
+}
+
+async function loadShareLinks() {
+    if (!currentProject) return;
+    
+    try {
+        const response = await fetch(`/api/studio/projects/${currentProject.id}/shares`);
+        const data = await response.json();
+        
+        if (data.success) {
+            projectShareLinks = data.shares || [];
+            renderShareLinksList();
+        }
+    } catch (error) {
+        console.error('Error loading share links:', error);
+    }
+}
+
+function renderShareLinksList() {
+    const container = document.getElementById('shareLinksList');
+    
+    if (projectShareLinks.length === 0) {
+        container.innerHTML = `
+            <div class="collab-empty" style="text-align: center; padding: 30px; color: var(--text-secondary);">
+                <i class="bi bi-link" style="font-size: 2rem; margin-bottom: 10px; display: block;"></i>
+                <span>No share links created</span>
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = projectShareLinks.map(s => `
+        <div class="share-link-item" style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--bg-tertiary); border-radius: 8px; margin-bottom: 8px; ${s.is_expired ? 'opacity: 0.5;' : ''}">
+            <div style="flex: 1; overflow: hidden;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="padding: 2px 8px; border-radius: 10px; font-size: 0.65rem; text-transform: uppercase; background: ${s.permissions === 'edit' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(107, 114, 128, 0.2)'}; color: ${s.permissions === 'edit' ? 'var(--accent-blue)' : 'var(--text-secondary)'};">
+                        ${s.permissions}
+                    </span>
+                    ${s.is_expired ? '<span style="color: var(--accent-red); font-size: 0.75rem;"><i class="bi bi-x-circle"></i> Expired</span>' : ''}
+                </div>
+                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                    ...${s.share_token.slice(-12)}
+                    ${s.expires_at ? ` • Expires: ${new Date(s.expires_at).toLocaleDateString()}` : ' • Never expires'}
+                </div>
+            </div>
+            <div style="display: flex; gap: 6px;">
+                <button onclick="copyShareLinkById('${s.share_token}')" class="btn-action" style="padding: 4px 8px; font-size: 0.75rem;" title="Copy Link">
+                    <i class="bi bi-clipboard"></i>
+                </button>
+                <button onclick="revokeShareLink('${s.id}')" class="btn-action danger" style="padding: 4px 8px; font-size: 0.75rem;" title="Revoke">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function generateShareLink() {
+    if (!currentProject) return;
+    
+    const permissions = document.getElementById('shareLinkPermission').value;
+    const expiryHours = document.getElementById('shareLinkExpiry').value;
+    
+    try {
+        const response = await fetch(`/api/studio/projects/${currentProject.id}/share`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                permissions,
+                expires_hours: expiryHours ? parseInt(expiryHours) : null
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            const shareUrl = `${window.location.origin}${data.share_url}`;
+            document.getElementById('generatedLinkInput').value = shareUrl;
+            document.getElementById('generatedLinkContainer').style.display = 'block';
+            
+            let info = `${permissions === 'edit' ? 'Can edit' : 'View only'}`;
+            if (expiryHours) {
+                const expiryText = expiryHours === '1' ? '1 hour' : expiryHours === '24' ? '24 hours' : expiryHours === '168' ? '7 days' : '30 days';
+                info += ` • Expires in ${expiryText}`;
+            } else {
+                info += ' • Never expires';
+            }
+            document.getElementById('generatedLinkInfo').textContent = info;
+            
+            showToast('Share link generated', 'success');
+            loadShareLinks();
+        } else {
+            showToast(data.error || 'Failed to generate link', 'error');
+        }
+    } catch (error) {
+        console.error('Error generating share link:', error);
+        showToast('Failed to generate share link', 'error');
+    }
+}
+
+function copyShareLink() {
+    const input = document.getElementById('generatedLinkInput');
+    input.select();
+    document.execCommand('copy');
+    showToast('Link copied to clipboard', 'success');
+}
+
+function copyShareLinkById(token) {
+    const shareUrl = `${window.location.origin}/studio/shared/${token}`;
+    navigator.clipboard.writeText(shareUrl).then(() => {
+        showToast('Link copied to clipboard', 'success');
+    }).catch(() => {
+        showToast('Failed to copy link', 'error');
+    });
+}
+
+async function revokeShareLink(shareId) {
+    if (!confirm('Revoke this share link? Anyone with this link will lose access.')) return;
+    
+    try {
+        const response = await fetch(`/api/studio/shares/${shareId}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast('Share link revoked', 'success');
+            loadShareLinks();
+        } else {
+            showToast(data.error || 'Failed to revoke', 'error');
+        }
+    } catch (error) {
+        console.error('Error revoking share link:', error);
+        showToast('Failed to revoke share link', 'error');
     }
 }
 </script>

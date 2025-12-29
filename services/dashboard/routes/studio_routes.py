@@ -3648,3 +3648,341 @@ def check_outdated_packages(project_id):
             'success': False,
             'error': str(e)
         }), 500
+
+
+@studio_bp.route('/projects/<project_id>/collaborators', methods=['GET'])
+@require_auth
+def list_collaborators(project_id):
+    """
+    GET /api/studio/projects/<id>/collaborators
+    List all collaborators for a project
+    """
+    try:
+        from services.collaboration_service import collaboration_service
+        
+        result = collaboration_service.list_collaborators(project_id)
+        
+        if result.get('success'):
+            return jsonify(result)
+        else:
+            return jsonify(result), 404 if 'not found' in result.get('error', '').lower() else 500
+            
+    except Exception as e:
+        logger.error(f"Error listing collaborators: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@studio_bp.route('/projects/<project_id>/collaborators', methods=['POST'])
+@require_auth
+def invite_collaborator(project_id):
+    """
+    POST /api/studio/projects/<id>/collaborators
+    Invite a collaborator to a project
+    
+    Request body:
+    {
+        "user": "username or email",
+        "role": "viewer|editor"
+    }
+    """
+    try:
+        from services.collaboration_service import collaboration_service
+        
+        data = request.get_json() or {}
+        user_identifier = data.get('user') or data.get('username') or data.get('email')
+        role = data.get('role', 'viewer')
+        invited_by = data.get('invited_by')
+        
+        if not user_identifier:
+            return jsonify({
+                'success': False,
+                'error': 'User identifier (username or email) is required'
+            }), 400
+        
+        result = collaboration_service.invite_collaborator(
+            project_id=project_id,
+            user_identifier=user_identifier,
+            role=role,
+            invited_by=invited_by
+        )
+        
+        if result.get('success'):
+            return jsonify(result), 201
+        else:
+            return jsonify(result), 400 if 'already' in result.get('error', '').lower() else 500
+            
+    except Exception as e:
+        logger.error(f"Error inviting collaborator: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@studio_bp.route('/projects/<project_id>/collaborators/<user_id>', methods=['DELETE'])
+@require_auth
+def remove_collaborator(project_id, user_id):
+    """
+    DELETE /api/studio/projects/<id>/collaborators/<user_id>
+    Remove a collaborator from a project
+    """
+    try:
+        from services.collaboration_service import collaboration_service
+        
+        result = collaboration_service.remove_collaborator(project_id, user_id)
+        
+        if result.get('success'):
+            return jsonify(result)
+        else:
+            return jsonify(result), 404 if 'not found' in result.get('error', '').lower() else 500
+            
+    except Exception as e:
+        logger.error(f"Error removing collaborator: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@studio_bp.route('/projects/<project_id>/collaborators/<user_id>/role', methods=['PUT'])
+@require_auth
+def update_collaborator_role(project_id, user_id):
+    """
+    PUT /api/studio/projects/<id>/collaborators/<user_id>/role
+    Update a collaborator's role
+    
+    Request body:
+    {
+        "role": "viewer|editor"
+    }
+    """
+    try:
+        from services.collaboration_service import collaboration_service
+        
+        data = request.get_json() or {}
+        new_role = data.get('role')
+        
+        if not new_role:
+            return jsonify({
+                'success': False,
+                'error': 'Role is required'
+            }), 400
+        
+        result = collaboration_service.update_collaborator_role(project_id, user_id, new_role)
+        
+        if result.get('success'):
+            return jsonify(result)
+        else:
+            return jsonify(result), 400 if 'Invalid' in result.get('error', '') else 500
+            
+    except Exception as e:
+        logger.error(f"Error updating collaborator role: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@studio_bp.route('/projects/<project_id>/collaborators/<user_id>/accept', methods=['POST'])
+@require_auth
+def accept_invitation(project_id, user_id):
+    """
+    POST /api/studio/projects/<id>/collaborators/<user_id>/accept
+    Accept a collaboration invitation
+    """
+    try:
+        from services.collaboration_service import collaboration_service
+        
+        result = collaboration_service.accept_invitation(project_id, user_id)
+        
+        if result.get('success'):
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+            
+    except Exception as e:
+        logger.error(f"Error accepting invitation: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@studio_bp.route('/projects/<project_id>/collaborators/<user_id>/decline', methods=['POST'])
+@require_auth
+def decline_invitation(project_id, user_id):
+    """
+    POST /api/studio/projects/<id>/collaborators/<user_id>/decline
+    Decline a collaboration invitation
+    """
+    try:
+        from services.collaboration_service import collaboration_service
+        
+        result = collaboration_service.decline_invitation(project_id, user_id)
+        
+        if result.get('success'):
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+            
+    except Exception as e:
+        logger.error(f"Error declining invitation: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@studio_bp.route('/projects/<project_id>/share', methods=['POST'])
+@require_auth
+def generate_share_link(project_id):
+    """
+    POST /api/studio/projects/<id>/share
+    Generate a shareable link for a project
+    
+    Request body:
+    {
+        "permissions": "view|edit",
+        "expires_hours": 24 (optional, null for never)
+    }
+    """
+    try:
+        from services.collaboration_service import collaboration_service
+        
+        data = request.get_json() or {}
+        permissions = data.get('permissions', 'view')
+        expires_hours = data.get('expires_hours')
+        created_by = data.get('created_by')
+        
+        result = collaboration_service.generate_share_link(
+            project_id=project_id,
+            permissions=permissions,
+            expires_hours=expires_hours,
+            created_by=created_by
+        )
+        
+        if result.get('success'):
+            return jsonify(result), 201
+        else:
+            return jsonify(result), 404 if 'not found' in result.get('error', '').lower() else 500
+            
+    except Exception as e:
+        logger.error(f"Error generating share link: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@studio_bp.route('/projects/<project_id>/shares', methods=['GET'])
+@require_auth
+def list_share_links(project_id):
+    """
+    GET /api/studio/projects/<id>/shares
+    List all active share links for a project
+    """
+    try:
+        from services.collaboration_service import collaboration_service
+        
+        result = collaboration_service.list_share_links(project_id)
+        
+        if result.get('success'):
+            return jsonify(result)
+        else:
+            return jsonify(result), 404 if 'not found' in result.get('error', '').lower() else 500
+            
+    except Exception as e:
+        logger.error(f"Error listing share links: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@studio_bp.route('/shares/<share_id>', methods=['DELETE'])
+@require_auth
+def revoke_share_link(share_id):
+    """
+    DELETE /api/studio/shares/<share_id>
+    Revoke (deactivate) a share link
+    """
+    try:
+        from services.collaboration_service import collaboration_service
+        
+        result = collaboration_service.revoke_share_link(share_id)
+        
+        if result.get('success'):
+            return jsonify(result)
+        else:
+            return jsonify(result), 404 if 'not found' in result.get('error', '').lower() else 500
+            
+    except Exception as e:
+        logger.error(f"Error revoking share link: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@studio_bp.route('/shared/<share_token>', methods=['GET'])
+def access_shared_project(share_token):
+    """
+    GET /api/studio/shared/<token>
+    Access a project via share link (no auth required)
+    """
+    try:
+        from services.collaboration_service import collaboration_service
+        
+        result = collaboration_service.get_shared_project(share_token)
+        
+        if result.get('success'):
+            return jsonify(result)
+        else:
+            status = 404 if 'not found' in result.get('error', '').lower() else 410 if 'expired' in result.get('error', '').lower() else 500
+            return jsonify(result), status
+            
+    except Exception as e:
+        logger.error(f"Error accessing shared project: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@studio_bp.route('/projects/<project_id>/permissions', methods=['GET'])
+@require_auth
+def check_project_permissions(project_id):
+    """
+    GET /api/studio/projects/<id>/permissions
+    Check user's permissions for a project
+    
+    Query params:
+    - user_id: The user to check permissions for
+    """
+    try:
+        from services.collaboration_service import collaboration_service
+        
+        user_id = request.args.get('user_id')
+        
+        if not user_id:
+            return jsonify({
+                'success': False,
+                'error': 'user_id is required'
+            }), 400
+        
+        result = collaboration_service.check_permissions(project_id, user_id)
+        
+        if result.get('success'):
+            return jsonify(result)
+        else:
+            return jsonify(result), 404 if 'not found' in result.get('error', '').lower() else 500
+            
+    except Exception as e:
+        logger.error(f"Error checking permissions: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
