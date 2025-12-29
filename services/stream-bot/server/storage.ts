@@ -5,6 +5,7 @@ import {
   botConfigs,
   messageHistory,
   customCommands,
+  commandAliases,
   moderationRules,
   moderationLogs,
   linkWhitelist,
@@ -35,6 +36,7 @@ import {
   type BotConfig,
   type MessageHistory,
   type CustomCommand,
+  type CommandAlias,
   type ModerationRule,
   type ModerationLog,
   type LinkWhitelist,
@@ -65,6 +67,7 @@ import {
   type InsertBotConfig,
   type InsertMessageHistory,
   type InsertCustomCommand,
+  type InsertCommandAlias,
   type InsertModerationRule,
   type InsertModerationLog,
   type InsertLinkWhitelist,
@@ -628,6 +631,53 @@ export class DatabaseStorage implements IStorage {
       lastUsedAt: command.lastUsedAt,
       createdAt: command.createdAt,
     };
+  }
+
+  // Command Aliases
+  async getCommandAliases(commandId: string): Promise<CommandAlias[]> {
+    return await db
+      .select()
+      .from(commandAliases)
+      .where(eq(commandAliases.commandId, commandId));
+  }
+
+  async getCommandByAlias(userId: string, aliasName: string): Promise<CustomCommand | undefined> {
+    const [alias] = await db
+      .select()
+      .from(commandAliases)
+      .innerJoin(customCommands, eq(commandAliases.commandId, customCommands.id))
+      .where(
+        and(
+          eq(commandAliases.alias, aliasName.toLowerCase()),
+          eq(customCommands.userId, userId)
+        )
+      );
+    
+    if (!alias) return undefined;
+    return alias.custom_commands;
+  }
+
+  async createCommandAlias(commandId: string, alias: string): Promise<CommandAlias> {
+    const [newAlias] = await db
+      .insert(commandAliases)
+      .values({
+        commandId,
+        alias: alias.toLowerCase(),
+      })
+      .returning();
+    return newAlias;
+  }
+
+  async deleteCommandAlias(id: string): Promise<void> {
+    await db
+      .delete(commandAliases)
+      .where(eq(commandAliases.id, id));
+  }
+
+  async deleteCommandAliasesByCommandId(commandId: string): Promise<void> {
+    await db
+      .delete(commandAliases)
+      .where(eq(commandAliases.commandId, commandId));
   }
 
   // Moderation Rules

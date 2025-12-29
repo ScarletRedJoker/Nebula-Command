@@ -107,6 +107,7 @@ export class BotWorker {
   private channelFactCooldowns: Map<string, number> = new Map(); // "platform:channel" -> last fact timestamp
   private recentPostedFacts: Map<string, number> = new Map(); // factHash -> timestamp (for deduplication)
   private isBotModerator: boolean = false; // Whether bot has mod privileges (affects Twitch rate limits)
+  private channelName: string | null = null; // Current channel name for variable substitution
 
   constructor(
     private userId: string,
@@ -1014,14 +1015,20 @@ export class BotWorker {
   private async executeCustomCommand(
     commandName: string,
     username: string,
-    userTags?: any
+    userTags?: any,
+    channelName?: string
   ): Promise<string | null> {
     try {
       // Remove ! prefix if present
       const cleanName = commandName.startsWith("!") ? commandName.slice(1) : commandName;
       
-      // Get command from database
-      const command = await this.storage.getCustomCommandByName(cleanName);
+      // Get command from database - first try direct name match
+      let command = await this.storage.getCustomCommandByName(cleanName);
+      
+      // If not found, check if it's an alias
+      if (!command) {
+        command = await this.storage.getCommandByAlias(this.userId, cleanName);
+      }
       
       if (!command) {
         return null; // Command doesn't exist
@@ -1066,6 +1073,7 @@ export class BotWorker {
         username,
         usageCount: command.usageCount + 1, // Show the count after increment
         streamStartTime: this.streamStartTime || undefined,
+        channelName: channelName || this.channelName,
       };
       
       const response = parseCommandVariables(command.response, context);
@@ -1450,7 +1458,7 @@ export class BotWorker {
             }
           }
           
-          const response = await this.executeCustomCommand(commandName, username, tags);
+          const response = await this.executeCustomCommand(commandName, username, tags, channel.replace('#', ''));
           
           if (response && this.twitchClient) {
             await this.twitchClient.say(channel, response);
@@ -1769,7 +1777,7 @@ export class BotWorker {
       // Check for custom commands (starts with !)
       if (trimmedContent.startsWith("!")) {
         const commandName = trimmedContent.split(" ")[0];
-        const response = await this.executeCustomCommand(commandName, username);
+        const response = await this.executeCustomCommand(commandName, username, undefined, this.kickChannelSlug || undefined);
         
         if (response) {
           await this.sendKickMessage(response);

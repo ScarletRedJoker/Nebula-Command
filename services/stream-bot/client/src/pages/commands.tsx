@@ -54,8 +54,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Pencil, Trash2, Info, Copy } from "lucide-react";
-import type { CustomCommand } from "@shared/schema";
+import { Plus, Pencil, Trash2, Info, Copy, Search, Tag, X } from "lucide-react";
+import type { CustomCommand, CommandAlias } from "@shared/schema";
 
 const commandFormSchema = z.object({
   name: z.string().min(1, "Command name is required").max(50, "Command name too long"),
@@ -80,6 +80,9 @@ export default function Commands() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedCommand, setSelectedCommand] = useState<CustomCommand | null>(null);
   const [showVariablesInfo, setShowVariablesInfo] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterStatus, setFilterStatus] = useState<"all" | "active" | "disabled">("all");
+  const [newAliasInput, setNewAliasInput] = useState<{[key: string]: string}>({});
 
   const { data: commands, isLoading } = useQuery<CustomCommand[]>({
     queryKey: ["/api/commands"],
@@ -87,6 +90,34 @@ export default function Commands() {
 
   const { data: variables } = useQuery<VariableInfo[]>({
     queryKey: ["/api/commands-variables"],
+  });
+
+  const { data: allAliases } = useQuery<{[key: string]: CommandAlias[]}>({
+    queryKey: ["/api/command-aliases"],
+    queryFn: async () => {
+      if (!commands) return {};
+      const aliasMap: {[key: string]: CommandAlias[]} = {};
+      for (const cmd of commands) {
+        const res = await fetch(`/api/commands/${cmd.id}/aliases`);
+        if (res.ok) {
+          aliasMap[cmd.id] = await res.json();
+        }
+      }
+      return aliasMap;
+    },
+    enabled: !!commands,
+  });
+
+  const filteredCommands = commands?.filter((cmd) => {
+    const matchesSearch = searchQuery === "" || 
+      cmd.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      cmd.response.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const matchesStatus = filterStatus === "all" || 
+      (filterStatus === "active" && cmd.isActive) ||
+      (filterStatus === "disabled" && !cmd.isActive);
+    
+    return matchesSearch && matchesStatus;
   });
 
   const form = useForm<CommandFormValues>({
@@ -166,6 +197,54 @@ export default function Commands() {
       });
     },
   });
+
+  const addAliasMutation = useMutation({
+    mutationFn: async ({ commandId, alias }: { commandId: string; alias: string }) => {
+      return await apiRequest("POST", `/api/commands/${commandId}/aliases`, { alias });
+    },
+    onSuccess: (_, { commandId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/command-aliases"] });
+      setNewAliasInput((prev) => ({ ...prev, [commandId]: "" }));
+      toast({
+        title: "Alias added",
+        description: "Command alias has been added successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to add alias",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteAliasMutation = useMutation({
+    mutationFn: async ({ commandId, aliasId }: { commandId: string; aliasId: string }) => {
+      return await apiRequest("DELETE", `/api/commands/${commandId}/aliases/${aliasId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/command-aliases"] });
+      toast({
+        title: "Alias removed",
+        description: "Command alias has been removed successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to remove alias",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleAddAlias = (commandId: string) => {
+    const alias = newAliasInput[commandId]?.trim();
+    if (alias) {
+      addAliasMutation.mutate({ commandId, alias });
+    }
+  };
 
   const handleCreateCommand = (data: CommandFormValues) => {
     createMutation.mutate(data);
@@ -408,12 +487,34 @@ export default function Commands() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {commands && commands.length > 0 ? (
+          <div className="flex gap-4 mb-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search commands..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <Select value={filterStatus} onValueChange={(v: "all" | "active" | "disabled") => setFilterStatus(v)}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="Filter" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="disabled">Disabled</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {filteredCommands && filteredCommands.length > 0 ? (
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Command</TableHead>
                   <TableHead>Response</TableHead>
+                  <TableHead>Aliases</TableHead>
                   <TableHead>Cooldown</TableHead>
                   <TableHead>Permission</TableHead>
                   <TableHead>Usage</TableHead>
@@ -422,11 +523,43 @@ export default function Commands() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {commands.map((command) => (
+                {filteredCommands.map((command) => (
                   <TableRow key={command.id}>
                     <TableCell className="font-mono">!{command.name}</TableCell>
                     <TableCell className="max-w-xs truncate">
                       {command.response}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1 items-center">
+                        {allAliases?.[command.id]?.map((alias) => (
+                          <Badge key={alias.id} variant="outline" className="flex items-center gap-1">
+                            !{alias.alias}
+                            <button
+                              onClick={() => deleteAliasMutation.mutate({ commandId: command.id, aliasId: alias.id })}
+                              className="ml-1 hover:text-destructive"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </Badge>
+                        ))}
+                        <div className="flex items-center gap-1">
+                          <Input
+                            placeholder="Add alias"
+                            value={newAliasInput[command.id] || ""}
+                            onChange={(e) => setNewAliasInput((prev) => ({ ...prev, [command.id]: e.target.value }))}
+                            className="h-7 w-20 text-xs"
+                            onKeyDown={(e) => e.key === "Enter" && handleAddAlias(command.id)}
+                          />
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            onClick={() => handleAddAlias(command.id)}
+                          >
+                            <Tag className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
                     </TableCell>
                     <TableCell>
                       {command.cooldown === 0 ? "None" : `${command.cooldown}s`}
@@ -460,6 +593,15 @@ export default function Commands() {
                 ))}
               </TableBody>
             </Table>
+          ) : commands && commands.length > 0 ? (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground mb-4">
+                No commands match your search.
+              </p>
+              <Button variant="outline" onClick={() => { setSearchQuery(""); setFilterStatus("all"); }}>
+                Clear Filters
+              </Button>
+            </div>
           ) : (
             <div className="text-center py-12">
               <p className="text-muted-foreground mb-4">

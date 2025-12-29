@@ -975,6 +975,24 @@ export const updateXpDataSchema = createInsertSchema(xpData).omit({
 }).partial();
 export type UpdateXpData = z.infer<typeof updateXpDataSchema>;
 
+// Level Rewards - role rewards for reaching specific levels
+export const levelRewards = pgTable("level_rewards", {
+  id: serial("id").primaryKey(),
+  serverId: text("server_id").notNull(),
+  level: integer("level").notNull(),
+  roleId: text("role_id").notNull(),
+  roleName: text("role_name"), // Cached role name for display
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Level Rewards validation schemas
+export const insertLevelRewardSchema = createInsertSchema(levelRewards).omit({
+  id: true,
+  createdAt: true
+});
+export type InsertLevelReward = z.infer<typeof insertLevelRewardSchema>;
+export type LevelReward = typeof levelRewards.$inferSelect;
+
 // Reaction Roles - tracks reaction role assignments
 export const reactionRoles = pgTable("reaction_roles", {
   id: serial("id").primaryKey(),
@@ -1233,6 +1251,27 @@ export const updateCustomCommandSchema = createInsertSchema(customCommands).omit
   updatedAt: true
 }).partial();
 export type UpdateCustomCommand = z.infer<typeof updateCustomCommandSchema>;
+
+// Command Triggers - stores multiple trigger patterns for custom commands
+export const commandTriggers = pgTable("command_triggers", {
+  id: serial("id").primaryKey(),
+  commandId: integer("command_id").notNull(), // Reference to customCommands
+  triggerType: text("trigger_type").notNull().default("prefix"), // prefix, contains, exact, regex
+  trigger: text("trigger").notNull(), // The trigger pattern
+  isEnabled: boolean("is_enabled").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Command Triggers validation schemas
+export const insertCommandTriggerSchema = createInsertSchema(commandTriggers).omit({
+  id: true,
+  createdAt: true
+});
+export type InsertCommandTrigger = z.infer<typeof insertCommandTriggerSchema>;
+export type CommandTrigger = typeof commandTriggers.$inferSelect;
+
+export const triggerTypeSchema = z.enum(["prefix", "contains", "exact", "regex"]);
+export type TriggerType = z.infer<typeof triggerTypeSchema>;
 
 // User Embeds - temporary storage for embed builder per user
 export const userEmbeds = pgTable("user_embeds", {

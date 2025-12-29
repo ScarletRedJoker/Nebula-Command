@@ -145,6 +145,16 @@ export const customCommands = pgTable("custom_commands", {
   userCommandIdx: uniqueIndex("custom_commands_user_id_name_unique").on(table.userId, table.name),
 }));
 
+// Command Aliases - alternative names for custom commands
+export const commandAliases = pgTable("command_aliases", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  commandId: varchar("command_id").notNull().references(() => customCommands.id, { onDelete: "cascade" }),
+  alias: text("alias").notNull(), // Alternative command name without ! prefix
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  commandAliasIdx: uniqueIndex("command_aliases_command_id_alias_unique").on(table.commandId, table.alias),
+}));
+
 // Moderation Rules - AI-powered auto-moderation settings per user
 export const moderationRules = pgTable("moderation_rules", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -1257,6 +1267,13 @@ export const insertCustomCommandSchema = createInsertSchema(customCommands, {
   updatedAt: true,
 });
 
+export const insertCommandAliasSchema = createInsertSchema(commandAliases, {
+  alias: z.string().min(1, "Alias is required").max(50, "Alias too long"),
+}).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertModerationRuleSchema = createInsertSchema(moderationRules, {
   ruleType: z.enum(["toxic", "spam", "links", "caps", "symbols"]),
   severity: z.enum(["low", "medium", "high"]),
@@ -1913,6 +1930,7 @@ export type BotConfig = typeof botConfigs.$inferSelect;
 export type BotInstance = typeof botInstances.$inferSelect;
 export type MessageHistory = typeof messageHistory.$inferSelect;
 export type CustomCommand = typeof customCommands.$inferSelect;
+export type CommandAlias = typeof commandAliases.$inferSelect;
 export type ModerationRule = typeof moderationRules.$inferSelect;
 export type ModerationLog = typeof moderationLogs.$inferSelect;
 export type LinkWhitelist = typeof linkWhitelist.$inferSelect;
@@ -1983,6 +2001,7 @@ export type InsertBotConfig = z.infer<typeof insertBotConfigSchema>;
 export type InsertBotInstance = z.infer<typeof insertBotInstanceSchema>;
 export type InsertMessageHistory = z.infer<typeof insertMessageHistorySchema>;
 export type InsertCustomCommand = z.infer<typeof insertCustomCommandSchema>;
+export type InsertCommandAlias = z.infer<typeof insertCommandAliasSchema>;
 export type InsertModerationRule = z.infer<typeof insertModerationRuleSchema>;
 export type InsertModerationLog = z.infer<typeof insertModerationLogSchema>;
 export type InsertLinkWhitelist = z.infer<typeof insertLinkWhitelistSchema>;

@@ -2,6 +2,7 @@ export interface CommandContext {
   username: string;
   usageCount: number;
   streamStartTime?: Date;
+  channelName?: string;
 }
 
 export function parseCommandVariables(
@@ -12,6 +13,9 @@ export function parseCommandVariables(
 
   // {user} - Username who triggered the command
   result = result.replace(/\{user\}/gi, context.username);
+
+  // {channel} - Channel name where the command was triggered
+  result = result.replace(/\{channel\}/gi, context.channelName || 'Unknown');
 
   // {count} - Usage count
   result = result.replace(/\{count\}/gi, context.usageCount.toString());
@@ -69,6 +73,11 @@ export function getAvailableVariables(): Array<{
       variable: '{user}',
       description: 'Username of the person who triggered the command',
       example: 'Welcome {user}!',
+    },
+    {
+      variable: '{channel}',
+      description: 'Name of the channel where the command was triggered',
+      example: 'Thanks for watching {channel}!',
     },
     {
       variable: '{count}',

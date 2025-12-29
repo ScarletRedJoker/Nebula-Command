@@ -93,12 +93,16 @@ import {
   type CustomCommand,
   type InsertCustomCommand,
   type UpdateCustomCommand,
+  type CommandTrigger,
+  type InsertCommandTrigger,
   type UserEmbed,
   type InsertUserEmbed,
   type UpdateUserEmbed,
   type MediaRequest,
   type InsertMediaRequest,
   type UpdateMediaRequest,
+  type LevelReward,
+  type InsertLevelReward,
   type CommandVariable,
   type CustomForm,
   type InsertCustomForm,
@@ -173,6 +177,7 @@ import {
   guildProvisioningStatus,
   starredMessages,
   xpData,
+  levelRewards,
   reactionRoles,
   afkUsers,
   discordGiveaways,
@@ -181,6 +186,7 @@ import {
   inviteTracker,
   scheduledMessages,
   customCommands,
+  commandTriggers,
   userEmbeds,
   mediaRequests,
   commandVariables,
@@ -1532,6 +1538,14 @@ export class DatabaseStorage implements IStorage {
       .offset(offset);
   }
 
+  async getServerLeaderboardCount(serverId: string): Promise<number> {
+    const { count } = await import('drizzle-orm');
+    const [result] = await db.select({ count: count() })
+      .from(xpData)
+      .where(eq(xpData.serverId, serverId));
+    return result?.count || 0;
+  }
+
   async getUserRank(serverId: string, userId: string): Promise<number> {
     const { gt, count } = await import('drizzle-orm');
     const userData = await this.getXpData(serverId, userId);
@@ -1545,6 +1559,43 @@ export class DatabaseStorage implements IStorage {
       ));
     
     return (result?.count || 0) + 1;
+  }
+
+  // Level Rewards operations
+  async getLevelRewards(serverId: string): Promise<LevelReward[]> {
+    return await db.select()
+      .from(levelRewards)
+      .where(eq(levelRewards.serverId, serverId));
+  }
+
+  async getLevelReward(serverId: string, level: number): Promise<LevelReward | null> {
+    const [reward] = await db.select()
+      .from(levelRewards)
+      .where(and(
+        eq(levelRewards.serverId, serverId),
+        eq(levelRewards.level, level)
+      ))
+      .limit(1);
+    return reward || null;
+  }
+
+  async createLevelReward(data: InsertLevelReward): Promise<LevelReward> {
+    const [newReward] = await db.insert(levelRewards)
+      .values({
+        ...data,
+        createdAt: new Date()
+      })
+      .returning();
+    return newReward;
+  }
+
+  async deleteLevelReward(serverId: string, level: number): Promise<boolean> {
+    const result = await db.delete(levelRewards)
+      .where(and(
+        eq(levelRewards.serverId, serverId),
+        eq(levelRewards.level, level)
+      ));
+    return result.rowCount ? result.rowCount > 0 : false;
   }
 
   // Reaction Role operations
@@ -1976,6 +2027,49 @@ export class DatabaseStorage implements IStorage {
           eq(customCommands.trigger, trigger.toLowerCase())
         ));
     }
+  }
+
+  // Command Triggers operations
+  async getCommandTriggers(commandId: number): Promise<CommandTrigger[]> {
+    return await db.select()
+      .from(commandTriggers)
+      .where(eq(commandTriggers.commandId, commandId));
+  }
+
+  async getCommandTriggersByServer(serverId: string): Promise<CommandTrigger[]> {
+    const commands = await this.getCustomCommands(serverId);
+    const commandIds = commands.map(c => c.id);
+    
+    if (commandIds.length === 0) return [];
+    
+    const triggers: CommandTrigger[] = [];
+    for (const commandId of commandIds) {
+      const cmdTriggers = await this.getCommandTriggers(commandId);
+      triggers.push(...cmdTriggers);
+    }
+    return triggers;
+  }
+
+  async createCommandTrigger(data: InsertCommandTrigger): Promise<CommandTrigger> {
+    const [trigger] = await db.insert(commandTriggers)
+      .values({
+        ...data,
+        createdAt: new Date()
+      })
+      .returning();
+    return trigger;
+  }
+
+  async deleteCommandTrigger(id: number): Promise<boolean> {
+    const result = await db.delete(commandTriggers)
+      .where(eq(commandTriggers.id, id));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  async deleteCommandTriggersByCommand(commandId: number): Promise<boolean> {
+    const result = await db.delete(commandTriggers)
+      .where(eq(commandTriggers.commandId, commandId));
+    return result.rowCount ? result.rowCount >= 0 : true;
   }
 
   // User Embeds operations

@@ -1013,6 +1013,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Command Aliases
+  app.get("/api/commands/:id/aliases", requireAuth, async (req, res) => {
+    try {
+      const command = await storage.getCustomCommand(req.user!.id, req.params.id);
+      if (!command) {
+        return res.status(404).json({ error: "Command not found" });
+      }
+      const aliases = await storage.getCommandAliases(req.params.id);
+      res.json(aliases);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch command aliases" });
+    }
+  });
+
+  app.post("/api/commands/:id/aliases", requireAuth, async (req, res) => {
+    try {
+      const { alias } = req.body;
+      if (!alias || typeof alias !== 'string') {
+        return res.status(400).json({ error: "Alias is required" });
+      }
+      
+      const command = await storage.getCustomCommand(req.user!.id, req.params.id);
+      if (!command) {
+        return res.status(404).json({ error: "Command not found" });
+      }
+      
+      const existing = await storage.getCustomCommandByName(req.user!.id, alias);
+      if (existing) {
+        return res.status(400).json({ error: "An alias or command with this name already exists" });
+      }
+      
+      const existingAlias = await storage.getCommandByAlias(req.user!.id, alias);
+      if (existingAlias) {
+        return res.status(400).json({ error: "This alias already exists for another command" });
+      }
+      
+      const newAlias = await storage.createCommandAlias(req.params.id, alias);
+      res.status(201).json(newAlias);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create command alias" });
+    }
+  });
+
+  app.delete("/api/commands/:commandId/aliases/:aliasId", requireAuth, async (req, res) => {
+    try {
+      const command = await storage.getCustomCommand(req.user!.id, req.params.commandId);
+      if (!command) {
+        return res.status(404).json({ error: "Command not found" });
+      }
+      
+      await storage.deleteCommandAlias(req.params.aliasId);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete command alias" });
+    }
+  });
+
   // Giveaways
   app.get("/api/giveaways", requireAuth, async (req, res) => {
     try {

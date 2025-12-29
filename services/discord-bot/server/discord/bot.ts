@@ -28,6 +28,8 @@ import { streamPoller } from '../services/stream-poller';
 import { initializeCommunityFeatures } from './community-features';
 import { initializeModerationFeatures, handleAutoMod } from './moderation-features';
 import { registerScheduledCommands, calculateNextRun } from './scheduled-commands';
+import { registerLevelingCommands, initializeLevelingEvents } from './features/leveling';
+import { registerCustomCommandCommands, initializeCustomCommandEvents } from './features/customCommands';
 import { commandEngine } from '../services/commandEngine';
 import { guildIdentityService } from '../services/guildIdentityService';
 import { welcomeCardRenderer } from '../services/welcomeCardRenderer';
@@ -65,6 +67,8 @@ developerCommands.forEach(command => {
 console.log('[Discord] Registered developer commands:', developerCommands.map(c => c.data.name).join(', '));
 
 registerScheduledCommands();
+registerLevelingCommands(commands);
+registerCustomCommandCommands(commands);
 console.log('[Discord] Total commands after all registrations:', Array.from(commands.keys()).join(', '));
 
 export async function startBot(storage: IStorage, broadcast: (data: any) => void): Promise<void> {
@@ -2904,6 +2908,24 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
         console.log('[Bot] ✅ Community features initialized successfully');
       } catch (communityError) {
         console.error('[Bot] Failed to initialize community features:', communityError);
+      }
+      
+      // Initialize leveling system events
+      console.log('[Bot] Initializing leveling system...');
+      try {
+        initializeLevelingEvents(client!, storage);
+        console.log('[Bot] ✅ Leveling system initialized successfully');
+      } catch (levelingError) {
+        console.error('[Bot] Failed to initialize leveling system:', levelingError);
+      }
+      
+      // Initialize custom commands system
+      console.log('[Bot] Initializing custom commands system...');
+      try {
+        initializeCustomCommandEvents(client!, storage);
+        console.log('[Bot] ✅ Custom commands system initialized successfully');
+      } catch (customCmdError) {
+        console.error('[Bot] Failed to initialize custom commands system:', customCmdError);
       }
       
       // Initialize moderation features (Logging, Auto-Mod)

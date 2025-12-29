@@ -74,12 +74,16 @@ import {
   type CustomCommand,
   type InsertCustomCommand,
   type UpdateCustomCommand,
+  type CommandTrigger,
+  type InsertCommandTrigger,
   type UserEmbed,
   type InsertUserEmbed,
   type UpdateUserEmbed,
   type MediaRequest,
   type InsertMediaRequest,
-  type UpdateMediaRequest
+  type UpdateMediaRequest,
+  type LevelReward,
+  type InsertLevelReward
 } from "@shared/schema";
 
 // Define the storage interface
@@ -236,7 +240,14 @@ export interface IStorage {
   createXpData(data: InsertXpData): Promise<XpData>;
   updateXpData(serverId: string, userId: string, updates: UpdateXpData): Promise<XpData | null>;
   getServerLeaderboard(serverId: string, limit: number, offset: number): Promise<XpData[]>;
+  getServerLeaderboardCount(serverId: string): Promise<number>;
   getUserRank(serverId: string, userId: string): Promise<number>;
+  
+  // Level Rewards operations
+  getLevelRewards(serverId: string): Promise<LevelReward[]>;
+  getLevelReward(serverId: string, level: number): Promise<LevelReward | null>;
+  createLevelReward(data: InsertLevelReward): Promise<LevelReward>;
+  deleteLevelReward(serverId: string, level: number): Promise<boolean>;
   
   // Reaction Role operations
   getReactionRoles(serverId: string): Promise<ReactionRole[]>;
@@ -296,6 +307,13 @@ export interface IStorage {
   updateCustomCommand(serverId: string, trigger: string, updates: UpdateCustomCommand): Promise<CustomCommand | null>;
   deleteCustomCommand(serverId: string, trigger: string): Promise<boolean>;
   incrementCustomCommandUsage(serverId: string, trigger: string): Promise<void>;
+  
+  // Command Triggers operations
+  getCommandTriggers(commandId: number): Promise<CommandTrigger[]>;
+  getCommandTriggersByServer(serverId: string): Promise<CommandTrigger[]>;
+  createCommandTrigger(data: InsertCommandTrigger): Promise<CommandTrigger>;
+  deleteCommandTrigger(id: number): Promise<boolean>;
+  deleteCommandTriggersByCommand(commandId: number): Promise<boolean>;
   
   // User Embeds operations
   getUserEmbed(userId: string, serverId: string): Promise<UserEmbed | null>;

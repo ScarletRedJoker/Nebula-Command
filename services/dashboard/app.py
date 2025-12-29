@@ -57,6 +57,7 @@ from routes.network_routes import network_bp
 from routes.integration_api import integration_bp
 from routes.presence_api import presence_bp
 from routes.studio_routes import studio_bp, studio_web_bp
+from routes.monitoring_routes import monitoring_bp, monitoring_web_bp
 # DISABLED: Subscription/licensing features removed per user request - "Remove subscriptions and don't block access. I never wanted that."
 # from routes.subscription_api import subscription_bp
 from services.activity_service import activity_service
@@ -123,6 +124,7 @@ csrf.exempt(network_bp)  # Network Discovery API
 csrf.exempt(integration_bp)  # Integration Orchestrator API
 csrf.exempt(presence_bp)  # Homelab Presence API (Discord Rich Presence)
 csrf.exempt(studio_bp)  # Nebula Studio API (Project Workspace Manager)
+csrf.exempt(monitoring_bp)  # System Monitoring API (real-time metrics)
 
 limiter.init_app(app)
 logger.info("✓ CSRF Protection and Rate Limiting initialized")
@@ -237,6 +239,8 @@ app.register_blueprint(integration_bp)
 app.register_blueprint(presence_bp)
 app.register_blueprint(studio_bp)
 app.register_blueprint(studio_web_bp)
+app.register_blueprint(monitoring_bp)
+app.register_blueprint(monitoring_web_bp)
 # DISABLED: Subscription blueprint disabled - no subscription/licensing checks
 # app.register_blueprint(subscription_bp)
 
