@@ -21,11 +21,14 @@ const TWITCH_TOKEN_URL = 'https://id.twitch.tv/oauth2/token';
 const TWITCH_VALIDATE_URL = 'https://id.twitch.tv/oauth2/validate';
 
 const TWITCH_SCOPES = [
+  'chat:read',
+  'chat:edit',
   'user:read:chat',
   'user:write:chat',
   'user:bot',
   'channel:bot',
   'moderator:read:chatters',
+  'offline_access',
 ].join(' ');
 
 /**

@@ -209,6 +209,50 @@ Requires virtiofsd installed, complex setup, can break boot if misconfigured.
 - Consider database persistence for production deployment
 - SSL for stream.rig-city.com requires Caddy container running on Linode
 
+## Discord Bot Stream Notifications
+
+### Setup Steps
+Stream notifications require explicit setup before they work:
+
+1. **Configure notification channel**:
+   ```
+   /stream-setup channel:#stream-alerts
+   ```
+   This sets where notifications will be posted and enables the feature.
+
+2. **Track streamers**:
+   ```
+   /stream-track user:@SomeStreamer
+   ```
+   Add each Discord user you want to monitor for go-live events.
+
+3. **Optional: Auto-scan server**:
+   ```
+   /stream-scan
+   ```
+   Scans all server members for connected Twitch/YouTube accounts.
+
+### How Detection Works
+- **Discord Presence**: Monitors tracked users for "Streaming" activity status
+- **API Polling**: StreamPoller checks Twitch/YouTube APIs every 5 minutes
+- **Deduplication**: Won't send duplicate notifications for the same stream
+
+### Required for Tracked Users
+Users must have their streaming platform linked to Discord:
+- Discord Settings → Connections → Twitch/YouTube
+- Or, manually specify platform usernames via `/stream-scan`
+
+### Troubleshooting
+- "0 Twitch users" in logs = no users tracked yet
+- Use `/stream-list` to see current tracked users
+- Run `/stream-setup` again to verify settings are saved
+
+### Stream Bot Twitch Re-authorization
+If you see "Login authentication failed" errors in stream-bot logs:
+1. Twitch tokens have expired and need refresh
+2. After any Twitch OAuth scope changes, users must reconnect their accounts
+3. Visit stream.rig-city.com/settings and click "Disconnect" then "Connect" for Twitch
+
 ## Known Limitations
 
 ### Google Services (Replit Development)
