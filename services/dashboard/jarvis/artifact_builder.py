@@ -22,11 +22,15 @@ class ArtifactBuilder:
         Args:
             registry_url: Docker registry URL for pushing images
         """
+        self.is_dev_mode = os.environ.get('FLASK_ENV') == 'development' or os.environ.get('REPLIT_DEPLOYMENT') is None
         try:
             self.client = docker.from_env()
             logger.info("Docker client initialized successfully")
         except DockerException as e:
-            logger.error(f"Failed to initialize Docker client: {e}")
+            if self.is_dev_mode:
+                logger.debug(f"Docker not available in dev mode (expected): {e}")
+            else:
+                logger.error(f"Failed to initialize Docker client: {e}")
             self.client = None
         
         self.registry_url = registry_url

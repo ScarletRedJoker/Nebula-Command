@@ -4,18 +4,22 @@ Handles deployment and management of marketplace applications
 """
 
 import logging
+import os
 import subprocess
 import secrets
 import string
 import re
 import yaml
 from pathlib import Path
-from typing import Dict, Any, Optional, Tuple, List
+from typing import Dict, Any, Optional, Tuple, List, TYPE_CHECKING
 from datetime import datetime
 import docker
 from sqlalchemy import select
 from services.caddy_manager import CaddyManager
 from services.db_service import db_service
+
+if TYPE_CHECKING:
+    from docker.models.containers import Container
 
 logger = logging.getLogger(__name__)
 
@@ -26,10 +30,14 @@ class MarketplaceService:
     def __init__(self, caddyfile_path: str = 'Caddyfile'):
         self.caddy_manager = CaddyManager(caddyfile_path)
         self.template_dir = Path(__file__).parent.parent / 'templates' / 'marketplace'
+        self.is_dev_mode = os.environ.get('FLASK_ENV') == 'development' or os.environ.get('REPLIT_DEPLOYMENT') is None
         try:
             self.docker_client = docker.from_env()
         except Exception as e:
-            logger.error(f"Failed to initialize Docker client: {e}")
+            if self.is_dev_mode:
+                logger.debug(f"Docker not available in dev mode (expected): {e}")
+            else:
+                logger.error(f"Failed to initialize Docker client: {e}")
             self.docker_client = None
     
     def generate_secure_password(self, length: int = 24) -> str:

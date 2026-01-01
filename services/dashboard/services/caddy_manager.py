@@ -28,12 +28,14 @@ class CaddyManager:
     def __init__(self, caddyfile_path: Optional[str] = None):
         self.caddyfile_path = caddyfile_path or os.getenv('CADDYFILE_PATH', 'Caddyfile')
         self.chunks: List[CaddyChunk] = []
+        self.is_dev_mode = os.environ.get('FLASK_ENV') == 'development' or os.environ.get('REPLIT_DEPLOYMENT') is None
         self.load_config()
     
     def load_config(self) -> List[CaddyChunk]:
         """Load the current Caddyfile configuration into chunks"""
         if not os.path.exists(self.caddyfile_path):
-            logger.warning(f"Caddyfile not found: {self.caddyfile_path}")
+            if not self.is_dev_mode:
+                logger.warning(f"Caddyfile not found: {self.caddyfile_path}")
             self.chunks = []
             return self.chunks
         

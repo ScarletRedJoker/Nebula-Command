@@ -18,12 +18,14 @@ class ComposeManager:
     def __init__(self, compose_file_path: Optional[str] = None):
         self.compose_file_path = compose_file_path or os.getenv('COMPOSE_FILE', 'docker-compose.yml')
         self.config: Dict[str, Any] = {}
+        self.is_dev_mode = os.environ.get('FLASK_ENV') == 'development' or os.environ.get('REPLIT_DEPLOYMENT') is None
         self.load_config()
     
     def load_config(self) -> Dict[str, Any]:
         """Load the current docker-compose configuration"""
         if not os.path.exists(self.compose_file_path):
-            logger.warning(f"Compose file not found: {self.compose_file_path}")
+            if not self.is_dev_mode:
+                logger.warning(f"Compose file not found: {self.compose_file_path}")
             self.config = {'version': '3.8', 'services': {}, 'volumes': {}, 'networks': {}}
             return self.config
         

@@ -7,8 +7,9 @@ import redis
 import json
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
-from config import Config
+from config import Config  # type: ignore[import]
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -28,11 +29,15 @@ class SecurityMonitor:
     
     def __init__(self):
         """Initialize security monitor with Redis connection."""
+        self.is_dev_mode = os.environ.get('FLASK_ENV') == 'development' or os.environ.get('REPLIT_DEPLOYMENT') is None
         try:
             self.redis_client = redis.Redis.from_url(Config.CELERY_BROKER_URL, decode_responses=True)
             self.redis_client.ping()
         except Exception as e:
-            logger.error(f"Failed to connect to Redis for security monitoring: {e}")
+            if self.is_dev_mode:
+                logger.debug(f"Redis not available in dev mode (expected): {e}")
+            else:
+                logger.error(f"Failed to connect to Redis for security monitoring: {e}")
             self.redis_client = None
     
     def log_failed_login(self, ip_address: str, username: str = None, service: str = 'dashboard') -> Dict[str, Any]:

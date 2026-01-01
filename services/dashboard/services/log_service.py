@@ -15,12 +15,14 @@ from collections import deque
 
 logger = logging.getLogger(__name__)
 
+_is_dev_mode = os.environ.get('FLASK_ENV') == 'development' or os.environ.get('REPLIT_DEPLOYMENT') is None
 try:
     import docker
     DOCKER_AVAILABLE = True
 except ImportError:
     DOCKER_AVAILABLE = False
-    logger.warning("Docker SDK not available - Docker log parsing disabled")
+    if not _is_dev_mode:
+        logger.warning("Docker SDK not available - Docker log parsing disabled")
 
 
 class SSELogClient:
@@ -100,7 +102,8 @@ class LogService:
                 self.docker_client.ping()
                 logger.info("Docker client initialized for log service")
             except Exception as e:
-                logger.warning(f"Docker client initialization failed: {e}")
+                if not _is_dev_mode:
+                    logger.warning(f"Docker client initialization failed: {e}")
                 self.docker_client = None
     
     def _get_db_session(self):

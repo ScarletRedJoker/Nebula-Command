@@ -20,6 +20,7 @@ class CacheService:
         """Initialize Redis connection with connection pooling"""
         self._redis_client = None
         self._available = False
+        self._is_dev_mode = os.environ.get('FLASK_ENV') == 'development' or os.environ.get('REPLIT_DEPLOYMENT') is None
         self._connect()
     
     def _connect(self):
@@ -45,7 +46,10 @@ class CacheService:
             logger.info("Redis cache service initialized successfully")
             
         except Exception as e:
-            logger.warning(f"Redis connection failed: {e}. Operating without cache.")
+            if self._is_dev_mode:
+                logger.debug(f"Redis not available in dev mode (expected): {e}")
+            else:
+                logger.warning(f"Redis connection failed: {e}. Operating without cache.")
             self._redis_client = None
             self._available = False
     

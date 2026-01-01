@@ -12,8 +12,9 @@ from minio import Minio
 from minio.error import S3Error
 import docker
 
-from config import Config
+from config import Config  # type: ignore[import]
 from services.db_service import db_service
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,7 @@ class StorageMonitorService:
     def __init__(self):
         self.docker_client = None
         self.minio_client = None
+        self.is_dev_mode = os.environ.get('FLASK_ENV') == 'development' or os.environ.get('REPLIT_DEPLOYMENT') is None
         self._init_clients()
     
     def _init_clients(self):
@@ -32,7 +34,10 @@ class StorageMonitorService:
             self.docker_client = docker.from_env()
             logger.info("Docker client initialized for storage monitoring")
         except Exception as e:
-            logger.warning(f"Failed to initialize Docker client: {e}")
+            if self.is_dev_mode:
+                logger.debug(f"Docker not available in dev mode (expected): {e}")
+            else:
+                logger.warning(f"Failed to initialize Docker client: {e}")
         
         try:
             self.minio_client = Minio(

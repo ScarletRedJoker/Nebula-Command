@@ -13,12 +13,14 @@ from services.db_service import db_service
 
 logger = logging.getLogger(__name__)
 
+_is_dev_mode = os.environ.get('FLASK_ENV') == 'development' or os.environ.get('REPLIT_DEPLOYMENT') is None
 try:
     import docker
     DOCKER_AVAILABLE = True
 except ImportError:
     DOCKER_AVAILABLE = False
-    logger.warning("Docker SDK not available")
+    if not _is_dev_mode:
+        logger.warning("Docker SDK not available")
 
 
 class DeploymentExecutor:
@@ -30,12 +32,17 @@ class DeploymentExecutor:
         Args:
             deployments_dir: Directory to store deployment files
         """
+        self.is_dev_mode = os.environ.get('FLASK_ENV') == 'development' or os.environ.get('REPLIT_DEPLOYMENT') is None
+        
         # Docker SDK is optional - only needed for advanced features
         try:
             self.client = docker.from_env()
             logger.info("Docker SDK initialized successfully")
         except Exception as e:
-            logger.warning(f"Docker SDK not available: {e}. CLI-only mode.")
+            if self.is_dev_mode:
+                logger.debug(f"Docker not available in dev mode (expected): {e}")
+            else:
+                logger.warning(f"Docker SDK not available: {e}. CLI-only mode.")
             self.client = None
         
         self.deployments_dir = deployments_dir
@@ -57,10 +64,12 @@ class DeploymentExecutor:
                 logger.info(f"Docker Compose CLI available: {result.stdout.strip()}")
                 self.compose_available = True
             else:
-                logger.warning("Docker Compose CLI check failed")
+                if not self.is_dev_mode:
+                    logger.warning("Docker Compose CLI check failed")
                 self.compose_available = False
         except (FileNotFoundError, subprocess.TimeoutExpired):
-            logger.warning("Docker Compose CLI not found")
+            if not self.is_dev_mode:
+                logger.warning("Docker Compose CLI not found")
             self.compose_available = False
         
     def create_deployment(

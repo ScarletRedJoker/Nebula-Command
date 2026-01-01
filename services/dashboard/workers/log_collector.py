@@ -4,6 +4,7 @@ Collects logs from Docker containers and stores them in unified logging system
 """
 
 import logging
+import os
 import time
 from datetime import datetime
 from typing import List, Dict, Any, Optional
@@ -38,6 +39,7 @@ class LogCollector:
     def __init__(self):
         self.docker_client = None
         self.last_timestamps = {}
+        self.is_dev_mode = os.environ.get('FLASK_ENV') == 'development' or os.environ.get('REPLIT_DEPLOYMENT') is None
         self._init_docker()
     
     def _init_docker(self):
@@ -46,7 +48,10 @@ class LogCollector:
             self.docker_client = docker.from_env()
             logger.info("Docker client initialized for log collection")
         except Exception as e:
-            logger.error(f"Failed to initialize Docker client: {e}")
+            if self.is_dev_mode:
+                logger.debug(f"Docker not available in dev mode (expected): {e}")
+            else:
+                logger.error(f"Failed to initialize Docker client: {e}")
             self.docker_client = None
     
     def is_available(self) -> bool:

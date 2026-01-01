@@ -380,10 +380,14 @@ class GoogleClientManager:
 
 # Initialize global client manager
 _redis_client = None
+_is_dev_mode = os.environ.get('FLASK_ENV') == 'development' or os.environ.get('REPLIT_DEPLOYMENT') is None
 try:
     redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
     _redis_client = redis.from_url(redis_url)
 except Exception as e:
-    logger.warning(f"Failed to connect to Redis: {e}")
+    if _is_dev_mode:
+        logger.debug(f"Redis not available in dev mode (expected): {e}")
+    else:
+        logger.warning(f"Failed to connect to Redis: {e}")
 
 google_client_manager = GoogleClientManager(redis_client=_redis_client)
