@@ -52,6 +52,11 @@ The local Ubuntu server mounts a NAS share (`//192.168.0.185/networkshare`) at `
 ### Stream Bot OBS Overlays
 The Stream Bot offers an overlay editor for OBS, allowing visual drag-and-drop customization of text, images, and alerts. Overlays can be exported as JSON or saved in-memory. Specific URLs are provided for Spotify, YouTube, and custom overlays.
 
+### Recent Fixes (January 2026)
+- **Stream Bot Rate Limiter Fixed**: Increased auth limit from 5 to 50 requests, added skipSuccessfulRequests for OAuth flows
+- **Discord Bot Dashboard Simplified**: Reduced from 11 tabs to 5 core tabs (Overview, Tickets, Streams, Welcome, Commands) + "More Tools" dropdown
+- **qBittorrent + VPN Setup Added**: Created deploy/local/torrent-vpn/ with gluetun container for private torrenting
+
 ### Discord Bot Stream Notifications
 Stream notifications require explicit setup by configuring a channel and tracking streamers via Discord commands. Detection works by monitoring Discord presence and polling Twitch/YouTube APIs. Users must link their streaming platforms to Discord for detection.
 
