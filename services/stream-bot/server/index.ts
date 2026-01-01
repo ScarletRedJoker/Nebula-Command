@@ -56,10 +56,11 @@ const apiLimiter = rateLimit({
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5, // only 5 login attempts per 15 minutes
-  message: 'Too many login attempts, please try again later.',
+  max: 50, // Allow enough requests for OAuth multi-step flows (each OAuth can be 3-5 requests)
+  message: 'Too many requests, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
+  skipSuccessfulRequests: true, // Don't count successful OAuth redirects against limit
 });
 
 declare module 'http' {

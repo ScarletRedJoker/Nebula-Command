@@ -309,9 +309,9 @@ export default function DashboardShell() {
           {/* Tab Navigation */}
           <Card className="bg-discord-sidebar border-discord-dark">
             <CardContent className="p-2">
-              {/* Mobile: Horizontal Scroll */}
+              {/* Mobile: Simplified Horizontal Scroll - Core Features Only */}
               <div className="md:hidden overflow-x-auto -mx-2 px-2">
-                <TabsList className="inline-flex w-auto bg-transparent gap-2 min-w-full">
+                <TabsList className="inline-flex w-auto bg-transparent gap-2">
                   <TabsTrigger 
                     value="overview" 
                     className="data-[state=active]:bg-discord-blue data-[state=active]:text-white flex-shrink-0 h-11 px-4"
@@ -329,7 +329,7 @@ export default function DashboardShell() {
                         data-testid="tab-panels"
                       >
                         <LayoutTemplate className="h-4 w-4 mr-2" />
-                        <span>Panels</span>
+                        <span>Tickets</span>
                       </TabsTrigger>
                       <TabsTrigger 
                         value="stream-notifications" 
@@ -340,12 +340,12 @@ export default function DashboardShell() {
                         <span>Streams</span>
                       </TabsTrigger>
                       <TabsTrigger 
-                        value="analytics" 
+                        value="welcome-cards" 
                         className="data-[state=active]:bg-discord-blue data-[state=active]:text-white flex-shrink-0 h-11 px-4"
-                        data-testid="tab-analytics"
+                        data-testid="tab-welcome-cards"
                       >
-                        <BarChart3 className="h-4 w-4 mr-2" />
-                        <span>Analytics</span>
+                        <UserPlus className="h-4 w-4 mr-2" />
+                        <span>Welcome</span>
                       </TabsTrigger>
                       <TabsTrigger 
                         value="commands" 
@@ -355,66 +355,16 @@ export default function DashboardShell() {
                         <Terminal className="h-4 w-4 mr-2" />
                         <span>Commands</span>
                       </TabsTrigger>
-                      <TabsTrigger 
-                        value="welcome-cards" 
-                        className="data-[state=active]:bg-discord-blue data-[state=active]:text-white flex-shrink-0 h-11 px-4"
-                        data-testid="tab-welcome-cards"
-                      >
-                        <UserPlus className="h-4 w-4 mr-2" />
-                        <span>Welcome</span>
-                      </TabsTrigger>
-                      <TabsTrigger 
-                        value="workflows" 
-                        className="data-[state=active]:bg-discord-blue data-[state=active]:text-white flex-shrink-0 h-11 px-4"
-                        data-testid="tab-workflows"
-                      >
-                        <Workflow className="h-4 w-4 mr-2" />
-                        <span>Automations</span>
-                      </TabsTrigger>
-                      <TabsTrigger 
-                        value="embeds" 
-                        className="data-[state=active]:bg-discord-blue data-[state=active]:text-white flex-shrink-0 h-11 px-4"
-                        data-testid="tab-embeds"
-                      >
-                        <MessageSquare className="h-4 w-4 mr-2" />
-                        <span>Embeds</span>
-                      </TabsTrigger>
-                      <TabsTrigger 
-                        value="forms" 
-                        className="data-[state=active]:bg-discord-blue data-[state=active]:text-white flex-shrink-0 h-11 px-4"
-                        data-testid="tab-forms"
-                      >
-                        <FileText className="h-4 w-4 mr-2" />
-                        <span>Forms</span>
-                      </TabsTrigger>
-                      <TabsTrigger 
-                        value="economy" 
-                        className="data-[state=active]:bg-discord-blue data-[state=active]:text-white flex-shrink-0 h-11 px-4"
-                        data-testid="tab-economy"
-                      >
-                        <Coins className="h-4 w-4 mr-2" />
-                        <span>Economy</span>
-                      </TabsTrigger>
-                      <TabsTrigger 
-                        value="scheduler" 
-                        className="data-[state=active]:bg-discord-blue data-[state=active]:text-white flex-shrink-0 h-11 px-4"
-                        data-testid="tab-scheduler"
-                      >
-                        <Calendar className="h-4 w-4 mr-2" />
-                        <span>Scheduler</span>
-                      </TabsTrigger>
                     </>
                   )}
                 </TabsList>
               </div>
 
-              {/* Desktop: Grid Layout */}
-              <TabsList className="hidden md:grid w-full bg-transparent gap-2" style={{ 
-                gridTemplateColumns: isAdmin ? 'repeat(11, 1fr)' : 'repeat(1, 1fr)' 
-              }}>
+              {/* Desktop: Simplified Navigation - Core Features Only */}
+              <TabsList className="hidden md:flex w-full bg-transparent gap-2 justify-start">
                 <TabsTrigger 
                   value="overview" 
-                  className="data-[state=active]:bg-discord-blue data-[state=active]:text-white h-11"
+                  className="data-[state=active]:bg-discord-blue data-[state=active]:text-white h-11 px-6"
                   data-testid="tab-overview-desktop"
                 >
                   <LayoutDashboard className="h-4 w-4 mr-2" />
@@ -425,84 +375,71 @@ export default function DashboardShell() {
                   <>
                     <TabsTrigger 
                       value="panels" 
-                      className="data-[state=active]:bg-discord-blue data-[state=active]:text-white h-11"
+                      className="data-[state=active]:bg-discord-blue data-[state=active]:text-white h-11 px-6"
                       data-testid="tab-panels-desktop"
                     >
                       <LayoutTemplate className="h-4 w-4 mr-2" />
-                      <span>Panels</span>
+                      <span>Tickets</span>
                     </TabsTrigger>
                     <TabsTrigger 
                       value="stream-notifications" 
-                      className="data-[state=active]:bg-discord-blue data-[state=active]:text-white h-11"
+                      className="data-[state=active]:bg-discord-blue data-[state=active]:text-white h-11 px-6"
                       data-testid="tab-stream-notifications-desktop"
                     >
                       <Radio className="h-4 w-4 mr-2" />
                       <span>Streams</span>
                     </TabsTrigger>
                     <TabsTrigger 
-                      value="analytics" 
-                      className="data-[state=active]:bg-discord-blue data-[state=active]:text-white h-11"
-                      data-testid="tab-analytics-desktop"
-                    >
-                      <BarChart3 className="h-4 w-4 mr-2" />
-                      <span>Analytics</span>
-                    </TabsTrigger>
-                    <TabsTrigger 
-                      value="commands" 
-                      className="data-[state=active]:bg-discord-blue data-[state=active]:text-white h-11"
-                      data-testid="tab-commands-desktop"
-                    >
-                      <Terminal className="h-4 w-4 mr-2" />
-                      <span>Commands</span>
-                    </TabsTrigger>
-                    <TabsTrigger 
                       value="welcome-cards" 
-                      className="data-[state=active]:bg-discord-blue data-[state=active]:text-white h-11"
+                      className="data-[state=active]:bg-discord-blue data-[state=active]:text-white h-11 px-6"
                       data-testid="tab-welcome-cards-desktop"
                     >
                       <UserPlus className="h-4 w-4 mr-2" />
                       <span>Welcome</span>
                     </TabsTrigger>
                     <TabsTrigger 
-                      value="workflows" 
-                      className="data-[state=active]:bg-discord-blue data-[state=active]:text-white h-11"
-                      data-testid="tab-workflows-desktop"
+                      value="commands" 
+                      className="data-[state=active]:bg-discord-blue data-[state=active]:text-white h-11 px-6"
+                      data-testid="tab-commands-desktop"
                     >
-                      <Workflow className="h-4 w-4 mr-2" />
-                      <span>Automations</span>
+                      <Terminal className="h-4 w-4 mr-2" />
+                      <span>Commands</span>
                     </TabsTrigger>
-                    <TabsTrigger 
-                      value="embeds" 
-                      className="data-[state=active]:bg-discord-blue data-[state=active]:text-white h-11"
-                      data-testid="tab-embeds-desktop"
-                    >
-                      <MessageSquare className="h-4 w-4 mr-2" />
-                      <span>Embeds</span>
-                    </TabsTrigger>
-                    <TabsTrigger 
-                      value="forms" 
-                      className="data-[state=active]:bg-discord-blue data-[state=active]:text-white h-11"
-                      data-testid="tab-forms-desktop"
-                    >
-                      <FileText className="h-4 w-4 mr-2" />
-                      <span>Forms</span>
-                    </TabsTrigger>
-                    <TabsTrigger 
-                      value="economy" 
-                      className="data-[state=active]:bg-discord-blue data-[state=active]:text-white h-11"
-                      data-testid="tab-economy-desktop"
-                    >
-                      <Coins className="h-4 w-4 mr-2" />
-                      <span>Economy</span>
-                    </TabsTrigger>
-                    <TabsTrigger 
-                      value="scheduler" 
-                      className="data-[state=active]:bg-discord-blue data-[state=active]:text-white h-11"
-                      data-testid="tab-scheduler-desktop"
-                    >
-                      <Calendar className="h-4 w-4 mr-2" />
-                      <span>Scheduler</span>
-                    </TabsTrigger>
+
+                    {/* More Tools Dropdown - Advanced Features */}
+                    <div className="relative group ml-auto">
+                      <Button
+                        variant="ghost"
+                        className="h-11 px-4 text-discord-muted hover:text-white hover:bg-discord-dark"
+                      >
+                        <span>More Tools</span>
+                        <svg className="ml-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </Button>
+                      <div className="absolute right-0 mt-1 w-48 bg-discord-sidebar border border-discord-dark rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                        <div className="p-2 space-y-1">
+                          <button onClick={() => setActiveTab('analytics')} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-discord-text hover:text-white hover:bg-discord-dark rounded">
+                            <BarChart3 className="h-4 w-4" /> Analytics
+                          </button>
+                          <button onClick={() => setActiveTab('workflows')} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-discord-text hover:text-white hover:bg-discord-dark rounded">
+                            <Workflow className="h-4 w-4" /> Automations
+                          </button>
+                          <button onClick={() => setActiveTab('embeds')} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-discord-text hover:text-white hover:bg-discord-dark rounded">
+                            <MessageSquare className="h-4 w-4" /> Embeds
+                          </button>
+                          <button onClick={() => setActiveTab('forms')} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-discord-text hover:text-white hover:bg-discord-dark rounded">
+                            <FileText className="h-4 w-4" /> Forms
+                          </button>
+                          <button onClick={() => setActiveTab('economy')} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-discord-text hover:text-white hover:bg-discord-dark rounded">
+                            <Coins className="h-4 w-4" /> Economy
+                          </button>
+                          <button onClick={() => setActiveTab('scheduler')} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-discord-text hover:text-white hover:bg-discord-dark rounded">
+                            <Calendar className="h-4 w-4" /> Scheduler
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </>
                 )}
               </TabsList>
