@@ -411,7 +411,7 @@ def lookup_record():
         name = request.args.get('name')
         record_type = request.args.get('type')
         
-        if not all([zone_id, name, record_type]):
+        if not zone_id or not name or not record_type:
             return make_response(
                 False, 
                 message="Missing required params: zone_id, name, type",
