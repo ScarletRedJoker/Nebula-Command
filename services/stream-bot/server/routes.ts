@@ -4815,5 +4815,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ============================================
+  // AI CONTENT ASSISTANT ROUTES
+  // ============================================
+  
+  app.post("/api/ai/generate", requireAuth, async (req, res) => {
+    try {
+      const { generateContent } = await import("./ai-content-service");
+      const result = await generateContent(req.body);
+      res.json(result);
+    } catch (error: any) {
+      console.error("[AI Content] Generation failed:", error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.post("/api/ai/improve", requireAuth, async (req, res) => {
+    try {
+      const { improveContent } = await import("./ai-content-service");
+      const { content, instruction } = req.body;
+      const result = await improveContent(content, instruction);
+      res.json(result);
+    } catch (error: any) {
+      console.error("[AI Content] Improvement failed:", error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.post("/api/ai/hashtags", requireAuth, async (req, res) => {
+    try {
+      const { generateHashtags } = await import("./ai-content-service");
+      const { content, platform, count } = req.body;
+      const hashtags = await generateHashtags(content, platform, count);
+      res.json({ success: true, hashtags });
+    } catch (error: any) {
+      console.error("[AI Content] Hashtag generation failed:", error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.post("/api/ai/stream-ideas", requireAuth, async (req, res) => {
+    try {
+      const { suggestStreamIdeas } = await import("./ai-content-service");
+      const { category, pastStreams, audience } = req.body;
+      const ideas = await suggestStreamIdeas(category, pastStreams, audience);
+      res.json({ success: true, ideas });
+    } catch (error: any) {
+      console.error("[AI Content] Idea generation failed:", error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
   return httpServer;
 }

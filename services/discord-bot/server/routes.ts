@@ -62,6 +62,7 @@ import schedulerRoutes from "./routes/scheduler";
 import onboardingRoutes from "./routes/onboarding";
 import quickSetupRoutes from "./routes/quick-setup";
 import moderationPresetsRoutes from "./routes/moderation-presets";
+import githubWebhookRoutes from "./routes/github-webhooks";
 
 // Configure multer for embed image uploads
 const EMBED_IMAGES_DIR = path.join(process.cwd(), 'attached_assets', 'embed-images');
@@ -3822,6 +3823,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Moderation presets routes
   app.use('/api', moderationPresetsRoutes);
+  
+  // GitHub Webhooks for Developer Tools
+  app.use('/api/github', githubWebhookRoutes);
 
   // Start background services
   startRetentionService();

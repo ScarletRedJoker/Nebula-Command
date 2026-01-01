@@ -8,6 +8,7 @@ import logging
 import json
 import time
 import threading
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -440,6 +441,174 @@ print(json.dumps(data))
             'success': False,
             'error': str(e)
         }), 500
+
+
+_agent_metrics_cache = {}
+
+@monitoring_bp.route('/agent/report', methods=['POST'])
+def receive_agent_metrics():
+    """
+    POST /api/monitoring/agent/report
+    Receive metrics from remote monitoring agents
+    """
+    try:
+        api_key = request.headers.get('X-API-Key', '')
+        expected_key = os.environ.get('MONITORING_API_KEY', '')
+        
+        if expected_key and api_key != expected_key:
+            return jsonify({'success': False, 'error': 'Invalid API key'}), 401
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'No data provided'}), 400
+        
+        hostname = data.get('hostname', 'unknown')
+        data['received_at'] = datetime.utcnow().isoformat()
+        data['agent_ip'] = request.remote_addr
+        
+        _agent_metrics_cache[hostname] = data
+        
+        logger.info(f"Received metrics from agent: {hostname}")
+        
+        check_agent_thresholds(hostname, data)
+        
+        return jsonify({'success': True, 'message': f'Metrics received from {hostname}'})
+    except Exception as e:
+        logger.error(f"Error receiving agent metrics: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@monitoring_bp.route('/agents', methods=['GET'])
+@require_auth
+def list_agents():
+    """
+    GET /api/monitoring/agents
+    List all reporting monitoring agents
+    """
+    agents = []
+    for hostname, data in _agent_metrics_cache.items():
+        agents.append({
+            'hostname': hostname,
+            'last_seen': data.get('received_at'),
+            'agent_version': data.get('agent_version'),
+            'cpu_percent': data.get('cpu', {}).get('percent'),
+            'memory_percent': data.get('memory', {}).get('ram', {}).get('percent'),
+            'uptime': data.get('uptime', {}).get('uptime_human')
+        })
+    
+    return jsonify({
+        'success': True,
+        'agents': agents,
+        'count': len(agents)
+    })
+
+
+@monitoring_bp.route('/agents/<hostname>', methods=['GET'])
+@require_auth
+def get_agent_metrics(hostname):
+    """
+    GET /api/monitoring/agents/<hostname>
+    Get full metrics from a specific agent
+    """
+    if hostname not in _agent_metrics_cache:
+        return jsonify({'success': False, 'error': f'Agent {hostname} not found'}), 404
+    
+    return jsonify({
+        'success': True,
+        'hostname': hostname,
+        'data': _agent_metrics_cache[hostname]
+    })
+
+
+def check_agent_thresholds(hostname: str, data: dict):
+    """Check agent metrics against alert thresholds and trigger notifications"""
+    try:
+        from services.alert_service import alert_service
+        
+        cpu_percent = data.get('cpu', {}).get('percent', 0)
+        memory_percent = data.get('memory', {}).get('ram', {}).get('percent', 0)
+        
+        for disk in data.get('disk', {}).get('partitions', []):
+            disk_percent = disk.get('percent', 0)
+            if disk_percent > 90:
+                alert_service.trigger_alert_for_host(
+                    hostname=hostname,
+                    alert_type='disk',
+                    value=disk_percent,
+                    details=f"Disk {disk.get('mountpoint')} at {disk_percent}%"
+                )
+        
+        if cpu_percent > 90:
+            alert_service.trigger_alert_for_host(
+                hostname=hostname,
+                alert_type='cpu',
+                value=cpu_percent,
+                details=f"CPU usage at {cpu_percent}%"
+            )
+        
+        if memory_percent > 90:
+            alert_service.trigger_alert_for_host(
+                hostname=hostname,
+                alert_type='memory',
+                value=memory_percent,
+                details=f"Memory usage at {memory_percent}%"
+            )
+    except Exception as e:
+        logger.error(f"Error checking thresholds for {hostname}: {e}")
+
+
+@monitoring_bp.route('/agent/script', methods=['GET'])
+def serve_agent_script():
+    """
+    GET /api/monitoring/agent/script
+    Serve the monitoring agent Python script for remote installation
+    """
+    try:
+        import os
+        routes_dir = os.path.dirname(os.path.abspath(__file__))
+        dashboard_dir = os.path.dirname(routes_dir)
+        services_dir = os.path.dirname(dashboard_dir)
+        project_root = os.path.dirname(services_dir)
+        script_path = os.path.join(project_root, 'deploy', 'scripts', 'monitoring-agent.py')
+        
+        if os.path.exists(script_path):
+            with open(script_path, 'r') as f:
+                content = f.read()
+            return Response(content, mimetype='text/plain', headers={
+                'Content-Disposition': 'attachment; filename="monitoring-agent.py"'
+            })
+        else:
+            return jsonify({'success': False, 'error': 'Agent script not found'}), 404
+    except Exception as e:
+        logger.error(f"Error serving agent script: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@monitoring_bp.route('/agent/install', methods=['GET'])
+def serve_install_script():
+    """
+    GET /api/monitoring/agent/install
+    Serve the monitoring agent installer script
+    """
+    try:
+        import os
+        routes_dir = os.path.dirname(os.path.abspath(__file__))
+        dashboard_dir = os.path.dirname(routes_dir)
+        services_dir = os.path.dirname(dashboard_dir)
+        project_root = os.path.dirname(services_dir)
+        script_path = os.path.join(project_root, 'deploy', 'scripts', 'install-monitoring-agent.sh')
+        
+        if os.path.exists(script_path):
+            with open(script_path, 'r') as f:
+                content = f.read()
+            return Response(content, mimetype='text/plain', headers={
+                'Content-Disposition': 'attachment; filename="install.sh"'
+            })
+        else:
+            return jsonify({'success': False, 'error': 'Install script not found'}), 404
+    except Exception as e:
+        logger.error(f"Error serving install script: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @monitoring_bp.route('/hosts', methods=['GET'])

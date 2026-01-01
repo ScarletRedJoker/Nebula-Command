@@ -1,4 +1,4 @@
-import { Home, Settings, Zap, Layers, Radio, Lightbulb, Video, Clock, MessageSquare, Trophy, Coins, Gamepad2, Vote, Music, Bell, Shield, BarChart3, Sparkles, Bot, Film, Megaphone } from "lucide-react";
+import { Home, Settings, Zap, Layers, Radio, Lightbulb, Video, Clock, MessageSquare, Trophy, Coins, Gamepad2, Vote, Music, Bell, Shield, BarChart3, Sparkles, Bot, Film, Megaphone, Wand2 } from "lucide-react";
 import { SiTwitch, SiYoutube, SiKick } from "react-icons/si";
 import {
   Sidebar,
@@ -49,6 +49,13 @@ const coreItems = [
     icon: Radio,
     badge: "New",
     description: "Schedule announcements",
+  },
+  {
+    title: "AI Assistant",
+    url: "/ai-assistant",
+    icon: Wand2,
+    badge: "New",
+    description: "Generate content with AI",
   },
   {
     title: "Overlays",

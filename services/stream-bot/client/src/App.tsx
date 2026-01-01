@@ -37,6 +37,7 @@ import Polls from "@/pages/polls";
 import Alerts from "@/pages/alerts";
 import Chatbot from "@/pages/chatbot";
 import Personality from "@/pages/personality";
+import AIAssistant from "@/pages/ai-assistant";
 import OBSControl from "@/pages/obs-control";
 import OverlayEditor from "@/pages/overlay-editor";
 import NotFound from "@/pages/not-found";
@@ -117,6 +118,7 @@ function ProtectedRouter() {
               <Route path="/alerts" component={Alerts} />
               <Route path="/chatbot" component={Chatbot} />
               <Route path="/personality" component={Personality} />
+              <Route path="/ai-assistant" component={AIAssistant} />
               <Route path="/obs-control" component={OBSControl} />
               <Route path="/overlay-editor" component={OverlayEditor} />
               <Route path="/settings" component={Settings} />

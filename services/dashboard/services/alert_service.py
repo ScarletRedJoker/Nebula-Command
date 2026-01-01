@@ -701,6 +701,67 @@ class AlertService:
                 'unacknowledged': 0,
                 'recent_triggers': 0
             }
+    
+    def trigger_alert_for_host(
+        self,
+        hostname: str,
+        alert_type: str,
+        value: float,
+        details: str = ''
+    ) -> Dict:
+        """
+        Trigger an alert for a specific remote host (from monitoring agents).
+        Sends Discord notification if webhook is configured.
+        """
+        try:
+            logger.warning(f"[Alert] {hostname}: {alert_type} alert - {details}")
+            
+            if self.discord_webhook_url:
+                type_icons = {
+                    'cpu': '🖥️',
+                    'memory': '🧠',
+                    'disk': '💾',
+                    'temperature': '🌡️',
+                    'service': '⚙️'
+                }
+                icon = type_icons.get(alert_type, '⚠️')
+                
+                if value >= 95:
+                    color = 0xFF0000  # Red
+                elif value >= 90:
+                    color = 0xFF4500  # OrangeRed
+                else:
+                    color = 0xFF8C00  # DarkOrange
+                
+                embed = {
+                    'title': f'{icon} {hostname}: {alert_type.upper()} Alert',
+                    'description': details,
+                    'color': color,
+                    'fields': [
+                        {'name': '📊 Value', 'value': f'{value:.1f}%', 'inline': True},
+                        {'name': '🖥️ Host', 'value': hostname, 'inline': True},
+                        {'name': '📈 Type', 'value': alert_type.upper(), 'inline': True}
+                    ],
+                    'footer': {'text': 'Homelab Monitoring Agent Alert'},
+                    'timestamp': datetime.utcnow().isoformat()
+                }
+                
+                payload = {
+                    'embeds': [embed],
+                    'username': 'Homelab Monitor'
+                }
+                
+                try:
+                    response = requests.post(self.discord_webhook_url, json=payload, timeout=10)
+                    response.raise_for_status()
+                    logger.info(f"Discord alert sent for {hostname}")
+                except Exception as e:
+                    logger.error(f"Failed to send Discord alert: {e}")
+            
+            return {'success': True, 'host': hostname, 'alert_type': alert_type}
+        except Exception as e:
+            logger.error(f"Error triggering host alert: {e}")
+            return {'success': False, 'error': str(e)}
 
 
 alert_service = AlertService()
