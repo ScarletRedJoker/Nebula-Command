@@ -1360,6 +1360,65 @@ export const scheduledAnnouncements = pgTable("scheduled_announcements", {
   scheduleTypeIdx: index("scheduled_announcements_schedule_type_idx").on(table.scheduleType),
 }));
 
+// Restream Destinations - RTMP stream key management for multi-platform streaming
+export const restreamDestinations = pgTable("restream_destinations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  platform: text("platform").notNull(), // 'twitch', 'youtube', 'kick', 'facebook', 'custom'
+  rtmpUrl: text("rtmp_url").notNull(), // RTMP server URL
+  streamKey: text("stream_key").notNull(), // Encrypted stream key
+  enabled: boolean("enabled").default(true).notNull(),
+  bitrate: integer("bitrate").default(6000).notNull(), // Target bitrate in kbps
+  notes: text("notes"), // User notes about this destination
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  userIdIdx: index("restream_destinations_user_id_idx").on(table.userId),
+  platformIdx: index("restream_destinations_platform_idx").on(table.platform),
+}));
+
+// Stream Events - Schedule and community events calendar
+export const streamEvents = pgTable("stream_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  startTime: timestamp("start_time").notNull(),
+  endTime: timestamp("end_time"),
+  platform: text("platform").notNull(), // 'twitch', 'youtube', 'kick', 'multi'
+  eventType: text("event_type").notNull(), // 'stream', 'watch_party', 'community', 'collab'
+  isRecurring: boolean("is_recurring").default(false).notNull(),
+  recurringPattern: text("recurring_pattern"), // 'daily', 'weekly', 'biweekly', 'monthly'
+  notifyDiscord: boolean("notify_discord").default(false).notNull(),
+  isPublic: boolean("is_public").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  userIdIdx: index("stream_events_user_id_idx").on(table.userId),
+  startTimeIdx: index("stream_events_start_time_idx").on(table.startTime),
+  isPublicIdx: index("stream_events_is_public_idx").on(table.isPublic),
+}));
+
+// Unified Inbox Notifications - Aggregated notifications from all platforms
+export const unifiedInboxNotifications = pgTable("unified_inbox_notifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  platform: text("platform").notNull(), // 'twitch', 'youtube', 'kick'
+  notificationType: text("notification_type").notNull(), // 'follow', 'sub', 'donation', 'mention', 'raid', 'host'
+  title: text("title").notNull(),
+  message: text("message"),
+  senderName: text("sender_name"),
+  senderAvatar: text("sender_avatar"),
+  amount: integer("amount"), // For donations/subs - stored in cents
+  currency: text("currency"), // 'USD', 'EUR', etc.
+  isRead: boolean("is_read").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  userIdIdx: index("unified_inbox_notifications_user_id_idx").on(table.userId),
+  isReadIdx: index("unified_inbox_notifications_is_read_idx").on(table.isRead),
+  createdAtIdx: index("unified_inbox_notifications_created_at_idx").on(table.createdAt),
+}));
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users, {
   email: z.string().email("Invalid email address"),

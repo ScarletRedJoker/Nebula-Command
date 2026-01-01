@@ -57,6 +57,57 @@ The Stream Bot offers an overlay editor for OBS, allowing visual drag-and-drop c
 - **Discord Bot Dashboard Simplified**: Reduced from 11 tabs to 5 core tabs (Overview, Tickets, Streams, Welcome, Commands) + "More Tools" dropdown
 - **qBittorrent + VPN Setup Added**: Created deploy/local/torrent-vpn/ with gluetun container for private torrenting
 
+### Powerhouse Features (January 2026)
+Eight major features were added to transform the platform into an ultimate powerhouse for developers and content creators:
+
+1. **Homelab Monitoring** (`services/dashboard/routes/monitoring_routes.py`)
+   - Python agent collects CPU, RAM, disk, temps, network metrics
+   - Remote reporting via API endpoints
+   - Discord alerts when thresholds are breached
+   - Install script served from `/api/monitoring/agent/script`
+
+2. **Developer Tools - GitHub Webhooks** (`services/discord-bot/server/routes/github-webhooks.ts`)
+   - Receives webhooks for push, PR, workflow, release events
+   - Sends formatted Discord embeds with event details
+   - Supports deploy-on-push automation
+
+3. **AI Content Assistant** (`services/stream-bot/server/ai-content-service.ts`)
+   - GPT-4o-mini powered content generation
+   - Generates stream titles, descriptions, social posts, hashtags
+   - Stream idea suggestions based on channel theme
+
+4. **Multi-Platform Analytics** (`services/stream-bot/server/analytics-service.ts`)
+   - Unified Twitch/YouTube/Kick metrics
+   - `getPlatformMetrics()` - Real-time follower/subscriber counts
+   - `getStreamHistory()` - Historical stream sessions
+   - `getRevenueEstimate()` - Revenue calculations from subs/donations
+
+5. **Multi-Platform Restream** (`services/stream-bot/server/restream-service.ts`)
+   - RTMP destination management for Twitch, YouTube, Kick, Facebook
+   - Stream key storage with encryption
+   - Region-based RTMP server selection
+   - Database table: `restream_destinations`
+
+6. **Community Events Calendar** (`services/stream-bot/server/events-service.ts`)
+   - Schedule streams, watch parties, collab events
+   - Recurring events with daily/weekly/monthly patterns
+   - Public embed endpoint for sharing: `/api/events/public/:userId`
+   - Discord notification integration
+   - Database table: `stream_events`
+
+7. **Clip Manager** (`services/stream-bot/server/clip-service.ts`)
+   - Fetch clips from Twitch (Helix API) and YouTube (Data API v3)
+   - AI caption generation for social media posting
+   - Status workflow: new → reviewed → posted
+   - Tag organization and highlight marking
+
+8. **Smart Notifications / Unified Inbox** (`services/stream-bot/server/notifications-service.ts`)
+   - Aggregates follows, subs, donations, mentions, raids across platforms
+   - Filter by platform and notification type
+   - Mark as read functionality
+   - Webhook endpoint for platform integrations
+   - Database table: `unified_inbox_notifications`
+
 ### Discord Bot Stream Notifications
 Stream notifications require explicit setup by configuring a channel and tracking streamers via Discord commands. Detection works by monitoring Discord presence and polling Twitch/YouTube APIs. Users must link their streaming platforms to Discord for detection.
 
