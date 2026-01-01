@@ -122,6 +122,16 @@ app.use((req, res, next) => {
   res.on("finish", () => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
+      // Suppress expected 401s from overlay endpoints (expired tokens are normal for OBS overlays)
+      const isOverlayTokenExpired = path.includes('/overlay/') && 
+        res.statusCode === 401 && 
+        capturedJsonResponse?.error?.includes('expired');
+      
+      if (isOverlayTokenExpired) {
+        // Don't log expected overlay token expirations - they spam logs
+        return;
+      }
+
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
