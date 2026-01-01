@@ -57,6 +57,7 @@ import { speechToTextService } from "./speech-to-text-service";
 import adminRoutes from "./admin-routes";
 import presenceRoutes from "./presence-routes";
 import { announcementScheduler, ANNOUNCEMENT_TEMPLATES } from "./announcement-scheduler";
+import { eventsService } from "./events-service";
 
 function broadcastStreamAlert(userId: string, data: any): void {
   botManager.broadcastStreamAlert(userId, data);
@@ -4992,6 +4993,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("[AI Content] Idea generation failed:", error);
       res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // Events API - Stream schedule and community events
+  app.get("/api/events", requireAuth, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const startDate = req.query.startDate ? new Date(req.query.startDate as string) : undefined;
+      const endDate = req.query.endDate ? new Date(req.query.endDate as string) : undefined;
+      const events = await eventsService.getEvents(userId, startDate, endDate);
+      res.json(events);
+    } catch (error: any) {
+      console.error("[Events] Error fetching events:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/events/upcoming", requireAuth, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const limit = parseInt(req.query.limit as string) || 5;
+      const events = await eventsService.getUpcomingEvents(userId, limit);
+      res.json(events);
+    } catch (error: any) {
+      console.error("[Events] Error fetching upcoming events:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/events/public/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const events = await eventsService.getPublicEvents(userId);
+      res.json(events);
+    } catch (error: any) {
+      console.error("[Events] Error fetching public events:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/events", requireAuth, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const event = await eventsService.createEvent(userId, req.body);
+      res.status(201).json(event);
+    } catch (error: any) {
+      console.error("[Events] Error creating event:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.put("/api/events/:id", requireAuth, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const { id } = req.params;
+      const event = await eventsService.updateEvent(userId, id, req.body);
+      if (!event) {
+        return res.status(404).json({ error: "Event not found" });
+      }
+      res.json(event);
+    } catch (error: any) {
+      console.error("[Events] Error updating event:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/events/:id", requireAuth, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const { id } = req.params;
+      const success = await eventsService.deleteEvent(userId, id);
+      if (!success) {
+        return res.status(404).json({ error: "Event not found" });
+      }
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Events] Error deleting event:", error);
+      res.status(500).json({ error: error.message });
     }
   });
 

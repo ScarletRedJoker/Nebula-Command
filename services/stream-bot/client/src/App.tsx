@@ -41,6 +41,7 @@ import AIAssistant from "@/pages/ai-assistant";
 import OBSControl from "@/pages/obs-control";
 import OverlayEditor from "@/pages/overlay-editor";
 import Restream from "@/pages/restream";
+import Schedule from "@/pages/schedule";
 import NotFound from "@/pages/not-found";
 import SpotifyOverlay from "@/pages/spotify-overlay";
 import YouTubeOverlay from "@/pages/youtube-overlay";
@@ -123,6 +124,7 @@ function ProtectedRouter() {
               <Route path="/obs-control" component={OBSControl} />
               <Route path="/overlay-editor" component={OverlayEditor} />
               <Route path="/restream" component={Restream} />
+              <Route path="/schedule" component={Schedule} />
               <Route path="/settings" component={Settings} />
               <Route path="/profile" component={Profile} />
               <Route component={NotFound} />
