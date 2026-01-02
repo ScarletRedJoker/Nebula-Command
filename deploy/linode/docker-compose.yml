@@ -136,7 +136,7 @@ services:
       - FLEET_COMMAND_TIMEOUT=120
       - HOMELAB_PROJECT_ROOT=/app
       - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
-      - DISCORD_BOT_URL=http://discord-bot:5000
+      - DISCORD_BOT_URL=http://discord-bot:4000
       - HOMELABHUB_API_KEY=${SERVICE_AUTH_TOKEN}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://100.110.227.25:11434}
       - SESSION_SECRET=${SESSION_SECRET:-NebulaCommandDash2024SecureSessionKey}
@@ -295,20 +295,21 @@ services:
       APP_URL: https://stream.rig-city.com
       TWITCH_CLIENT_ID: ${TWITCH_CLIENT_ID}
       TWITCH_CLIENT_SECRET: ${TWITCH_CLIENT_SECRET}
-      TWITCH_REDIRECT_URI: https://stream.rig-city.com/api/auth/twitch/callback
+      TWITCH_REDIRECT_URI: https://stream.rig-city.com/auth/twitch/callback
       TWITCH_SIGNIN_CALLBACK_URL: https://stream.rig-city.com/api/auth/twitch/callback
       YOUTUBE_CLIENT_ID: ${YOUTUBE_CLIENT_ID}
       YOUTUBE_CLIENT_SECRET: ${YOUTUBE_CLIENT_SECRET}
-      YOUTUBE_REDIRECT_URI: https://stream.rig-city.com/api/auth/youtube/callback
+      YOUTUBE_REDIRECT_URI: https://stream.rig-city.com/auth/youtube/callback
       YOUTUBE_SIGNIN_CALLBACK_URL: https://stream.rig-city.com/api/auth/youtube/callback
       SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID}
       SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET}
-      SPOTIFY_REDIRECT_URI: https://stream.rig-city.com/api/auth/spotify/callback
+      SPOTIFY_REDIRECT_URI: https://stream.rig-city.com/auth/spotify/callback
       KICK_CLIENT_ID: ${KICK_CLIENT_ID}
       KICK_CLIENT_SECRET: ${KICK_CLIENT_SECRET}
-      KICK_REDIRECT_URI: https://stream.rig-city.com/api/auth/kick/callback
+      KICK_REDIRECT_URI: https://stream.rig-city.com/auth/kick/callback
       KICK_SIGNIN_CALLBACK_URL: https://stream.rig-city.com/api/auth/kick/callback
       SERVICE_AUTH_TOKEN: ${SERVICE_AUTH_TOKEN}
+      DISCORD_BOT_URL: http://discord-bot:4000
     volumes:
       - ./services/stream-bot/logs:/app/logs
     healthcheck:

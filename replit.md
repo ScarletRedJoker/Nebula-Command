@@ -56,6 +56,11 @@ The Stream Bot offers an overlay editor for OBS, allowing visual drag-and-drop c
 - **Stream Bot Rate Limiter Fixed**: Increased auth limit from 5 to 50 requests, added skipSuccessfulRequests for OAuth flows
 - **Discord Bot Dashboard Simplified**: Reduced from 11 tabs to 5 core tabs (Overview, Tickets, Streams, Welcome, Commands) + "More Tools" dropdown
 - **qBittorrent + VPN Setup Added**: Created deploy/local/torrent-vpn/ with gluetun container for private torrenting
+- **OAuth CSRF/Session Fixes**: Fixed session configuration (resave:true, saveUninitialized:true) to persist OAuth state tokens before redirect - fixes "CSRF validation failed" errors
+- **OAuth Redirect URI Auto-Correction**: Added auto-fix for misconfigured redirect URIs that use `/api/auth/*` instead of `/auth/*` or include port numbers in HTTPS URLs
+- **Discord Bot CORS Fixed**: Added discord.rig-city.com to allowed origins for dashboard API access
+- **Stream Bot Legacy Route Handler**: Added /success/* path handler to redirect legacy OAuth success URLs to proper query params
+- **Production Config Fixed**: Corrected DISCORD_BOT_URL (port 5000 → 4000) and OAuth redirect URIs in docker-compose.yml
 
 ### Powerhouse Features (January 2026)
 Eight major features were added to transform the platform into an ultimate powerhouse for developers and content creators:
