@@ -79,6 +79,9 @@ class CloudflareDNSService:
         "vnc.evindrake.net",
         "nas.evindrake.net",
         "torrent.evindrake.net",
+        "minio.evindrake.net",
+        "storage.evindrake.net",
+        "local.evindrake.net",
     ]
     
     def __init__(self):
