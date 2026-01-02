@@ -45,19 +45,28 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
-// Rate Limiting
+// Rate Limiting - Production-ready configuration
+// NOTE: Rate limiters run BEFORE session middleware to prevent DoS on session store
+// Higher limits account for dashboard polling and shared IPs behind Caddy/Cloudflare
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests, please try again later.',
+  max: 2000, // High limit: dashboard polls ~5 endpoints every 5s = ~900 req/15min per user
+  message: { error: '429: Too many requests, please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => {
+    // Skip rate limiting for health checks, static assets, and overlay endpoints
+    // Overlay endpoints are called by OBS and should never be rate limited
+    return req.path === '/health' || 
+           req.path.startsWith('/assets/') ||
+           req.path.includes('/overlay/');
+  },
 });
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 50, // Allow enough requests for OAuth multi-step flows (each OAuth can be 3-5 requests)
-  message: 'Too many requests, please try again later.',
+  max: 100, // Allow enough requests for OAuth multi-step flows
+  message: { error: '429: Too many requests, please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
   skipSuccessfulRequests: true, // Don't count successful OAuth redirects against limit
