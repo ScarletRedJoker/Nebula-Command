@@ -71,6 +71,27 @@ export function getOpenAIConfig(): OpenAIConfig {
 }
 
 /**
+ * Auto-correct common OAuth redirect URI misconfigurations
+ */
+function correctRedirectUri(uri: string): string {
+  let corrected = uri;
+  
+  // Fix: /api/auth/* -> /auth/* (wrong route prefix)
+  if (corrected.includes('/api/auth/')) {
+    corrected = corrected.replace('/api/auth/', '/auth/');
+    console.log(`[OAuth Config] Auto-correcting redirect URI: removed /api prefix`);
+  }
+  
+  // Fix: :5000 or :3000 port in HTTPS URL (should use 443 through Caddy)
+  if (corrected.startsWith('https://') && /:(\d+)\//.test(corrected)) {
+    corrected = corrected.replace(/:(\d+)\//, '/');
+    console.log(`[OAuth Config] Auto-correcting redirect URI: removed port number from HTTPS URL`);
+  }
+  
+  return corrected;
+}
+
+/**
  * Get YouTube OAuth configuration.
  * 
  * Both Replit and production use standard OAuth with client credentials.
@@ -83,7 +104,10 @@ export function getYouTubeConfig(): YouTubeConfig {
   // YOUTUBE_SIGNIN_CALLBACK_URL is for passport signin (at /api/auth/youtube/callback)
   // For platform connection, default to /auth/youtube/callback
   const appUrl = process.env.APP_URL || "https://stream.rig-city.com";
-  const redirectUri = process.env.YOUTUBE_REDIRECT_URI || `${appUrl}/auth/youtube/callback`;
+  let redirectUri = process.env.YOUTUBE_REDIRECT_URI || `${appUrl}/auth/youtube/callback`;
+  
+  // Auto-correct common misconfigurations
+  redirectUri = correctRedirectUri(redirectUri);
 
   if (!clientId || !clientSecret) {
     throw new Error(

@@ -99,6 +99,7 @@ app.set('trust proxy', 1);
  */
 const allowedOrigins = [
   'https://bot.rig-city.com',
+  'https://discord.rig-city.com',
   NODE_ENV === 'development' ? 'http://localhost:5173' : null,
   NODE_ENV === 'development' ? 'http://localhost:5000' : null,
 ].filter(Boolean) as string[];

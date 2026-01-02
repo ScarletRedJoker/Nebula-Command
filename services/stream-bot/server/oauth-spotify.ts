@@ -73,27 +73,43 @@ function validateTokenResponse(data: any): void {
 }
 
 /**
+ * Construct the correct redirect URI from APP_URL
+ * This ensures the redirect always goes to /auth/* not /api/auth/*
+ */
+function getSpotifyRedirectUri(): string {
+  const appUrl = getEnv('APP_URL') || 'https://stream.rig-city.com';
+  let redirectUri = getEnv('SPOTIFY_REDIRECT_URI') || `${appUrl}/auth/spotify/callback`;
+  
+  // Auto-correct common misconfiguration: /api/auth/* -> /auth/*
+  if (redirectUri.includes('/api/auth/')) {
+    const corrected = redirectUri.replace('/api/auth/', '/auth/');
+    console.log(`[Spotify OAuth] Auto-correcting redirect URI: removed /api prefix`);
+    redirectUri = corrected;
+  }
+  
+  // Fix: port in HTTPS URL (should use 443 through Caddy)
+  if (redirectUri.startsWith('https://') && /:(\d+)\//.test(redirectUri)) {
+    redirectUri = redirectUri.replace(/:(\d+)\//, '/');
+    console.log(`[Spotify OAuth] Auto-correcting redirect URI: removed port from HTTPS URL`);
+  }
+  
+  return redirectUri;
+}
+
+/**
  * Step 1: Initiate Spotify OAuth flow
  * GET /auth/spotify
  */
 router.get('/spotify', requireAuth, async (req, res) => {
   try {
     const clientId = getEnv('SPOTIFY_CLIENT_ID');
-    const redirectUri = getEnv('SPOTIFY_REDIRECT_URI');
+    const redirectUri = getSpotifyRedirectUri();
 
     if (!clientId) {
       console.error('[Spotify OAuth] SPOTIFY_CLIENT_ID not configured');
       return res.status(500).json({ 
         error: 'Spotify OAuth not configured',
         message: 'Please set SPOTIFY_CLIENT_ID environment variable. Contact administrator for setup instructions.'
-      });
-    }
-
-    if (!redirectUri) {
-      console.error('[Spotify OAuth] SPOTIFY_REDIRECT_URI not configured');
-      return res.status(500).json({ 
-        error: 'Spotify OAuth not configured',
-        message: 'Please set SPOTIFY_REDIRECT_URI environment variable. Contact administrator for setup instructions.'
       });
     }
 
@@ -176,7 +192,7 @@ router.get('/spotify/callback', async (req, res) => {
 
     const clientId = getEnv('SPOTIFY_CLIENT_ID');
     const clientSecret = getEnv('SPOTIFY_CLIENT_SECRET');
-    const redirectUri = getEnv('SPOTIFY_REDIRECT_URI');
+    const redirectUri = getSpotifyRedirectUri();
 
     if (!clientId) {
       console.error('[Spotify OAuth] SPOTIFY_CLIENT_ID not configured');
@@ -186,11 +202,6 @@ router.get('/spotify/callback', async (req, res) => {
     if (!clientSecret) {
       console.error('[Spotify OAuth] SPOTIFY_CLIENT_SECRET not configured');
       return res.redirect('/settings?error=spotify_config_error&details=missing_client_secret');
-    }
-
-    if (!redirectUri) {
-      console.error('[Spotify OAuth] SPOTIFY_REDIRECT_URI not configured');
-      return res.redirect('/settings?error=spotify_config_error&details=missing_redirect_uri');
     }
 
     let tokenResponse;
