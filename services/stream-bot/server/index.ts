@@ -84,7 +84,9 @@ app.use('/auth/', authLimiter);
 // Export session middleware for WebSocket authentication
 // IMPORTANT: In production, Caddy terminates TLS and forwards plain HTTP to this service.
 // We set trust proxy above, so Express knows the original request was HTTPS.
-// Setting secure: "auto" lets Express infer from req.secure (which respects X-Forwarded-Proto).
+// 
+// SESSION FIX (Jan 2026): Changed resave/saveUninitialized to true for OAuth state persistence.
+// OAuth flows need the session saved immediately to store state tokens before redirect.
 export const sessionMiddleware = session({
   store: new PgSession({
     pool: pool as any,
@@ -92,11 +94,11 @@ export const sessionMiddleware = session({
     createTableIfMissing: true,
   }),
   secret: SESSION_SECRET || "streambot-insecure-default-change-immediately",
-  resave: false,
-  saveUninitialized: false,
+  resave: true, // Save session to persist OAuth state
+  saveUninitialized: true, // Create session immediately for OAuth
   proxy: true,
   cookie: {
-    secure: "auto" as any,
+    secure: NODE_ENV === "production", // Explicit boolean for clarity
     httpOnly: true,
     maxAge: 1000 * 60 * 60 * 24 * 7,
     sameSite: NODE_ENV === "production" ? "none" : "lax",
@@ -147,6 +149,19 @@ app.use((req, res, next) => {
   });
 
   next();
+});
+
+/**
+ * Handle legacy /success/* paths that should be query parameters
+ * 
+ * REDIRECT FIX (Jan 2026): Some OAuth flows were incorrectly redirecting to
+ * /success/twitch_connected instead of /?success=twitch_connected
+ * This handler catches those and redirects properly to the frontend.
+ */
+app.get('/success/:action', (req, res) => {
+  const action = req.params.action;
+  console.log(`[Legacy Route] Redirecting /success/${action} to /settings?success=${action}`);
+  res.redirect(`/settings?success=${action}`);
 });
 
 (async () => {

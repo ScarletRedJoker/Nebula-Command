@@ -106,24 +106,28 @@ export function setupAuth(app: Express, storage: IStorage): void {
    * 
    * Options:
    * - secret: Signs the session ID cookie (prevent tampering)
-   * - resave: false - Don't save session if unmodified (performance)
-   * - saveUninitialized: false - Don't create session until something is stored (GDPR, performance)
+   * - resave: true - Save session even if unmodified (needed for OAuth state persistence)
+   * - saveUninitialized: true - Create session immediately (needed for OAuth state before redirect)
    * - cookie.maxAge: 86400000ms = 24 hours - Session expires after 1 day
-   * - cookie.secure: "auto" - Let Express infer from req.secure (respects X-Forwarded-Proto from Caddy)
+   * - cookie.secure: true in production (HTTPS required), false in dev
    * - cookie.sameSite: 'lax' - CSRF protection while allowing OAuth redirects
    * - cookie.httpOnly: true - Prevent JavaScript access to cookie (XSS protection)
    * - proxy: true - Trust the proxy (Caddy) for secure cookie handling
    * - store: In-memory store with daily cleanup of expired sessions
+   * 
+   * CSRF Fix (Jan 2026): Changed to resave:true and saveUninitialized:true to ensure
+   * OAuth state is persisted to session cookie before Discord redirect. Without this,
+   * the state wasn't being saved and CSRF validation was failing on callback.
    */
   app.use(
     session({
       secret: sessionSecret,
-      resave: false,
-      saveUninitialized: false,
+      resave: true, // Must be true to save OAuth state
+      saveUninitialized: true, // Must be true to create session for OAuth state
       proxy: true,
       cookie: {
         maxAge: 86400000, // 1 day
-        secure: "auto" as any,
+        secure: !isDevelopment, // Always secure in production, allow HTTP in dev
         sameSite: 'lax',
         httpOnly: true
       },
