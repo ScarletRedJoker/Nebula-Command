@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useLocation } from "wouter";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -52,10 +53,43 @@ type SettingsFormValues = z.infer<typeof settingsFormSchema>;
 
 export default function Settings() {
   const { toast } = useToast();
+  const [location, setLocation] = useLocation();
 
   const { data: settings, isLoading } = useQuery<BotSettings>({
     queryKey: ["/api/settings"],
   });
+
+  // Handle OAuth callback URL params
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const spotifyConnected = params.get('spotify') === 'connected';
+    const youtubeConnected = params.get('youtube') === 'connected';
+    const twitchConnected = params.get('twitch') === 'connected';
+    const errorParam = params.get('error');
+
+    if (spotifyConnected || youtubeConnected || twitchConnected) {
+      const platform = spotifyConnected ? 'Spotify' : youtubeConnected ? 'YouTube' : 'Twitch';
+      toast({
+        title: `${platform} Connected`,
+        description: `Your ${platform} account has been successfully connected.`,
+      });
+      // Refresh platforms list
+      queryClient.invalidateQueries({ queryKey: ["/api/platforms"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/platforms"] });
+      // Clear URL params
+      window.history.replaceState({}, '', '/settings');
+    }
+
+    if (errorParam) {
+      toast({
+        title: "Connection Failed",
+        description: `OAuth error: ${errorParam.replace(/_/g, ' ')}`,
+        variant: "destructive",
+      });
+      // Clear URL params
+      window.history.replaceState({}, '', '/settings');
+    }
+  }, [toast]);
 
   const form = useForm<SettingsFormValues>({
     resolver: zodResolver(settingsFormSchema),
