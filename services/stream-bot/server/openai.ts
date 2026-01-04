@@ -198,7 +198,12 @@ export async function generateSnappleFact(
 // New personalized fact generation with full config support
 export async function generatePersonalizedFact(config: FactGenerationConfig): Promise<string> {
   if (!isOpenAIEnabled || !openai) {
-    throw new Error("AI features are not available. Please configure AI_INTEGRATIONS_OPENAI_API_KEY and AI_INTEGRATIONS_OPENAI_BASE_URL.");
+    const envType = process.env.REPL_ID ? "Replit" : "Production";
+    if (envType === "Replit") {
+      throw new Error("AI features not available. The OpenAI integration may need to be set up in your Replit project.");
+    } else {
+      throw new Error("AI features not available. Please set OPENAI_API_KEY in your production .env file (deploy/linode/.env).");
+    }
   }
 
   const prompt = buildPersonalizedFactPrompt(config);
@@ -223,6 +228,9 @@ export async function generatePersonalizedFact(config: FactGenerationConfig): Pr
 
   // Use configured model as primary, fallback to gpt-4o for production compatibility
   const modelsToTry = [primaryModel, "gpt-4o"].filter((m, i, arr) => arr.indexOf(m) === i);
+  
+  // Track last error for user-friendly messaging
+  let lastError = "";
 
   for (const currentModel of modelsToTry) {
     try {
@@ -277,11 +285,30 @@ export async function generatePersonalizedFact(config: FactGenerationConfig): Pr
       
       return cleanedFact;
     } catch (error: any) {
-      console.error("[OpenAI] Error with model", currentModel, ":", error.message || error);
+      const errorMsg = error.message || String(error);
+      console.error("[OpenAI] Error with model", currentModel, ":", errorMsg);
+      
+      // Store specific error info for user-friendly messaging at the end
+      lastError = errorMsg;
+      // Continue to next model in fallback loop
     }
   }
 
-  throw new Error("Failed to generate fact with any available model");
+  // All models failed - provide specific user-friendly error message
+  if (lastError.includes('401') || lastError.includes('Unauthorized') || lastError.includes('invalid_api_key')) {
+    throw new Error("OpenAI API key is invalid or expired. Please update OPENAI_API_KEY in your .env file.");
+  }
+  if (lastError.includes('429') || lastError.includes('rate limit')) {
+    throw new Error("OpenAI API rate limit reached. Please wait a moment and try again.");
+  }
+  if (lastError.includes('500') || lastError.includes('502') || lastError.includes('503')) {
+    throw new Error("OpenAI service is temporarily unavailable. Please try again later.");
+  }
+  if (lastError.includes('ECONNREFUSED') || lastError.includes('ENOTFOUND')) {
+    throw new Error("Cannot connect to OpenAI API. Check your internet connection or API configuration.");
+  }
+  
+  throw new Error("Failed to generate fact. Please check that your OpenAI API key is configured correctly in the .env file.");
 }
 
 // Smart truncation that tries to preserve sentence integrity
