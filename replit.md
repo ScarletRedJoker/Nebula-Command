@@ -21,7 +21,15 @@ Each server deploys ONLY its own services. They are separate and independent.
 
 ### Core Services
 The platform consists of three main services:
--   **Dashboard (Flask/Python)**: A web interface for homelab management, AI assistance (Jarvis), Docker control, NAS management, fleet control, KVM gaming mode switching, and Cloudflare DNS management. It features a professional dark theme.
+-   **Dashboard (Next.js 14)**: Modern web interface for homelab management built with TypeScript, shadcn/ui, and Tailwind CSS. Features include:
+    - **Monaco Code Editor**: File tree navigation, syntax highlighting, multi-file editing
+    - **Visual Website Designer**: Drag-drop component builder with live preview
+    - **AI Assistant (Jarvis)**: OpenAI-powered chat for homelab commands and automation
+    - **Service Manager**: Docker integration, container control, logs viewer
+    - **Deployment Pipeline**: One-click deploys to Linode and Home servers
+    - **Server Management**: SSH terminals, resource metrics, health monitoring
+    - JWT-signed sessions (HMAC-SHA256) for secure authentication
+    - Professional dark theme with responsive design
 -   **Discord Bot (Node.js/React)**: Handles Discord community management, including a ticket system, music bot, stream notifications, and analytics. It integrates with the Stream Bot for go-live alerts and offers multi-tenant security.
 -   **Stream Bot (Node.js/React/Vite)**: Manages multi-platform content posting and interaction across Twitch, YouTube, and Kick. It supports OAuth, per-user personalization, token encryption, rate limiting, and anti-spam measures, with a modernized UI.
 

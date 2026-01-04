@@ -21,11 +21,11 @@ args = "discord-bot"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "dashboard"
+args = "stream-bot"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "stream-bot"
+args = "dashboard-next"
 
 [[workflows.workflow]]
 name = "discord-bot"
@@ -39,18 +39,6 @@ task = "shell.exec"
 args = "cd services/discord-bot && NODE_ENV=development npm run dev"
 
 [[workflows.workflow]]
-name = "dashboard"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd services/dashboard && python main.py"
-waitForPort = 5000
-
-[workflows.workflow.metadata]
-outputType = "webview"
-
-[[workflows.workflow]]
 name = "stream-bot"
 author = "agent"
 
@@ -61,6 +49,18 @@ outputType = "console"
 task = "shell.exec"
 args = "cd services/stream-bot && PORT=3000 NODE_ENV=development npm run dev"
 waitForPort = 3000
+
+[[workflows.workflow]]
+name = "dashboard-next"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd services/dashboard-next && npm run dev"
+waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "webview"
 
 [[ports]]
 localPort = 3000
