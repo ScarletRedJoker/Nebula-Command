@@ -7,6 +7,10 @@ import path from "path";
 const SETTINGS_DIR = process.env.STUDIO_PROJECTS_DIR || "/opt/homelab/studio-projects";
 const SETTINGS_FILE = "user-settings.json";
 
+// Note: This is a single-tenant homelab dashboard owned by Evin.
+// Settings are stored per-installation, not per-user.
+// For multi-tenant support, settings would need to be keyed by user ID in a database.
+
 interface UserSettings {
   profile: {
     displayName: string;
