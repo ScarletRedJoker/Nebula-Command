@@ -136,7 +136,7 @@ export function PlatformCard({
       </CardHeader>
 
       <CardContent className="space-y-2 sm:space-y-3 p-3 sm:p-6 pt-0">
-        {isConnected && connection?.lastConnectedAt && (
+        {isConnected && connection?.lastConnectedAt && !isNaN(new Date(connection.lastConnectedAt).getTime()) && (
           <div className="text-[10px] sm:text-sm text-muted-foreground candy-timestamp">
             Connected: {new Date(connection.lastConnectedAt).toLocaleDateString()}
           </div>

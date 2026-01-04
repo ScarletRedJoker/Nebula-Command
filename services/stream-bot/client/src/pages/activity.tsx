@@ -65,8 +65,12 @@ export default function Activity() {
     }
   }, [settings]);
 
-  const formatTimeAgo = (date: Date) => {
-    const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
+  const formatTimeAgo = (date: Date | string | null | undefined) => {
+    if (!date) return 'Recently';
+    const timestamp = new Date(date).getTime();
+    if (isNaN(timestamp)) return 'Recently';
+    const seconds = Math.floor((Date.now() - timestamp) / 1000);
+    if (seconds < 0) return 'Just now';
     if (seconds < 60) return `${seconds}s ago`;
     const minutes = Math.floor(seconds / 60);
     if (minutes < 60) return `${minutes}m ago`;

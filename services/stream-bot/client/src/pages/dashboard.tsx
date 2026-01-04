@@ -442,7 +442,9 @@ export default function Dashboard() {
                     <div className="min-w-0 flex-1">
                       <p className="text-sm line-clamp-2">{message.content}</p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
+                        {message.createdAt && !isNaN(new Date(message.createdAt).getTime())
+                          ? formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })
+                          : 'Recently'}
                       </p>
                     </div>
                   </div>
