@@ -99,7 +99,7 @@ services:
 
   homelab-dashboard:
     build:
-      context: ../../services/dashboard
+      context: ../../services/dashboard-next
       dockerfile: Dockerfile
     container_name: homelab-dashboard
     restart: unless-stopped
@@ -111,122 +111,39 @@ services:
     networks:
       - homelab
     environment:
-      - FLASK_ENV=production
-      - PYTHONUNBUFFERED=1
-      - RUN_MIGRATIONS=false
-      - DOCKER_CONTAINER=true
-      - JARVIS_DATABASE_URL=postgresql://jarvis:${JARVIS_DB_PASSWORD}@homelab-postgres:5432/homelab_jarvis
-      - REDIS_URL=redis://redis:6379/0
-      - AI_PROVIDER=openai
-      - AI_MODEL=gpt-4o
-      - SERVICE_AUTH_TOKEN=${SERVICE_AUTH_TOKEN}
+      - NODE_ENV=production
+      - ADMIN_USERNAME=${WEB_USERNAME:-admin}
+      - ADMIN_PASSWORD=${WEB_PASSWORD}
+      - SESSION_SECRET=${SESSION_SECRET}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - WEB_USERNAME=${WEB_USERNAME}
-      - WEB_PASSWORD=${WEB_PASSWORD}
-      - PLEX_URL=${TAILSCALE_LOCAL_HOST}:32400
+      - DATABASE_URL=postgresql://jarvis:${JARVIS_DB_PASSWORD}@homelab-postgres:5432/homelab_jarvis
+      - REDIS_URL=redis://redis:6379/0
+      - DISCORD_BOT_URL=http://discord-bot:4000
+      - SERVICE_AUTH_TOKEN=${SERVICE_AUTH_TOKEN}
+      - PLEX_URL=http://${TAILSCALE_LOCAL_HOST}:32400
       - PLEX_TOKEN=${PLEX_TOKEN}
       - HOME_ASSISTANT_URL=http://${TAILSCALE_LOCAL_HOST}:8123
       - HOME_ASSISTANT_TOKEN=${HOME_ASSISTANT_TOKEN}
       - TAILSCALE_LOCAL_HOST=${TAILSCALE_LOCAL_HOST}
       - TAILSCALE_LINODE_HOST=${TAILSCALE_LINODE_HOST}
-      - FLEET_SSH_KEY_PATH=/root/.ssh/id_rsa
-      - FLEET_LOCAL_SSH_USER=evin
-      - FLEET_LINODE_SSH_USER=root
-      - FLEET_SSH_TIMEOUT=30
-      - FLEET_COMMAND_TIMEOUT=120
-      - HOMELAB_PROJECT_ROOT=/app
-      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
-      - DISCORD_BOT_URL=http://discord-bot:4000
-      - HOMELABHUB_API_KEY=${SERVICE_AUTH_TOKEN}
-      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://100.110.227.25:11434}
-      - SESSION_SECRET=${SESSION_SECRET:-NebulaCommandDash2024SecureSessionKey}
-      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
-      - MINIO_ENDPOINT=${MINIO_ENDPOINT:-100.110.227.25:9000}
-      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-admin}
-      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
-      - MINIO_BUCKET_NAME=${MINIO_BUCKET_NAME:-homelab-uploads}
-      - MINIO_USE_SSL=${MINIO_USE_SSL:-false}
+      - LINODE_SSH_HOST=${TAILSCALE_LINODE_HOST}
+      - LINODE_SSH_USER=root
+      - HOME_SSH_HOST=${TAILSCALE_LOCAL_HOST}
+      - HOME_SSH_USER=evin
     volumes:
-      - ./services/dashboard/logs:/app/logs
       - /root/.ssh:/root/.ssh:ro
       - /var/run/docker.sock:/var/run/docker.sock
       - studio_projects:/opt/homelab/studio-projects
-
-  homelab-celery-worker:
-    build:
-      context: ../../services/dashboard
-      dockerfile: Dockerfile
-    container_name: homelab-celery-worker
-    restart: unless-stopped
-    env_file:
-      - .env
-    command: celery -A celery_app.celery_app worker --loglevel=info --concurrency=4
-    networks:
-      - homelab
-    depends_on:
-      redis:
-        condition: service_healthy
-      homelab-postgres:
-        condition: service_healthy
-    environment:
-      - RUN_MIGRATIONS=false
-      - DOCKER_CONTAINER=true
-      - REDIS_URL=redis://redis:6379/0
-      - JARVIS_DATABASE_URL=postgresql://jarvis:${JARVIS_DB_PASSWORD}@homelab-postgres:5432/homelab_jarvis
-      - PYTHONUNBUFFERED=1
-      - AI_PROVIDER=openai
-      - AI_MODEL=gpt-4o
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - WEB_USERNAME=${WEB_USERNAME}
-      - WEB_PASSWORD=${WEB_PASSWORD}
-      - PLEX_URL=${TAILSCALE_LOCAL_HOST}:32400
-      - PLEX_TOKEN=${PLEX_TOKEN}
     healthcheck:
-      test: ["CMD-SHELL", "celery -A celery_app.celery_app inspect ping -d celery@$$HOSTNAME || exit 1"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:5000/api/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 60s
-    volumes:
-      - ./services/dashboard/logs:/app/logs
 
-  homelab-celery-beat:
-    build:
-      context: ../../services/dashboard
-      dockerfile: Dockerfile
-    container_name: homelab-celery-beat
-    restart: unless-stopped
-    env_file:
-      - .env
-    command: celery -A celery_app.celery_app beat --loglevel=info
-    networks:
-      - homelab
-    depends_on:
-      redis:
-        condition: service_healthy
-      homelab-postgres:
-        condition: service_healthy
-    environment:
-      - RUN_MIGRATIONS=false
-      - DOCKER_CONTAINER=true
-      - REDIS_URL=redis://redis:6379/0
-      - JARVIS_DATABASE_URL=postgresql://jarvis:${JARVIS_DB_PASSWORD}@homelab-postgres:5432/homelab_jarvis
-      - PYTHONUNBUFFERED=1
-      - AI_PROVIDER=openai
-      - AI_MODEL=gpt-4o
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - WEB_USERNAME=${WEB_USERNAME}
-      - WEB_PASSWORD=${WEB_PASSWORD}
-      - PLEX_URL=${TAILSCALE_LOCAL_HOST}:32400
-      - PLEX_TOKEN=${PLEX_TOKEN}
-    volumes:
-      - ./services/dashboard/logs:/app/logs
-    healthcheck:
-      test: ["CMD-SHELL", "celery -A celery_app.celery_app inspect ping -d celery@$$HOSTNAME 2>/dev/null || test -f /app/celerybeat-schedule || exit 0"]
-      interval: 60s
-      timeout: 15s
-      retries: 3
-      start_period: 60s
+  # NOTE: Celery workers removed - Flask dashboard replaced with Next.js
+  # If you need background job processing, consider using node-cron or Bull queue
+  # The old Flask Celery configuration is preserved in git history if needed
 
   discord-bot:
     build:

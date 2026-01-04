@@ -256,7 +256,7 @@ services:
 
   dashboard:
     build:
-      context: ../../services/dashboard
+      context: ../../services/dashboard-next
       dockerfile: Dockerfile
     container_name: homelab-dashboard
     restart: unless-stopped
@@ -268,32 +268,26 @@ services:
       dashboard-redis:
         condition: service_healthy
     environment:
-      - FLASK_ENV=production
-      # Auto-configured database (no manual setup required!)
-      - JARVIS_DATABASE_URL=postgresql://dashboard:dashboard_secure_2024@dashboard-db:5432/homelab_dashboard
+      - NODE_ENV=production
+      - ADMIN_USERNAME=${WEB_USERNAME:-evin}
+      - ADMIN_PASSWORD=${WEB_PASSWORD:-nebula2024}
+      - SESSION_SECRET=${SESSION_SECRET:-NebulaCommandLocalDash2024SecureKey32chars}
       - DATABASE_URL=postgresql://dashboard:dashboard_secure_2024@dashboard-db:5432/homelab_dashboard
       - REDIS_URL=redis://dashboard-redis:6379/0
-      # Optional user settings (can override via .env)
-      - WEB_USERNAME=${WEB_USERNAME:-evin}
-      - WEB_PASSWORD=${WEB_PASSWORD:-nebula2024}
-      - DASHBOARD_API_KEY=${DASHBOARD_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
       - TZ=${TZ:-America/New_York}
-      # Fleet Manager SSH settings
-      - TAILSCALE_LOCAL_HOST=${TAILSCALE_LOCAL_HOST:-192.168.0.177}
-      - TAILSCALE_LINODE_HOST=${TAILSCALE_LINODE_HOST:-}
-      - SSH_USER=${SSH_USER:-evin}
-      - SSH_KEY_PATH=/app/ssh/id_rsa
-      # NAS settings
-      - NAS_IP=${NAS_IP:-192.168.0.176}
+      - HOME_SSH_HOST=${TAILSCALE_LOCAL_HOST:-192.168.0.177}
+      - HOME_SSH_USER=${SSH_USER:-evin}
+      - LINODE_SSH_HOST=${TAILSCALE_LINODE_HOST:-}
+      - LINODE_SSH_USER=root
     volumes:
-      - ~/.ssh:/app/ssh:ro
+      - ~/.ssh:/root/.ssh:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
     ports:
       - "5000:5000"
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:5000/health || exit 1"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:5000/api/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
