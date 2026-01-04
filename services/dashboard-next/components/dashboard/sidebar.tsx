@@ -14,6 +14,7 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  Palette,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,7 @@ const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/services", label: "Services", icon: Server },
   { href: "/websites", label: "Websites", icon: Globe },
+  { href: "/designer", label: "Designer", icon: Palette },
   { href: "/editor", label: "Code Editor", icon: Code2 },
   { href: "/deploy", label: "Deploy", icon: Rocket },
   { href: "/servers", label: "Servers", icon: HardDrive },
