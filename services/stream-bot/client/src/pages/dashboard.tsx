@@ -544,27 +544,29 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* Coming Soon Preview */}
+      {/* Quick Links to Features */}
       <Card className="candy-glass-card">
         <CardHeader className="p-4 sm:p-6">
           <CardTitle className="text-base sm:text-lg flex items-center gap-2">
-            <Clock className="h-5 w-5 text-candy-purple" />
-            Coming Soon
+            <Sparkles className="h-5 w-5 text-candy-purple" />
+            Quick Access
           </CardTitle>
-          <CardDescription>Features we're working on</CardDescription>
+          <CardDescription>Explore all StreamBot features</CardDescription>
         </CardHeader>
         <CardContent className="p-4 sm:p-6 pt-0">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
-              { name: "Commands", desc: "Custom chat commands" },
-              { name: "Giveaways", desc: "Run viewer giveaways" },
-              { name: "Currency", desc: "Points system" },
-              { name: "Analytics", desc: "Stream insights" },
+              { name: "Commands", desc: "Custom chat commands", href: "/commands" },
+              { name: "Giveaways", desc: "Run viewer giveaways", href: "/giveaways" },
+              { name: "Currency", desc: "Points system", href: "/currency" },
+              { name: "Analytics", desc: "Stream insights", href: "/analytics" },
             ].map((feature) => (
-              <div key={feature.name} className="p-3 rounded-lg bg-muted/50 text-center">
-                <p className="font-medium text-sm">{feature.name}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{feature.desc}</p>
-              </div>
+              <Link key={feature.name} href={feature.href}>
+                <div className="p-3 rounded-lg bg-muted/50 text-center hover:bg-muted transition-colors cursor-pointer">
+                  <p className="font-medium text-sm">{feature.name}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{feature.desc}</p>
+                </div>
+              </Link>
             ))}
           </div>
         </CardContent>

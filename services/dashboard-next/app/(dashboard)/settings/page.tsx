@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,37 +9,77 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
 import {
-  Settings,
   User,
-  Shield,
   Bell,
   Palette,
   Server,
-  Key,
   Save,
   Loader2,
   RefreshCw,
   CheckCircle,
   AlertCircle,
-  ExternalLink,
 } from "lucide-react";
 
-interface ServerConfig {
+interface UserSettings {
+  profile: {
+    displayName: string;
+    email: string;
+    timezone: string;
+  };
+  appearance: {
+    darkMode: boolean;
+    compactMode: boolean;
+    sidebarCollapsed: boolean;
+  };
+  notifications: {
+    deploymentAlerts: boolean;
+    serverHealthAlerts: boolean;
+    discordNotifications: boolean;
+    emailNotifications: boolean;
+  };
+  servers: Array<{
+    id: string;
+    name: string;
+    host: string;
+    user: string;
+  }>;
+}
+
+interface ServerStatus {
   id: string;
-  name: string;
-  host: string;
-  user: string;
   status: "connected" | "disconnected" | "unknown";
 }
 
 export default function SettingsPage() {
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [servers, setServers] = useState<ServerConfig[]>([
-    { id: "linode", name: "Linode Server", host: "linode.evindrake.net", user: "root", status: "unknown" },
-    { id: "home", name: "Home Server", host: "host.evindrake.net", user: "evin", status: "unknown" },
-  ]);
+  const [settings, setSettings] = useState<UserSettings | null>(null);
+  const [serverStatuses, setServerStatuses] = useState<Record<string, ServerStatus["status"]>>({});
   const [testingServer, setTestingServer] = useState<string | null>(null);
   const { toast } = useToast();
+
+  const fetchSettings = useCallback(async () => {
+    try {
+      const res = await fetch("/api/settings");
+      if (res.ok) {
+        const data = await res.json();
+        setSettings(data);
+        const statuses: Record<string, ServerStatus["status"]> = {};
+        data.servers?.forEach((s: any) => {
+          statuses[s.id] = "unknown";
+        });
+        setServerStatuses(statuses);
+      }
+    } catch (error) {
+      console.error("Failed to fetch settings:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSettings();
+  }, [fetchSettings]);
 
   const testConnection = async (serverId: string) => {
     setTestingServer(serverId);
@@ -48,25 +88,18 @@ export default function SettingsPage() {
       if (res.ok) {
         const data = await res.json();
         const serverData = data.servers?.find((s: any) => s.id === serverId);
-        setServers((prev) =>
-          prev.map((s) =>
-            s.id === serverId
-              ? { ...s, status: serverData?.status === "online" ? "connected" : "disconnected" }
-              : s
-          )
-        );
+        const newStatus = serverData?.status === "online" ? "connected" : "disconnected";
+        setServerStatuses((prev) => ({ ...prev, [serverId]: newStatus }));
         toast({
-          title: serverData?.status === "online" ? "Connected" : "Disconnected",
-          description: serverData?.status === "online" 
-            ? `Successfully connected to ${serverId}` 
+          title: newStatus === "connected" ? "Connected" : "Disconnected",
+          description: newStatus === "connected"
+            ? `Successfully connected to ${serverId}`
             : `Could not connect to ${serverId}`,
-          variant: serverData?.status === "online" ? "default" : "destructive",
+          variant: newStatus === "connected" ? "default" : "destructive",
         });
       }
     } catch (error) {
-      setServers((prev) =>
-        prev.map((s) => (s.id === serverId ? { ...s, status: "disconnected" } : s))
-      );
+      setServerStatuses((prev) => ({ ...prev, [serverId]: "disconnected" }));
       toast({ title: "Error", description: "Connection test failed", variant: "destructive" });
     } finally {
       setTestingServer(null);
@@ -74,11 +107,57 @@ export default function SettingsPage() {
   };
 
   const handleSave = async () => {
+    if (!settings) return;
     setSaving(true);
-    await new Promise((r) => setTimeout(r, 500));
-    toast({ title: "Saved", description: "Settings saved successfully" });
-    setSaving(false);
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(settings),
+      });
+      if (res.ok) {
+        toast({ title: "Saved", description: "Settings saved successfully" });
+      } else {
+        throw new Error("Failed to save");
+      }
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to save settings", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
   };
+
+  const updateProfile = (field: keyof UserSettings["profile"], value: string) => {
+    if (!settings) return;
+    setSettings({ ...settings, profile: { ...settings.profile, [field]: value } });
+  };
+
+  const updateAppearance = (field: keyof UserSettings["appearance"], value: boolean) => {
+    if (!settings) return;
+    setSettings({ ...settings, appearance: { ...settings.appearance, [field]: value } });
+  };
+
+  const updateNotifications = (field: keyof UserSettings["notifications"], value: boolean) => {
+    if (!settings) return;
+    setSettings({ ...settings, notifications: { ...settings.notifications, [field]: value } });
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!settings) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-muted-foreground">Failed to load settings</p>
+        <Button onClick={fetchSettings} className="mt-4">Retry</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -110,21 +189,21 @@ export default function SettingsPage() {
               <CardDescription>Configure SSH connections to your homelab servers</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {servers.map((server) => (
+              {settings.servers.map((server) => (
                 <div key={server.id} className="flex items-center justify-between p-4 border rounded-lg">
                   <div className="flex items-center gap-4">
                     <div
                       className={`p-2 rounded-full ${
-                        server.status === "connected"
+                        serverStatuses[server.id] === "connected"
                           ? "bg-green-500/10 text-green-500"
-                          : server.status === "disconnected"
+                          : serverStatuses[server.id] === "disconnected"
                           ? "bg-red-500/10 text-red-500"
                           : "bg-muted text-muted-foreground"
                       }`}
                     >
-                      {server.status === "connected" ? (
+                      {serverStatuses[server.id] === "connected" ? (
                         <CheckCircle className="h-5 w-5" />
-                      ) : server.status === "disconnected" ? (
+                      ) : serverStatuses[server.id] === "disconnected" ? (
                         <AlertCircle className="h-5 w-5" />
                       ) : (
                         <Server className="h-5 w-5" />
@@ -204,39 +283,26 @@ export default function SettingsPage() {
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Display Name</Label>
-                  <Input defaultValue="Evin" />
+                  <Input
+                    value={settings.profile.displayName}
+                    onChange={(e) => updateProfile("displayName", e.target.value)}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Email</Label>
-                  <Input defaultValue="evin@evindrake.net" type="email" />
+                  <Input
+                    type="email"
+                    value={settings.profile.email}
+                    onChange={(e) => updateProfile("email", e.target.value)}
+                  />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label>Timezone</Label>
-                <Input defaultValue="America/New_York" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Security</CardTitle>
-              <CardDescription>Manage authentication settings</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Current Password</Label>
-                <Input type="password" placeholder="Enter current password" />
-              </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>New Password</Label>
-                  <Input type="password" placeholder="Enter new password" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Confirm Password</Label>
-                  <Input type="password" placeholder="Confirm new password" />
-                </div>
+                <Input
+                  value={settings.profile.timezone}
+                  onChange={(e) => updateProfile("timezone", e.target.value)}
+                />
               </div>
             </CardContent>
           </Card>
@@ -254,21 +320,30 @@ export default function SettingsPage() {
                   <p className="font-medium">Dark Mode</p>
                   <p className="text-sm text-muted-foreground">Use dark theme across the dashboard</p>
                 </div>
-                <Switch defaultChecked />
+                <Switch
+                  checked={settings.appearance.darkMode}
+                  onCheckedChange={(v) => updateAppearance("darkMode", v)}
+                />
               </div>
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-medium">Compact Mode</p>
                   <p className="text-sm text-muted-foreground">Reduce spacing for more content</p>
                 </div>
-                <Switch />
+                <Switch
+                  checked={settings.appearance.compactMode}
+                  onCheckedChange={(v) => updateAppearance("compactMode", v)}
+                />
               </div>
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-medium">Sidebar Collapsed by Default</p>
                   <p className="text-sm text-muted-foreground">Start with minimized sidebar</p>
                 </div>
-                <Switch />
+                <Switch
+                  checked={settings.appearance.sidebarCollapsed}
+                  onCheckedChange={(v) => updateAppearance("sidebarCollapsed", v)}
+                />
               </div>
             </CardContent>
           </Card>
@@ -286,28 +361,40 @@ export default function SettingsPage() {
                   <p className="font-medium">Deployment Alerts</p>
                   <p className="text-sm text-muted-foreground">Get notified when deployments complete or fail</p>
                 </div>
-                <Switch defaultChecked />
+                <Switch
+                  checked={settings.notifications.deploymentAlerts}
+                  onCheckedChange={(v) => updateNotifications("deploymentAlerts", v)}
+                />
               </div>
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-medium">Server Health Alerts</p>
                   <p className="text-sm text-muted-foreground">Alerts when CPU/RAM exceed thresholds</p>
                 </div>
-                <Switch defaultChecked />
+                <Switch
+                  checked={settings.notifications.serverHealthAlerts}
+                  onCheckedChange={(v) => updateNotifications("serverHealthAlerts", v)}
+                />
               </div>
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-medium">Discord Notifications</p>
                   <p className="text-sm text-muted-foreground">Send alerts to Discord channel</p>
                 </div>
-                <Switch defaultChecked />
+                <Switch
+                  checked={settings.notifications.discordNotifications}
+                  onCheckedChange={(v) => updateNotifications("discordNotifications", v)}
+                />
               </div>
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-medium">Email Notifications</p>
                   <p className="text-sm text-muted-foreground">Send important alerts via email</p>
                 </div>
-                <Switch />
+                <Switch
+                  checked={settings.notifications.emailNotifications}
+                  onCheckedChange={(v) => updateNotifications("emailNotifications", v)}
+                />
               </div>
             </CardContent>
           </Card>
