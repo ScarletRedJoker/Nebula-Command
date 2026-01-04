@@ -74,7 +74,9 @@ export default function Trigger() {
     },
   });
 
-  const connectedPlatforms = platforms?.filter((p) => p.isConnected) || [];
+  // Filter out Spotify - it doesn't support chat/message posting
+  const POSTABLE_PLATFORMS = ['twitch', 'youtube', 'kick'];
+  const connectedPlatforms = platforms?.filter((p) => p.isConnected && POSTABLE_PLATFORMS.includes(p.platform)) || [];
 
   const togglePlatform = (platform: string) => {
     setSelectedPlatforms((prev) =>
