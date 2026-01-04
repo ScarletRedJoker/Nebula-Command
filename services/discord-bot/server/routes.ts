@@ -3148,6 +3148,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // GET /api/servers/:serverId/channels - List all text channels for a specific server
+  app.get('/api/servers/:serverId/channels', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const serverId = req.params.serverId;
+      
+      // Check if user has access to this server
+      const hasAccess = await userHasServerAccess(user, serverId);
+      if (!hasAccess) {
+        return res.status(403).json({ message: 'Access denied to this server' });
+      }
+      
+      // Fetch channels for this server using existing function
+      const channels = await fetchGuildChannels(serverId);
+      res.json(channels || []);
+    } catch (error) {
+      console.error('Error fetching server channels:', error);
+      res.status(500).json({ message: 'Failed to fetch server channels' });
+    }
+  });
+
   // GET /api/servers/:serverId/role-permissions - List all role permissions for server
   app.get('/api/servers/:serverId/role-permissions', isAuthenticated, async (req: Request, res: Response) => {
     try {
