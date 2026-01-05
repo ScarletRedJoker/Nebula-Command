@@ -91,6 +91,19 @@ export default function LoginPage() {
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Signing in..." : "Sign In"}
             </Button>
+
+            {process.env.NODE_ENV !== "production" && (
+              <div className="pt-4 border-t border-border mt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => window.location.href = "/api/auth/dev-login"}
+                >
+                  Dev Login (Development Only)
+                </Button>
+              </div>
+            )}
           </form>
         </CardContent>
       </Card>
