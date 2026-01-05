@@ -174,6 +174,36 @@ The Discord bot token was accidentally exposed when the GitHub repository was br
 - **Tailscale**: Secure network access
 - **Caddy**: Reverse proxy
 
+## Testing Infrastructure
+
+### Test Commands
+**Stream Bot (41 tests):**
+```bash
+cd services/stream-bot
+npm run test:overlay  # 18 overlay API tests
+npm run test:oauth    # 20 OAuth flow tests
+npm run test -- tests/e2e-overlay-flow.test.ts  # 3 E2E tests
+```
+
+**Discord Bot (15 tests):**
+```bash
+cd services/discord-bot
+npm run test:api  # 15 API route tests
+```
+
+### Pre-commit Hooks
+Run `./scripts/setup-git-hooks.sh` to install git hooks that run all 56 tests before each commit.
+To skip tests: `git commit --no-verify`
+
+### CI/CD
+GitHub Actions workflow at `.github/workflows/test.yml` runs on push/PR to main branch.
+
+### Test Coverage
+- **Overlay API**: Token generation, OBS compatibility, URL format validation, data endpoints
+- **OAuth Flows**: Spotify, Twitch, YouTube, Kick redirect URLs and callback handling
+- **E2E**: Complete Spotify overlay workflow (connect → generate token → access overlay)
+- **Discord Bot**: Health, bot settings, server settings, tickets, stream notifications
+
 ## Development Notes
 - Dashboard runs on port 5000
 - Discord Bot runs on port 4000
