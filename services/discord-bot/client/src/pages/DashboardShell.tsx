@@ -121,12 +121,23 @@ export default function DashboardShell() {
   };
 
   const handleNavigateToTab = (tab: string) => {
-    if (tab === 'settings') {
+    // Map feature tabs to actual dashboard tab values
+    const tabMapping: Record<string, string> = {
+      'settings': 'settings', // Opens settings panel
+      'streams': 'stream-notifications',
+      'panels': 'panels',
+      'welcome-cards': 'welcome-cards',
+      'economy': 'economy',
+      'commands': 'commands',
+      'analytics': 'analytics',
+    };
+
+    const mappedTab = tabMapping[tab] || tab;
+
+    if (mappedTab === 'settings') {
       setSettingsOpen(true);
-    } else if (tab === 'streams') {
-      setActiveTab('stream-notifications');
     } else {
-      setActiveTab(tab);
+      setActiveTab(mappedTab);
     }
   };
 

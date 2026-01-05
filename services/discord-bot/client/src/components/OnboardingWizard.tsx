@@ -32,7 +32,8 @@ import {
   PartyPopper,
   Rocket,
   Check,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 
 interface OnboardingWizardProps {
@@ -172,6 +173,13 @@ export default function OnboardingWizard({ serverId, serverName, onComplete, onS
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/servers/${serverId}/onboarding`] });
     },
+    onError: (error: any) => {
+      toast({ 
+        title: 'Step could not be saved', 
+        description: error.message || 'There was a problem saving your progress. Please try again.',
+        variant: 'destructive' 
+      });
+    },
   });
 
   const skipMutation = useMutation({
@@ -181,6 +189,13 @@ export default function OnboardingWizard({ serverId, serverName, onComplete, onS
     onSuccess: () => {
       toast({ title: 'Onboarding skipped', description: 'You can always set up these features later in Settings.' });
       onSkip();
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: 'Could not skip setup', 
+        description: error.message || 'There was a problem. Please try again.',
+        variant: 'destructive' 
+      });
     },
   });
 
@@ -193,6 +208,13 @@ export default function OnboardingWizard({ serverId, serverName, onComplete, onS
       queryClient.invalidateQueries({ queryKey: [`/api/servers/${serverId}/settings`] });
       setCurrentStepIndex(STEPS.length - 1);
     },
+    onError: (error: any) => {
+      toast({ 
+        title: 'Template could not be applied', 
+        description: error.message || 'Failed to apply template. Please try again or configure settings manually.',
+        variant: 'destructive' 
+      });
+    },
   });
 
   const updateSettingsMutation = useMutation({
@@ -201,6 +223,13 @@ export default function OnboardingWizard({ serverId, serverName, onComplete, onS
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/servers/${serverId}/settings`] });
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: 'Settings could not be saved', 
+        description: error.message || 'There was a problem saving your settings. Please try again.',
+        variant: 'destructive' 
+      });
     },
   });
 
@@ -212,6 +241,13 @@ export default function OnboardingWizard({ serverId, serverName, onComplete, onS
       toast({ title: 'Setup Complete!', description: 'Your bot is ready to go. Enjoy!' });
       onComplete();
     },
+    onError: (error: any) => {
+      toast({ 
+        title: 'Could not complete setup', 
+        description: error.message || 'There was a problem completing setup. You can still use the bot!',
+        variant: 'destructive' 
+      });
+    },
   });
 
   const currentStep = STEPS[currentStepIndex];
@@ -219,30 +255,35 @@ export default function OnboardingWizard({ serverId, serverName, onComplete, onS
   const textChannels = channels?.filter(c => c.type === 0) || [];
 
   const handleNext = async () => {
-    if (currentStep.id === 'welcome_channel') {
-      if (selectedFeatures.includes('welcome')) {
+    try {
+      if (currentStep.id === 'welcome_channel') {
+        if (selectedFeatures.includes('welcome')) {
+          await updateSettingsMutation.mutateAsync({
+            welcomeEnabled: true,
+            welcomeChannelId: welcomeChannel || undefined,
+            welcomeMessageTemplate: welcomeMessage,
+          });
+        }
+      }
+
+      if (currentStep.id === 'moderation') {
         await updateSettingsMutation.mutateAsync({
-          welcomeEnabled: true,
-          welcomeChannelId: welcomeChannel || undefined,
-          welcomeMessageTemplate: welcomeMessage,
+          autoModEnabled,
+          loggingChannelId: logChannel || undefined,
         });
       }
-    }
 
-    if (currentStep.id === 'moderation') {
-      await updateSettingsMutation.mutateAsync({
-        autoModEnabled,
-        loggingChannelId: logChannel || undefined,
+      await completeStepMutation.mutateAsync({ 
+        step: currentStep.id,
+        stepData: JSON.stringify({ selectedFeatures, welcomeChannel, welcomeMessage, logChannel, autoModEnabled })
       });
-    }
 
-    await completeStepMutation.mutateAsync({ 
-      step: currentStep.id,
-      stepData: JSON.stringify({ selectedFeatures, welcomeChannel, welcomeMessage, logChannel, autoModEnabled })
-    });
-
-    if (currentStepIndex < STEPS.length - 1) {
-      setCurrentStepIndex(prev => prev + 1);
+      if (currentStepIndex < STEPS.length - 1) {
+        setCurrentStepIndex(prev => prev + 1);
+      }
+    } catch (error) {
+      // Error handling is done in the mutation onError callbacks
+      console.error('Error during wizard step:', error);
     }
   };
 
@@ -291,10 +332,15 @@ export default function OnboardingWizard({ serverId, serverName, onComplete, onS
                 variant="ghost"
                 size="sm"
                 onClick={() => skipMutation.mutate()}
+                disabled={skipMutation.isPending}
                 className="text-discord-muted hover:text-white"
               >
-                <X className="h-4 w-4 mr-1" />
-                Skip
+                {skipMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <X className="h-4 w-4 mr-1" />
+                )}
+                {skipMutation.isPending ? 'Skipping...' : 'Skip'}
               </Button>
             </div>
           </div>
@@ -661,8 +707,17 @@ export default function OnboardingWizard({ serverId, serverName, onComplete, onS
                     disabled={completeMutation.isPending}
                     className="w-full bg-discord-blue hover:bg-blue-600 text-white py-6 text-lg"
                   >
-                    {completeMutation.isPending ? 'Finishing...' : 'Start Using Your Bot'}
-                    <ArrowRight className="h-5 w-5 ml-2" />
+                    {completeMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                        Finishing...
+                      </>
+                    ) : (
+                      <>
+                        Start Using Your Bot
+                        <ArrowRight className="h-5 w-5 ml-2" />
+                      </>
+                    )}
                   </Button>
                 </CardContent>
               </Card>
@@ -688,8 +743,17 @@ export default function OnboardingWizard({ serverId, serverName, onComplete, onS
                 disabled={completeStepMutation.isPending || updateSettingsMutation.isPending}
                 className="bg-discord-blue hover:bg-blue-600 text-white"
               >
-                {completeStepMutation.isPending ? 'Saving...' : 'Continue'}
-                <ArrowRight className="h-4 w-4 ml-2" />
+                {completeStepMutation.isPending || updateSettingsMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    Continue
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </>
+                )}
               </Button>
             </div>
           </div>

@@ -1,4 +1,4 @@
-import { Home, Settings, Zap, Layers, Radio, Lightbulb, Video, Clock, MessageSquare, Trophy, Coins, Gamepad2, Vote, Music, Bell, Shield, BarChart3, Sparkles, Bot, Film, Megaphone, Wand2, Calendar } from "lucide-react";
+import { Home, Settings, Zap, Layers, Radio, Lightbulb, Video, Clock, MessageSquare, Trophy, Coins, Gamepad2, Vote, Music, Bell, Shield, BarChart3, Sparkles, Bot, Film, Megaphone, Wand2, Calendar, Pencil } from "lucide-react";
 import { SiTwitch, SiYoutube, SiKick } from "react-icons/si";
 import {
   Sidebar,
@@ -68,6 +68,13 @@ const coreItems = [
     url: "/restream",
     icon: Radio,
     description: "Multi-platform streaming",
+  },
+  {
+    title: "Stream Info",
+    url: "/stream-info",
+    icon: Pencil,
+    badge: "New",
+    description: "Edit stream info across platforms",
   },
   {
     title: "Schedule",

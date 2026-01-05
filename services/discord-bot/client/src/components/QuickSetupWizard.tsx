@@ -117,9 +117,16 @@ export default function QuickSetupWizard({
 
   const applySetupMutation = useMutation({
     mutationFn: async () => {
+      // Filter out 'none' values from channels before sending to API
+      const filteredChannels = {
+        welcomeChannelId: channels.welcomeChannelId && channels.welcomeChannelId !== 'none' ? channels.welcomeChannelId : undefined,
+        logChannelId: channels.logChannelId && channels.logChannelId !== 'none' ? channels.logChannelId : undefined,
+        generalChannelId: channels.generalChannelId && channels.generalChannelId !== 'none' ? channels.generalChannelId : undefined,
+        starboardChannelId: channels.starboardChannelId && channels.starboardChannelId !== 'none' ? channels.starboardChannelId : undefined,
+      };
       return apiRequest('POST', `/api/servers/${serverId}/quick-setup`, {
         template: selectedTemplate,
-        channels,
+        channels: filteredChannels,
       });
     },
     onSuccess: (data: any) => {

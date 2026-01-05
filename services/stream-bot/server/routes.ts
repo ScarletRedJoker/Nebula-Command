@@ -59,6 +59,7 @@ import presenceRoutes from "./presence-routes";
 import { announcementScheduler, ANNOUNCEMENT_TEMPLATES } from "./announcement-scheduler";
 import { eventsService } from "./events-service";
 import { notificationsService } from "./notifications-service";
+import { streamInfoService } from "./stream-info-service";
 
 function broadcastStreamAlert(userId: string, data: any): void {
   botManager.broadcastStreamAlert(userId, data);
@@ -849,6 +850,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid settings data", details: error.errors });
       }
       res.status(500).json({ error: "Failed to update settings", message: error.message });
+    }
+  });
+
+  // Stream Info - Unified stream info editor
+  app.get("/api/stream-info", requireAuth, async (req, res) => {
+    try {
+      const streamInfo = await streamInfoService.getAllStreamInfo(req.user!.id);
+      res.json(streamInfo);
+    } catch (error: any) {
+      console.error('[StreamInfo] GET error:', error.message);
+      res.status(500).json({ error: "Failed to fetch stream info" });
+    }
+  });
+
+  app.put("/api/stream-info", requireAuth, async (req, res) => {
+    try {
+      const { title, gameId, game, tags, description, platforms } = req.body;
+      
+      if (!platforms || !Array.isArray(platforms) || platforms.length === 0) {
+        return res.status(400).json({ error: "At least one platform must be selected" });
+      }
+
+      const results = await streamInfoService.updateStreamInfo(
+        req.user!.id,
+        { title, gameId, game, tags, description },
+        platforms
+      );
+
+      res.json({ results });
+    } catch (error: any) {
+      console.error('[StreamInfo] PUT error:', error.message);
+      res.status(500).json({ error: "Failed to update stream info" });
+    }
+  });
+
+  app.get("/api/stream-info/games", requireAuth, async (req, res) => {
+    try {
+      const query = req.query.q as string;
+      if (!query || query.length < 2) {
+        return res.json([]);
+      }
+
+      const games = await streamInfoService.searchTwitchGames(req.user!.id, query);
+      res.json(games);
+    } catch (error: any) {
+      console.error('[StreamInfo] Games search error:', error.message);
+      res.status(500).json({ error: "Failed to search games" });
     }
   });
 

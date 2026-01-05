@@ -43,6 +43,7 @@ import OverlayEditor from "@/pages/overlay-editor";
 import Restream from "@/pages/restream";
 import Schedule from "@/pages/schedule";
 import Notifications from "@/pages/notifications";
+import StreamInfo from "@/pages/stream-info";
 import NotFound from "@/pages/not-found";
 import SpotifyOverlay from "@/pages/spotify-overlay";
 import YouTubeOverlay from "@/pages/youtube-overlay";
@@ -127,6 +128,7 @@ function ProtectedRouter() {
               <Route path="/restream" component={Restream} />
               <Route path="/schedule" component={Schedule} />
               <Route path="/notifications" component={Notifications} />
+              <Route path="/stream-info" component={StreamInfo} />
               <Route path="/settings" component={Settings} />
               <Route path="/profile" component={Profile} />
               <Route component={NotFound} />
