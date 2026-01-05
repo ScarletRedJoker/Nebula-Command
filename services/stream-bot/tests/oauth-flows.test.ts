@@ -26,17 +26,30 @@ describe('OAuth Flow Integration Tests', () => {
   });
 
   describe('Spotify OAuth', () => {
-    it('GET /auth/spotify should redirect to Spotify authorization', async () => {
+    it('GET /auth/spotify should redirect to Spotify authorization with correct params', async () => {
       const response = await request(app)
         .get('/auth/spotify')
         .set('Cookie', [`user=${testUserId}`])
         .redirects(0);
 
       expect(response.status).toBe(302);
-      expect(response.headers.location).toContain('accounts.spotify.com');
-      expect(response.headers.location).toContain('client_id=');
-      expect(response.headers.location).toContain('redirect_uri=');
-      expect(response.headers.location).toContain('scope=');
+      const location = response.headers.location;
+      expect(location).toContain('accounts.spotify.com');
+      
+      const url = new URL(location);
+      expect(url.searchParams.has('client_id')).toBe(true);
+      expect(url.searchParams.get('client_id')).toBeTruthy();
+      expect(url.searchParams.get('client_id')!.length).toBeGreaterThan(10);
+      
+      expect(url.searchParams.has('redirect_uri')).toBe(true);
+      const redirectUri = url.searchParams.get('redirect_uri')!;
+      expect(redirectUri).toContain('/auth/spotify/callback');
+      
+      expect(url.searchParams.has('scope')).toBe(true);
+      const scope = url.searchParams.get('scope')!;
+      expect(scope).toContain('user-read-currently-playing');
+      
+      expect(url.searchParams.get('response_type')).toBe('code');
     });
 
     it('GET /auth/spotify/callback should handle missing code parameter', async () => {
@@ -56,7 +69,7 @@ describe('OAuth Flow Integration Tests', () => {
   });
 
   describe('Twitch OAuth', () => {
-    it('GET /auth/twitch should redirect to Twitch authorization', async () => {
+    it('GET /auth/twitch should redirect to Twitch authorization with correct params', async () => {
       const response = await request(app)
         .get('/auth/twitch')
         .set('Cookie', [`user=${testUserId}`])
@@ -64,7 +77,21 @@ describe('OAuth Flow Integration Tests', () => {
 
       expect([302, 301, 307, 308]).toContain(response.status);
       if (response.headers.location) {
-        expect(response.headers.location).toContain('twitch.tv');
+        const location = response.headers.location;
+        expect(location).toContain('twitch.tv');
+        
+        const url = new URL(location);
+        expect(url.searchParams.has('client_id')).toBe(true);
+        expect(url.searchParams.get('client_id')!.length).toBeGreaterThan(10);
+        
+        expect(url.searchParams.has('redirect_uri')).toBe(true);
+        expect(url.searchParams.get('redirect_uri')).toContain('/auth/twitch/callback');
+        
+        expect(url.searchParams.get('response_type')).toBe('code');
+        
+        if (url.searchParams.has('scope')) {
+          expect(url.searchParams.get('scope')!.length).toBeGreaterThan(0);
+        }
       }
     });
 
@@ -77,7 +104,7 @@ describe('OAuth Flow Integration Tests', () => {
   });
 
   describe('YouTube OAuth', () => {
-    it('GET /auth/youtube should redirect to Google authorization', async () => {
+    it('GET /auth/youtube should redirect to Google authorization with correct params', async () => {
       const response = await request(app)
         .get('/auth/youtube')
         .set('Cookie', [`user=${testUserId}`])
@@ -85,19 +112,50 @@ describe('OAuth Flow Integration Tests', () => {
 
       expect([302, 301, 307, 308]).toContain(response.status);
       if (response.headers.location) {
-        expect(response.headers.location).toContain('google.com');
+        const location = response.headers.location;
+        expect(location).toContain('google.com');
+        
+        const url = new URL(location);
+        expect(url.searchParams.has('client_id')).toBe(true);
+        expect(url.searchParams.get('client_id')!.length).toBeGreaterThan(10);
+        
+        expect(url.searchParams.has('redirect_uri')).toBe(true);
+        expect(url.searchParams.get('redirect_uri')).toContain('/auth/youtube/callback');
+        
+        expect(url.searchParams.get('response_type')).toBe('code');
+        
+        if (url.searchParams.has('scope')) {
+          const scope = url.searchParams.get('scope')!;
+          expect(scope.length).toBeGreaterThan(0);
+        }
       }
     });
   });
 
   describe('Kick OAuth', () => {
-    it('GET /auth/kick should redirect to Kick authorization', async () => {
+    it('GET /auth/kick should redirect to Kick authorization with correct params', async () => {
       const response = await request(app)
         .get('/auth/kick')
         .set('Cookie', [`user=${testUserId}`])
         .redirects(0);
 
       expect([302, 301, 307, 308]).toContain(response.status);
+      if (response.headers.location) {
+        const location = response.headers.location;
+        
+        const url = new URL(location);
+        if (url.searchParams.has('client_id')) {
+          expect(url.searchParams.get('client_id')!.length).toBeGreaterThan(5);
+        }
+        
+        if (url.searchParams.has('redirect_uri')) {
+          expect(url.searchParams.get('redirect_uri')).toContain('/auth/kick/callback');
+        }
+        
+        if (url.searchParams.has('response_type')) {
+          expect(url.searchParams.get('response_type')).toBe('code');
+        }
+      }
     });
   });
 

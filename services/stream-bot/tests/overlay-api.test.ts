@@ -187,6 +187,20 @@ describe('Overlay API Integration Tests', () => {
       expect([200, 401, 404, 500]).toContain(dataResponse.status);
       if (dataResponse.status === 200) {
         expect(dataResponse.body).toBeDefined();
+        expect(typeof dataResponse.body).toBe('object');
+        
+        if (dataResponse.body.isPlaying !== undefined) {
+          expect(typeof dataResponse.body.isPlaying).toBe('boolean');
+        }
+        if (dataResponse.body.track) {
+          expect(dataResponse.body.track).toHaveProperty('name');
+          expect(dataResponse.body.track).toHaveProperty('artist');
+        }
+        if (dataResponse.body.error) {
+          expect(typeof dataResponse.body.error).toBe('string');
+        }
+        
+        expect(dataResponse.headers['content-type']).toMatch(/application\/json/);
       }
     });
   });

@@ -3,6 +3,8 @@ import session from "express-session";
 import cors from "cors";
 import passport from "../server/auth/passport-oauth-config";
 import MemoryStore from "memorystore";
+import { db } from "../server/db";
+import { sql } from "drizzle-orm";
 
 export async function createTestApp() {
   const app = express();
@@ -98,5 +100,41 @@ export function mockAuthMiddleware(userId: string) {
   return (req: Request, _res: Response, next: NextFunction) => {
     (req as any).user = { id: userId };
     next();
+  };
+}
+
+export async function withTransaction<T>(
+  callback: () => Promise<T>
+): Promise<T> {
+  await db.execute(sql`BEGIN`);
+  try {
+    const result = await callback();
+    await db.execute(sql`ROLLBACK`);
+    return result;
+  } catch (error) {
+    await db.execute(sql`ROLLBACK`);
+    throw error;
+  }
+}
+
+export async function beginTestTransaction(): Promise<void> {
+  await db.execute(sql`BEGIN`);
+}
+
+export async function rollbackTestTransaction(): Promise<void> {
+  await db.execute(sql`ROLLBACK`);
+}
+
+export function createTransactionWrapper() {
+  return {
+    begin: async () => {
+      await db.execute(sql`BEGIN`);
+    },
+    rollback: async () => {
+      await db.execute(sql`ROLLBACK`);
+    },
+    commit: async () => {
+      await db.execute(sql`COMMIT`);
+    }
   };
 }
