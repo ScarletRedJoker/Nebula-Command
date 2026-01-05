@@ -300,15 +300,45 @@ router.get('/spotify/obs', setOBSHeaders, async (req, res) => {
       border-radius: 2px;
     }
     .error {
-      padding: 20px;
-      background: rgba(255, 68, 68, 0.9);
+      padding: 16px 20px;
+      background: rgba(255, 68, 68, 0.95);
       border-radius: 8px;
       color: white;
+      max-width: 350px;
     }
+    .error h3 { font-size: 14px; margin-bottom: 6px; }
+    .error p { font-size: 12px; opacity: 0.9; }
+    .waiting {
+      padding: 16px 20px;
+      background: rgba(50, 50, 50, 0.9);
+      border-radius: 8px;
+      color: #888;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid #555;
+      border-top-color: #1DB954;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
   <div class="container">
+    <div id="error" class="error" style="display: none;">
+      <h3 id="errorTitle">Connection Error</h3>
+      <p id="errorMsg">Unable to fetch Spotify data</p>
+    </div>
+    <div id="waiting" class="waiting" style="display: none;">
+      <div class="spinner"></div>
+      <span>Waiting for music to play...</span>
+    </div>
     <div id="overlay" class="card hidden">
       <img id="albumArt" class="album-art" src="" alt="Album Art">
       <div class="info">
@@ -334,9 +364,39 @@ router.get('/spotify/obs', setOBSHeaders, async (req, res) => {
     const title = document.getElementById('title');
     const artist = document.getElementById('artist');
     const progress = document.getElementById('progress');
+    const errorDiv = document.getElementById('error');
+    const errorTitle = document.getElementById('errorTitle');
+    const errorMsg = document.getElementById('errorMsg');
+    const waitingDiv = document.getElementById('waiting');
     
     let lastIsPlaying = false;
     let lastTitle = '';
+    let errorCount = 0;
+    let hasEverPlayed = false;
+
+    function showError(title, msg) {
+      errorTitle.textContent = title;
+      errorMsg.textContent = msg;
+      errorDiv.style.display = 'block';
+      waitingDiv.style.display = 'none';
+      overlay.classList.remove('visible');
+      overlay.classList.add('hidden');
+    }
+
+    function hideError() {
+      errorDiv.style.display = 'none';
+      errorCount = 0;
+    }
+
+    function showWaiting() {
+      if (!hasEverPlayed) {
+        waitingDiv.style.display = 'flex';
+      }
+    }
+
+    function hideWaiting() {
+      waitingDiv.style.display = 'none';
+    }
 
     async function fetchNowPlaying() {
       try {
@@ -346,13 +406,22 @@ router.get('/spotify/obs', setOBSHeaders, async (req, res) => {
         });
         
         if (!response.ok) {
-          console.error('API error:', response.status);
+          const data = await response.json().catch(() => ({}));
+          errorCount++;
+          if (response.status === 401) {
+            showError('Token Expired', 'Get a new OBS URL from your dashboard');
+          } else if (errorCount > 3) {
+            showError('Connection Issue', data.error || 'Check your Spotify connection');
+          }
           return;
         }
         
+        hideError();
         const data = await response.json();
         
         if (data.isPlaying && data.title) {
+          hasEverPlayed = true;
+          hideWaiting();
           if (!lastIsPlaying || lastTitle !== data.title) {
             albumArt.src = data.albumImageUrl || '';
             title.textContent = data.title || '';
@@ -372,9 +441,13 @@ router.get('/spotify/obs', setOBSHeaders, async (req, res) => {
           overlay.classList.add('hidden');
           lastIsPlaying = false;
           lastTitle = '';
+          showWaiting();
         }
       } catch (error) {
-        console.error('Fetch error:', error);
+        errorCount++;
+        if (errorCount > 3) {
+          showError('Network Error', 'Check your internet connection');
+        }
       }
     }
 
