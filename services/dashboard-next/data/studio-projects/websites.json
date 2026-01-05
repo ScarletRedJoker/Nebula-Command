@@ -1,0 +1,32 @@
+[
+  {
+    "id": "scarletredjoker",
+    "name": "Scarlet Red Joker",
+    "domain": "scarletredjoker.com",
+    "description": "Personal portfolio website",
+    "type": "portfolio",
+    "status": "published",
+    "createdAt": "2026-01-05T10:38:11.230Z",
+    "updatedAt": "2026-01-05T10:38:11.230Z"
+  },
+  {
+    "id": "rig-city",
+    "name": "Rig City",
+    "domain": "rig-city.com",
+    "description": "Gaming community website",
+    "type": "community",
+    "status": "published",
+    "createdAt": "2026-01-05T10:38:11.230Z",
+    "updatedAt": "2026-01-05T10:38:11.230Z"
+  },
+  {
+    "id": "evindrake",
+    "name": "Evin Drake",
+    "domain": "evindrake.net",
+    "description": "Personal blog and homelab documentation",
+    "type": "blog",
+    "status": "draft",
+    "createdAt": "2026-01-05T10:38:11.230Z",
+    "updatedAt": "2026-01-05T10:38:11.230Z"
+  }
+]

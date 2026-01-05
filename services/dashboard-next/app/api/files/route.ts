@@ -12,10 +12,15 @@ async function checkAuth() {
   return !!user;
 }
 
-const ALLOWED_BASE_PATHS = [
-  process.env.STUDIO_PROJECTS_PATH || "/opt/homelab/studio-projects",
-  "/opt/homelab/HomeLabHub",
-];
+const ALLOWED_BASE_PATHS = process.env.REPL_ID 
+  ? [
+      process.env.STUDIO_PROJECTS_PATH || "./data/studio-projects",
+      ".",
+    ]
+  : [
+      process.env.STUDIO_PROJECTS_PATH || "/opt/homelab/studio-projects",
+      "/opt/homelab/HomeLabHub",
+    ];
 
 function isPathAllowed(filePath: string): boolean {
   const normalizedPath = join("/", filePath);

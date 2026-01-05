@@ -4,7 +4,8 @@ import { cookies } from "next/headers";
 import fs from "fs/promises";
 import path from "path";
 
-const PROJECTS_DIR = process.env.STUDIO_PROJECTS_DIR || "/opt/homelab/studio-projects";
+const PROJECTS_DIR = process.env.STUDIO_PROJECTS_DIR || 
+  (process.env.REPL_ID ? "./data/studio-projects" : "/opt/homelab/studio-projects");
 const WEBSITES_FILE = "websites.json";
 
 interface Website {

@@ -103,6 +103,12 @@ A KVM VM named `RDPWindows` is configured with GPU passthrough (NVIDIA RTX 3060)
 
 ### Recent Changes (January 2026)
 
+**Testing & UX Refinements (January 5, 2026):**
+- Fixed dev login security: Now uses NEXT_PUBLIC_DEV_MODE env var (only shows button when explicitly enabled)
+- Fixed Replit compatibility: File-based APIs (websites, settings, designer, files) now detect REPL_ID and use ./data/ instead of /opt/homelab
+- All 56 automated tests passing: 18 overlay API, 20 OAuth flows, 3 E2E, 15 Discord Bot API
+- All three services verified healthy: Discord Bot (connected, tickets initialized), Stream Bot (Twitch connected), Dashboard (all pages functional)
+
 **Discord Bot Dashboard Improvements (January 5, 2026):**
 - Fixed QuickSetupWizard channel selection (filters "none" values before API calls)
 - Enhanced OnboardingChecklist tab navigation (streams→stream-notifications, panels→panels, etc.)

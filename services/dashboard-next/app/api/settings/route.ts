@@ -4,7 +4,8 @@ import { cookies } from "next/headers";
 import fs from "fs/promises";
 import path from "path";
 
-const SETTINGS_DIR = process.env.STUDIO_PROJECTS_DIR || "/opt/homelab/studio-projects";
+const SETTINGS_DIR = process.env.STUDIO_PROJECTS_DIR || 
+  (process.env.REPL_ID ? "./data/studio-projects" : "/opt/homelab/studio-projects");
 const SETTINGS_FILE = "user-settings.json";
 
 // Note: This is a single-tenant homelab dashboard owned by Evin.

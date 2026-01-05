@@ -1,0 +1,32 @@
+{
+  "profile": {
+    "displayName": "Evin",
+    "email": "evin@evindrake.net",
+    "timezone": "America/New_York"
+  },
+  "appearance": {
+    "darkMode": true,
+    "compactMode": false,
+    "sidebarCollapsed": false
+  },
+  "notifications": {
+    "deploymentAlerts": true,
+    "serverHealthAlerts": true,
+    "discordNotifications": true,
+    "emailNotifications": false
+  },
+  "servers": [
+    {
+      "id": "linode",
+      "name": "Linode Server",
+      "host": "linode.evindrake.net",
+      "user": "root"
+    },
+    {
+      "id": "home",
+      "name": "Home Server",
+      "host": "host.evindrake.net",
+      "user": "evin"
+    }
+  ]
+}
