@@ -112,6 +112,17 @@ export default function OAuthLogin() {
               <strong>Kick users:</strong> Sign in with Twitch or YouTube first, then connect your Kick channel from your dashboard.
             </p>
           </div>
+
+          {import.meta.env.DEV && (
+            <div className="mt-6 pt-4 border-t border-white/20">
+              <button
+                onClick={() => window.location.href = '/auth/dev-login'}
+                className="w-full h-10 text-sm text-white/80 font-medium rounded-xl transition-all duration-300 hover:bg-white/10 border border-white/30"
+              >
+                Dev Login (Development Only)
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -2,8 +2,50 @@ import { Router } from "express";
 import { db } from "../db";
 import { users, platformConnections } from "@shared/schema";
 import { eq } from "drizzle-orm";
+import { getEnv } from "../env";
 
 const router = Router();
+
+const DEV_USER_ID = 'dev-user-00000000-0000-0000-0000-000000000000';
+
+router.get("/dev-login", async (req, res) => {
+  const NODE_ENV = getEnv('NODE_ENV', 'development');
+  
+  if (NODE_ENV !== 'development') {
+    return res.status(403).json({ error: 'Dev login only available in development' });
+  }
+
+  try {
+    let devUser = await db.query.users.findFirst({
+      where: eq(users.id, DEV_USER_ID),
+    });
+
+    if (!devUser) {
+      const [created] = await db.insert(users).values({
+        id: DEV_USER_ID,
+        email: 'dev@stream-bot.local',
+        role: 'admin',
+        isActive: true,
+        onboardingCompleted: true,
+        onboardingStep: 4,
+        dismissedWelcome: true,
+      }).returning();
+      devUser = created;
+    }
+
+    req.login(devUser, (err) => {
+      if (err) {
+        console.error('[Dev Login] Session error:', err);
+        return res.status(500).json({ error: 'Failed to create session' });
+      }
+      console.log('[Dev Login] Auto-logged in as dev user');
+      res.redirect('/');
+    });
+  } catch (error) {
+    console.error('[Dev Login] Error:', error);
+    res.status(500).json({ error: 'Dev login failed' });
+  }
+});
 
 router.post("/logout", (req, res) => {
   req.logout((err) => {
