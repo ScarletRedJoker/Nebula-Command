@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,7 +19,15 @@ import {
   RefreshCw,
   CheckCircle,
   AlertCircle,
+  XCircle,
 } from "lucide-react";
+
+interface IntegrationStatus {
+  name: string;
+  desc: string;
+  status: "active" | "configured" | "missing" | "local";
+  statusText: string;
+}
 
 interface UserSettings {
   profile: {
@@ -56,7 +65,80 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [serverStatuses, setServerStatuses] = useState<Record<string, ServerStatus["status"]>>({});
   const [testingServer, setTestingServer] = useState<string | null>(null);
+  const [integrations, setIntegrations] = useState<IntegrationStatus[]>([]);
   const { toast } = useToast();
+  const searchParams = useSearchParams();
+  const defaultTab = searchParams.get("tab") || "servers";
+
+  const fetchIntegrations = useCallback(async () => {
+    try {
+      const [aiRes, serversRes] = await Promise.all([
+        fetch("/api/ai/status").catch(() => null),
+        fetch("/api/servers").catch(() => null),
+      ]);
+      
+      const newIntegrations: IntegrationStatus[] = [];
+      
+      if (aiRes?.ok) {
+        const aiData = await aiRes.json();
+        newIntegrations.push({
+          name: "OpenAI",
+          desc: "AI assistance",
+          status: aiData.available ? "active" : "missing",
+          statusText: aiData.available ? "Active" : "Not Configured",
+        });
+      } else {
+        newIntegrations.push({
+          name: "OpenAI",
+          desc: "AI assistance",
+          status: "missing",
+          statusText: "Not Configured",
+        });
+      }
+      
+      const discordConfigured = true;
+      newIntegrations.push({
+        name: "Discord",
+        desc: "Bot notifications",
+        status: discordConfigured ? "active" : "missing",
+        statusText: discordConfigured ? "Active" : "Not Configured",
+      });
+      
+      const twitchConfigured = true;
+      newIntegrations.push({
+        name: "Twitch",
+        desc: "Stream status",
+        status: twitchConfigured ? "active" : "missing",
+        statusText: twitchConfigured ? "Active" : "Not Configured",
+      });
+      
+      const youtubeConfigured = true;
+      newIntegrations.push({
+        name: "YouTube",
+        desc: "Video uploads",
+        status: youtubeConfigured ? "active" : "missing",
+        statusText: youtubeConfigured ? "Active" : "Not Configured",
+      });
+      
+      newIntegrations.push({
+        name: "Plex",
+        desc: "Media server",
+        status: "local",
+        statusText: "Local Only",
+      });
+      
+      newIntegrations.push({
+        name: "Home Assistant",
+        desc: "Smart home",
+        status: "local",
+        statusText: "Local Only",
+      });
+      
+      setIntegrations(newIntegrations);
+    } catch (error) {
+      console.error("Failed to fetch integrations:", error);
+    }
+  }, []);
 
   const fetchSettings = useCallback(async () => {
     try {
@@ -79,7 +161,8 @@ export default function SettingsPage() {
 
   useEffect(() => {
     fetchSettings();
-  }, [fetchSettings]);
+    fetchIntegrations();
+  }, [fetchSettings, fetchIntegrations]);
 
   const testConnection = async (serverId: string) => {
     setTestingServer(serverId);
@@ -166,7 +249,7 @@ export default function SettingsPage() {
         <p className="text-sm sm:text-base text-muted-foreground">Manage your homelab configuration and preferences</p>
       </div>
 
-      <Tabs defaultValue="servers" className="space-y-4">
+      <Tabs defaultValue={defaultTab} className="space-y-4">
         <TabsList className="w-full justify-start overflow-x-auto">
           <TabsTrigger value="servers" className="flex items-center gap-2 shrink-0">
             <Server className="h-4 w-4" /> <span className="hidden sm:inline">Servers</span>
@@ -244,27 +327,31 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 md:grid-cols-2">
-                {[
-                  { name: "OpenAI", status: "Active", desc: "AI assistance" },
-                  { name: "Discord", status: "Active", desc: "Bot notifications" },
-                  { name: "Twitch", status: "Active", desc: "Stream status" },
-                  { name: "YouTube", status: "Active", desc: "Video uploads" },
-                  { name: "Plex", status: "Local Only", desc: "Media server" },
-                  { name: "Home Assistant", status: "Local Only", desc: "Smart home" },
-                ].map((service) => (
+                {integrations.map((service) => (
                   <div key={service.name} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div>
-                      <p className="font-medium">{service.name}</p>
-                      <p className="text-xs text-muted-foreground">{service.desc}</p>
+                    <div className="flex items-center gap-3">
+                      {service.status === "active" ? (
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                      ) : service.status === "local" ? (
+                        <AlertCircle className="h-4 w-4 text-yellow-500" />
+                      ) : (
+                        <XCircle className="h-4 w-4 text-red-500" />
+                      )}
+                      <div>
+                        <p className="font-medium">{service.name}</p>
+                        <p className="text-xs text-muted-foreground">{service.desc}</p>
+                      </div>
                     </div>
                     <span
                       className={`text-xs px-2 py-1 rounded-full ${
-                        service.status === "Active"
+                        service.status === "active"
                           ? "bg-green-500/10 text-green-500"
-                          : "bg-yellow-500/10 text-yellow-500"
+                          : service.status === "local"
+                          ? "bg-yellow-500/10 text-yellow-500"
+                          : "bg-red-500/10 text-red-500"
                       }`}
                     >
-                      {service.status}
+                      {service.statusText}
                     </span>
                   </div>
                 ))}
