@@ -55,9 +55,9 @@ Multi-platform streaming management.
 
 ## Quick Start (New Users)
 
-### Option 1: Deploy to Linode (Recommended)
+### Option 1: Deploy to Cloud (Linode/VPS)
 
-1. **Create a Linode server** (Ubuntu 22.04, 4GB RAM minimum)
+1. **Create a server** (Ubuntu 22.04, 4GB RAM minimum)
 
 2. **SSH into your server:**
 ```bash
@@ -93,12 +93,31 @@ cd deploy/linode
 
 8. **Access your dashboard** at `http://YOUR_SERVER_IP:5000`
 
-### Option 2: Development in Replit
+### Option 2: Self-Managed Development (Recommended)
 
-1. Fork this repository
-2. Import into Replit
-3. Add secrets in the Secrets tab (see Environment Variables)
-4. Run - all services start automatically
+Once Nebula Command is running, you can develop directly from the dashboard:
+
+1. Go to **Dashboard > Editor** - Full Monaco code editor
+2. Go to **Dashboard > Terminal** - SSH access to your servers
+3. Use **AI Agents** - Let Jarvis or Coder help you build features
+4. Use **Self-Management API** - Nebula manages its own codebase
+
+The system can:
+- Edit its own source code from the dashboard
+- Commit, push, and deploy changes automatically
+- Roll back if something breaks
+- Add new features via the plugin system
+
+### Self-Management Endpoints
+
+```
+GET  /api/self/status      - Git status, branches, deployment state
+GET  /api/self/files       - Browse codebase
+GET  /api/self/files/{path} - Read file content
+POST /api/self/files/{path} - Write file (auto-backup)
+POST /api/self/git         - Git operations (commit/pull/push/rollback)
+POST /api/self/deploy      - Trigger deployment to servers
+```
 
 ## Environment Variables
 
