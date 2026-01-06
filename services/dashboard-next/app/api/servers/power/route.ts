@@ -3,7 +3,7 @@ import { Client } from "ssh2";
 import { verifySession } from "@/lib/session";
 import { cookies } from "next/headers";
 import { readFileSync, existsSync } from "fs";
-import { getServerById } from "@/lib/server-config";
+import { getServerById, getDefaultSshKeyPath } from "@/lib/server-config-store";
 import wol from "wake_on_lan";
 
 async function checkAuth() {
@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const server = getServerById(serverId);
+    const server = await getServerById(serverId);
     if (!server) {
       return NextResponse.json({ error: "Server not found" }, { status: 404 });
     }
@@ -172,11 +172,12 @@ export async function POST(request: NextRequest) {
 
     const command =
       action === "restart" ? "sudo shutdown -r now" : "sudo shutdown -h now";
+    const keyPath = server.keyPath || getDefaultSshKeyPath();
 
     const result = await executeSSHCommand(
       server.host,
       server.user,
-      server.keyPath,
+      keyPath,
       command
     );
 

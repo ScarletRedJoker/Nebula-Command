@@ -3,7 +3,7 @@ import { Client } from "ssh2";
 import { verifySession } from "@/lib/session";
 import { cookies } from "next/headers";
 import { readFileSync, existsSync } from "fs";
-import { getServerById, getServerConfigs } from "@/lib/server-config";
+import { getServerById, getAllServers, getDefaultSshKeyPath } from "@/lib/server-config-store";
 
 function escapeShellArg(arg: string): string {
   if (!arg) return "''";
@@ -141,7 +141,8 @@ export async function GET(request: NextRequest) {
   const serverId = request.nextUrl.searchParams.get("serverId");
 
   if (!serverId) {
-    const servers = getServerConfigs().filter((s) => s.ipmiHost);
+    const allServers = await getAllServers();
+    const servers = allServers.filter((s) => s.ipmiHost);
     return NextResponse.json({
       servers: servers.map((s) => ({
         id: s.id,
@@ -153,7 +154,7 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  const server = getServerById(serverId);
+  const server = await getServerById(serverId);
   if (!server) {
     return NextResponse.json({ error: "Server not found" }, { status: 404 });
   }
@@ -165,7 +166,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const managementServer = getServerById(server.ipmiManagementServer || "home");
+  const managementServer = await getServerById(server.ipmiManagementServer || "home");
   if (!managementServer) {
     return NextResponse.json(
       { error: "Management server not found" },
@@ -175,6 +176,7 @@ export async function GET(request: NextRequest) {
 
   const ipmiUser = server.ipmiUser || "admin";
   const ipmiPass = server.ipmiPassword || process.env.IPMI_PASSWORD || "";
+  const mgmtKeyPath = managementServer.keyPath || getDefaultSshKeyPath();
 
   try {
     validateIpmiInput(server.ipmiHost, "IPMI host");
@@ -189,7 +191,7 @@ export async function GET(request: NextRequest) {
     const powerResult = await executeSSHCommand(
       managementServer.host,
       managementServer.user,
-      managementServer.keyPath,
+      mgmtKeyPath,
       powerCmd
     );
 
@@ -197,7 +199,7 @@ export async function GET(request: NextRequest) {
     const sensorsResult = await executeSSHCommand(
       managementServer.host,
       managementServer.user,
-      managementServer.keyPath,
+      mgmtKeyPath,
       sensorsCmd
     );
 
@@ -253,7 +255,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const server = getServerById(serverId);
+    const server = await getServerById(serverId);
     if (!server) {
       return NextResponse.json({ error: "Server not found" }, { status: 404 });
     }
@@ -265,7 +267,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const managementServer = getServerById(server.ipmiManagementServer || "home");
+    const managementServer = await getServerById(server.ipmiManagementServer || "home");
     if (!managementServer) {
       return NextResponse.json(
         { error: "Management server not found" },
@@ -275,6 +277,7 @@ export async function POST(request: NextRequest) {
 
     const ipmiUser = server.ipmiUser || "admin";
     const ipmiPass = server.ipmiPassword || process.env.IPMI_PASSWORD || "";
+    const mgmtKeyPath = managementServer.keyPath || getDefaultSshKeyPath();
 
     validateIpmiInput(server.ipmiHost, "IPMI host");
     validateIpmiInput(ipmiUser, "IPMI user");
@@ -288,7 +291,7 @@ export async function POST(request: NextRequest) {
     const result = await executeSSHCommand(
       managementServer.host,
       managementServer.user,
-      managementServer.keyPath,
+      mgmtKeyPath,
       ipmiCmd
     );
 

@@ -109,7 +109,7 @@ function mergeWithDefaults(storedServers: Partial<ServerConfig>[]): ServerConfig
     }
   }
   
-  for (const [, server] of storedById) {
+  Array.from(storedById.values()).forEach(server => {
     if (server.id && server.name && server.host && server.user) {
       result.push({
         id: server.id,
@@ -132,7 +132,7 @@ function mergeWithDefaults(storedServers: Partial<ServerConfig>[]): ServerConfig
         isDefault: false,
       });
     }
-  }
+  });
   
   return result;
 }

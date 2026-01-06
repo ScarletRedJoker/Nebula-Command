@@ -53,9 +53,17 @@ Secrets are managed via `.env` files (gitignore'd) and Replit Secrets. Pre-commi
 
 ## Recent Changes (January 2026)
 
+### Production Build Fixes (Latest)
+- **Unified Server Config Store**: All API routes now use `lib/server-config-store.ts` for consistent async server lookups
+- **Async/Await Fixes**: Fixed `getServerById()` and `getAllServers()` calls that weren't awaited in IPMI, power, and deploy routes
+- **Type Safety**: Added `getDefaultSshKeyPath()` fallback for optional `keyPath` fields to prevent TypeScript errors
+- **Prerender Compatibility**: Added `force-dynamic` export to platform-status route to prevent static generation errors
+- **Deploy Path Security**: Added strict regex validation and shell escaping for deploy paths to prevent command injection
+- **Settings Persistence**: Server keyPath and deployPath fields can now be configured per-server and cleared when needed
+
 ### Dashboard Enhancements
 - **Real-time Integration Status**: Settings page now shows live Twitch/YouTube/Discord connection status from Stream Bot API (`/api/platforms/overview`)
-- **Server Management**: Add/edit/delete homelab servers directly from Settings page with persistent storage
+- **Server Management**: Add/edit/delete homelab servers directly from Settings page with persistent storage including SSH key path and deploy path
 - **Health Monitoring**: Detailed server metrics (CPU, memory, disk, network, uptime) via SSH with color-coded progress bars
 - **Activity Logs**: New `/activity` page showing recent actions and events with filtering
 - **Skeleton Loaders**: Improved loading states throughout the dashboard
