@@ -19,6 +19,10 @@ import {
   Terminal,
   FolderOpen,
   Sparkles,
+  Package,
+  Shield,
+  Cpu,
+  AlertTriangle,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -33,6 +37,10 @@ const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/status", label: "Status", icon: Activity },
   { href: "/services", label: "Services", icon: Server },
+  { href: "/marketplace", label: "Marketplace", icon: Package },
+  { href: "/resources", label: "Resources", icon: Shield },
+  { href: "/agents", label: "AI Agents", icon: Cpu },
+  { href: "/incidents", label: "Incidents", icon: AlertTriangle },
   { href: "/websites", label: "Websites", icon: Globe },
   { href: "/designer", label: "Designer", icon: Palette },
   { href: "/editor", label: "Code Editor", icon: Code2 },

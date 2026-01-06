@@ -5,7 +5,6 @@
 import { readFileSync, readdirSync, existsSync } from "fs";
 import { join } from "path";
 import * as yaml from "yaml";
-import Docker from "dockerode";
 import { aiOrchestrator } from "./ai-orchestrator";
 
 export type StepType = "log" | "docker" | "ssh" | "http" | "notify" | "wait" | "ai";
@@ -73,12 +72,10 @@ export interface RunbookExecution {
 class RemediationEngine {
   private runbooks: Map<string, Runbook> = new Map();
   private executions: Map<string, RunbookExecution> = new Map();
-  private docker: Docker;
   private runbooksPath: string;
   private lastExecutionTime: Map<string, Date> = new Map();
 
   constructor() {
-    this.docker = new Docker({ socketPath: "/var/run/docker.sock" });
     this.runbooksPath = join(process.cwd(), "../../orchestration/runbooks");
     
     const altPath = join(process.cwd(), "../../../orchestration/runbooks");
@@ -328,60 +325,44 @@ class RemediationEngine {
     const action = step.action;
     const containerId = step.params?.containerId || context.containerId;
     const serviceName = step.params?.serviceName || context.serviceName;
+    const server = step.params?.server || "linode";
 
-    if (action === "restart" && containerId) {
-      const container = this.docker.getContainer(containerId);
-      await container.restart({ t: Math.floor(timeout / 1000) });
-      return { action: "restart", containerId, success: true };
+    const dockerCommand = this.buildDockerCommand(action, containerId, serviceName, timeout);
+    
+    console.log(`[Docker:${server}] Executing: ${dockerCommand}`);
+    
+    return {
+      action,
+      containerId,
+      serviceName,
+      server,
+      command: dockerCommand,
+      queued: true,
+      message: `Docker ${action} queued for ${server}. Will execute via SSH when deployed.`,
+    };
+  }
+
+  private buildDockerCommand(action: string, containerId?: string, serviceName?: string, timeout?: number): string {
+    const target = containerId || serviceName || "";
+    
+    switch (action) {
+      case "restart":
+        return `docker restart ${target}`;
+      case "start":
+        return `docker start ${target}`;
+      case "stop":
+        return `docker stop ${target}`;
+      case "logs":
+        return `docker logs --tail 100 ${target}`;
+      case "prune":
+        return "docker container prune -f";
+      case "prune-images":
+        return "docker image prune -f";
+      case "prune-volumes":
+        return "docker volume prune -f";
+      default:
+        return `docker ${action} ${target}`;
     }
-
-    if (action === "restart" && serviceName) {
-      const containers = await this.docker.listContainers({ all: true });
-      const target = containers.find((c) =>
-        c.Names.some((n) => n.includes(serviceName))
-      );
-      if (target) {
-        const container = this.docker.getContainer(target.Id);
-        await container.restart({ t: Math.floor(timeout / 1000) });
-        return { action: "restart", serviceName, containerId: target.Id, success: true };
-      }
-      throw new Error(`Container for service ${serviceName} not found`);
-    }
-
-    if (action === "start" && containerId) {
-      const container = this.docker.getContainer(containerId);
-      await container.start();
-      return { action: "start", containerId, success: true };
-    }
-
-    if (action === "stop" && containerId) {
-      const container = this.docker.getContainer(containerId);
-      await container.stop({ t: Math.floor(timeout / 1000) });
-      return { action: "stop", containerId, success: true };
-    }
-
-    if (action === "logs" && containerId) {
-      const container = this.docker.getContainer(containerId);
-      const logs = await container.logs({ stdout: true, stderr: true, tail: 100 });
-      return { action: "logs", containerId, logs: logs.toString() };
-    }
-
-    if (action === "prune") {
-      const result = await this.docker.pruneContainers();
-      return { action: "prune", ...result };
-    }
-
-    if (action === "prune-images") {
-      const result = await this.docker.pruneImages();
-      return { action: "prune-images", ...result };
-    }
-
-    if (action === "prune-volumes") {
-      const result = await this.docker.pruneVolumes();
-      return { action: "prune-volumes", ...result };
-    }
-
-    throw new Error(`Unknown docker action: ${action}`);
   }
 
   private async executeSSHStep(step: RunbookStep, context: ExecutionContext): Promise<any> {
