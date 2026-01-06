@@ -3,6 +3,7 @@ import { verifySession } from "@/lib/session";
 import { cookies } from "next/headers";
 import SftpClient from "ssh2-sftp-client";
 import { readFileSync, existsSync } from "fs";
+import * as posixPath from "path/posix";
 
 async function checkAuth() {
   const cookieStore = await cookies();
@@ -63,10 +64,17 @@ async function getSftpConnection(server: ServerConfig): Promise<SftpClient> {
 }
 
 function normalizePath(basePath: string, path: string): string {
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const resolvedPath = posixPath.resolve(basePath, path.startsWith("/") ? path : `/${path}`);
+  const normalizedPath = posixPath.normalize(resolvedPath);
+  
   if (!normalizedPath.startsWith(basePath)) {
     return basePath;
   }
+  
+  if (normalizedPath.includes("..")) {
+    return basePath;
+  }
+  
   return normalizedPath;
 }
 

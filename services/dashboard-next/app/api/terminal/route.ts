@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySession } from "@/lib/session";
 import { cookies } from "next/headers";
+import { SignJWT } from "jose";
+
+const JWT_SECRET = new TextEncoder().encode(
+  process.env.JWT_SECRET || process.env.SESSION_SECRET || "homelab-secret-key-change-in-production"
+);
 
 async function checkAuth() {
   const cookieStore = await cookies();
   const session = cookieStore.get("session");
   if (!session?.value) return false;
   const user = await verifySession(session.value);
-  return !!user;
+  return user;
 }
 
 const servers = [
@@ -28,12 +33,23 @@ const servers = [
 ];
 
 export async function GET(request: NextRequest) {
-  if (!(await checkAuth())) {
+  const user = await checkAuth();
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const token = await new SignJWT({ 
+    sub: user.id || "admin",
+    purpose: "terminal",
+    iat: Math.floor(Date.now() / 1000),
+  })
+    .setProtectedHeader({ alg: "HS256" })
+    .setExpirationTime("5m")
+    .sign(JWT_SECRET);
+
   return NextResponse.json({ 
     servers,
+    token,
     wsPort: process.env.TERMINAL_PORT || 3001,
     message: "Use WebSocket on the specified port to connect to terminal sessions"
   });

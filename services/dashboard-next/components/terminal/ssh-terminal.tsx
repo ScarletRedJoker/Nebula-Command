@@ -69,9 +69,17 @@ export function SSHTerminal({ serverId, onStatusChange, onDisconnect }: SSHTermi
     terminal.writeln(`\x1b[33mConnecting to ${serverId}...\x1b[0m`);
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.hostname}:3001/terminal?server=${serverId}`;
 
     try {
+      const tokenRes = await fetch("/api/terminal");
+      if (!tokenRes.ok) {
+        terminal.writeln("\x1b[31mFailed to get terminal auth token\x1b[0m");
+        onStatusChange?.("error");
+        return;
+      }
+      const { token } = await tokenRes.json();
+      
+      const wsUrl = `${protocol}//${window.location.hostname}:3001/terminal?server=${serverId}&token=${encodeURIComponent(token)}`;
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 

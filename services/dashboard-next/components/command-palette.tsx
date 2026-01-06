@@ -139,11 +139,14 @@ export function CommandPalette() {
       icon: Power,
       action: async () => {
         try {
-          await fetch("/api/servers/power", {
+          const res = await fetch("/api/servers/power", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ server: "home", action: "wake" }),
+            body: JSON.stringify({ serverId: "home", action: "wake" }),
           });
+          if (!res.ok) {
+            console.error("Failed to wake home server:", await res.text());
+          }
         } catch (e) {
           console.error("Failed to wake home server", e);
         }
@@ -156,11 +159,14 @@ export function CommandPalette() {
       icon: RefreshCw,
       action: async () => {
         try {
-          await fetch("/api/servers/power", {
+          const res = await fetch("/api/servers/power", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ server: "linode", action: "restart" }),
+            body: JSON.stringify({ serverId: "linode", action: "restart" }),
           });
+          if (!res.ok) {
+            console.error("Failed to restart linode:", await res.text());
+          }
         } catch (e) {
           console.error("Failed to restart linode", e);
         }

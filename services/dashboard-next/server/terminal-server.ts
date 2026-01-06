@@ -3,7 +3,7 @@ import { Client, ClientChannel } from "ssh2";
 import { createServer, IncomingMessage } from "http";
 import { parse } from "url";
 import { readFileSync, existsSync } from "fs";
-import { SignJWT, jwtVerify } from "jose";
+import { jwtVerify } from "jose";
 
 interface ServerConfig {
   id: string;
@@ -31,6 +31,18 @@ const servers: Record<string, ServerConfig> = {
 };
 
 const TERMINAL_PORT = parseInt(process.env.TERMINAL_PORT || "3001");
+const JWT_SECRET = new TextEncoder().encode(
+  process.env.JWT_SECRET || process.env.SESSION_SECRET || "homelab-secret-key-change-in-production"
+);
+
+async function verifyToken(token: string): Promise<boolean> {
+  try {
+    await jwtVerify(token, JWT_SECRET);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 class TerminalServer {
   private wss: WebSocketServer;
@@ -46,10 +58,24 @@ class TerminalServer {
     this.setupWebSocket();
   }
 
-  private setupWebSocket() {
-    this.wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
+  private async setupWebSocket() {
+    this.wss.on("connection", async (ws: WebSocket, req: IncomingMessage) => {
       const url = parse(req.url || "", true);
       const serverId = url.query.server as string;
+      const token = url.query.token as string;
+
+      if (!token) {
+        ws.send(JSON.stringify({ type: "error", message: "Authentication required" }));
+        ws.close();
+        return;
+      }
+
+      const isValid = await verifyToken(token);
+      if (!isValid) {
+        ws.send(JSON.stringify({ type: "error", message: "Invalid or expired token" }));
+        ws.close();
+        return;
+      }
 
       if (!serverId || !servers[serverId]) {
         ws.send(JSON.stringify({ type: "error", message: "Invalid server ID" }));
