@@ -1,0 +1,102 @@
+{
+  "id": "example-plugin",
+  "name": "Example Plugin",
+  "version": "1.0.0",
+  "description": "A demonstration plugin showing the Nebula Command plugin system capabilities",
+  "author": "Nebula Command Team",
+  "homepage": "https://github.com/nebula-command/example-plugin",
+  "repository": "https://github.com/nebula-command/example-plugin",
+  "license": "MIT",
+  "enabled": false,
+
+  "api": [
+    {
+      "route": "/api/plugins/example-plugin/hello",
+      "handler": "handlers/hello.ts"
+    },
+    {
+      "route": "/api/plugins/example-plugin/status",
+      "handler": "handlers/status.ts"
+    }
+  ],
+
+  "ui": [
+    {
+      "path": "/plugins/example",
+      "component": "components/ExamplePage.tsx",
+      "icon": "puzzle",
+      "sidebar": true
+    },
+    {
+      "path": "/plugins/example/settings",
+      "component": "components/SettingsPage.tsx",
+      "sidebar": false
+    }
+  ],
+
+  "hooks": [
+    {
+      "event": "dashboard:startup",
+      "handler": "hooks/onStartup.ts"
+    },
+    {
+      "event": "incident:created",
+      "handler": "hooks/onIncidentCreated.ts"
+    }
+  ],
+
+  "dependencies": [],
+
+  "peerDependencies": [
+    {
+      "package": "react",
+      "version": ">=18.0.0"
+    }
+  ],
+
+  "permissions": [
+    "network",
+    "database"
+  ],
+
+  "config": [
+    {
+      "key": "apiEndpoint",
+      "type": "string",
+      "default": "https://api.example.com",
+      "required": false,
+      "description": "External API endpoint for the plugin to connect to"
+    },
+    {
+      "key": "refreshInterval",
+      "type": "number",
+      "default": 60,
+      "required": false,
+      "description": "Refresh interval in seconds"
+    },
+    {
+      "key": "enableNotifications",
+      "type": "boolean",
+      "default": true,
+      "required": false,
+      "description": "Enable desktop notifications"
+    },
+    {
+      "key": "allowedUsers",
+      "type": "array",
+      "default": [],
+      "required": false,
+      "description": "List of usernames allowed to use this plugin"
+    },
+    {
+      "key": "advancedSettings",
+      "type": "object",
+      "default": {
+        "debug": false,
+        "logLevel": "info"
+      },
+      "required": false,
+      "description": "Advanced configuration options"
+    }
+  ]
+}

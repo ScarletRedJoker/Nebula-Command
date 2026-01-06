@@ -25,6 +25,7 @@ import {
   AlertTriangle,
   Wrench,
   Monitor,
+  Wand2,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -53,6 +54,7 @@ const navItems = [
   { href: "/terminal", label: "Terminal", icon: Terminal },
   { href: "/creative", label: "Creative Studio", icon: Sparkles },
   { href: "/ai", label: "Jarvis AI", icon: Bot },
+  { href: "/ai-sandbox", label: "AI Sandbox", icon: Wand2 },
   { href: "/self", label: "Self", icon: Wrench },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

@@ -1,7 +1,9 @@
 # Nebula Command
 
+**Repository:** https://github.com/ScarletRedJoker/Nebula-Command
+
 ## Overview
-Nebula Command is a platform designed for homelab management, AI-powered content creation, Discord community integration, and multi-platform streaming. It aims to be a custom development and automation engine, similar to Replit but tailored for homelab enthusiasts, supporting distributed deployment across cloud (Linode) and local (Ubuntu homelab with RTX 3060 GPU) infrastructure.
+Nebula Command is a self-managing, self-evolving creation engine for homelab management, AI-powered content creation, Discord community integration, and multi-platform streaming. It aims to be a custom development and automation engine, similar to Replit but tailored for homelab enthusiasts, supporting distributed deployment across cloud (Linode) and local (Ubuntu homelab with RTX 3060 GPU) infrastructure.
 
 **Core Capabilities:**
 *   **Dashboard:** Web interface for homelab control, AI tools, and remote operations.
