@@ -173,9 +173,9 @@ class AIOrchestrator {
     });
 
     return {
-      url: response.data[0]?.url,
+      url: response.data?.[0]?.url,
       provider: "openai",
-      revisedPrompt: response.data[0]?.revised_prompt,
+      revisedPrompt: response.data?.[0]?.revised_prompt,
     };
   }
 

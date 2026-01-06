@@ -140,7 +140,8 @@ export async function GET(request: NextRequest) {
       const fileName = fullPath.split("/").pop() || "download";
 
       await sftp.end();
-      return new NextResponse(content as Buffer, {
+      const buffer = Buffer.isBuffer(content) ? content : Buffer.from(content as string);
+      return new NextResponse(new Uint8Array(buffer), {
         headers: {
           "Content-Type": "application/octet-stream",
           "Content-Disposition": `attachment; filename="${fileName}"`,

@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
   }
 
   const token = await new SignJWT({ 
-    sub: user.id || "admin",
+    sub: (user as any).id || (user as any).email || "admin",
     purpose: "terminal",
     iat: Math.floor(Date.now() / 1000),
   })

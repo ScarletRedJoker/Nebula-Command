@@ -528,8 +528,8 @@ class RemediationEngine {
   }
 
   async findMatchingRunbook(context: ExecutionContext): Promise<Runbook | null> {
-    for (const runbook of this.runbooks.values()) {
-      const allTriggersMatch = runbook.triggers.every((trigger) =>
+    for (const runbook of Array.from(this.runbooks.values())) {
+      const allTriggersMatch = runbook.triggers.every((trigger: any) =>
         this.checkCondition(trigger, context)
       );
       if (allTriggersMatch) {

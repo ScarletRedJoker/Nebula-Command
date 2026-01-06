@@ -134,8 +134,8 @@ class PluginRegistry extends EventEmitter {
   }
 
   private unregisterHooks(pluginId: string): void {
-    for (const [event, handlers] of this.hooks.entries()) {
-      const filtered = handlers.filter(h => h.pluginId !== pluginId);
+    for (const [event, handlers] of Array.from(this.hooks.entries())) {
+      const filtered = handlers.filter((h: { pluginId: string; handler: string }) => h.pluginId !== pluginId);
       if (filtered.length === 0) {
         this.hooks.delete(event);
       } else {
