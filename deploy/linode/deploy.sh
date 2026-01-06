@@ -8,16 +8,26 @@ source "$SHARED_DIR/env-lib.sh"
 
 cd "$SCRIPT_DIR"
 
+VERBOSE=false
+for arg in "$@"; do
+    case $arg in
+        -v|--verbose) VERBOSE=true ;;
+    esac
+done
+
 show_help() {
     echo "Nebula Command - Linode Deployment"
     echo ""
-    echo "Usage: ./deploy.sh [command]"
+    echo "Usage: ./deploy.sh [options] [command]"
+    echo ""
+    echo "Options:"
+    echo "  -v, --verbose  Show full build output (default: compact spinners)"
     echo ""
     echo "Commands:"
     echo "  (none)       Full deployment (setup + build + deploy)"
     echo "  setup        Interactive environment setup only"
     echo "  check        Check environment health"
-    echo "  build        Build images only (with full logging)"
+    echo "  build        Build images only"
     echo "  up           Start services only"
     echo "  down         Stop services"
     echo "  logs         View service logs (docker compose logs)"
@@ -34,7 +44,18 @@ do_git_pull() {
     local repo_root
     repo_root="$(dirname "$(dirname "$SCRIPT_DIR")")"
     cd "$repo_root"
-    git pull origin main
+    
+    if [ "$VERBOSE" = true ]; then
+        git pull origin main
+    else
+        echo -n "  Fetching updates... "
+        if git pull origin main > /dev/null 2>&1; then
+            echo -e "${GREEN}done${NC}"
+        else
+            echo -e "${YELLOW}check manually${NC}"
+        fi
+    fi
+    
     cd "$SCRIPT_DIR"
     echo -e "${GREEN}✓ Code updated${NC}"
     echo ""
@@ -91,10 +112,23 @@ do_build() {
     mkdir -p "$log_dir"
     local log_file="$log_dir/build_$(date +%Y%m%d_%H%M%S).log"
     
-    echo "Build log: $log_file"
-    echo ""
+    local build_result=0
     
-    if docker compose build --no-cache --progress=plain 2>&1 | tee "$log_file"; then
+    if [ "$VERBOSE" = true ]; then
+        echo "Build log: $log_file"
+        echo ""
+        docker compose build --no-cache --progress=plain 2>&1 | tee "$log_file" || build_result=$?
+    else
+        echo -n "  Building (this may take a few minutes)... "
+        if docker compose build --no-cache 2>&1 > "$log_file"; then
+            echo -e "${GREEN}done${NC}"
+        else
+            build_result=$?
+            echo -e "${RED}failed${NC}"
+        fi
+    fi
+    
+    if [ $build_result -eq 0 ]; then
         echo -e "${GREEN}✓ Build complete${NC}"
         if [ "${KEEP_BUILD_LOGS:-}" != "true" ]; then
             rm -f "$log_file"
@@ -110,7 +144,7 @@ do_build() {
         echo "─────────────────────────"
         echo ""
         echo "To view full log: less $log_file"
-        echo "To rebuild: ./deploy.sh build"
+        echo "To rebuild with verbose: ./deploy.sh -v build"
         exit 1
     fi
     echo ""
@@ -118,8 +152,19 @@ do_build() {
 
 do_deploy() {
     echo -e "${CYAN}[4/5] Deploying services...${NC}"
-    docker compose down --remove-orphans 2>/dev/null || true
-    docker compose up -d
+    
+    if [ "$VERBOSE" = true ]; then
+        docker compose down --remove-orphans 2>/dev/null || true
+        docker compose up -d
+    else
+        echo -n "  Stopping old containers... "
+        docker compose down --remove-orphans 2>/dev/null || true
+        echo -e "${GREEN}done${NC}"
+        echo -n "  Starting services... "
+        docker compose up -d > /dev/null 2>&1
+        echo -e "${GREEN}done${NC}"
+    fi
+    
     echo -e "${GREEN}✓ Services started${NC}"
     echo ""
 }

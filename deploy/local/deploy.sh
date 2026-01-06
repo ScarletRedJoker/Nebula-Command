@@ -8,10 +8,20 @@ source "$SHARED_DIR/env-lib.sh"
 
 cd "$SCRIPT_DIR"
 
+VERBOSE=false
+for arg in "$@"; do
+    case $arg in
+        -v|--verbose) VERBOSE=true ;;
+    esac
+done
+
 show_help() {
     echo "Nebula Command - Local Ubuntu Deployment"
     echo ""
-    echo "Usage: ./deploy.sh [command]"
+    echo "Usage: ./deploy.sh [options] [command]"
+    echo ""
+    echo "Options:"
+    echo "  -v, --verbose  Show full output (default: compact)"
     echo ""
     echo "Commands:"
     echo "  (none)       Full deployment (setup + deploy)"
@@ -34,7 +44,18 @@ do_git_pull() {
     local repo_root
     repo_root="$(dirname "$(dirname "$SCRIPT_DIR")")"
     cd "$repo_root"
-    git pull origin main
+    
+    if [ "$VERBOSE" = true ]; then
+        git pull origin main
+    else
+        echo -n "  Fetching updates... "
+        if git pull origin main > /dev/null 2>&1; then
+            echo -e "${GREEN}done${NC}"
+        else
+            echo -e "${YELLOW}check manually${NC}"
+        fi
+    fi
+    
     cd "$SCRIPT_DIR"
     echo -e "${GREEN}✓ Code updated${NC}"
     echo ""
@@ -83,20 +104,44 @@ do_deploy() {
     local log_dir="$SCRIPT_DIR/logs"
     mkdir -p "$log_dir"
     local log_file="$log_dir/deploy_$(date +%Y%m%d_%H%M%S).log"
+    local deploy_result=0
     
-    echo "Deploy log: $log_file"
-    echo ""
-    
-    {
-        echo "=== Docker Pull ===" 
-        docker compose pull
+    if [ "$VERBOSE" = true ]; then
+        echo "Deploy log: $log_file"
         echo ""
-        echo "=== Docker Up ==="
-        docker compose down --remove-orphans 2>/dev/null || true
-        docker compose up -d
-    } 2>&1 | tee "$log_file"
+        {
+            echo "=== Docker Pull ===" 
+            docker compose pull
+            echo ""
+            echo "=== Docker Up ==="
+            docker compose down --remove-orphans 2>/dev/null || true
+            docker compose up -d
+        } 2>&1 | tee "$log_file" || deploy_result=$?
+    else
+        echo -n "  Pulling images... "
+        if docker compose pull > "$log_file" 2>&1; then
+            echo -e "${GREEN}done${NC}"
+        else
+            deploy_result=$?
+            echo -e "${RED}failed${NC}"
+        fi
+        
+        if [ $deploy_result -eq 0 ]; then
+            echo -n "  Stopping old containers... "
+            docker compose down --remove-orphans >> "$log_file" 2>&1 || true
+            echo -e "${GREEN}done${NC}"
+            
+            echo -n "  Starting services... "
+            if docker compose up -d >> "$log_file" 2>&1; then
+                echo -e "${GREEN}done${NC}"
+            else
+                deploy_result=$?
+                echo -e "${RED}failed${NC}"
+            fi
+        fi
+    fi
     
-    if [ "${PIPESTATUS[0]}" -eq 0 ]; then
+    if [ $deploy_result -eq 0 ]; then
         echo -e "${GREEN}✓ Services started${NC}"
         if [ "${KEEP_BUILD_LOGS:-}" != "true" ]; then
             rm -f "$log_file"
@@ -105,6 +150,11 @@ do_deploy() {
         echo ""
         echo -e "${RED}✗ Deploy failed!${NC}"
         echo -e "${YELLOW}Full log saved to: $log_file${NC}"
+        echo ""
+        echo "Last 30 lines:"
+        tail -30 "$log_file"
+        echo ""
+        echo "To retry with verbose: ./deploy.sh -v"
         exit 1
     fi
     echo ""
