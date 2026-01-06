@@ -53,12 +53,20 @@ Secrets are managed via `.env` files (gitignore'd) and Replit Secrets. Pre-commi
 
 ## Recent Changes (January 2026)
 
-### Core Features Wired Up (Latest)
+### Creation Engine Features (Latest)
+- **Ollama Model Catalog**: New `/models` page to browse, pull, and delete local LLM models with progress tracking
+- **AI Code Generation**: New `/generate` page with natural language code creation, templates, and Monaco preview
+- **Prompt Library**: New `/prompts` page for reusable text snippets with categories (code, content, image, chat, system)
+- **Workflow Automation**: New `/workflows` page with triggers (schedule, webhook, event), actions (HTTP, SSH, Discord), and execution history
+- **Quick Start Templates**: New `/quickstart` page with one-click project starters (React, Discord Bot, Flask API, Landing Page, CLI)
+
+### Core Features Wired Up
 - **SSH Key Auto-Generation**: Deploy scripts (`deploy/local/deploy.sh`, `deploy/linode/deploy.sh`) now auto-generate ed25519 SSH keys if missing and display the public key for easy server setup
 - **Marketplace Real Deployment**: Marketplace API now executes actual SSH commands to deploy Docker apps with proper `docker pull && docker run` chaining, container ID tracking, and error message capture
 - **IPMI Power Controls**: Dashboard servers page now shows IPMI power state and provides on/off/reset controls with confirmation dialogs
 - **Dynamic Wake-on-LAN**: WoL button visibility now determined by `server.supportsWol` from API rather than hardcoded values
 - **AI Agent Persistence**: Custom agents stored in database with full CRUD operations (GET/POST/PUT/DELETE) and execution history tracking
+- **qBittorrent VPN Fix**: Updated torrent-vpn config with port forwarding (6881) and DHT troubleshooting guide
 
 ### Production Build Fixes
 - **Unified Server Config Store**: All API routes now use `lib/server-config-store.ts` for consistent async server lookups
