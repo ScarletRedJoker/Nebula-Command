@@ -1,0 +1,38 @@
+name: uptime-kuma
+version: 1.23.0
+displayName: Uptime Kuma
+description: |
+  Self-hosted monitoring tool like "Uptime Robot". Monitor HTTP, TCP, DNS, Docker containers and more.
+  Beautiful status pages and notifications via Discord, Slack, Email, etc.
+category: monitoring
+icon: https://uptime.kuma.pet/img/icon.svg
+repository: docker.io/louislam/uptime-kuma
+
+compose:
+  services:
+    uptime-kuma:
+      image: louislam/uptime-kuma:1
+      ports:
+        - "${PORT:-3001}:3001"
+      volumes:
+        - uptime_data:/app/data
+      restart: unless-stopped
+
+  volumes:
+    uptime_data:
+
+variables:
+  - name: PORT
+    description: Web UI port
+    default: "3001"
+
+health_checks:
+  - name: web
+    url: "http://localhost:${PORT}/"
+    interval: 30s
+    timeout: 10s
+
+hooks:
+  post_install:
+    - echo "Uptime Kuma is ready! Access at http://localhost:${PORT}"
+    - echo "Create an admin account on first visit."

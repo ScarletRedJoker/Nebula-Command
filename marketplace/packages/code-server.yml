@@ -1,0 +1,56 @@
+name: code-server
+version: 4.20.0
+displayName: VS Code (code-server)
+description: |
+  Run VS Code in the browser. Full IDE experience with extensions, terminal, and Git.
+  Perfect for remote development from any device.
+category: tools
+icon: https://code.visualstudio.com/favicon.ico
+repository: docker.io/codercom/code-server
+
+compose:
+  services:
+    code-server:
+      image: codercom/code-server:latest
+      ports:
+        - "${PORT:-8443}:8080"
+      environment:
+        - PASSWORD=${PASSWORD}
+        - SUDO_PASSWORD=${SUDO_PASSWORD}
+        - TZ=${TIMEZONE}
+      volumes:
+        - code_config:/home/coder/.config
+        - code_workspace:/home/coder/workspace
+      user: "1000:1000"
+      restart: unless-stopped
+
+  volumes:
+    code_config:
+    code_workspace:
+
+variables:
+  - name: PORT
+    description: Web UI port
+    default: "8443"
+  - name: PASSWORD
+    description: Access password
+    required: true
+    secret: true
+  - name: SUDO_PASSWORD
+    description: Sudo password for terminal
+    required: true
+    secret: true
+  - name: TIMEZONE
+    description: Timezone
+    default: "America/New_York"
+
+health_checks:
+  - name: web
+    url: "http://localhost:${PORT}/healthz"
+    interval: 30s
+    timeout: 10s
+
+hooks:
+  post_install:
+    - echo "VS Code is ready! Access at http://localhost:${PORT}"
+    - echo "Password authentication enabled."

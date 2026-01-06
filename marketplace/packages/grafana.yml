@@ -1,0 +1,52 @@
+name: grafana
+version: 10.2.0
+displayName: Grafana
+description: |
+  The open observability platform. Create dashboards for metrics, logs, and traces.
+  Connect to Prometheus, InfluxDB, PostgreSQL, and 150+ data sources.
+category: monitoring
+icon: https://grafana.com/static/img/menu/grafana2.svg
+repository: docker.io/grafana/grafana
+
+compose:
+  services:
+    grafana:
+      image: grafana/grafana:latest
+      ports:
+        - "${PORT:-3000}:3000"
+      environment:
+        - GF_SECURITY_ADMIN_USER=${ADMIN_USER}
+        - GF_SECURITY_ADMIN_PASSWORD=${ADMIN_PASSWORD}
+        - GF_INSTALL_PLUGINS=${PLUGINS}
+      volumes:
+        - grafana_data:/var/lib/grafana
+      restart: unless-stopped
+
+  volumes:
+    grafana_data:
+
+variables:
+  - name: PORT
+    description: Web UI port
+    default: "3000"
+  - name: ADMIN_USER
+    description: Admin username
+    default: "admin"
+  - name: ADMIN_PASSWORD
+    description: Admin password
+    required: true
+    secret: true
+  - name: PLUGINS
+    description: Plugins to install (comma-separated)
+    default: "grafana-clock-panel,grafana-simple-json-datasource"
+
+health_checks:
+  - name: web
+    url: "http://localhost:${PORT}/api/health"
+    interval: 30s
+    timeout: 10s
+
+hooks:
+  post_install:
+    - echo "Grafana is ready! Access at http://localhost:${PORT}"
+    - echo "Login with: ${ADMIN_USER} / [your password]"

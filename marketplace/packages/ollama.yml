@@ -1,0 +1,57 @@
+name: ollama
+version: 0.1.0
+displayName: Ollama
+description: |
+  Run large language models locally. Supports Llama 3.2, CodeLlama, Mistral, and more.
+  Requires NVIDIA GPU for best performance.
+category: ai
+icon: https://ollama.ai/public/ollama.png
+repository: docker.io/ollama/ollama
+
+compose:
+  services:
+    ollama:
+      image: ollama/ollama:latest
+      ports:
+        - "${PORT:-11434}:11434"
+      volumes:
+        - ollama_data:/root/.ollama
+      environment:
+        - OLLAMA_HOST=0.0.0.0
+      deploy:
+        resources:
+          reservations:
+            devices:
+              - driver: nvidia
+                count: 1
+                capabilities: [gpu]
+
+  volumes:
+    ollama_data:
+
+variables:
+  - name: PORT
+    description: API port to expose
+    default: "11434"
+  - name: OLLAMA_MODELS
+    description: Models to pull after installation (comma-separated)
+    default: "llama3.2"
+
+health_checks:
+  - name: api
+    url: "http://localhost:${PORT}/api/tags"
+    interval: 30s
+    timeout: 10s
+
+hooks:
+  post_install:
+    - |
+      echo "Pulling default models..."
+      for model in $(echo ${OLLAMA_MODELS} | tr ',' ' '); do
+        docker exec ollama ollama pull $model
+      done
+      echo "Ollama is ready! API available at http://localhost:${PORT}"
+
+requirements:
+  gpu: nvidia
+  min_vram_gb: 8

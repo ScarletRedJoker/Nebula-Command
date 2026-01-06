@@ -1,0 +1,59 @@
+name: n8n
+version: 1.20.0
+displayName: n8n Workflow Automation
+description: |
+  Fair-code workflow automation. Connect anything to everything with 400+ integrations.
+  Build complex automations with a visual editor. Self-host your workflows.
+category: tools
+icon: https://n8n.io/favicon.ico
+repository: docker.io/n8nio/n8n
+
+compose:
+  services:
+    n8n:
+      image: n8nio/n8n:latest
+      ports:
+        - "${PORT:-5678}:5678"
+      environment:
+        - N8N_BASIC_AUTH_ACTIVE=true
+        - N8N_BASIC_AUTH_USER=${ADMIN_USER}
+        - N8N_BASIC_AUTH_PASSWORD=${ADMIN_PASSWORD}
+        - N8N_HOST=${N8N_HOST}
+        - N8N_PROTOCOL=https
+        - WEBHOOK_URL=https://${N8N_HOST}/
+        - GENERIC_TIMEZONE=${TIMEZONE}
+      volumes:
+        - n8n_data:/home/node/.n8n
+      restart: unless-stopped
+
+  volumes:
+    n8n_data:
+
+variables:
+  - name: PORT
+    description: Web UI port
+    default: "5678"
+  - name: ADMIN_USER
+    description: Admin username
+    default: "admin"
+  - name: ADMIN_PASSWORD
+    description: Admin password
+    required: true
+    secret: true
+  - name: N8N_HOST
+    description: Public hostname for webhooks
+    default: "n8n.localhost"
+  - name: TIMEZONE
+    description: Timezone for scheduling
+    default: "America/New_York"
+
+health_checks:
+  - name: web
+    url: "http://localhost:${PORT}/healthz"
+    interval: 30s
+    timeout: 10s
+
+hooks:
+  post_install:
+    - echo "n8n is ready! Access at http://localhost:${PORT}"
+    - echo "Login with: ${ADMIN_USER} / [your password]"
