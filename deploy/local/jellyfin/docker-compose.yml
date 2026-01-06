@@ -1,0 +1,50 @@
+services:
+  jellyfin:
+    image: jellyfin/jellyfin:latest
+    container_name: jellyfin
+    user: 1000:1000
+    ports:
+      - 8096:8096      # Web UI
+      - 8920:8920      # HTTPS (optional)
+      - 7359:7359/udp  # Discovery
+      - 1900:1900/udp  # DLNA
+    environment:
+      - JELLYFIN_PublishedServerUrl=${JELLYFIN_URL:-http://localhost:8096}
+    volumes:
+      - jellyfin-config:/config
+      - jellyfin-cache:/cache
+      # Share the same media as Plex
+      - /srv/media:/media:ro
+      # Friends can upload to this folder
+      - /srv/media/community:/media/community:rw
+    restart: unless-stopped
+    networks:
+      - media-network
+
+  # Sync service for community federation
+  media-sync:
+    image: node:20-alpine
+    container_name: media-sync
+    working_dir: /app
+    volumes:
+      - ./sync-service:/app
+      - /srv/media/community:/media/community
+    environment:
+      - NODE_ENV=production
+      - JELLYFIN_URL=http://jellyfin:8096
+      - SYNC_API_KEY=${SYNC_API_KEY:-}
+      - DASHBOARD_URL=${DASHBOARD_URL:-}
+    depends_on:
+      - jellyfin
+    command: ["node", "index.js"]
+    restart: unless-stopped
+    networks:
+      - media-network
+
+networks:
+  media-network:
+    driver: bridge
+
+volumes:
+  jellyfin-config:
+  jellyfin-cache:

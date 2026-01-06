@@ -3,7 +3,7 @@
  * Drizzle ORM schema for projects, agents, marketplace, and incidents
  */
 
-import { pgTable, text, varchar, timestamp, integer, boolean, jsonb, uuid, decimal } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, boolean, jsonb, uuid, decimal, serial } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
 export const projects = pgTable("projects", {
@@ -212,3 +212,20 @@ export type NewPrompt = typeof prompts.$inferInsert;
 export type Workflow = typeof workflows.$inferSelect;
 export type NewWorkflow = typeof workflows.$inferInsert;
 export type WorkflowExecution = typeof workflowExecutions.$inferSelect;
+
+export const communityNodes = pgTable("community_nodes", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  url: varchar("url", { length: 500 }).notNull(),
+  apiKey: varchar("api_key", { length: 255 }).notNull(),
+  ownerId: varchar("owner_id", { length: 255 }),
+  ownerName: varchar("owner_name", { length: 255 }),
+  storageUsed: decimal("storage_used", { precision: 20, scale: 0 }).default("0"),
+  storageTotal: decimal("storage_total", { precision: 20, scale: 0 }).default("0"),
+  mediaCount: integer("media_count").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  lastSeen: timestamp("last_seen"),
+});
+
+export type CommunityNode = typeof communityNodes.$inferSelect;
+export type NewCommunityNode = typeof communityNodes.$inferInsert;

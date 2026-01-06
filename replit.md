@@ -53,7 +53,14 @@ Secrets are managed via `.env` files (gitignore'd) and Replit Secrets. Pre-commi
 
 ## Recent Changes (January 2026)
 
-### Creation Engine Features (Latest)
+### Community Media Network (Latest)
+- **Federated Jellyfin**: Run Jellyfin alongside Plex for community media sharing
+- **Node Registration**: Add friends' servers with auto-generated API keys
+- **Storage Tracking**: Monitor storage contribution across all nodes
+- **Sync Service**: Heartbeat system tracks node status and media counts
+- **Deploy Config**: `deploy/local/jellyfin/` with docker-compose for easy setup
+
+### Creation Engine Features
 - **Ollama Model Catalog**: New `/models` page to browse, pull, and delete local LLM models with progress tracking
 - **AI Code Generation**: New `/generate` page with natural language code creation, templates, and Monaco preview
 - **Prompt Library**: New `/prompts` page for reusable text snippets with categories (code, content, image, chat, system)
