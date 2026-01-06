@@ -3,6 +3,7 @@ import { Client } from "ssh2";
 import { verifySession } from "@/lib/session";
 import { cookies } from "next/headers";
 import { readFileSync, existsSync } from "fs";
+import { getAllServers, getServerById, ServerConfig, getDefaultSshKeyPath } from "@/lib/server-config-store";
 
 async function checkAuth() {
   const cookieStore = await cookies();
@@ -12,43 +13,15 @@ async function checkAuth() {
   return !!user;
 }
 
-interface ServerConfig {
-  id: string;
-  name: string;
-  description: string;
-  host: string;
-  user: string;
-  keyPath?: string;
-}
-
-const servers: ServerConfig[] = [
-  {
-    id: "linode",
-    name: "Linode Server",
-    description: "Public services - Discord Bot, Stream Bot",
-    host: process.env.LINODE_SSH_HOST || "linode.evindrake.net",
-    user: process.env.LINODE_SSH_USER || "root",
-    keyPath: process.env.SSH_KEY_PATH || "/root/.ssh/id_rsa",
-  },
-  {
-    id: "home",
-    name: "Home Server", 
-    description: "Private services - Plex, Home Assistant",
-    host: process.env.HOME_SSH_HOST || "host.evindrake.net",
-    user: process.env.HOME_SSH_USER || "evin",
-    keyPath: process.env.SSH_KEY_PATH || "/root/.ssh/id_rsa",
-  },
-];
-
 async function getServerMetrics(server: ServerConfig): Promise<any> {
   return new Promise((resolve) => {
-    const keyPath = server.keyPath || "/root/.ssh/id_rsa";
+    const keyPath = server.keyPath || getDefaultSshKeyPath();
     
     if (!existsSync(keyPath)) {
       resolve({
         id: server.id,
         name: server.name,
-        description: server.description,
+        description: server.description || "",
         status: "error",
         error: "SSH key not found",
         metrics: { cpu: 0, memory: 0, disk: 0, network: "N/A" },
@@ -62,7 +35,7 @@ async function getServerMetrics(server: ServerConfig): Promise<any> {
       resolve({
         id: server.id,
         name: server.name,
-        description: server.description,
+        description: server.description || "",
         status: "offline",
         error: "Connection timeout",
         metrics: { cpu: 0, memory: 0, disk: 0, network: "N/A" },
@@ -86,7 +59,7 @@ async function getServerMetrics(server: ServerConfig): Promise<any> {
           resolve({
             id: server.id,
             name: server.name,
-            description: server.description,
+            description: server.description || "",
             status: "error",
             error: err.message,
             metrics: { cpu: 0, memory: 0, disk: 0, network: "N/A" },
@@ -116,7 +89,7 @@ async function getServerMetrics(server: ServerConfig): Promise<any> {
           resolve({
             id: server.id,
             name: server.name,
-            description: server.description,
+            description: server.description || "",
             ip: server.host,
             status: "online",
             os: metrics.OS || "Ubuntu",
@@ -137,7 +110,7 @@ async function getServerMetrics(server: ServerConfig): Promise<any> {
       resolve({
         id: server.id,
         name: server.name,
-        description: server.description,
+        description: server.description || "",
         status: "offline",
         error: err.message,
         metrics: { cpu: 0, memory: 0, disk: 0, network: "N/A" },
@@ -157,7 +130,7 @@ async function getServerMetrics(server: ServerConfig): Promise<any> {
       resolve({
         id: server.id,
         name: server.name,
-        description: server.description,
+        description: server.description || "",
         status: "error",
         error: err.message,
         metrics: { cpu: 0, memory: 0, disk: 0, network: "N/A" },
@@ -174,6 +147,8 @@ export async function GET(request: NextRequest) {
   const serverId = request.nextUrl.searchParams.get("id");
 
   try {
+    const servers = await getAllServers();
+    
     if (serverId) {
       const server = servers.find((s) => s.id === serverId);
       if (!server) {

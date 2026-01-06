@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySession } from "@/lib/session";
 import { cookies } from "next/headers";
-import { getServerById } from "@/lib/server-config";
+import { getServerById } from "@/lib/server-config-store";
 
 async function checkAuth() {
   const cookieStore = await cookies();
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Missing serverId" }, { status: 400 });
   }
 
-  const server = getServerById(serverId);
+  const server = await getServerById(serverId);
   if (!server) {
     return NextResponse.json({ error: "Server not found" }, { status: 404 });
   }
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     let serverName = "Custom VNC";
 
     if (serverId) {
-      const server = getServerById(serverId);
+      const server = await getServerById(serverId);
       if (!server) {
         return NextResponse.json({ error: "Server not found" }, { status: 404 });
       }

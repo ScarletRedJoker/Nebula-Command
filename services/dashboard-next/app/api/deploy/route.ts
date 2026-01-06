@@ -3,6 +3,7 @@ import { Client } from "ssh2";
 import { verifySession } from "@/lib/session";
 import { cookies } from "next/headers";
 import { readFileSync, existsSync } from "fs";
+import { getAllServers, getServerById, getDefaultSshKeyPath, ServerConfig } from "@/lib/server-config-store";
 
 async function checkAuth() {
   const cookieStore = await cookies();
@@ -11,28 +12,6 @@ async function checkAuth() {
   const user = await verifySession(session.value);
   return !!user;
 }
-
-interface DeployConfig {
-  server: "linode" | "home";
-  host: string;
-  user: string;
-  deployPath: string;
-}
-
-const deployConfigs: Record<string, DeployConfig> = {
-  linode: {
-    server: "linode",
-    host: process.env.LINODE_SSH_HOST || "linode.evindrake.net",
-    user: process.env.LINODE_SSH_USER || "root",
-    deployPath: "/opt/homelab/HomeLabHub/deploy/linode",
-  },
-  home: {
-    server: "home",
-    host: process.env.HOME_SSH_HOST || "host.evindrake.net",
-    user: process.env.HOME_SSH_USER || "evin",
-    deployPath: "/opt/homelab/HomeLabHub/deploy/local",
-  },
-};
 
 interface DeploymentLog {
   id: string;
@@ -45,11 +24,33 @@ interface DeploymentLog {
 
 const activeDeployments: Map<string, DeploymentLog> = new Map();
 
-async function runDeploy(config: DeployConfig, deployId: string): Promise<void> {
-  const keyPath = process.env.SSH_KEY_PATH || "/root/.ssh/id_rsa";
+async function runDeploy(server: ServerConfig, deployId: string): Promise<void> {
+  const keyPath = server.keyPath || getDefaultSshKeyPath();
   
   const deployment = activeDeployments.get(deployId);
   if (!deployment) return;
+
+  if (!server.deployPath) {
+    deployment.status = "failed";
+    deployment.logs.push(`ERROR: No deploy path configured for server "${server.name}"`);
+    deployment.endTime = new Date();
+    return;
+  }
+
+  const deployPath = server.deployPath;
+  if (!/^[a-zA-Z0-9_\-/.]+$/.test(deployPath)) {
+    deployment.status = "failed";
+    deployment.logs.push(`ERROR: Invalid deploy path "${deployPath}" - must contain only alphanumeric characters, dashes, underscores, dots, and slashes`);
+    deployment.endTime = new Date();
+    return;
+  }
+
+  if (deployPath.includes("..") || deployPath.includes("&&") || deployPath.includes(";") || deployPath.includes("|") || deployPath.includes("`") || deployPath.includes("$")) {
+    deployment.status = "failed";
+    deployment.logs.push(`ERROR: Deploy path contains forbidden characters`);
+    deployment.endTime = new Date();
+    return;
+  }
 
   return new Promise((resolve, reject) => {
     if (!existsSync(keyPath)) {
@@ -63,10 +64,11 @@ async function runDeploy(config: DeployConfig, deployId: string): Promise<void> 
     const conn = new Client();
 
     conn.on("ready", () => {
-      deployment.logs.push(`Connected to ${config.host}`);
-      deployment.logs.push(`Running deploy script at ${config.deployPath}`);
+      deployment.logs.push(`Connected to ${server.host}`);
+      deployment.logs.push(`Running deploy script at ${deployPath}`);
 
-      const command = `cd ${config.deployPath} && git pull && ./deploy.sh 2>&1`;
+      const safeDeployPath = `'${deployPath.replace(/'/g, "'\"'\"'")}'`;
+      const command = `cd ${safeDeployPath} && git pull && ./deploy.sh 2>&1`;
 
       conn.exec(command, (err, stream) => {
         if (err) {
@@ -113,9 +115,9 @@ async function runDeploy(config: DeployConfig, deployId: string): Promise<void> 
 
     try {
       conn.connect({
-        host: config.host,
+        host: server.host,
         port: 22,
-        username: config.user,
+        username: server.user,
         privateKey: readFileSync(keyPath),
         readyTimeout: 30000,
       });
@@ -147,7 +149,13 @@ export async function GET(request: NextRequest) {
     .sort((a, b) => b.startTime.getTime() - a.startTime.getTime())
     .slice(0, 20);
 
-  return NextResponse.json({ deployments });
+  const servers = await getAllServers();
+  const deployableServers = servers.filter(s => s.deployPath);
+
+  return NextResponse.json({ 
+    deployments,
+    availableServers: deployableServers.map(s => ({ id: s.id, name: s.name, deployPath: s.deployPath })),
+  });
 }
 
 export async function POST(request: NextRequest) {
@@ -156,36 +164,53 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { server } = await request.json();
+    const { server: serverId } = await request.json();
 
-    if (!server || !deployConfigs[server]) {
+    if (!serverId) {
       return NextResponse.json(
-        { error: "Invalid server. Must be 'linode' or 'home'" },
+        { error: "Server ID is required" },
         { status: 400 }
       );
     }
 
-    const config = deployConfigs[server];
-    const deployId = `${server}-${Date.now()}`;
+    const server = await getServerById(serverId);
+    
+    if (!server) {
+      const servers = await getAllServers();
+      const validServers = servers.filter(s => s.deployPath).map(s => s.id);
+      return NextResponse.json(
+        { error: `Server "${serverId}" not found. Available: ${validServers.join(", ")}` },
+        { status: 400 }
+      );
+    }
+
+    if (!server.deployPath) {
+      return NextResponse.json(
+        { error: `Server "${server.name}" does not have a deploy path configured` },
+        { status: 400 }
+      );
+    }
+
+    const deployId = `${serverId}-${Date.now()}`;
 
     const deployment: DeploymentLog = {
       id: deployId,
-      server,
+      server: serverId,
       status: "running",
       startTime: new Date(),
-      logs: [`Starting deployment to ${server}...`],
+      logs: [`Starting deployment to ${server.name}...`],
     };
 
     activeDeployments.set(deployId, deployment);
 
-    runDeploy(config, deployId).catch((err) => {
+    runDeploy(server, deployId).catch((err) => {
       console.error("Deploy error:", err);
     });
 
     return NextResponse.json({
       success: true,
       deployId,
-      message: `Deployment to ${server} started`,
+      message: `Deployment to ${server.name} started`,
     });
   } catch (error: any) {
     console.error("Deploy start error:", error);

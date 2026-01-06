@@ -3,14 +3,11 @@ import { verifySession } from "@/lib/session";
 import { cookies } from "next/headers";
 import fs from "fs/promises";
 import path from "path";
+import { getAllServers, saveServers, ServerConfig } from "@/lib/server-config-store";
 
 const SETTINGS_DIR = process.env.STUDIO_PROJECTS_DIR || 
   (process.env.REPL_ID ? "./data/studio-projects" : "/opt/homelab/studio-projects");
 const SETTINGS_FILE = "user-settings.json";
-
-// Note: This is a single-tenant homelab dashboard owned by Evin.
-// Settings are stored per-installation, not per-user.
-// For multi-tenant support, settings would need to be keyed by user ID in a database.
 
 interface UserSettings {
   profile: {
@@ -29,12 +26,7 @@ interface UserSettings {
     discordNotifications: boolean;
     emailNotifications: boolean;
   };
-  servers: Array<{
-    id: string;
-    name: string;
-    host: string;
-    user: string;
-  }>;
+  servers: ServerConfig[];
 }
 
 async function checkAuth() {
@@ -57,9 +49,32 @@ async function loadSettings(): Promise<UserSettings> {
     await ensureDir(SETTINGS_DIR);
     const filePath = path.join(SETTINGS_DIR, SETTINGS_FILE);
     const content = await fs.readFile(filePath, "utf-8");
-    return JSON.parse(content);
+    const stored = JSON.parse(content);
+    
+    const servers = await getAllServers();
+    
+    return {
+      profile: stored.profile || {
+        displayName: "Evin",
+        email: "evin@evindrake.net",
+        timezone: "America/New_York",
+      },
+      appearance: stored.appearance || {
+        darkMode: true,
+        compactMode: false,
+        sidebarCollapsed: false,
+      },
+      notifications: stored.notifications || {
+        deploymentAlerts: true,
+        serverHealthAlerts: true,
+        discordNotifications: true,
+        emailNotifications: false,
+      },
+      servers,
+    };
   } catch (error: any) {
     if (error.code === "ENOENT") {
+      const servers = await getAllServers();
       const defaultSettings: UserSettings = {
         profile: {
           displayName: "Evin",
@@ -77,19 +92,16 @@ async function loadSettings(): Promise<UserSettings> {
           discordNotifications: true,
           emailNotifications: false,
         },
-        servers: [
-          { id: "linode", name: "Linode Server", host: "linode.evindrake.net", user: "root" },
-          { id: "home", name: "Home Server", host: "host.evindrake.net", user: "evin" },
-        ],
+        servers,
       };
-      await saveSettings(defaultSettings);
+      await saveSettingsFile(defaultSettings);
       return defaultSettings;
     }
     throw error;
   }
 }
 
-async function saveSettings(settings: UserSettings): Promise<void> {
+async function saveSettingsFile(settings: Omit<UserSettings, "servers"> & { servers?: any }): Promise<void> {
   await ensureDir(SETTINGS_DIR);
   const filePath = path.join(SETTINGS_DIR, SETTINGS_FILE);
   await fs.writeFile(filePath, JSON.stringify(settings, null, 2));
@@ -120,15 +132,25 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const currentSettings = await loadSettings();
     
-    const updatedSettings: UserSettings = {
+    const updatedSettings = {
       profile: { ...currentSettings.profile, ...body.profile },
       appearance: { ...currentSettings.appearance, ...body.appearance },
       notifications: { ...currentSettings.notifications, ...body.notifications },
       servers: body.servers || currentSettings.servers,
     };
 
-    await saveSettings(updatedSettings);
-    return NextResponse.json({ success: true, settings: updatedSettings });
+    if (body.servers) {
+      await saveServers(body.servers);
+    }
+    
+    await saveSettingsFile(updatedSettings);
+    
+    const finalServers = await getAllServers();
+    
+    return NextResponse.json({ 
+      success: true, 
+      settings: { ...updatedSettings, servers: finalServers } 
+    });
   } catch (error: any) {
     console.error("Settings PUT error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });

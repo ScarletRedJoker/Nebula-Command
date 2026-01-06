@@ -48,6 +48,10 @@ interface ServerConfig {
   name: string;
   host: string;
   user: string;
+  description?: string;
+  keyPath?: string;
+  deployPath?: string;
+  isDefault?: boolean;
 }
 
 interface UserSettings {
@@ -79,9 +83,11 @@ interface ServerFormData {
   name: string;
   host: string;
   user: string;
+  keyPath: string;
+  deployPath: string;
 }
 
-const emptyServerForm: ServerFormData = { name: "", host: "", user: "" };
+const emptyServerForm: ServerFormData = { name: "", host: "", user: "", keyPath: "", deployPath: "" };
 
 function SettingsPageContent() {
   const [loading, setLoading] = useState(true);
@@ -345,7 +351,13 @@ function SettingsPageContent() {
 
   const openEditServerDialog = (server: ServerConfig) => {
     setServerDialogMode("edit");
-    setServerForm({ name: server.name, host: server.host, user: server.user });
+    setServerForm({ 
+      name: server.name, 
+      host: server.host, 
+      user: server.user,
+      keyPath: server.keyPath || "",
+      deployPath: server.deployPath || "",
+    });
     setServerFormErrors({});
     setEditingServerId(server.id);
     setServerDialogOpen(true);
@@ -364,6 +376,8 @@ function SettingsPageContent() {
           name: serverForm.name.trim(),
           host: serverForm.host.trim(),
           user: serverForm.user.trim(),
+          keyPath: serverForm.keyPath.trim() || undefined,
+          deployPath: serverForm.deployPath.trim() || undefined,
         };
         
         if (settings.servers.some((s) => s.id === newServer.id)) {
@@ -378,7 +392,14 @@ function SettingsPageContent() {
       } else {
         updatedServers = settings.servers.map((s) =>
           s.id === editingServerId
-            ? { ...s, name: serverForm.name.trim(), host: serverForm.host.trim(), user: serverForm.user.trim() }
+            ? { 
+                ...s, 
+                name: serverForm.name.trim(), 
+                host: serverForm.host.trim(), 
+                user: serverForm.user.trim(),
+                keyPath: serverForm.keyPath.trim() || undefined,
+                deployPath: serverForm.deployPath.trim() || undefined,
+              }
             : s
         );
       }
@@ -882,6 +903,26 @@ function SettingsPageContent() {
               {serverFormErrors.user && (
                 <p className="text-xs text-destructive">{serverFormErrors.user}</p>
               )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="serverKeyPath">SSH Key Path (optional)</Label>
+              <Input
+                id="serverKeyPath"
+                value={serverForm.keyPath}
+                onChange={(e) => setServerForm({ ...serverForm, keyPath: e.target.value })}
+                placeholder="/root/.ssh/id_rsa"
+              />
+              <p className="text-xs text-muted-foreground">Leave empty to use default key</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="serverDeployPath">Deploy Path (optional)</Label>
+              <Input
+                id="serverDeployPath"
+                value={serverForm.deployPath}
+                onChange={(e) => setServerForm({ ...serverForm, deployPath: e.target.value })}
+                placeholder="/opt/homelab/deploy"
+              />
+              <p className="text-xs text-muted-foreground">Path to deploy script on this server</p>
             </div>
           </div>
           <DialogFooter>
