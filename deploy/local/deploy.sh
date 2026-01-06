@@ -56,11 +56,23 @@ do_env_setup() {
 
 check_nas() {
     echo -e "${CYAN}━━━ NAS Storage ━━━${NC}"
-    if mountpoint -q /mnt/nas/all 2>/dev/null; then
-        echo -e "${GREEN}[OK]${NC} NAS mounted at /mnt/nas/all"
+    
+    local media_paths=("/srv/media" "/mnt/nas/all" "/mnt/media")
+    local found_mount=""
+    
+    for path in "${media_paths[@]}"; do
+        if [ -d "$path" ] && [ "$(ls -A "$path" 2>/dev/null)" ]; then
+            found_mount="$path"
+            break
+        fi
+    done
+    
+    if [ -n "$found_mount" ]; then
+        echo -e "${GREEN}[OK]${NC} Media storage found at $found_mount"
     else
-        echo -e "${YELLOW}[SKIP]${NC} NAS not mounted (Plex media unavailable)"
-        echo "       To mount: sudo ./scripts/setup-nas-mounts.sh"
+        echo -e "${YELLOW}[SKIP]${NC} No media storage detected"
+        echo "       Checked: ${media_paths[*]}"
+        echo "       Plex will start but may not have media files"
     fi
     echo ""
 }
