@@ -24,6 +24,7 @@ import {
   Cpu,
   AlertTriangle,
   Wrench,
+  Monitor,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,7 @@ const navItems = [
   { href: "/editor", label: "Code Editor", icon: Code2 },
   { href: "/deploy", label: "Deploy", icon: Rocket },
   { href: "/servers", label: "Servers", icon: HardDrive },
+  { href: "/remote", label: "Remote Console", icon: Monitor },
   { href: "/files-remote", label: "Remote Files", icon: FolderOpen },
   { href: "/terminal", label: "Terminal", icon: Terminal },
   { href: "/creative", label: "Creative Studio", icon: Sparkles },
