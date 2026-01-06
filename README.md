@@ -1,48 +1,36 @@
 # Nebula Command
 
-A comprehensive homelab management suite featuring a modern dashboard, Discord community bot, and multi-platform streaming tools.
+A comprehensive homelab management and creation engine - empowering anyone to build, deploy, and manage services, websites, and applications from anywhere.
 
-## Overview
+## Vision
 
-Nebula Command is a single-tenant platform for homelab enthusiasts, providing:
+Nebula Command is designed to be a universal creation platform where anyone can:
+- Spin up a server and start creating in an afternoon
+- Manage and deploy services without DevOps expertise
+- Build websites, bots, and applications with visual tools
+- Automate infrastructure with AI-powered assistance
 
-- **Dashboard** - Next.js 14 control panel with real-time Docker/SSH management, visual website builder, and AI assistant
-- **Discord Bot** - Community management with tickets, welcome cards, stream notifications, XP/leveling, and economy systems
-- **Stream Bot** - Unified streaming platform for Twitch, YouTube, and Kick with OBS overlays, AI content, and chat moderation
-
-## Architecture
-
-```
-nebula-command/
-├── services/
-│   ├── dashboard-next/     # Next.js 14 Dashboard (TypeScript, shadcn/ui)
-│   ├── discord-bot/        # Discord.js Bot (Node.js, React dashboard)
-│   └── stream-bot/         # Streaming Platform (Node.js, Vite, React)
-├── deploy/
-│   ├── linode/             # Cloud deployment (docker-compose)
-│   └── local/              # Local Ubuntu deployment
-└── scripts/                # Utility scripts
-```
-
-## Services
+## Features
 
 ### Dashboard (Next.js 14)
-Port: 5000 | URL: `host.evindrake.net`
+The central control panel for your entire infrastructure.
 
 | Feature | Description |
 |---------|-------------|
-| Home | Live stats - container counts, server metrics, quick actions |
-| Services | Docker container management (start/stop/restart) |
-| Servers | SSH-based metrics from remote servers |
-| Deploy | One-click deployments with live log streaming |
-| Editor | Monaco code editor with file tree navigation |
-| Designer | Visual drag-drop website builder (14 component types) |
-| Websites | Website management CRUD |
-| Jarvis AI | OpenAI-powered chat assistant |
-| Settings | Server connections, integrations, preferences |
+| **Home** | Live stats, container counts, server metrics, quick actions |
+| **Services** | Docker container management (start/stop/restart/logs) |
+| **Servers** | SSH-based metrics from remote servers |
+| **Deploy** | One-click deployments with live log streaming |
+| **Editor** | Monaco code editor with file tree navigation |
+| **Designer** | Visual drag-drop website builder (14 component types) |
+| **Marketplace** | One-click installation of Docker-based services |
+| **Resources** | DNS/SSL management with Cloudflare integration |
+| **AI Agents** | Configurable AI assistants (Jarvis, Coder, Creative, DevOps) |
+| **Incidents** | Service health monitoring and auto-remediation |
+| **Terminal** | Web-based SSH terminal access |
 
 ### Discord Bot
-Port: 4000 | URL: `bot.rig-city.com`
+Full-featured community management bot.
 
 | Feature | Description |
 |---------|-------------|
@@ -50,13 +38,12 @@ Port: 4000 | URL: `bot.rig-city.com`
 | Welcome Cards | Custom welcome images with @napi-rs/canvas |
 | Stream Notifications | Go-live alerts for Twitch/YouTube/Kick |
 | AutoMod | Automated content moderation |
-| Starboard | Highlight popular messages |
 | XP/Leveling | Member engagement tracking |
 | Economy | Virtual currency system |
-| Music Bot | Play music with discord-player |
+| Music | Play music with discord-player |
 
 ### Stream Bot
-Port: 3000 | URL: `stream.rig-city.com`
+Multi-platform streaming management.
 
 | Feature | Description |
 |---------|-------------|
@@ -64,86 +51,203 @@ Port: 3000 | URL: `stream.rig-city.com`
 | Stream Info Editor | Edit title/game/tags across all platforms |
 | OBS Overlays | Now Playing, alerts, chat overlays |
 | AI Content | Generate titles, descriptions, social posts |
-| Restream | Multi-platform streaming management |
-| Schedule | Stream schedule with calendar |
 | Clips | Clip management with social sharing |
-| Alerts | Customizable stream alerts |
-| Chat Moderation | AutoMod, banned words, slow mode |
-| Currency & Games | Viewer engagement features |
-| Polls & Predictions | Interactive viewer features |
 
-## Quick Start
+## Quick Start (New Users)
 
-### Development (Replit)
+### Option 1: Deploy to Linode (Recommended)
 
-All three services run automatically:
-- Dashboard: Port 5000 (webview)
-- Discord Bot: Port 4000
-- Stream Bot: Port 3000
+1. **Create a Linode server** (Ubuntu 22.04, 4GB RAM minimum)
 
-### Production Deployment
-
-**Linode Cloud:**
+2. **SSH into your server:**
 ```bash
-ssh root@linode.evindrake.net
-cd /opt/homelab/HomeLabHub/deploy/linode
+ssh root@YOUR_SERVER_IP
+```
+
+3. **Install Docker:**
+```bash
+curl -fsSL https://get.docker.com | sh
+```
+
+4. **Clone the repository:**
+```bash
+mkdir -p /opt/homelab
+cd /opt/homelab
+git clone https://github.com/YOUR_USERNAME/HomeLabHub.git
+cd HomeLabHub
+```
+
+5. **Create environment file:**
+```bash
+cp deploy/linode/.env.example deploy/linode/.env
+nano deploy/linode/.env
+```
+
+6. **Add your secrets** (see Environment Variables section below)
+
+7. **Deploy:**
+```bash
+cd deploy/linode
 ./deploy.sh
 ```
 
-**Local Ubuntu:**
-```bash
-ssh evin@host.evindrake.net
-cd /opt/homelab/HomeLabHub/deploy/local
-./deploy.sh
-```
+8. **Access your dashboard** at `http://YOUR_SERVER_IP:5000`
+
+### Option 2: Development in Replit
+
+1. Fork this repository
+2. Import into Replit
+3. Add secrets in the Secrets tab (see Environment Variables)
+4. Run - all services start automatically
 
 ## Environment Variables
 
 ### Required Secrets
+
+Create a `.env` file with these values:
+
 ```env
-# Discord
-DISCORD_BOT_TOKEN=
-DISCORD_CLIENT_ID=
-DISCORD_CLIENT_SECRET=
+# Database (required)
+DATABASE_URL=postgresql://user:password@host:5432/database
 
-# Streaming Platforms
-TWITCH_CLIENT_ID=
-TWITCH_CLIENT_SECRET=
-YOUTUBE_API_KEY=
-YOUTUBE_CLIENT_ID=
-YOUTUBE_CLIENT_SECRET=
-KICK_CLIENT_ID=
-SPOTIFY_CLIENT_ID=
-SPOTIFY_CLIENT_SECRET=
+# Discord Bot (if using)
+DISCORD_BOT_TOKEN=your_bot_token
+DISCORD_CLIENT_ID=your_client_id
+DISCORD_CLIENT_SECRET=your_client_secret
 
-# Infrastructure
-DATABASE_URL=postgresql://...
-OPENAI_API_KEY=
-CLOUDFLARE_API_TOKEN=
+# Streaming Platforms (if using Stream Bot)
+TWITCH_CLIENT_ID=your_twitch_client_id
+TWITCH_CLIENT_SECRET=your_twitch_secret
+YOUTUBE_API_KEY=your_youtube_api_key
+YOUTUBE_CLIENT_ID=your_youtube_client_id
+YOUTUBE_CLIENT_SECRET=your_youtube_secret
+KICK_CLIENT_ID=your_kick_client_id
+
+# Spotify (for music features)
+SPOTIFY_CLIENT_ID=your_spotify_client_id
+SPOTIFY_CLIENT_SECRET=your_spotify_secret
+
+# AI Features
+OPENAI_API_KEY=your_openai_key
+
+# DNS Management (optional)
+CLOUDFLARE_API_TOKEN=your_cloudflare_token
+
+# Security
+SESSION_SECRET=generate_a_random_32_char_string
+```
+
+### Getting API Keys
+
+| Service | Where to Get |
+|---------|--------------|
+| Discord | [Discord Developer Portal](https://discord.com/developers/applications) |
+| Twitch | [Twitch Developer Console](https://dev.twitch.tv/console) |
+| YouTube | [Google Cloud Console](https://console.cloud.google.com/) |
+| Spotify | [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) |
+| OpenAI | [OpenAI Platform](https://platform.openai.com/api-keys) |
+| Cloudflare | [Cloudflare Dashboard](https://dash.cloudflare.com/profile/api-tokens) |
+
+## Architecture
+
+```
+nebula-command/
+├── services/
+│   ├── dashboard-next/     # Next.js 14 Dashboard (TypeScript, shadcn/ui)
+│   │   ├── app/            # Next.js App Router pages
+│   │   ├── components/     # React components
+│   │   ├── lib/            # Utilities, database, API helpers
+│   │   └── server/         # Terminal server
+│   ├── discord-bot/        # Discord.js Bot (Node.js)
+│   │   ├── src/            # Bot source code
+│   │   ├── commands/       # Slash commands
+│   │   └── events/         # Discord event handlers
+│   └── stream-bot/         # Streaming Platform (Node.js, Vite)
+│       ├── src/            # Backend source
+│       └── client/         # React frontend
+├── deploy/
+│   ├── linode/             # Cloud deployment (docker-compose)
+│   └── local/              # Local Ubuntu deployment
+├── orchestration/
+│   ├── runbooks/           # Auto-remediation scripts
+│   └── service-map.yml     # Service discovery configuration
+└── docs/                   # Documentation
 ```
 
 ## Database
 
-PostgreSQL with three logical databases:
-- `homelab_jarvis` - Dashboard data
-- `discord_bot` - Discord Bot data
-- `stream_bot` - Stream Bot data
+PostgreSQL with Drizzle ORM. Schema includes:
 
-## Testing
+- **projects** - Development projects
+- **deployments** - Deployment history
+- **marketplace_packages** - Available services to install
+- **installations** - Installed services
+- **agents** - AI assistant configurations
+- **incidents** - Service health incidents
+- **domains** - DNS/SSL managed domains
 
+Run migrations:
 ```bash
-# Stream Bot (41 tests)
-cd services/stream-bot
-npm run test:overlay   # 18 overlay API tests
-npm run test:oauth     # 20 OAuth flow tests
-npm run test           # All tests
-
-# Discord Bot (15 tests)
-cd services/discord-bot
-npm run test:api       # 15 API route tests
+cd services/dashboard-next
+npm run db:push
 ```
 
-Pre-commit hooks run all 56 tests automatically.
+## Customization
+
+### Adding Your Own Services
+
+1. Add a new package to the marketplace:
+   - Go to Dashboard > Marketplace
+   - Create a custom package with Docker compose configuration
+
+2. Create a custom AI agent:
+   - Go to Dashboard > AI Agents
+   - Click "Create Agent"
+   - Configure system prompt and capabilities
+
+3. Add custom domains:
+   - Go to Dashboard > Resources
+   - Add your domain and configure DNS records
+   - SSL is managed automatically via Cloudflare
+
+### Modifying the Discord Bot
+
+Edit files in `services/discord-bot/`:
+- `src/commands/` - Add new slash commands
+- `src/events/` - Handle Discord events
+- `src/modules/` - Add new features
+
+### Modifying the Stream Bot
+
+Edit files in `services/stream-bot/`:
+- `src/routes/` - API endpoints
+- `client/src/` - React frontend
+- `src/services/` - Platform integrations
+
+## Production Deployment
+
+### Linode Cloud
+```bash
+ssh root@YOUR_LINODE_IP
+cd /opt/homelab/HomeLabHub/deploy/linode
+./deploy.sh
+```
+
+### Local Ubuntu Server
+```bash
+ssh user@YOUR_SERVER_IP
+cd /opt/homelab/HomeLabHub/deploy/local
+./deploy.sh
+```
+
+## Ports
+
+| Service | Port | Description |
+|---------|------|-------------|
+| Dashboard | 5000 | Main web interface |
+| Discord Bot | 4000 | Bot API & dashboard |
+| Stream Bot | 3000 | Streaming platform |
+| Terminal Server | 5001 | SSH terminal WebSocket |
 
 ## Tech Stack
 
@@ -152,13 +256,13 @@ Pre-commit hooks run all 56 tests automatically.
 | Frontend | Next.js 14, React, Vite, TypeScript |
 | UI | shadcn/ui, Tailwind CSS, Radix UI |
 | Backend | Node.js, Express |
-| Database | PostgreSQL (Neon/self-hosted), Drizzle ORM |
+| Database | PostgreSQL, Drizzle ORM |
 | Cache | Redis |
 | Auth | JWT sessions, OAuth 2.0/2.1 (PKCE) |
 | AI | OpenAI GPT-4 |
 | Deployment | Docker, Docker Compose |
 | Reverse Proxy | Caddy (auto-SSL) |
-| Network | Tailscale (secure mesh) |
+| Network | Tailscale (optional secure mesh) |
 
 ## Security
 
@@ -166,24 +270,42 @@ Pre-commit hooks run all 56 tests automatically.
 - All API routes require authentication
 - SSH keys accessed server-side only
 - OAuth tokens encrypted at rest
-- Git pre-commit hooks prevent secret leaks
 - Rate limiting on all endpoints
 
-## Monitoring
+## Testing
 
-Production includes:
-- Grafana dashboards
-- Prometheus metrics
-- Loki log aggregation
-- cAdvisor container metrics
-- Node Exporter system metrics
+```bash
+# Stream Bot
+cd services/stream-bot
+npm test
 
-## Development Workflow
+# Discord Bot
+cd services/discord-bot
+npm test
+```
 
-1. Edit code in Replit
-2. Push to GitHub
-3. Pull on Ubuntu servers
-4. Run deploy script
+## Troubleshooting
+
+### Dashboard won't start
+- Check DATABASE_URL is set correctly
+- Run `npm install` in services/dashboard-next
+- Check logs: `docker logs homelab-dashboard`
+
+### Discord Bot not connecting
+- Verify DISCORD_BOT_TOKEN is correct
+- Check bot has proper gateway intents enabled
+- Ensure bot is invited to your server
+
+### Database errors
+- Run `npm run db:push` to sync schema
+- Check PostgreSQL is accessible
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make changes and test
+4. Submit a pull request
 
 ## License
 
@@ -191,4 +313,4 @@ Private repository - All rights reserved.
 
 ---
 
-**Nebula Command** - Unified Homelab Management
+**Nebula Command** - Create, Deploy, and Manage Anything

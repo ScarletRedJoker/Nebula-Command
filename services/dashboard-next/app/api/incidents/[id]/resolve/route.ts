@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySession } from "@/lib/session";
 import { cookies } from "next/headers";
-import { getIncidentById, updateIncident } from "../../route";
+import { db } from "@/lib/db";
+import { incidents } from "@/lib/db/platform-schema";
+import { eq } from "drizzle-orm";
 
 async function checkAuth() {
   const cookieStore = await cookies();
@@ -19,29 +21,38 @@ export async function PATCH(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { id } = await params;
-  const incident = getIncidentById(id);
-
-  if (!incident) {
-    return NextResponse.json({ error: "Incident not found" }, { status: 404 });
-  }
-
-  if (incident.status === "resolved") {
-    return NextResponse.json(
-      { error: "Incident is already resolved" },
-      { status: 400 }
-    );
-  }
-
   try {
+    const { id } = await params;
+    
+    const [existing] = await db
+      .select()
+      .from(incidents)
+      .where(eq(incidents.id, id))
+      .limit(1);
+
+    if (!existing) {
+      return NextResponse.json({ error: "Incident not found" }, { status: 404 });
+    }
+
+    if (existing.status === "resolved") {
+      return NextResponse.json(
+        { error: "Incident is already resolved" },
+        { status: 400 }
+      );
+    }
+
     const body = await request.json().catch(() => ({}));
     const resolution = body.resolution || "Manually resolved";
 
-    const updated = updateIncident(id, {
-      status: "resolved",
-      resolution,
-      resolvedAt: new Date(),
-    });
+    const [updated] = await db
+      .update(incidents)
+      .set({
+        status: "resolved",
+        resolution,
+        resolvedAt: new Date(),
+      })
+      .where(eq(incidents.id, id))
+      .returning();
 
     return NextResponse.json({ incident: updated });
   } catch (error: any) {

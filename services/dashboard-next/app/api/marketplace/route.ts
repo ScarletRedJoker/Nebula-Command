@@ -4,6 +4,9 @@ import { cookies } from "next/headers";
 import fs from "fs";
 import path from "path";
 import yaml from "js-yaml";
+import { db } from "@/lib/db";
+import { marketplacePackages, installations as installationsTable } from "@/lib/db/platform-schema";
+import { eq } from "drizzle-orm";
 
 async function checkAuth() {
   const cookieStore = await cookies();
@@ -29,7 +32,7 @@ interface MarketplacePackage {
   }>;
 }
 
-function loadPackages(): MarketplacePackage[] {
+function loadPackagesFromFile(): MarketplacePackage[] {
   const packagesDir = path.join(process.cwd(), "../../marketplace/packages");
   const altPackagesDir = path.join(process.cwd(), "../../../marketplace/packages");
   
@@ -161,16 +164,27 @@ function getBuiltinPackages(): MarketplacePackage[] {
   ];
 }
 
-const installations: Map<string, Installation> = new Map();
+async function getMarketplacePackages(): Promise<MarketplacePackage[]> {
+  try {
+    const dbPackages = await db.select().from(marketplacePackages);
+    
+    if (dbPackages.length > 0) {
+      return dbPackages.map(pkg => ({
+        name: pkg.name,
+        version: pkg.version || "1.0.0",
+        displayName: pkg.displayName,
+        description: pkg.description || "",
+        category: pkg.category || "tools",
+        icon: pkg.iconUrl || undefined,
+        repository: pkg.repository || "",
+        variables: (pkg.manifest as any)?.variables || [],
+      }));
+    }
+  } catch (error) {
+    console.error("Failed to query packages from database:", error);
+  }
 
-interface Installation {
-  id: string;
-  packageName: string;
-  status: "pending" | "installing" | "running" | "stopped" | "error";
-  config: Record<string, string>;
-  server: "linode" | "homelab";
-  createdAt: Date;
-  error?: string;
+  return loadPackagesFromFile();
 }
 
 export async function GET(request: NextRequest) {
@@ -183,9 +197,9 @@ export async function GET(request: NextRequest) {
   const category = searchParams.get("category");
   const search = searchParams.get("search");
 
-  let packages = loadPackages();
+  let packages = await getMarketplacePackages();
 
-  if (category) {
+  if (category && category !== "all") {
     packages = packages.filter(p => p.category === category);
   }
 
@@ -199,14 +213,15 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  const allPackages = await getMarketplacePackages();
   const categories = [
-    { id: "all", name: "All", count: loadPackages().length },
-    { id: "ai", name: "AI & ML", count: loadPackages().filter(p => p.category === "ai").length },
-    { id: "database", name: "Databases", count: loadPackages().filter(p => p.category === "database").length },
-    { id: "monitoring", name: "Monitoring", count: loadPackages().filter(p => p.category === "monitoring").length },
-    { id: "tools", name: "Developer Tools", count: loadPackages().filter(p => p.category === "tools").length },
-    { id: "web", name: "Web Apps", count: loadPackages().filter(p => p.category === "web").length },
-    { id: "media", name: "Media", count: loadPackages().filter(p => p.category === "media").length },
+    { id: "all", name: "All", count: allPackages.length },
+    { id: "ai", name: "AI & ML", count: allPackages.filter(p => p.category === "ai").length },
+    { id: "database", name: "Databases", count: allPackages.filter(p => p.category === "database").length },
+    { id: "monitoring", name: "Monitoring", count: allPackages.filter(p => p.category === "monitoring").length },
+    { id: "tools", name: "Developer Tools", count: allPackages.filter(p => p.category === "tools").length },
+    { id: "web", name: "Web Apps", count: allPackages.filter(p => p.category === "web").length },
+    { id: "media", name: "Media", count: allPackages.filter(p => p.category === "media").length },
   ];
 
   return NextResponse.json({
@@ -230,7 +245,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Package name is required" }, { status: 400 });
     }
 
-    const allPackages = loadPackages();
+    const allPackages = await getMarketplacePackages();
     const pkg = allPackages.find(p => p.name === packageName);
     if (!pkg) {
       return NextResponse.json({ error: "Package not found" }, { status: 404 });
@@ -247,17 +262,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const installId = `${packageName}-${Date.now()}`;
-    const installation: Installation = {
-      id: installId,
-      packageName,
-      status: "pending",
-      config,
-      server: server as "linode" | "homelab",
-      createdAt: new Date(),
-    };
+    let packageId: string | null = null;
+    try {
+      const [dbPkg] = await db.select({ id: marketplacePackages.id })
+        .from(marketplacePackages)
+        .where(eq(marketplacePackages.name, packageName))
+        .limit(1);
+      if (dbPkg) packageId = dbPkg.id;
+    } catch (e) {
+      console.error("Error finding package ID in DB:", e);
+    }
 
-    installations.set(installId, installation);
+    const [installation] = await db.insert(installationsTable).values({
+      packageId: packageId as any,
+      status: "pending",
+      config: config,
+      projectId: null, 
+    }).returning();
+
+    const installId = installation.id;
 
     queueInstallation(installId, pkg, config, server);
 
@@ -282,12 +305,11 @@ async function queueInstallation(
   config: Record<string, string>,
   server: string
 ) {
-  const installation = installations.get(installId);
-  if (!installation) return;
-
-  installation.status = "installing";
-
   try {
+    await db.update(installationsTable)
+      .set({ status: "installing" })
+      .where(eq(installationsTable.id, installId as any));
+
     const envVars = pkg.variables
       ?.map(v => {
         const value = config[v.name] || v.default || "";
@@ -302,11 +324,16 @@ async function queueInstallation(
 
     await new Promise(resolve => setTimeout(resolve, 2000));
 
-    installation.status = "running";
+    await db.update(installationsTable)
+      .set({ status: "running" })
+      .where(eq(installationsTable.id, installId as any));
+
     console.log(`[Marketplace] ${pkg.displayName} installed successfully on ${server}`);
   } catch (error: any) {
-    installation.status = "error";
-    installation.error = error.message;
+    await db.update(installationsTable)
+      .set({ status: "error" })
+      .where(eq(installationsTable.id, installId as any));
     console.error(`[Marketplace] Failed to install ${pkg.displayName}:`, error);
   }
 }
+

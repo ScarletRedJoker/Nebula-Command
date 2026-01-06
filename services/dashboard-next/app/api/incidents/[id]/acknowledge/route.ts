@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySession } from "@/lib/session";
 import { cookies } from "next/headers";
-import { getIncidentById, updateIncident } from "../../route";
+import { db } from "@/lib/db";
+import { incidents } from "@/lib/db/platform-schema";
+import { eq } from "drizzle-orm";
 
 async function checkAuth() {
   const cookieStore = await cookies();
@@ -19,25 +21,42 @@ export async function PATCH(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { id } = await params;
-  const incident = getIncidentById(id);
+  try {
+    const { id } = await params;
+    
+    const [existing] = await db
+      .select()
+      .from(incidents)
+      .where(eq(incidents.id, id))
+      .limit(1);
 
-  if (!incident) {
-    return NextResponse.json({ error: "Incident not found" }, { status: 404 });
-  }
+    if (!existing) {
+      return NextResponse.json({ error: "Incident not found" }, { status: 404 });
+    }
 
-  if (incident.status !== "open") {
+    if (existing.status !== "open") {
+      return NextResponse.json(
+        { error: "Incident is not in open status" },
+        { status: 400 }
+      );
+    }
+
+    const [updated] = await db
+      .update(incidents)
+      .set({
+        status: "acknowledged",
+        acknowledgedBy: user.username || "unknown",
+        acknowledgedAt: new Date(),
+      })
+      .where(eq(incidents.id, id))
+      .returning();
+
+    return NextResponse.json({ incident: updated });
+  } catch (error: any) {
+    console.error("Acknowledge incident error:", error);
     return NextResponse.json(
-      { error: "Incident is not in open status" },
-      { status: 400 }
+      { error: "Failed to acknowledge incident", details: error.message },
+      { status: 500 }
     );
   }
-
-  const updated = updateIncident(id, {
-    status: "acknowledged",
-    acknowledgedBy: user.username || "unknown",
-    acknowledgedAt: new Date(),
-  });
-
-  return NextResponse.json({ incident: updated });
 }
