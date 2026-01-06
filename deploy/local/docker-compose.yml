@@ -1,22 +1,71 @@
 networks:
   homelab:
     driver: bridge
+  media:
+    driver: bridge
+  auth:
+    driver: bridge
 
 volumes:
   caddy_data:
   caddy_config:
+  authelia_data:
   minio_data:
   homeassistant_config:
   plex_config:
+  jellyfin_config:
+  jellyfin_cache:
+  qbittorrent_config:
   novnc_data:
-  plex_cache_data:
   smartctl_data:
   dashboard_postgres_data:
   dashboard_redis_data:
+  sunshine_config:
 
 services:
   # ============================================================================
-  # DASHBOARD INFRASTRUCTURE (Auto-provisioned - No manual config required)
+  # AUTHENTICATION LAYER (Authelia + Redis)
+  # ============================================================================
+  authelia:
+    image: authelia/authelia:latest
+    container_name: authelia
+    restart: unless-stopped
+    networks:
+      - homelab
+      - auth
+    expose:
+      - 9091
+    environment:
+      - TZ=${TZ:-America/New_York}
+      - AUTHELIA_JWT_SECRET=${AUTHELIA_JWT_SECRET:-changeme_jwt_secret_32chars_min}
+      - AUTHELIA_SESSION_SECRET=${AUTHELIA_SESSION_SECRET:-changeme_session_secret_32chars}
+      - AUTHELIA_STORAGE_ENCRYPTION_KEY=${AUTHELIA_STORAGE_KEY:-changeme_storage_key_32chars_min}
+    volumes:
+      - ./services/authelia:/config:ro
+      - authelia_data:/data
+    depends_on:
+      - authelia-redis
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9091/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  authelia-redis:
+    image: redis:7-alpine
+    container_name: authelia-redis
+    restart: unless-stopped
+    networks:
+      - auth
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================================================
+  # DASHBOARD INFRASTRUCTURE
   # ============================================================================
   dashboard-db:
     image: postgres:16-alpine
@@ -27,7 +76,7 @@ services:
     environment:
       - POSTGRES_DB=homelab_dashboard
       - POSTGRES_USER=dashboard
-      - POSTGRES_PASSWORD=dashboard_secure_2024
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-dashboard_secure_2024}
     volumes:
       - dashboard_postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -52,66 +101,43 @@ services:
       timeout: 5s
       retries: 5
 
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    container_name: cloudflared
-    restart: unless-stopped
-    network_mode: host
-    # Uses config file with ingress rules - mount user's .cloudflared at same path
-    command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run plex-tunnel
-    volumes:
-      # Mount user's cloudflared directory to /etc/cloudflared
-      - /home/evin/.cloudflared:/etc/cloudflared:ro
-    healthcheck:
-      test: ["CMD-SHELL", "pgrep cloudflared || exit 1"]
-      interval: 60s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-
+  # ============================================================================
+  # REVERSE PROXY (Caddy with Cloudflare DNS)
+  # ============================================================================
   caddy:
-    image: caddy:2-alpine
+    build:
+      context: ./services/caddy
+      dockerfile: Dockerfile
     container_name: caddy-local
     restart: unless-stopped
     networks:
       - homelab
+      - auth
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
       - "80:80"
       - "443:443"
       - "443:443/udp"
+    environment:
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
+      - DOMAIN=${DOMAIN:-example.com}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@example.com}
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./services/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+    depends_on:
+      - authelia
     healthcheck:
       test: ["CMD", "caddy", "version"]
       interval: 30s
       timeout: 10s
       retries: 3
 
-  minio:
-    image: minio/minio:latest
-    container_name: homelab-minio
-    restart: unless-stopped
-    command: server /data --console-address ":9001"
-    networks:
-      - homelab
-    environment:
-      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-admin}
-      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
-    volumes:
-      - minio_data:/data
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 30s
-      timeout: 20s
-      retries: 3
-
+  # ============================================================================
+  # MEDIA SERVERS
+  # ============================================================================
   plex:
     image: lscr.io/linuxserver/plex:latest
     container_name: plex
@@ -125,9 +151,7 @@ services:
       - PLEX_CLAIM=${PLEX_CLAIM:-}
     volumes:
       - plex_config:/config
-      # NAS networkshare mounted at /srv/media with video/music/photo subfolders
       - /srv/media:/media:rw
-      # Local storage for Plex optimized versions (faster than NAS)
       - /opt/plex-optimized:/optimized:rw
     tmpfs:
       - /transcode:size=4G
@@ -140,6 +164,82 @@ services:
       retries: 3
       start_period: 60s
 
+  jellyfin:
+    image: jellyfin/jellyfin:latest
+    container_name: jellyfin
+    restart: unless-stopped
+    user: 1000:1000
+    networks:
+      - homelab
+      - media
+    expose:
+      - 8096
+    environment:
+      - JELLYFIN_PublishedServerUrl=https://jellyfin.${DOMAIN:-example.com}
+    volumes:
+      - jellyfin_config:/config
+      - jellyfin_cache:/cache
+      - /srv/media:/media:ro
+      - /srv/media/community:/media/community
+    devices:
+      - /dev/dri:/dev/dri
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8096/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ============================================================================
+  # TORRENTS (VPN Protected via Gluetun)
+  # ============================================================================
+  gluetun:
+    image: qmcgaw/gluetun:latest
+    container_name: gluetun
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    networks:
+      - media
+      - homelab
+    environment:
+      - VPN_SERVICE_PROVIDER=${VPN_PROVIDER:-mullvad}
+      - VPN_TYPE=wireguard
+      - WIREGUARD_PRIVATE_KEY=${MULLVAD_PRIVATE_KEY:-}
+      - WIREGUARD_ADDRESSES=${MULLVAD_ADDRESS:-10.0.0.1/32}
+      - SERVER_COUNTRIES=${VPN_COUNTRY:-Switzerland}
+      - FIREWALL_VPN_INPUT_PORTS=6881
+      - FIREWALL_INPUT_PORTS=8080
+    expose:
+      - 8080  # qBittorrent Web UI - internal only, accessed via Caddy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider https://am.i.mullvad.net/connected || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    restart: unless-stopped
+    network_mode: "service:gluetun"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ:-America/New_York}
+      - WEBUI_PORT=8080
+    volumes:
+      - qbittorrent_config:/config
+      - /srv/media/downloads:/downloads
+    depends_on:
+      gluetun:
+        condition: service_healthy
+
+  # ============================================================================
+  # HOME AUTOMATION
+  # ============================================================================
   homeassistant:
     image: ghcr.io/home-assistant/home-assistant:stable
     container_name: homeassistant
@@ -150,22 +250,8 @@ services:
       - TZ=${TZ:-America/New_York}
     volumes:
       - homeassistant_config:/config
-      - ./config/homeassistant:/config-templates:ro
       - /run/dbus:/run/dbus:ro
       - /var/run/dbus:/var/run/dbus:ro
-    devices:
-      - /dev/bus/usb:/dev/bus/usb
-      - /dev/ttyUSB0:/dev/ttyUSB0
-      - /dev/ttyUSB1:/dev/ttyUSB1
-      - /dev/ttyACM0:/dev/ttyACM0
-      - /dev/serial:/dev/serial
-    cap_add:
-      - NET_ADMIN
-      - NET_RAW
-      - SYS_ADMIN
-      - NET_BIND_SERVICE
-    security_opt:
-      - apparmor:unconfined
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8123/"]
       interval: 30s
@@ -173,78 +259,25 @@ services:
       retries: 3
       start_period: 60s
 
-  smartctl-exporter:
-    image: prometheuscommunity/smartctl-exporter:latest
-    container_name: smartctl-exporter
-    restart: unless-stopped
-    privileged: true
-    profiles:
-      - monitoring
-    networks:
-      - homelab
-    ports:
-      - "9633:9633"
-    volumes:
-      - /dev:/dev:ro
-      - smartctl_data:/data
-    command:
-      - '--smartctl.path=/usr/sbin/smartctl'
-      - '--smartctl.interval=60s'
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:9633/metrics || exit 1"]
-      interval: 60s
-      timeout: 10s
-      retries: 3
-
-  storage-monitor:
-    build:
-      context: ./services/storage-monitor
-      dockerfile: Dockerfile
-    container_name: storage-monitor
-    restart: unless-stopped
-    privileged: true
-    profiles:
-      - monitoring
-    networks:
-      - homelab
-    environment:
-      - TZ=${TZ:-America/New_York}
-      - DISCORD_WEBHOOK_URL=${STORAGE_ALERT_DISCORD_WEBHOOK:-}
-      - EMAIL_ALERTS=${STORAGE_ALERT_EMAIL:-}
-      - CHECK_INTERVAL=${STORAGE_CHECK_INTERVAL:-3600}
-      - SMART_THRESHOLD_REALLOCATED=${SMART_THRESHOLD_REALLOCATED:-5}
-      - SMART_THRESHOLD_PENDING=${SMART_THRESHOLD_PENDING:-1}
-      - ZFS_ENABLED=${ZFS_ENABLED:-false}
-    volumes:
-      - /dev:/dev:ro
-      - /sys:/sys:ro
-      - /run/udev:/run/udev:ro
-    ports:
-      - "9634:9634"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:9634/health || exit 1"]
-      interval: 60s
-      timeout: 10s
-      retries: 3
-
-  # NOTE: For Ubuntu host desktop access, use setup-host-vnc.sh instead
-  # This creates x11vnc + noVNC systemd services on the host
-  # The Docker container below is kept for isolated virtual desktop use only
+  # ============================================================================
+  # REMOTE ACCESS - VNC (noVNC web client connecting to host x11vnc)
+  # ============================================================================
   novnc:
     image: theasp/novnc:latest
     container_name: novnc
     restart: unless-stopped
-    profiles:
-      - vnc-sandbox  # Changed profile - use for sandboxed desktop only
     networks:
       - homelab
     environment:
       - DISPLAY_WIDTH=1920
       - DISPLAY_HEIGHT=1080
       - RUN_XTERM=no
-      - VNC_PASSWORD=${VNC_PASSWORD:-}
-    ports:
-      - "${NOVNC_PORT:-6080}:8080"
+      - VNC_HOST=host.docker.internal
+      - VNC_PORT=${VNC_PORT:-5900}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    expose:
+      - 8080
     volumes:
       - novnc_data:/home/user
     healthcheck:
@@ -254,6 +287,76 @@ services:
       retries: 3
       start_period: 30s
 
+  # ============================================================================
+  # REMOTE ACCESS - Web SSH (ttyd)
+  # ============================================================================
+  ttyd:
+    image: tsl0922/ttyd:latest
+    container_name: ttyd
+    restart: unless-stopped
+    networks:
+      - homelab
+    command: ttyd -W bash
+    expose:
+      - 7681
+    volumes:
+      - /home/${LOCAL_USER:-evin}:/home/user:rw
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:7681/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ============================================================================
+  # REMOTE ACCESS - Sunshine Game Streaming (network_mode: host for UDP)
+  # ============================================================================
+  sunshine:
+    image: lscr.io/linuxserver/sunshine:latest
+    container_name: sunshine
+    restart: unless-stopped
+    network_mode: host
+    privileged: true
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ:-America/New_York}
+      - SUNSHINE_USER=${SUNSHINE_USER:-admin}
+      - SUNSHINE_PASS=${SUNSHINE_PASS:-}
+    volumes:
+      - sunshine_config:/config
+      - /dev/dri:/dev/dri
+      - /dev/uinput:/dev/uinput
+    devices:
+      - /dev/dri:/dev/dri
+      - /dev/uinput:/dev/uinput
+
+  # ============================================================================
+  # STORAGE - MinIO Object Storage
+  # ============================================================================
+  minio:
+    image: minio/minio:latest
+    container_name: homelab-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    networks:
+      - homelab
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-admin}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-changeme123}
+    volumes:
+      - minio_data:/data
+    expose:
+      - 9000
+      - 9001
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # ============================================================================
+  # DASHBOARD
+  # ============================================================================
   dashboard:
     build:
       context: ../../services/dashboard-next
@@ -272,7 +375,7 @@ services:
       - ADMIN_USERNAME=${WEB_USERNAME:-evin}
       - ADMIN_PASSWORD=${WEB_PASSWORD:-nebula2024}
       - SESSION_SECRET=${SESSION_SECRET:-NebulaCommandLocalDash2024SecureKey32chars}
-      - DATABASE_URL=postgresql://dashboard:dashboard_secure_2024@dashboard-db:5432/homelab_dashboard
+      - DATABASE_URL=postgresql://dashboard:${POSTGRES_PASSWORD:-dashboard_secure_2024}@dashboard-db:5432/homelab_dashboard
       - REDIS_URL=redis://dashboard-redis:6379/0
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
@@ -284,8 +387,8 @@ services:
     volumes:
       - ~/.ssh:/root/.ssh:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
-    ports:
-      - "5000:5000"
+    expose:
+      - 5000
     healthcheck:
       test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:5000/api/health || exit 1"]
       interval: 30s
@@ -293,23 +396,44 @@ services:
       retries: 3
       start_period: 60s
 
-  gamestream:
-    image: lscr.io/linuxserver/sunshine:latest
-    container_name: sunshine
+  # ============================================================================
+  # COMMUNITY SYNC SERVICE
+  # ============================================================================
+  media-sync:
+    build:
+      context: ./jellyfin/sync-service
+      dockerfile: Dockerfile
+    container_name: media-sync
     restart: unless-stopped
-    profiles:
-      - gamestream
-    network_mode: host
-    privileged: true
+    networks:
+      - media
     environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=${TZ:-America/New_York}
+      - NODE_NAME=${NODE_NAME:-LocalServer}
+      - DASHBOARD_URL=${DASHBOARD_URL:-}
+      - SYNC_API_KEY=${SYNC_API_KEY:-}
+      - MEDIA_PATH=/media
     volumes:
-      - ./config/sunshine:/config
-    devices:
-      - /dev/dri:/dev/dri
-      - /dev/uinput:/dev/uinput
-    cap_add:
-      - SYS_ADMIN
-      - NET_ADMIN
+      - /srv/media:/media:ro
+    depends_on:
+      - jellyfin
+
+  # ============================================================================
+  # MONITORING (Optional - use: docker compose --profile monitoring up)
+  # ============================================================================
+  smartctl-exporter:
+    image: prometheuscommunity/smartctl-exporter:latest
+    container_name: smartctl-exporter
+    restart: unless-stopped
+    privileged: true
+    profiles:
+      - monitoring
+    networks:
+      - homelab
+    ports:
+      - "9633:9633"
+    volumes:
+      - /dev:/dev:ro
+      - smartctl_data:/data
+    command:
+      - '--smartctl.path=/usr/sbin/smartctl'
+      - '--smartctl.interval=60s'

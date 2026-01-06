@@ -53,7 +53,18 @@ Secrets are managed via `.env` files (gitignore'd) and Replit Secrets. Pre-commi
 
 ## Recent Changes (January 2026)
 
-### Community Media Network (Latest)
+### Public Access Infrastructure (Latest)
+- **Unified Reverse Proxy**: Caddy with Cloudflare DNS-01 for automatic SSL on all subdomains
+- **Authelia SSO**: Single sign-on with 2FA for protected services (torrent, VNC, SSH, VMs, Sunshine)
+- **Automatic DNS Sync**: `scripts/cloudflare-sync.js` reads `config/domains.yml` and creates A records
+- **Systemd Auto-Start**: `nebula-stack.service` starts all services on boot via `./deploy.sh install`
+- **Service Categories**:
+  - Public (native auth): Plex, Jellyfin, Home Assistant, Dashboard
+  - Protected (Authelia 2FA): qBittorrent, VNC, SSH terminal, VM manager, game streaming, MinIO
+- **Remote Access**: Web VNC (noVNC), Web SSH (ttyd), Cockpit/libvirt VMs, Sunshine game streaming
+- **Documentation**: `docs/runbooks/public-access.md` for complete setup guide
+
+### Community Media Network
 - **Federated Jellyfin**: Run Jellyfin alongside Plex for community media sharing
 - **Node Registration**: Add friends' servers with auto-generated API keys
 - **Storage Tracking**: Monitor storage contribution across all nodes

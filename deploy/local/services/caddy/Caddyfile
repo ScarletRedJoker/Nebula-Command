@@ -1,0 +1,123 @@
+# ============================================================================
+# Nebula Command - Unified Reverse Proxy Configuration
+# All services exposed via subdomains with appropriate authentication
+# ============================================================================
+
+# Global options
+{
+        email {$ADMIN_EMAIL:admin@example.com}
+        acme_dns cloudflare {$CLOUDFLARE_API_TOKEN}
+}
+
+# ============================================================================
+# AUTHENTICATION ENDPOINT (Authelia)
+# ============================================================================
+auth.{$DOMAIN} {
+        reverse_proxy authelia:9091
+}
+
+# Authelia forward auth snippet
+(authelia) {
+        forward_auth authelia:9091 {
+                uri /api/verify?rd=https://auth.{$DOMAIN}
+                copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+        }
+}
+
+# ============================================================================
+# PUBLIC SERVICES (Use their own authentication)
+# ============================================================================
+
+# Plex - Has its own auth, bypass Authelia
+plex.{$DOMAIN} {
+        reverse_proxy host.docker.internal:32400
+}
+
+# Jellyfin - Has its own auth, bypass Authelia  
+jellyfin.{$DOMAIN} {
+        reverse_proxy jellyfin:8096
+}
+
+# Home Assistant - Has its own auth, bypass Authelia
+home.{$DOMAIN} {
+        reverse_proxy host.docker.internal:8123 {
+                header_up Host {host}
+                header_up X-Real-IP {remote_host}
+                header_up X-Forwarded-For {remote_host}
+                header_up X-Forwarded-Proto {scheme}
+        }
+}
+
+# Dashboard - Has its own auth, bypass Authelia
+dashboard.{$DOMAIN} {
+        reverse_proxy dashboard:5000
+}
+
+# ============================================================================
+# PROTECTED SERVICES (Require Authelia authentication)
+# ============================================================================
+
+# qBittorrent - Protected (admin only)
+# Routes through gluetun VPN container
+torrent.{$DOMAIN} {
+        import authelia
+        reverse_proxy gluetun:8080
+}
+
+# MinIO Console - Protected (admin only)
+storage.{$DOMAIN} {
+        import authelia
+        reverse_proxy homelab-minio:9001
+}
+
+# MinIO API
+s3.{$DOMAIN} {
+        import authelia
+        reverse_proxy homelab-minio:9000
+}
+
+# VNC Remote Desktop - Protected (admin only)
+vnc.{$DOMAIN} {
+        import authelia
+        reverse_proxy novnc:8080
+}
+
+# Web SSH Terminal - Protected (admin only)
+ssh.{$DOMAIN} {
+        import authelia
+        reverse_proxy ttyd:7681 {
+                header_up Upgrade {http.request.header.Upgrade}
+                header_up Connection {http.request.header.Connection}
+        }
+}
+
+# Cockpit / libvirt VM Management - Protected (admin only)
+# Note: Install cockpit on host: sudo apt install cockpit cockpit-machines
+vms.{$DOMAIN} {
+        import authelia
+        reverse_proxy host.docker.internal:9090 {
+                transport http {
+                        tls_insecure_skip_verify
+                }
+        }
+}
+
+# Sunshine Web UI - Protected (admin only)
+# Note: Moonlight clients connect directly to ports 47984-48010
+gamestream.{$DOMAIN} {
+        import authelia
+        reverse_proxy host.docker.internal:47990 {
+                transport http {
+                        tls_insecure_skip_verify
+                }
+        }
+}
+
+# ============================================================================
+# INTERNAL/API ENDPOINTS
+# ============================================================================
+
+# API subdomain for webhook callbacks
+api.{$DOMAIN} {
+        reverse_proxy dashboard:5000
+}
