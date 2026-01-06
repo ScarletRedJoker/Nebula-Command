@@ -1,0 +1,113 @@
+variables:
+  - key: POSTGRES_PASSWORD
+    scope: internal
+    required: true
+    description: PostgreSQL root password
+    generator: random
+    
+  - key: DISCORD_DB_PASSWORD
+    scope: internal
+    required: true
+    description: Discord bot database password
+    generator: random
+    
+  - key: STREAMBOT_DB_PASSWORD
+    scope: internal
+    required: true
+    description: Stream bot database password
+    generator: random
+    
+  - key: JARVIS_DB_PASSWORD
+    scope: internal
+    required: true
+    description: Jarvis AI database password
+    generator: random
+    
+  - key: SERVICE_AUTH_TOKEN
+    scope: internal
+    required: true
+    description: Inter-service API authentication token
+    generator: random
+    
+  - key: SESSION_SECRET
+    scope: internal
+    required: true
+    description: Flask session encryption secret
+    generator: random
+    
+  - key: SECRET_KEY
+    scope: internal
+    required: true
+    description: Flask CSRF protection secret
+    generator: random
+    
+  - key: REDIS_PASSWORD
+    scope: internal
+    required: true
+    description: Redis cache password
+    generator: random
+    
+  - key: JWT_SECRET
+    scope: internal
+    required: true
+    description: JWT token signing secret
+    generator: random
+
+  - key: DISCORD_BOT_TOKEN
+    scope: external
+    required: true
+    description: Discord bot authentication token
+    hint: Get from https://discord.com/developers/applications
+    validator: starts_with:MTM,OT,Nz,MTA,NjE,NDc
+
+  - key: TAILSCALE_AUTHKEY
+    scope: external
+    required: false
+    description: Tailscale mesh network authentication
+    hint: Get from https://login.tailscale.com/admin/settings/keys
+    validator: starts_with:tskey-
+
+  - key: CLOUDFLARE_API_TOKEN
+    scope: external
+    required: false
+    description: Cloudflare DNS management API token
+    hint: Get from https://dash.cloudflare.com/profile/api-tokens
+
+  - key: OPENAI_API_KEY
+    scope: external
+    required: false
+    description: OpenAI API key for AI features
+    hint: Get from https://platform.openai.com/api-keys
+    validator: starts_with:sk-
+    aliases:
+      - AI_INTEGRATIONS_OPENAI_API_KEY
+
+  - key: TWITCH_CLIENT_ID
+    scope: external
+    required: false
+    description: Twitch API client ID for streaming features
+    hint: Get from https://dev.twitch.tv/console/apps
+
+  - key: TWITCH_CLIENT_SECRET
+    scope: external
+    required: false
+    description: Twitch API client secret
+    hint: Get from https://dev.twitch.tv/console/apps
+
+  - key: YOUTUBE_API_KEY
+    scope: external
+    required: false
+    description: YouTube Data API key
+    hint: Get from https://console.cloud.google.com/apis/credentials
+
+  - key: SPOTIFY_CLIENT_ID
+    scope: external
+    required: false
+    description: Spotify API client ID for music features
+    hint: Get from https://developer.spotify.com/dashboard
+
+  - key: SPOTIFY_CLIENT_SECRET
+    scope: external
+    required: false
+    description: Spotify API client secret
+    hint: Get from https://developer.spotify.com/dashboard
