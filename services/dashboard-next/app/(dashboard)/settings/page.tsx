@@ -162,23 +162,23 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Settings</h1>
-        <p className="text-muted-foreground">Manage your homelab configuration and preferences</p>
+        <h1 className="text-2xl sm:text-3xl font-bold">Settings</h1>
+        <p className="text-sm sm:text-base text-muted-foreground">Manage your homelab configuration and preferences</p>
       </div>
 
       <Tabs defaultValue="servers" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="servers" className="flex items-center gap-2">
-            <Server className="h-4 w-4" /> Servers
+        <TabsList className="w-full justify-start overflow-x-auto">
+          <TabsTrigger value="servers" className="flex items-center gap-2 shrink-0">
+            <Server className="h-4 w-4" /> <span className="hidden sm:inline">Servers</span>
           </TabsTrigger>
-          <TabsTrigger value="profile" className="flex items-center gap-2">
-            <User className="h-4 w-4" /> Profile
+          <TabsTrigger value="profile" className="flex items-center gap-2 shrink-0">
+            <User className="h-4 w-4" /> <span className="hidden sm:inline">Profile</span>
           </TabsTrigger>
-          <TabsTrigger value="appearance" className="flex items-center gap-2">
-            <Palette className="h-4 w-4" /> Appearance
+          <TabsTrigger value="appearance" className="flex items-center gap-2 shrink-0">
+            <Palette className="h-4 w-4" /> <span className="hidden sm:inline">Appearance</span>
           </TabsTrigger>
-          <TabsTrigger value="notifications" className="flex items-center gap-2">
-            <Bell className="h-4 w-4" /> Notifications
+          <TabsTrigger value="notifications" className="flex items-center gap-2 shrink-0">
+            <Bell className="h-4 w-4" /> <span className="hidden sm:inline">Notifications</span>
           </TabsTrigger>
         </TabsList>
 
@@ -190,7 +190,7 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               {settings.servers.map((server) => (
-                <div key={server.id} className="flex items-center justify-between p-4 border rounded-lg">
+                <div key={server.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border rounded-lg gap-4">
                   <div className="flex items-center gap-4">
                     <div
                       className={`p-2 rounded-full ${

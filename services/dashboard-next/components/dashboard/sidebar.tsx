@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
+  Activity,
   Server,
   Globe,
   Code2,
@@ -20,9 +21,16 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/status", label: "Status", icon: Activity },
   { href: "/services", label: "Services", icon: Server },
   { href: "/websites", label: "Websites", icon: Globe },
   { href: "/designer", label: "Designer", icon: Palette },
@@ -35,14 +43,63 @@ const navItems = [
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
-export function Sidebar() {
+function NavContent({ collapsed = false, onNavClick }: { collapsed?: boolean; onNavClick?: () => void }) {
   const pathname = usePathname();
+  
+  return (
+    <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+      {navItems.map((item) => {
+        const isActive = pathname === item.href || 
+          (item.href !== "/" && pathname.startsWith(item.href));
+        
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            onClick={onNavClick}
+            className={cn(
+              "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+              isActive
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+              collapsed && "justify-center px-2"
+            )}
+            title={collapsed ? item.label : undefined}
+          >
+            <item.icon className="h-5 w-5 shrink-0" />
+            {!collapsed && <span>{item.label}</span>}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+export function MobileSidebar({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="left" className="w-64 p-0">
+        <SheetHeader className="h-16 flex flex-row items-center border-b px-4">
+          <Link href="/" className="flex items-center gap-2" onClick={() => onOpenChange(false)}>
+            <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
+              <span className="text-primary-foreground font-bold">H</span>
+            </div>
+            <SheetTitle className="font-semibold text-lg">HomeLabHub</SheetTitle>
+          </Link>
+        </SheetHeader>
+        <NavContent onNavClick={() => onOpenChange(false)} />
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
 
   return (
     <aside
       className={cn(
-        "relative flex flex-col border-r bg-card transition-all duration-300",
+        "relative hidden md:flex flex-col border-r bg-card transition-all duration-300",
         collapsed ? "w-16" : "w-64"
       )}
     >
@@ -62,30 +119,7 @@ export function Sidebar() {
         )}
       </div>
 
-      <nav className="flex-1 p-4 space-y-2">
-        {navItems.map((item) => {
-          const isActive = pathname === item.href || 
-            (item.href !== "/" && pathname.startsWith(item.href));
-          
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
-                isActive
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-                collapsed && "justify-center px-2"
-              )}
-              title={collapsed ? item.label : undefined}
-            >
-              <item.icon className="h-5 w-5 shrink-0" />
-              {!collapsed && <span>{item.label}</span>}
-            </Link>
-          );
-        })}
-      </nav>
+      <NavContent collapsed={collapsed} />
 
       <Button
         variant="ghost"

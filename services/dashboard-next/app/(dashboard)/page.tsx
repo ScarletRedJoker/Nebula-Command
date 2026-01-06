@@ -123,22 +123,22 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl sm:text-3xl font-bold">Dashboard</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">
             Welcome back! Here&apos;s your homelab overview.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 shrink-0">
           <Button variant="outline" size="sm" onClick={fetchData} disabled={loading}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-            Refresh
+            <RefreshCw className={`h-4 w-4 sm:mr-2 ${loading ? "animate-spin" : ""}`} />
+            <span className="hidden sm:inline">Refresh</span>
           </Button>
           <Link href="/ai">
             <Button size="sm">
-              <Bot className="h-4 w-4 mr-2" />
-              Ask Jarvis
+              <Bot className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Ask Jarvis</span>
             </Button>
           </Link>
         </div>
@@ -195,17 +195,17 @@ export default function DashboardPage() {
         </div>
       ) : (
         <>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
             {stats.map((stat) => (
               <Card key={stat.label}>
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                <CardHeader className="flex flex-row items-center justify-between pb-2 p-3 sm:p-6 sm:pb-2">
+                  <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
                     {stat.label}
                   </CardTitle>
                   <stat.icon className={`h-4 w-4 ${stat.color}`} />
                 </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{stat.value}</div>
+                <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+                  <div className="text-xl sm:text-2xl font-bold">{stat.value}</div>
                 </CardContent>
               </Card>
             ))}

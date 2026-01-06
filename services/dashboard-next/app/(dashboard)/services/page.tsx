@@ -112,14 +112,14 @@ export default function ServicesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Services</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl sm:text-3xl font-bold">Services</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">
             Docker containers running on this server
           </p>
         </div>
-        <Button onClick={fetchServices} variant="outline">
+        <Button onClick={fetchServices} variant="outline" size="sm" className="self-start sm:self-auto">
           <RefreshCw className="mr-2 h-4 w-4" />
           Refresh
         </Button>
@@ -146,7 +146,7 @@ export default function ServicesPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {filteredServices.map((service) => (
             <Card key={service.id} className="relative overflow-hidden">
               <div

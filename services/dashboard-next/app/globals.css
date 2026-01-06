@@ -65,3 +65,12 @@
 .dark .glass {
   @apply bg-black/20 backdrop-blur-lg border border-white/10;
 }
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
