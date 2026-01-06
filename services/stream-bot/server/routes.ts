@@ -575,6 +575,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Platform Overview - Public endpoint for cross-service queries (e.g., dashboard-next)
+  // Returns aggregate platform status without user-specific or sensitive data
+  app.get("/api/platforms/overview", async (req, res) => {
+    try {
+      const { db } = await import('./db');
+      const { platformConnections } = await import('@shared/schema');
+      const { sql } = await import('drizzle-orm');
+
+      // Get distinct platforms that have at least one active connection
+      const result = await db.select({
+        platform: platformConnections.platform,
+        connectedCount: sql<number>`count(*) filter (where ${platformConnections.isConnected} = true)::int`,
+        totalCount: sql<number>`count(*)::int`,
+        anyNeedsRefresh: sql<boolean>`bool_or(${platformConnections.needsRefresh})`,
+      })
+        .from(platformConnections)
+        .groupBy(platformConnections.platform);
+
+      const platforms = result.map(r => ({
+        platform: r.platform,
+        isConnected: (r.connectedCount || 0) > 0,
+        needsReauth: r.anyNeedsRefresh || false,
+        connectedUsers: r.connectedCount || 0,
+        totalUsers: r.totalCount || 0,
+      }));
+
+      res.json({
+        success: true,
+        platforms,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      console.error('[Platform Overview] Error:', error.message);
+      res.status(500).json({ 
+        success: false, 
+        error: "Failed to fetch platform overview",
+        platforms: [],
+      });
+    }
+  });
+
   // Platform Connections - sanitized to not expose encrypted tokens
   app.get("/api/platforms", requireAuth, async (req, res) => {
     try {

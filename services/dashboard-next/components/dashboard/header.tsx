@@ -204,16 +204,16 @@ export function Header({ onMenuClick }: HeaderProps) {
               )}
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-80 p-0" align="end">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h4 className="font-semibold">Notifications</h4>
+          <PopoverContent className="w-[calc(100vw-2rem)] sm:w-80 max-w-sm p-0" align="end">
+            <div className="flex items-center justify-between p-3 sm:p-4 border-b">
+              <h4 className="font-semibold text-sm sm:text-base">Notifications</h4>
               {unreadCount > 0 && (
-                <Button variant="ghost" size="sm" onClick={markAllRead}>
+                <Button variant="ghost" size="sm" className="text-xs sm:text-sm h-7 sm:h-8 px-2 sm:px-3" onClick={markAllRead}>
                   Mark all read
                 </Button>
               )}
             </div>
-            <ScrollArea className="h-[300px]">
+            <ScrollArea className="h-[250px] sm:h-[300px]">
               {notifications.length === 0 ? (
                 <div className="p-4 text-center text-muted-foreground">
                   No notifications
@@ -223,7 +223,7 @@ export function Header({ onMenuClick }: HeaderProps) {
                   {notifications.map((notification) => (
                     <div
                       key={notification.id}
-                      className={`p-4 flex gap-3 hover:bg-muted/50 transition-colors ${
+                      className={`p-3 sm:p-4 flex gap-2 sm:gap-3 hover:bg-muted/50 transition-colors ${
                         !notification.read ? "bg-muted/30" : ""
                       }`}
                     >
@@ -231,11 +231,11 @@ export function Header({ onMenuClick }: HeaderProps) {
                         {getNotificationIcon(notification.type)}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm">{notification.title}</p>
-                        <p className="text-xs text-muted-foreground truncate">
+                        <p className="font-medium text-xs sm:text-sm">{notification.title}</p>
+                        <p className="text-xs text-muted-foreground line-clamp-2">
                           {notification.message}
                         </p>
-                        <p className="text-xs text-muted-foreground mt-1">
+                        <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
                           {notification.time}
                         </p>
                       </div>

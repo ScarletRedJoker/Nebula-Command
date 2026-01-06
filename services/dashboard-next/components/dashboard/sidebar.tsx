@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
   Activity,
+  History,
   Server,
   Globe,
   Code2,
@@ -38,6 +39,7 @@ import {
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/activity", label: "Activity", icon: History },
   { href: "/status", label: "Status", icon: Activity },
   { href: "/services", label: "Services", icon: Server },
   { href: "/marketplace", label: "Marketplace", icon: Package },
@@ -63,7 +65,7 @@ function NavContent({ collapsed = false, onNavClick }: { collapsed?: boolean; on
   const pathname = usePathname();
   
   return (
-    <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+    <nav className="flex-1 p-2 sm:p-4 space-y-1 sm:space-y-2 overflow-y-auto">
       {navItems.map((item) => {
         const isActive = pathname === item.href || 
           (item.href !== "/" && pathname.startsWith(item.href));
@@ -74,16 +76,16 @@ function NavContent({ collapsed = false, onNavClick }: { collapsed?: boolean; on
             href={item.href}
             onClick={onNavClick}
             className={cn(
-              "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+              "flex items-center gap-3 rounded-lg px-3 py-2.5 sm:py-2 text-sm transition-colors touch-manipulation",
               isActive
                 ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground active:bg-accent",
               collapsed && "justify-center px-2"
             )}
             title={collapsed ? item.label : undefined}
           >
             <item.icon className="h-5 w-5 shrink-0" />
-            {!collapsed && <span>{item.label}</span>}
+            {!collapsed && <span className="truncate">{item.label}</span>}
           </Link>
         );
       })}
@@ -94,13 +96,13 @@ function NavContent({ collapsed = false, onNavClick }: { collapsed?: boolean; on
 export function MobileSidebar({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="left" className="w-64 p-0">
-        <SheetHeader className="h-16 flex flex-row items-center border-b px-4">
+      <SheetContent side="left" className="w-[280px] max-w-[85vw] p-0">
+        <SheetHeader className="h-14 sm:h-16 flex flex-row items-center border-b px-3 sm:px-4">
           <Link href="/" className="flex items-center gap-2" onClick={() => onOpenChange(false)}>
-            <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
+            <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
               <span className="text-primary-foreground font-bold">N</span>
             </div>
-            <SheetTitle className="font-semibold text-lg">Nebula Command</SheetTitle>
+            <SheetTitle className="font-semibold text-base sm:text-lg truncate">Nebula Command</SheetTitle>
           </Link>
         </SheetHeader>
         <NavContent onNavClick={() => onOpenChange(false)} />
