@@ -53,7 +53,14 @@ Secrets are managed via `.env` files (gitignore'd) and Replit Secrets. Pre-commi
 
 ## Recent Changes (January 2026)
 
-### Production Build Fixes (Latest)
+### Core Features Wired Up (Latest)
+- **SSH Key Auto-Generation**: Deploy scripts (`deploy/local/deploy.sh`, `deploy/linode/deploy.sh`) now auto-generate ed25519 SSH keys if missing and display the public key for easy server setup
+- **Marketplace Real Deployment**: Marketplace API now executes actual SSH commands to deploy Docker apps with proper `docker pull && docker run` chaining, container ID tracking, and error message capture
+- **IPMI Power Controls**: Dashboard servers page now shows IPMI power state and provides on/off/reset controls with confirmation dialogs
+- **Dynamic Wake-on-LAN**: WoL button visibility now determined by `server.supportsWol` from API rather than hardcoded values
+- **AI Agent Persistence**: Custom agents stored in database with full CRUD operations (GET/POST/PUT/DELETE) and execution history tracking
+
+### Production Build Fixes
 - **Unified Server Config Store**: All API routes now use `lib/server-config-store.ts` for consistent async server lookups
 - **Async/Await Fixes**: Fixed `getServerById()` and `getAllServers()` calls that weren't awaited in IPMI, power, and deploy routes
 - **Type Safety**: Added `getDefaultSshKeyPath()` fallback for optional `keyPath` fields to prevent TypeScript errors
