@@ -80,8 +80,8 @@ export function modifyConfig(config: any): any {
 
   config.docs = [
     {
-      name: "HomeLabHub",
-      startUrl: "https://github.com/evindrake/HomeLabHub"
+      name: "Nebula Command",
+      startUrl: "https://github.com/evindrake/nebula-command"
     }
   ];
 

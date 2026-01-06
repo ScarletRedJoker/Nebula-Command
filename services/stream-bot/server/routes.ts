@@ -219,7 +219,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Diagnostics - Detailed system diagnostics for homelabhub integration
+  // Diagnostics - Detailed system diagnostics for Nebula Command integration
   // Note: This endpoint is public for system monitoring and doesn't include user-specific data
   app.get("/api/diagnostics", async (req, res) => {
     try {
@@ -479,7 +479,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Enhanced Health Check - Detailed bot health for homelabhub integration
+  // Enhanced Health Check - Detailed bot health for Nebula Command integration
   // Returns bot status, platform connections, and user counts
   app.get("/api/health", async (req, res) => {
     try {

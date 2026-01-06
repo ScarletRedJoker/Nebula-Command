@@ -63,7 +63,7 @@ export function SSHTerminal({ serverId, onStatusChange, onDisconnect }: SSHTermi
     }, 100);
 
     terminal.writeln("\x1b[1;34m╔════════════════════════════════════════╗\x1b[0m");
-    terminal.writeln("\x1b[1;34m║\x1b[0m     \x1b[1;32mHomeLabHub SSH Terminal\x1b[0m            \x1b[1;34m║\x1b[0m");
+    terminal.writeln("\x1b[1;34m║\x1b[0m    \x1b[1;32mNebula Command SSH Terminal\x1b[0m         \x1b[1;34m║\x1b[0m");
     terminal.writeln("\x1b[1;34m╚════════════════════════════════════════╝\x1b[0m");
     terminal.writeln("");
     terminal.writeln(`\x1b[33mConnecting to ${serverId}...\x1b[0m`);

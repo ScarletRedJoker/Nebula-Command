@@ -1,10 +1,10 @@
-# HomeLabHub - Nebula Command Platform
+# Nebula Command
 
 A comprehensive homelab management suite featuring a modern dashboard, Discord community bot, and multi-platform streaming tools.
 
 ## Overview
 
-HomeLabHub is a single-tenant platform for homelab enthusiasts, providing:
+Nebula Command is a single-tenant platform for homelab enthusiasts, providing:
 
 - **Dashboard** - Next.js 14 control panel with real-time Docker/SSH management, visual website builder, and AI assistant
 - **Discord Bot** - Community management with tickets, welcome cards, stream notifications, XP/leveling, and economy systems
@@ -13,7 +13,7 @@ HomeLabHub is a single-tenant platform for homelab enthusiasts, providing:
 ## Architecture
 
 ```
-HomeLabHub/
+nebula-command/
 ├── services/
 │   ├── dashboard-next/     # Next.js 14 Dashboard (TypeScript, shadcn/ui)
 │   ├── discord-bot/        # Discord.js Bot (Node.js, React dashboard)
@@ -191,4 +191,4 @@ Private repository - All rights reserved.
 
 ---
 
-**HomeLabHub** - Unified Homelab Management
+**Nebula Command** - Unified Homelab Management

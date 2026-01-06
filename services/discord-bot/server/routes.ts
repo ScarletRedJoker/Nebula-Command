@@ -3951,7 +3951,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Mount developer routes with authentication and developer middleware
   app.use('/api/dev', isAuthenticated, isDeveloperMiddleware, devRoutes);
 
-  // Mount homelabhub orchestration routes (no auth - internal Docker network only)
+  // Mount Nebula Command orchestration routes (no auth - internal Docker network only)
   app.use('/api/homelabhub', homelabhubRoutes);
 
   // Mount stream notifications routes

@@ -1,7 +1,7 @@
-# Nebula Command - HomeLabHub Platform
+# Nebula Command
 
 ## Overview
-Nebula Command, also known as the HomeLabHub Platform, is a comprehensive suite for homelab management, Discord community integration, and multi-platform streaming. It comprises a Dashboard for homelab control and AI assistance, a Discord Bot for community and notification management, and a Stream Bot for automated content posting across streaming platforms. The platform's vision is to offer a unified control plane for homelab enthusiasts, providing advanced features for automation, monitoring, and interaction within their digital environments.
+Nebula Command is a comprehensive suite for homelab management, Discord community integration, and multi-platform streaming. It comprises a Dashboard for homelab control and AI assistance, a Discord Bot for community and notification management, and a Stream Bot for automated content posting across streaming platforms. The platform's vision is to offer a unified control plane for homelab enthusiasts, providing advanced features for automation, monitoring, and interaction within their digital environments.
 
 ## User Preferences
 - **User:** Evin

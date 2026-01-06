@@ -81,7 +81,7 @@ Format your responses using Markdown for better readability:
             codebase_context = f"""
 
 ## Codebase Access
-You have DIRECT ACCESS to the HomeLabHub codebase at `{self.codebase.project_root}`.
+You have DIRECT ACCESS to the Nebula Command codebase at `{self.codebase.project_root}`.
 
 You can:
 - **Browse files**: List directories, view file structure

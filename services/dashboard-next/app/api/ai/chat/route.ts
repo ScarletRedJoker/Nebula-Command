@@ -26,7 +26,7 @@ async function checkAuth() {
   return await verifySession(session.value);
 }
 
-const systemPrompt = `You are Jarvis, an AI assistant for HomeLabHub - a comprehensive homelab management platform.
+const systemPrompt = `You are Jarvis, an AI assistant for Nebula Command - a comprehensive homelab management platform.
 
 **YOUR ROLE:**
 You help users manage their homelab by providing information, suggestions, and actionable commands.

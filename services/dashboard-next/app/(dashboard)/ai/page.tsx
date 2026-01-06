@@ -38,7 +38,7 @@ export default function AIPage() {
     {
       id: "1",
       role: "assistant",
-      content: "Hello! I'm Jarvis, your AI assistant for HomeLabHub. I can help you manage services, create websites, debug issues, and generate code. What would you like to do?",
+      content: "Hello! I'm Jarvis, your AI assistant for Nebula Command. I can help you manage services, create websites, debug issues, and generate code. What would you like to do?",
       timestamp: new Date(),
     },
   ]);

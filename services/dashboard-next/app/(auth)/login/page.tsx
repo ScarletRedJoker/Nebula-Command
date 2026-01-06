@@ -45,9 +45,9 @@ export default function LoginPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 h-12 w-12 rounded-xl bg-primary flex items-center justify-center">
-            <span className="text-2xl font-bold text-primary-foreground">H</span>
+            <span className="text-2xl font-bold text-primary-foreground">N</span>
           </div>
-          <CardTitle className="text-2xl">HomeLabHub</CardTitle>
+          <CardTitle className="text-2xl">Nebula Command</CardTitle>
           <CardDescription>Sign in to access your dashboard</CardDescription>
         </CardHeader>
         <CardContent>

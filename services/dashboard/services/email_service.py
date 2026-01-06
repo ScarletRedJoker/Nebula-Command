@@ -1,5 +1,5 @@
 """
-Email Service for HomeLabHub Dashboard
+Email Service for Nebula Command Dashboard
 Supports multiple providers: SendGrid, Mailgun, SMTP, and webhook notifications.
 Handles transactional emails and inbound email routing.
 """
@@ -30,7 +30,7 @@ class EmailService:
     def __init__(self):
         self.provider = os.environ.get('EMAIL_PROVIDER', 'smtp').lower()
         self.from_email = os.environ.get('EMAIL_FROM', 'noreply@evindrake.net')
-        self.from_name = os.environ.get('EMAIL_FROM_NAME', 'HomeLabHub')
+        self.from_name = os.environ.get('EMAIL_FROM_NAME', 'Nebula Command')
         
         # Provider-specific configuration
         self.sendgrid_api_key = os.environ.get('SENDGRID_API_KEY')
@@ -280,7 +280,7 @@ class EmailService:
     ) -> Dict[str, Any]:
         """Send a notification email with optional action button"""
         html = self._render_notification_template(title, message, action_url, action_text)
-        return self.send_email(to, f"[HomeLabHub] {title}", message, html)
+        return self.send_email(to, f"[Nebula Command] {title}", message, html)
     
     def send_alert(
         self,
@@ -296,14 +296,14 @@ class EmailService:
     
     def send_welcome(self, to: str, username: str) -> Dict[str, Any]:
         """Send welcome email to new user"""
-        subject = "Welcome to HomeLabHub!"
-        body = f"Hi {username},\n\nWelcome to HomeLabHub! Your account has been created successfully."
+        subject = "Welcome to Nebula Command!"
+        body = f"Hi {username},\n\nWelcome to Nebula Command! Your account has been created successfully."
         html = self._render_welcome_template(username)
         return self.send_email(to, subject, body, html)
     
     def send_password_reset(self, to: str, reset_url: str) -> Dict[str, Any]:
         """Send password reset email"""
-        subject = "Reset Your HomeLabHub Password"
+        subject = "Reset Your Nebula Command Password"
         body = f"Click the following link to reset your password:\n\n{reset_url}"
         html = self._render_password_reset_template(reset_url)
         return self.send_email(to, subject, body, html)
@@ -339,13 +339,13 @@ class EmailService:
     <div class="container">
         <div class="card">
             <div class="header">
-                <div class="logo">🌌 HomeLabHub</div>
+                <div class="logo">🌌 Nebula Command</div>
             </div>
             <div class="content">
                 {content}
             </div>
             <div class="footer">
-                <p>Sent from HomeLabHub Dashboard</p>
+                <p>Sent from Nebula Command Dashboard</p>
                 <p>© {datetime.now().year} Evin Drake • evindrake.net</p>
             </div>
         </div>
@@ -390,7 +390,7 @@ class EmailService:
     def _render_welcome_template(self, username: str) -> str:
         content = f"""
             <h2 style="color: #00d4ff;">Welcome, {username}! 🎉</h2>
-            <p>Your HomeLabHub account has been created successfully.</p>
+            <p>Your Nebula Command account has been created successfully.</p>
             <p>You can now:</p>
             <ul>
                 <li>Monitor your Docker containers</li>

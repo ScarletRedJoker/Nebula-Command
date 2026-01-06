@@ -84,9 +84,9 @@ export function MobileSidebar({ open, onOpenChange }: { open: boolean; onOpenCha
         <SheetHeader className="h-16 flex flex-row items-center border-b px-4">
           <Link href="/" className="flex items-center gap-2" onClick={() => onOpenChange(false)}>
             <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold">H</span>
+              <span className="text-primary-foreground font-bold">N</span>
             </div>
-            <SheetTitle className="font-semibold text-lg">HomeLabHub</SheetTitle>
+            <SheetTitle className="font-semibold text-lg">Nebula Command</SheetTitle>
           </Link>
         </SheetHeader>
         <NavContent onNavClick={() => onOpenChange(false)} />
@@ -109,14 +109,14 @@ export function Sidebar() {
         {!collapsed && (
           <Link href="/" className="flex items-center gap-2">
             <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold">H</span>
+              <span className="text-primary-foreground font-bold">N</span>
             </div>
-            <span className="font-semibold text-lg">HomeLabHub</span>
+            <span className="font-semibold text-lg">Nebula Command</span>
           </Link>
         )}
         {collapsed && (
           <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center mx-auto">
-            <span className="text-primary-foreground font-bold">H</span>
+            <span className="text-primary-foreground font-bold">N</span>
           </div>
         )}
       </div>

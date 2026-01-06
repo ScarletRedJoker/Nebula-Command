@@ -46,7 +46,7 @@ A production-ready Discord bot and web dashboard for creating and managing suppo
     - **Onboarding Wizard**: Multi-step guided setup for bot invitation and server selection.
     - **Discord Thread Integration**: Bidirectional synchronization between Discord threads and dashboard tickets, including auto-creation and message/status syncing.
     - **Bot Customization**: Per-server bot nickname configuration.
-    - **Homelabhub Orchestration**: Docker-based service discovery with API endpoints for monitoring, metrics, and control (see HOMELABHUB_INTEGRATION.md for details).
+    - **Nebula Command Orchestration**: Docker-based service discovery with API endpoints for monitoring, metrics, and control (see HOMELABHUB_INTEGRATION.md for details).
 
 ### Database (PostgreSQL)
 - **Provider**: Neon (Replit's built-in PostgreSQL) or standard PostgreSQL, with automatic driver detection.
@@ -58,13 +58,13 @@ A production-ready Discord bot and web dashboard for creating and managing suppo
 - **Containerization**: Multi-stage Dockerfile using `node:20-slim`.
 - **Orchestration**: Docker Compose for full-stack deployment with Docker labels for service discovery.
 
-### Homelabhub Integration
-- **Service Discovery**: Docker labels enable automatic discovery by homelabhub dashboard
+### Nebula Command Integration
+- **Service Discovery**: Docker labels enable automatic discovery by Nebula Command dashboard
 - **API Endpoints**:
   - `GET /api/homelabhub/metrics` - Real-time bot statistics (guilds, users, channels, uptime, system metrics)
   - `POST /api/homelabhub/control` - Bot control (status, restart, refresh-cache, health-check)
   - `GET /api/homelabhub/status` - Quick status check
-- **Security**: API key authentication required (`HOMELABHUB_API_KEY` environment variable)
+- **Security**: API key authentication required (`NEBULA_COMMAND_API_KEY` or `HOMELABHUB_API_KEY` environment variable)
 - **Docker Labels**: Service metadata, web URLs, API endpoints, display preferences
 - **Documentation**: See `HOMELABHUB_INTEGRATION.md` for complete integration guide with Python/JavaScript examples
 

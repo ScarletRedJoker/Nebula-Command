@@ -40,7 +40,7 @@ StreamBot is a multi-tenant SaaS platform enabling users to deploy and manage AI
     - **Kick**: `@retconned/kick-js` unofficial library for WebSocket chat (unofficial API)
 - **Real-time**: WebSocket server on `/ws` path for live updates and authenticated communication.
 - **Containerization**: Docker with multi-stage builds, non-root user, health checks, and proper signal handling.
-- **HomelabHub Integration**: Designed for seamless integration with HomelabHub for container orchestration using a comprehensive management script (`./scripts/manage.sh`).
+- **Nebula Command Integration**: Designed for seamless integration with Nebula Command for container orchestration using a comprehensive management script (`./scripts/manage.sh`).
 
 ### Feature Specifications
 - **Platform Support**: Twitch (full), YouTube Live (full via Replit connector), Kick (full via unofficial library).
