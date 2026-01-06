@@ -44,43 +44,73 @@ if [ ! -f ".env" ]; then
     fi
 fi
 
-# Make fix-env.sh executable
-chmod +x scripts/fix-env.sh 2>/dev/null || true
+# Auto-generate missing passwords and secrets
+generate_secret() {
+    openssl rand -base64 32 | tr -d '/+=' | head -c 32
+}
 
-# Check for critical missing vars
+add_if_missing() {
+    local key=$1
+    local value=$2
+    if ! grep -q "^${key}=" .env 2>/dev/null; then
+        echo "${key}=${value}" >> .env
+        echo -e "${GREEN}[AUTO] Generated ${key}${NC}"
+    fi
+}
+
+# Auto-generate all passwords and secrets (these don't need manual input)
+add_if_missing "POSTGRES_PASSWORD" "$(generate_secret)"
+add_if_missing "DISCORD_DB_PASSWORD" "$(generate_secret)"
+add_if_missing "STREAMBOT_DB_PASSWORD" "$(generate_secret)"
+add_if_missing "JARVIS_DB_PASSWORD" "$(generate_secret)"
+add_if_missing "SERVICE_AUTH_TOKEN" "$(generate_secret)"
+add_if_missing "SESSION_SECRET" "$(generate_secret)"
+add_if_missing "SECRET_KEY" "$(generate_secret)"
+add_if_missing "REDIS_PASSWORD" "$(generate_secret)"
+add_if_missing "JWT_SECRET" "$(generate_secret)"
+
+# Source the env file
+set -a
 source .env 2>/dev/null || true
-MISSING_CRITICAL=0
+set +a
 
-if [[ -z "${TAILSCALE_AUTHKEY:-}" || "${TAILSCALE_AUTHKEY:-}" == *"xxxxx"* ]]; then
-    echo -e "${RED}[MISSING] TAILSCALE_AUTHKEY${NC}"
+# Check only for API tokens that MUST come from external services
+MISSING_CRITICAL=0
+MISSING_OPTIONAL=0
+
+# Critical: These are required for core functionality
+if [[ -z "${DISCORD_BOT_TOKEN:-}" || "${DISCORD_BOT_TOKEN:-}" == *"xxxxx"* ]]; then
+    echo -e "${RED}[MISSING] DISCORD_BOT_TOKEN - Get from discord.com/developers${NC}"
     MISSING_CRITICAL=1
+fi
+
+# Optional: System works without these but with reduced functionality
+if [[ -z "${TAILSCALE_AUTHKEY:-}" || "${TAILSCALE_AUTHKEY:-}" == *"xxxxx"* ]]; then
+    echo -e "${YELLOW}[OPTIONAL] TAILSCALE_AUTHKEY - Needed for local homelab connection${NC}"
+    MISSING_OPTIONAL=1
+fi
+if [[ -z "${CLOUDFLARE_API_TOKEN:-}" || "${CLOUDFLARE_API_TOKEN:-}" == *"xxxxx"* ]]; then
+    echo -e "${YELLOW}[OPTIONAL] CLOUDFLARE_API_TOKEN - Needed for DNS management${NC}"
+    MISSING_OPTIONAL=1
 fi
 if [[ -z "${AI_INTEGRATIONS_OPENAI_API_KEY:-}" && -z "${OPENAI_API_KEY:-}" ]]; then
-    echo -e "${YELLOW}[OPTIONAL] No OpenAI API key (AI_INTEGRATIONS_OPENAI_API_KEY or OPENAI_API_KEY)${NC}"
-elif [[ "${AI_INTEGRATIONS_OPENAI_API_KEY:-}" == "sk-" || "${OPENAI_API_KEY:-}" == "sk-" ]]; then
-    echo -e "${YELLOW}[INVALID] OpenAI API key appears to be a placeholder${NC}"
-fi
-if [[ -z "${DISCORD_BOT_TOKEN:-}" ]]; then
-    echo -e "${RED}[MISSING] DISCORD_BOT_TOKEN${NC}"
-    MISSING_CRITICAL=1
-fi
-if [[ -z "${CLOUDFLARE_API_TOKEN:-}" ]]; then
-    echo -e "${RED}[MISSING] CLOUDFLARE_API_TOKEN${NC}"
-    MISSING_CRITICAL=1
+    echo -e "${YELLOW}[OPTIONAL] OPENAI_API_KEY - Needed for AI features${NC}"
+    MISSING_OPTIONAL=1
 fi
 
 if [[ $MISSING_CRITICAL -eq 1 ]]; then
     echo ""
-    echo -e "${YELLOW}Critical environment variables missing!${NC}"
-    echo "  Fix with: ./scripts/fix-env.sh --fix"
-    echo "  Or set directly: ./scripts/fix-env.sh --set TAILSCALE_AUTHKEY=tskey-xxx"
+    echo -e "${RED}Critical API token missing! Discord Bot won't work without DISCORD_BOT_TOKEN.${NC}"
+    echo "Get it from: https://discord.com/developers/applications"
     echo ""
     read -p "Continue anyway? (y/N) " -n 1 -r
     echo
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo -e "${RED}Deployment aborted. Fix your .env first.${NC}"
+        echo -e "${RED}Deployment aborted. Add DISCORD_BOT_TOKEN to .env${NC}"
         exit 1
     fi
+elif [[ $MISSING_OPTIONAL -eq 1 ]]; then
+    echo -e "${YELLOW}Some optional API tokens missing - deploying with reduced functionality.${NC}"
 fi
 echo -e "${GREEN}✓ Environment checked${NC}"
 echo ""
