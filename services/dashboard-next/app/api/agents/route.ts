@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifySession } from "@/lib/session";
 import { cookies } from "next/headers";
 import { aiOrchestrator } from "@/lib/ai-orchestrator";
+import { db } from "@/lib/db";
+import { agents, agentExecutions } from "@/lib/db/platform-schema";
+import { eq } from "drizzle-orm";
 
 async function checkAuth() {
   const cookieStore = await cookies();
@@ -19,6 +22,7 @@ interface AgentProfile {
   temperature: number;
   tools: string[];
   isActive: boolean;
+  isBuiltin?: boolean;
 }
 
 const BUILTIN_AGENTS: AgentProfile[] = [
@@ -38,6 +42,7 @@ You have access to the homelab infrastructure and can provide specific, actionab
     temperature: 0.7,
     tools: ["docker_manage", "file_read", "file_write", "ssh_execute"],
     isActive: true,
+    isBuiltin: true,
   },
   {
     id: "coder",
@@ -54,6 +59,7 @@ Always provide complete, working code examples. Use proper error handling and co
     temperature: 0.3,
     tools: ["file_read", "file_write", "grep_search"],
     isActive: true,
+    isBuiltin: true,
   },
   {
     id: "creative",
@@ -70,6 +76,7 @@ Be creative and inspiring while following brand guidelines when provided.`,
     temperature: 0.9,
     tools: ["generate_image", "file_write"],
     isActive: true,
+    isBuiltin: true,
   },
   {
     id: "devops",
@@ -87,6 +94,7 @@ Provide production-ready configurations with proper security practices.`,
     temperature: 0.5,
     tools: ["docker_manage", "ssh_execute", "file_read", "file_write"],
     isActive: true,
+    isBuiltin: true,
   },
 ];
 
@@ -177,10 +185,34 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  return NextResponse.json({
-    agents: BUILTIN_AGENTS,
-    functions: BUILTIN_FUNCTIONS,
-  });
+  try {
+    const dbAgents = await db.select().from(agents).where(eq(agents.isActive, true));
+    
+    const customAgents: AgentProfile[] = dbAgents.map((agent) => ({
+      id: agent.id,
+      name: agent.name,
+      description: agent.description || "",
+      systemPrompt: agent.systemPrompt,
+      model: agent.model,
+      temperature: parseFloat(agent.temperature?.toString() || "0.7"),
+      tools: agent.tools || [],
+      isActive: agent.isActive ?? true,
+      isBuiltin: false,
+    }));
+
+    const allAgents = [...BUILTIN_AGENTS, ...customAgents];
+
+    return NextResponse.json({
+      agents: allAgents,
+      functions: BUILTIN_FUNCTIONS,
+    });
+  } catch (error: any) {
+    console.error("Error fetching agents:", error);
+    return NextResponse.json({
+      agents: BUILTIN_AGENTS,
+      functions: BUILTIN_FUNCTIONS,
+    });
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -192,10 +224,15 @@ export async function POST(request: NextRequest) {
   const body = await request.json();
   const { agentId, input } = body;
 
-  const agent = BUILTIN_AGENTS.find(a => a.id === agentId);
+  const allAgentsResponse = await GET(request);
+  const allAgentsData = await allAgentsResponse.json();
+  const agent = allAgentsData.agents?.find((a: AgentProfile) => a.id === agentId);
+  
   if (!agent) {
     return NextResponse.json({ error: "Agent not found" }, { status: 404 });
   }
+
+  const startTime = Date.now();
 
   try {
     const response = await aiOrchestrator.chat({
@@ -209,6 +246,22 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    const durationMs = Date.now() - startTime;
+
+    try {
+      await db.insert(agentExecutions).values({
+        agentId: agent.isBuiltin ? null : agent.id,
+        input,
+        output: response.content,
+        status: "completed",
+        tokensUsed: response.usage?.totalTokens || null,
+        durationMs,
+        functionCalls: null,
+      });
+    } catch (dbError) {
+      console.error("Failed to save agent execution:", dbError);
+    }
+
     return NextResponse.json({
       agentId: agent.id,
       input,
@@ -217,8 +270,168 @@ export async function POST(request: NextRequest) {
       usage: response.usage,
     });
   } catch (error: any) {
+    const durationMs = Date.now() - startTime;
+
+    try {
+      await db.insert(agentExecutions).values({
+        agentId: agent.isBuiltin ? null : agent.id,
+        input,
+        output: null,
+        status: "failed",
+        tokensUsed: null,
+        durationMs,
+        functionCalls: null,
+      });
+    } catch (dbError) {
+      console.error("Failed to save failed agent execution:", dbError);
+    }
+
     return NextResponse.json(
       { error: error.message || "Agent execution failed" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(request: NextRequest) {
+  const user = await checkAuth();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const body = await request.json();
+    const { id, name, description, systemPrompt, model, temperature, tools, isActive } = body;
+
+    if (!name || !systemPrompt || !model) {
+      return NextResponse.json(
+        { error: "Missing required fields: name, systemPrompt, model" },
+        { status: 400 }
+      );
+    }
+
+    if (id) {
+      const builtinIds = BUILTIN_AGENTS.map((a) => a.id);
+      if (builtinIds.includes(id)) {
+        return NextResponse.json(
+          { error: "Cannot modify built-in agents" },
+          { status: 400 }
+        );
+      }
+
+      const [updated] = await db
+        .update(agents)
+        .set({
+          name,
+          description: description || null,
+          systemPrompt,
+          model,
+          temperature: temperature?.toString() || "0.7",
+          tools: tools || [],
+          isActive: isActive ?? true,
+          updatedAt: new Date(),
+        })
+        .where(eq(agents.id, id))
+        .returning();
+
+      if (!updated) {
+        return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+      }
+
+      return NextResponse.json({
+        message: "Agent updated successfully",
+        agent: {
+          id: updated.id,
+          name: updated.name,
+          description: updated.description,
+          systemPrompt: updated.systemPrompt,
+          model: updated.model,
+          temperature: parseFloat(updated.temperature?.toString() || "0.7"),
+          tools: updated.tools || [],
+          isActive: updated.isActive,
+          isBuiltin: false,
+        },
+      });
+    } else {
+      const [created] = await db
+        .insert(agents)
+        .values({
+          name,
+          description: description || null,
+          systemPrompt,
+          model,
+          temperature: temperature?.toString() || "0.7",
+          tools: tools || [],
+          isActive: isActive ?? true,
+        })
+        .returning();
+
+      return NextResponse.json({
+        message: "Agent created successfully",
+        agent: {
+          id: created.id,
+          name: created.name,
+          description: created.description,
+          systemPrompt: created.systemPrompt,
+          model: created.model,
+          temperature: parseFloat(created.temperature?.toString() || "0.7"),
+          tools: created.tools || [],
+          isActive: created.isActive,
+          isBuiltin: false,
+        },
+      }, { status: 201 });
+    }
+  } catch (error: any) {
+    console.error("Error creating/updating agent:", error);
+    return NextResponse.json(
+      { error: error.message || "Failed to create/update agent" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  const user = await checkAuth();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const { searchParams } = new URL(request.url);
+    const agentId = searchParams.get("id");
+
+    if (!agentId) {
+      return NextResponse.json(
+        { error: "Agent ID is required" },
+        { status: 400 }
+      );
+    }
+
+    const builtinIds = BUILTIN_AGENTS.map((a) => a.id);
+    if (builtinIds.includes(agentId)) {
+      return NextResponse.json(
+        { error: "Cannot delete built-in agents" },
+        { status: 400 }
+      );
+    }
+
+    const [deleted] = await db
+      .delete(agents)
+      .where(eq(agents.id, agentId))
+      .returning();
+
+    if (!deleted) {
+      return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      message: "Agent deleted successfully",
+      agentId: deleted.id,
+    });
+  } catch (error: any) {
+    console.error("Error deleting agent:", error);
+    return NextResponse.json(
+      { error: error.message || "Failed to delete agent" },
       { status: 500 }
     );
   }

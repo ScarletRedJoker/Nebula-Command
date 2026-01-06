@@ -61,6 +61,39 @@ do_git_pull() {
     echo ""
 }
 
+ensure_ssh_keys() {
+    echo -e "${CYAN}━━━ SSH Keys ━━━${NC}"
+    
+    local ssh_dir="${HOME}/.ssh"
+    local key_path="${ssh_dir}/homelab"
+    
+    if [ -f "$key_path" ] && [ -f "${key_path}.pub" ]; then
+        echo -e "${GREEN}[OK]${NC} SSH key exists: $key_path"
+        return 0
+    fi
+    
+    echo -e "${YELLOW}[SETUP]${NC} No SSH key found, generating..."
+    mkdir -p "$ssh_dir"
+    chmod 700 "$ssh_dir"
+    
+    ssh-keygen -t ed25519 -f "$key_path" -N "" -C "homelab-$(hostname)-$(date +%Y%m%d)" -q
+    
+    if [ -f "$key_path" ]; then
+        chmod 600 "$key_path"
+        chmod 644 "${key_path}.pub"
+        echo -e "${GREEN}[OK]${NC} SSH key generated: $key_path"
+        echo ""
+        echo -e "${YELLOW}Public key (add to remote servers' ~/.ssh/authorized_keys):${NC}"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        cat "${key_path}.pub"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+    else
+        echo -e "${RED}[ERROR]${NC} Failed to generate SSH key"
+        return 1
+    fi
+}
+
 do_env_setup() {
     echo -e "${CYAN}[2/4] Environment setup...${NC}"
     
@@ -70,6 +103,8 @@ do_env_setup() {
     
     echo -e "${CYAN}━━━ Internal Secrets ━━━${NC}"
     ensure_internal_secrets ".env"
+    
+    ensure_ssh_keys
     
     echo -e "${GREEN}✓ Environment ready${NC}"
     echo ""

@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySession } from "@/lib/session";
 import { cookies } from "next/headers";
-import fs from "fs";
+import fs, { readFileSync, existsSync } from "fs";
 import path from "path";
 import yaml from "js-yaml";
 import { db } from "@/lib/db";
 import { marketplacePackages, installations as installationsTable } from "@/lib/db/platform-schema";
 import { eq } from "drizzle-orm";
+import { Client } from "ssh2";
+import { getServerById, getDefaultSshKeyPath } from "@/lib/server-config-store";
 
 async function checkAuth() {
   const cookieStore = await cookies();
@@ -299,41 +301,158 @@ export async function POST(request: NextRequest) {
   }
 }
 
+function escapeShellArg(arg: string): string {
+  if (!arg) return "''";
+  if (!/[^a-zA-Z0-9_\-./:@=]/.test(arg)) {
+    return arg;
+  }
+  return "'" + arg.replace(/'/g, "'\"'\"'") + "'";
+}
+
+async function executeSSHCommand(
+  host: string,
+  user: string,
+  keyPath: string,
+  command: string
+): Promise<{ success: boolean; output?: string; error?: string }> {
+  return new Promise((resolve) => {
+    if (!existsSync(keyPath)) {
+      resolve({ success: false, error: `SSH key not found: ${keyPath}` });
+      return;
+    }
+
+    const conn = new Client();
+    const timeout = setTimeout(() => {
+      conn.end();
+      resolve({ success: false, error: "Connection timeout" });
+    }, 60000);
+
+    conn.on("ready", () => {
+      conn.exec(command, (err, stream) => {
+        if (err) {
+          clearTimeout(timeout);
+          conn.end();
+          resolve({ success: false, error: err.message });
+          return;
+        }
+
+        let output = "";
+        let errorOutput = "";
+
+        stream.on("data", (data: Buffer) => {
+          output += data.toString();
+        });
+
+        stream.stderr.on("data", (data: Buffer) => {
+          errorOutput += data.toString();
+        });
+
+        stream.on("close", (code: number) => {
+          clearTimeout(timeout);
+          conn.end();
+          if (code === 0) {
+            resolve({ success: true, output: output.trim() });
+          } else {
+            resolve({
+              success: false,
+              output: output.trim(),
+              error: errorOutput.trim() || `Command exited with code ${code}`,
+            });
+          }
+        });
+      });
+    });
+
+    conn.on("error", (err) => {
+      clearTimeout(timeout);
+      resolve({ success: false, error: err.message });
+    });
+
+    try {
+      conn.connect({
+        host,
+        port: 22,
+        username: user,
+        privateKey: readFileSync(keyPath),
+        readyTimeout: 30000,
+      });
+    } catch (err: any) {
+      clearTimeout(timeout);
+      resolve({ success: false, error: err.message });
+    }
+  });
+}
+
 async function queueInstallation(
   installId: string,
   pkg: MarketplacePackage,
   config: Record<string, string>,
-  server: string
+  serverId: string
 ) {
   try {
     await db.update(installationsTable)
       .set({ status: "installing" })
       .where(eq(installationsTable.id, installId as any));
 
-    const envVars = pkg.variables
+    const server = await getServerById(serverId);
+    if (!server) {
+      throw new Error(`Server not found: ${serverId}`);
+    }
+
+    const keyPath = server.keyPath || getDefaultSshKeyPath();
+
+    const envArgs = pkg.variables
       ?.map(v => {
         const value = config[v.name] || v.default || "";
-        return `${v.name}=${value}`;
+        return `-e ${escapeShellArg(v.name)}=${escapeShellArg(value)}`;
       })
-      .join(" ");
+      .join(" ") || "";
 
-    const dockerCommand = `docker run -d --name ${pkg.name} ${envVars ? `--env ${envVars.split(" ").join(" --env ")}` : ""} ${pkg.repository}`;
+    const portMapping = config.PORT ? `-p ${config.PORT}:${config.PORT}` : "";
+    const containerName = escapeShellArg(pkg.name);
+    const image = escapeShellArg(pkg.repository);
 
-    console.log(`[Marketplace] Would execute on ${server}:`, dockerCommand);
-    console.log(`[Marketplace] Package: ${pkg.displayName} v${pkg.version}`);
+    const dockerCommand = `docker pull ${image} && (docker rm -f ${containerName} 2>/dev/null || true) && docker run -d --name ${containerName} --restart unless-stopped ${portMapping} ${envArgs} ${image}`;
 
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    console.log(`[Marketplace] Executing on ${server.name}:`, dockerCommand);
 
-    await db.update(installationsTable)
-      .set({ status: "running" })
-      .where(eq(installationsTable.id, installId as any));
+    const result = await executeSSHCommand(
+      server.host,
+      server.user,
+      keyPath,
+      dockerCommand
+    );
 
-    console.log(`[Marketplace] ${pkg.displayName} installed successfully on ${server}`);
+    if (result.success) {
+      const containerId = result.output?.split("\n").pop()?.trim() || null;
+      
+      await db.update(installationsTable)
+        .set({ 
+          status: "running",
+          containerIds: containerId ? [containerId] : null,
+          port: config.PORT ? parseInt(config.PORT) : null,
+        })
+        .where(eq(installationsTable.id, installId as any));
+
+      console.log(`[Marketplace] ${pkg.displayName} installed successfully on ${server.name}`);
+      console.log(`[Marketplace] Container ID: ${containerId}`);
+    } else {
+      const errorMsg = result.error || "Docker command failed";
+      console.error(`[Marketplace] SSH execution failed: ${errorMsg}`);
+      if (result.output) {
+        console.error(`[Marketplace] Output: ${result.output}`);
+      }
+      throw new Error(errorMsg);
+    }
   } catch (error: any) {
+    const errorMessage = error.message || "Unknown installation error";
+    console.error(`[Marketplace] Failed to install ${pkg.displayName}:`, errorMessage);
     await db.update(installationsTable)
-      .set({ status: "error" })
+      .set({ 
+        status: "error",
+        config: { ...(config || {}), errorMessage },
+      })
       .where(eq(installationsTable.id, installId as any));
-    console.error(`[Marketplace] Failed to install ${pkg.displayName}:`, error);
   }
 }
 

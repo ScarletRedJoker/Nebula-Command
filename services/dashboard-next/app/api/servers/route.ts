@@ -24,6 +24,8 @@ async function getServerMetrics(server: ServerConfig): Promise<any> {
         description: server.description || "",
         status: "error",
         error: "SSH key not found",
+        supportsWol: server.supportsWol || false,
+        ipmiHost: server.ipmiHost || null,
         metrics: { cpu: 0, memory: 0, disk: 0, network: "N/A" },
       });
       return;
@@ -38,6 +40,8 @@ async function getServerMetrics(server: ServerConfig): Promise<any> {
         description: server.description || "",
         status: "offline",
         error: "Connection timeout",
+        supportsWol: server.supportsWol || false,
+        ipmiHost: server.ipmiHost || null,
         metrics: { cpu: 0, memory: 0, disk: 0, network: "N/A" },
       });
     }, 10000);
@@ -62,6 +66,8 @@ async function getServerMetrics(server: ServerConfig): Promise<any> {
             description: server.description || "",
             status: "error",
             error: err.message,
+            supportsWol: server.supportsWol || false,
+            ipmiHost: server.ipmiHost || null,
             metrics: { cpu: 0, memory: 0, disk: 0, network: "N/A" },
           });
           return;
@@ -94,6 +100,8 @@ async function getServerMetrics(server: ServerConfig): Promise<any> {
             status: "online",
             os: metrics.OS || "Ubuntu",
             uptime: metrics.UPTIME || "Unknown",
+            supportsWol: server.supportsWol || false,
+            ipmiHost: server.ipmiHost || null,
             metrics: {
               cpu: parseInt(metrics.CPU) || 0,
               memory: parseInt(metrics.MEM) || 0,
@@ -113,6 +121,8 @@ async function getServerMetrics(server: ServerConfig): Promise<any> {
         description: server.description || "",
         status: "offline",
         error: err.message,
+        supportsWol: server.supportsWol || false,
+        ipmiHost: server.ipmiHost || null,
         metrics: { cpu: 0, memory: 0, disk: 0, network: "N/A" },
       });
     });
@@ -133,6 +143,8 @@ async function getServerMetrics(server: ServerConfig): Promise<any> {
         description: server.description || "",
         status: "error",
         error: err.message,
+        supportsWol: server.supportsWol || false,
+        ipmiHost: server.ipmiHost || null,
         metrics: { cpu: 0, memory: 0, disk: 0, network: "N/A" },
       });
     }
