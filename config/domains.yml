@@ -158,3 +158,30 @@ subdomains:
     proxied: true
     profile: null
     description: "Local admin access"
+
+  # === LINODE CLOUD - EMAIL SERVICES ===
+  # Mailu email server on Linode
+  
+  - name: mail
+    server: linode
+    proxied: false
+    profile: null
+    description: "Mail server (SMTP/IMAP)"
+  
+  - name: webmail
+    server: linode
+    proxied: true
+    profile: null
+    description: "Webmail interface"
+  
+  - name: autoconfig
+    server: linode
+    proxied: false
+    profile: null
+    description: "Email autoconfig for clients"
+  
+  - name: autodiscover
+    server: linode
+    proxied: false
+    profile: null
+    description: "Email autodiscover for Outlook"
