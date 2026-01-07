@@ -66,6 +66,10 @@ Secrets are managed via `.env` files (gitignore'd) and Replit Secrets. Pre-commi
 - **DNS Records Added**: `mail`, `webmail`, `autoconfig`, `autodiscover` subdomains in `config/domains.yml`
 
 ### Configuration & Deployment Fixes
+- **Deploy Script Secret Handling**: Deploy scripts now automatically stash local secret files before git pull and restore them after
+  - No more merge conflicts with `configuration.yml` or `users_database.yml`
+  - Secret files stay local and never get overwritten by remote changes
+  - One-time fix: Run `git rm --cached deploy/local/services/authelia/configuration.yml` on servers where the file was already tracked
 - **Authelia Configuration**: Secrets must be hardcoded in `configuration.yml` on the server (not via env vars)
   - The `expand-env` and `template` filters block variables starting with `AUTHELIA_` and ending with `SECRET`/`KEY`
   - Use `configuration.yml.example` as template, copy to `configuration.yml`, replace placeholders with actual values
