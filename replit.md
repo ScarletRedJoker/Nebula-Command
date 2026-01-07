@@ -53,7 +53,16 @@ Secrets are managed via `.env` files (gitignore'd) and Replit Secrets. Pre-commi
 
 ## Recent Changes (January 2026)
 
-### Public Access Infrastructure (Latest)
+### Configuration & Deployment Fixes (Latest)
+- **Authelia Environment Variables**: Using `X_AUTHELIA_CONFIG_FILTERS=expand-env` for proper variable substitution in v4.38+
+- **Authelia Secrets**: JWT, session, and storage encryption keys loaded from environment (AUTHELIA_JWT_SECRET, AUTHELIA_SESSION_SECRET, AUTHELIA_STORAGE_KEY)
+- **Sunshine/Gamestream**: Docker container disabled - runs on Windows 11 VM with GPU passthrough (libvirt)
+- **Gamestream Host**: Configurable via GAMESTREAM_HOST env var (default: 192.168.122.100) for Caddy proxy to VM
+- **SSH Key Path**: Dashboard uses `/root/.ssh/homelab` as default key path for server connections
+- **Local AI Access**: Dashboard connects to Ollama (port 11434) and Stable Diffusion (port 7860) via Tailscale IP
+- **Default Domain**: `evindrake.net` set as default throughout configuration files
+
+### Public Access Infrastructure
 - **Unified Reverse Proxy**: Caddy with Cloudflare DNS-01 for automatic SSL on all subdomains
 - **Authelia SSO**: Single sign-on with 2FA for protected services (torrent, VNC, SSH, VMs, Sunshine)
 - **Automatic DNS Sync**: `scripts/cloudflare-sync.js` reads `config/domains.yml` and creates A records
