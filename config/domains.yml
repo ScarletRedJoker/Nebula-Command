@@ -21,6 +21,12 @@ subdomains:
     profile: null
     description: "Nebula Command Dashboard"
   
+  - name: dash
+    server: linode
+    proxied: true
+    profile: null
+    description: "Dashboard alias"
+  
   - name: api
     server: linode
     proxied: true
@@ -44,6 +50,24 @@ subdomains:
     proxied: false
     profile: null
     description: "Code server / IDE"
+  
+  - name: dns
+    server: linode
+    proxied: false
+    profile: null
+    description: "DNS management"
+  
+  - name: host
+    server: linode
+    proxied: true
+    profile: null
+    description: "Host management"
+  
+  - name: game
+    server: linode
+    proxied: false
+    profile: null
+    description: "Game server management"
 
   # === LOCAL HOMELAB - MEDIA (DNS-only for FULL BANDWIDTH) ===
   # These need direct connection for streaming performance
@@ -86,6 +110,12 @@ subdomains:
     proxied: true
     profile: null
     description: "MinIO Console"
+  
+  - name: minio
+    server: local
+    proxied: false
+    profile: null
+    description: "MinIO direct access"
   
   - name: s3
     server: local
