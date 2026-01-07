@@ -340,7 +340,7 @@ async function main() {
     verificationResults: [],
   };
 
-  async function processSubdomain(subdomain, serverIP, domain, zoneId, cf, recordMap, stats, enabledProfiles, shouldVerify) {
+  async function processSubdomain(subdomain, serverIP, domain, zoneId, cf, recordMap, allRecords, stats, enabledProfiles, shouldVerify) {
     const fqdn = `${subdomain.name}.${domain}`;
     
     if (!isProfileEnabled(subdomain, enabledProfiles)) {
@@ -363,12 +363,23 @@ async function main() {
     let action = 'unchanged';
 
     if (existing) {
-      // If existing record is a different type (e.g., CNAME), delete it first
+      // If existing record is a different type (e.g., CNAME, AAAA), delete it first
       if (existing.type !== 'A') {
-        console.log(`  ⚠ ${fqdn} has ${existing.type} record, replacing with A record`);
+        console.log(`  ⚠ ${fqdn} has ${existing.type} record, deleting to create A record`);
         await cf.deleteRecord(zoneId, existing.id);
-        console.log(`  + Creating ${fqdn} -> ${serverIP} (${proxyStatus})`);
-        await cf.createRecord(zoneId, newRecord);
+        // Check if there's also an A record we missed (recordMap only stores one per name)
+        const aRecord = allRecords.find(r => r.name === fqdn && r.type === 'A');
+        if (aRecord) {
+          if (aRecord.content !== serverIP || aRecord.proxied !== subdomain.proxied) {
+            console.log(`  ↻ Updating existing A record ${fqdn} -> ${serverIP} (${proxyStatus})`);
+            await cf.updateRecord(zoneId, aRecord.id, newRecord);
+          } else {
+            console.log(`  ✓ ${fqdn} - A record already correct`);
+          }
+        } else {
+          console.log(`  + Creating ${fqdn} -> ${serverIP} (${proxyStatus})`);
+          await cf.createRecord(zoneId, newRecord);
+        }
         stats.updated++;
         stats.synced++;
         action = 'updated';
@@ -407,12 +418,12 @@ async function main() {
 
   console.log('\n--- DNS-only (Full Bandwidth for Streaming) ---');
   for (const subdomain of SUBDOMAINS.filter(s => !s.proxied)) {
-    await processSubdomain(subdomain, serverIP, domain, zoneId, cf, recordMap, stats, enabledProfiles, args.verify);
+    await processSubdomain(subdomain, serverIP, domain, zoneId, cf, recordMap, existingRecords, stats, enabledProfiles, args.verify);
   }
 
   console.log('\n--- Cloudflare Proxied (DDoS Protection) ---');
   for (const subdomain of SUBDOMAINS.filter(s => s.proxied)) {
-    await processSubdomain(subdomain, serverIP, domain, zoneId, cf, recordMap, stats, enabledProfiles, args.verify);
+    await processSubdomain(subdomain, serverIP, domain, zoneId, cf, recordMap, existingRecords, stats, enabledProfiles, args.verify);
   }
 
   console.log('\n' + '='.repeat(50));
