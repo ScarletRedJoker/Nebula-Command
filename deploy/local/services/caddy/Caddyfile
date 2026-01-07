@@ -111,7 +111,8 @@ vms.{$DOMAIN} {
 # 3. Moonlight connects directly to your public IP for streaming
 gamestream.{$DOMAIN} {
         import authelia
-        reverse_proxy {$GAMESTREAM_HOST}:47990 {
+        # Falls back to localhost if GAMESTREAM_HOST not set (will fail gracefully)
+        reverse_proxy {$GAMESTREAM_HOST:127.0.0.1}:47990 {
                 transport http {
                         tls_insecure_skip_verify
                 }
