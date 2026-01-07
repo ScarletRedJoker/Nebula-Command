@@ -56,11 +56,20 @@ Secrets are managed via `.env` files (gitignore'd) and Replit Secrets. Pre-commi
 ### Configuration & Deployment Fixes (Latest)
 - **Authelia Environment Variables**: Using `X_AUTHELIA_CONFIG_FILTERS=expand-env` for proper variable substitution in v4.38+
 - **Authelia Secrets**: JWT, session, and storage encryption keys loaded from environment (AUTHELIA_JWT_SECRET, AUTHELIA_SESSION_SECRET, AUTHELIA_STORAGE_KEY)
-- **Sunshine/Gamestream**: Docker container disabled - runs on Windows 11 VM with GPU passthrough (libvirt)
-- **Gamestream Host**: Configurable via GAMESTREAM_HOST env var (default: 192.168.122.100) for Caddy proxy to VM
 - **SSH Key Path**: Dashboard uses `/root/.ssh/homelab` as default key path for server connections
 - **Local AI Access**: Dashboard connects to Ollama (port 11434) and Stable Diffusion (port 7860) via Tailscale IP
 - **Default Domain**: `evindrake.net` set as default throughout configuration files
+
+### Sunshine Game Streaming (Windows VM)
+- **Architecture**: Sunshine runs on Windows 11 VM with QEMU/KVM + GPU passthrough
+- **Networking**: VM uses bridged networking, gets its own LAN IP (e.g., 192.168.0.x)
+- **Configuration**: Set `GAMESTREAM_HOST` in `.env` to your VM's LAN IP
+- **Full-Bandwidth Remote Access**:
+  1. Caddy proxies only the web UI (port 47990) via `gamestream.evindrake.net` for HTTPS pairing
+  2. DNS is set to DNS-only (not proxied) for gamestream subdomain - no Cloudflare throttling
+  3. Forward ports 47984-48010 (TCP+UDP) on your router to the VM's IP
+  4. Moonlight clients connect directly to your public IP for actual game streaming
+- **Security**: Web UI protected by Authelia 2FA; streaming ports require Moonlight pairing PIN
 
 ### Public Access Infrastructure
 - **Unified Reverse Proxy**: Caddy with Cloudflare DNS-01 for automatic SSL on all subdomains

@@ -101,12 +101,17 @@ vms.{$DOMAIN} {
 }
 
 # Sunshine Web UI - Protected (admin only)
-# Note: Moonlight clients connect directly to ports 47984-48010
-# Sunshine runs on Windows 11 VM with GPU passthrough
-# Set GAMESTREAM_HOST env var to VM's IP (default: 192.168.122.100)
+# Sunshine runs on Windows 11 VM with bridged networking (QEMU/KVM)
+# The VM gets its own IP on your LAN (e.g., 192.168.0.x)
+# Set GAMESTREAM_HOST in .env to your VM's LAN IP
+#
+# For full-bandwidth remote streaming:
+# 1. Caddy proxies only the web UI (47990) via HTTPS for pairing
+# 2. Forward ports 47984-48010 (TCP+UDP) on your router to VM's IP
+# 3. Moonlight connects directly to your public IP for streaming
 gamestream.{$DOMAIN} {
         import authelia
-        reverse_proxy {$GAMESTREAM_HOST:192.168.122.100}:47990 {
+        reverse_proxy {$GAMESTREAM_HOST}:47990 {
                 transport http {
                         tls_insecure_skip_verify
                 }
