@@ -308,20 +308,20 @@ services:
       retries: 3
 
   # ============================================================================
-  # REMOTE ACCESS - Sunshine Game Streaming (network_mode: host for UDP)
+  # REMOTE ACCESS - Sunshine Game Streaming (optional - use: docker compose --profile gamestream up)
   # ============================================================================
   sunshine:
-    image: lscr.io/linuxserver/sunshine:latest
+    image: lizardbyte/sunshine:latest
     container_name: sunshine
     restart: unless-stopped
     network_mode: host
     privileged: true
+    profiles:
+      - gamestream
     environment:
       - PUID=1000
       - PGID=1000
       - TZ=${TZ:-America/New_York}
-      - SUNSHINE_USER=${SUNSHINE_USER:-admin}
-      - SUNSHINE_PASS=${SUNSHINE_PASS:-}
     volumes:
       - sunshine_config:/config
       - /dev/dri:/dev/dri
