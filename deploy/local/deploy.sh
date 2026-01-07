@@ -335,8 +335,15 @@ do_dns_sync() {
     
     local sync_script="$(dirname "$(dirname "$SCRIPT_DIR")")/scripts/cloudflare-sync.js"
     local repo_root="$(dirname "$(dirname "$SCRIPT_DIR")")"
+    local scripts_dir="$(dirname "$(dirname "$SCRIPT_DIR")")/scripts"
+    
     if [ -f "$sync_script" ]; then
         echo "  Syncing DNS records for $DOMAIN..."
+        
+        if [ -f "$scripts_dir/package.json" ] && [ ! -d "$scripts_dir/node_modules" ]; then
+            echo "  Installing script dependencies..."
+            npm install --prefix "$scripts_dir" --silent 2>/dev/null || npm install --prefix "$scripts_dir" 2>&1 | tail -3
+        fi
         
         local enabled_profiles=""
         [ "$WITH_TORRENTS" = true ] && enabled_profiles="${enabled_profiles:+$enabled_profiles,}torrents"

@@ -1,0 +1,9 @@
+{
+  "name": "nebula-command-scripts",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Nebula Command deployment and management scripts",
+  "dependencies": {
+    "yaml": "^2.3.4"
+  }
+}
