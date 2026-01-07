@@ -13,15 +13,21 @@ PROFILES=""
 WITH_TORRENTS=false
 WITH_GAMESTREAM=false
 WITH_MONITORING=false
+COMMAND=""
+POSITIONAL_ARGS=()
 
-for arg in "$@"; do
-    case $arg in
-        -v|--verbose) VERBOSE=true ;;
-        --with-torrents) WITH_TORRENTS=true ;;
-        --with-gamestream) WITH_GAMESTREAM=true ;;
-        --with-monitoring) WITH_MONITORING=true ;;
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -v|--verbose) VERBOSE=true; shift ;;
+        --with-torrents) WITH_TORRENTS=true; shift ;;
+        --with-gamestream) WITH_GAMESTREAM=true; shift ;;
+        --with-monitoring) WITH_MONITORING=true; shift ;;
+        -*) echo "Unknown option: $1"; shift ;;
+        *) POSITIONAL_ARGS+=("$1"); shift ;;
     esac
 done
+
+set -- "${POSITIONAL_ARGS[@]}"
 
 build_profiles() {
     local profiles=""
@@ -475,28 +481,28 @@ do_post_deploy() {
     declare -A services=(
         ["plex"]="Plex|http://localhost:32400/identity|core"
         ["jellyfin"]="Jellyfin|http://localhost:8096/health|core"
-        ["minio"]="MinIO|http://localhost:9000/minio/health/live|core"
+        ["homelab-minio"]="MinIO|http://localhost:9000/minio/health/live|core"
         ["homeassistant"]="Home Assistant|http://localhost:8123/|core"
         ["authelia"]="Authelia|http://localhost:9091/api/health|core"
-        ["caddy"]="Caddy|http://localhost:80/|core"
-        ["redis"]="Redis|redis://localhost:6379|core"
+        ["caddy-local"]="Caddy|http://localhost:80/|core"
+        ["authelia-redis"]="Auth Redis|-|core"
+        ["dashboard-postgres"]="Dashboard DB|-|core"
+        ["homelab-dashboard"]="Dashboard|http://localhost:5000/api/health|core"
+        ["novnc"]="VNC|http://localhost:8080/|core"
+        ["ttyd"]="SSH Terminal|http://localhost:7681/|core"
     )
     
     if [ "$WITH_TORRENTS" = true ]; then
-        services["qbittorrent"]="qBittorrent|http://localhost:8080/|torrents"
-        services["prowlarr"]="Prowlarr|http://localhost:9696/|torrents"
-        services["sonarr"]="Sonarr|http://localhost:8989/|torrents"
-        services["radarr"]="Radarr|http://localhost:7878/|torrents"
+        services["gluetun"]="VPN Tunnel|-|torrents"
+        services["qbittorrent"]="qBittorrent|-|torrents"
     fi
     
     if [ "$WITH_GAMESTREAM" = true ]; then
-        services["sunshine"]="Sunshine|http://localhost:47990/|gamestream"
+        services["sunshine"]="Sunshine|-|gamestream"
     fi
     
     if [ "$WITH_MONITORING" = true ]; then
-        services["prometheus"]="Prometheus|http://localhost:9090/|monitoring"
-        services["grafana"]="Grafana|http://localhost:3000/|monitoring"
-        services["loki"]="Loki|http://localhost:3100/|monitoring"
+        services["smartctl-exporter"]="SMART Exporter|http://localhost:9633/|monitoring"
     fi
     
     for container in "${!services[@]}"; do
@@ -507,7 +513,9 @@ do_post_deploy() {
         container_status=$(get_container_health "$container" 2>/dev/null)
         
         if [ "$container_status" = "healthy" ] || [ "$container_status" = "running" ]; then
-            if curl -sf --connect-timeout 2 "$check_url" > /dev/null 2>&1; then
+            if [ "$check_url" = "-" ] || [ -z "$check_url" ]; then
+                status="healthy"
+            elif curl -sf --connect-timeout 2 "$check_url" > /dev/null 2>&1; then
                 status="healthy"
             else
                 status="starting"
@@ -520,13 +528,23 @@ do_post_deploy() {
             status="not running"
         fi
         
-        local public_url="https://${container}.$domain"
+        local public_url=""
         case "$container" in
+            plex) public_url="https://plex.$domain" ;;
+            jellyfin) public_url="https://jellyfin.$domain" ;;
             homeassistant) public_url="https://home.$domain" ;;
             authelia) public_url="https://auth.$domain" ;;
-            minio) public_url="https://storage.$domain" ;;
+            homelab-minio) public_url="https://storage.$domain" ;;
+            caddy-local) public_url="(reverse proxy)" ;;
+            authelia-redis|dashboard-redis|dashboard-postgres) public_url="(internal)" ;;
+            homelab-dashboard) public_url="https://dashboard.$domain" ;;
+            novnc) public_url="https://vnc.$domain" ;;
+            ttyd) public_url="https://ssh.$domain" ;;
             qbittorrent) public_url="https://torrent.$domain" ;;
+            gluetun) public_url="(VPN tunnel)" ;;
             sunshine) public_url="https://gamestream.$domain" ;;
+            smartctl-exporter) public_url="(internal metrics)" ;;
+            *) public_url="https://${container}.$domain" ;;
         esac
         
         print_health_table_row "$name" "$status" "$public_url" "$profile"
