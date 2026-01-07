@@ -223,6 +223,7 @@ validate_dns() {
     check_dns "plex" "local" "false"
     check_dns "jellyfin" "local" "false"
     check_dns "home" "local" "false"
+    check_dns "gamestream" "local" "false"
     
     echo ""
     echo "Local services (Cloudflare proxied):"
