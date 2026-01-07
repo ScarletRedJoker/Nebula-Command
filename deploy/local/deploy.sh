@@ -458,6 +458,10 @@ do_dns_sync() {
 do_deploy() {
     echo -e "${CYAN}[4/5] Deploying services...${NC}"
     
+    # Export user UID/GID so containers run as host user (avoids root-owned files)
+    export LOCAL_UID=$(id -u)
+    export LOCAL_GID=$(id -g)
+    
     if [ -n "$PROFILES" ]; then
         echo -e "  Active profiles: ${GREEN}${PROFILES}${NC}"
     fi
