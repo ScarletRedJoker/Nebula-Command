@@ -126,20 +126,33 @@ test_connection() {
     fi
     
     echo -e "${CYAN}Testing SSH connection to $host...${NC}"
+    echo "  (timeout: 5 seconds)"
+    
+    local ssh_opts="-o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new -o BatchMode=yes"
     
     if [ ! -f "$KEY_PATH" ]; then
         echo -e "${YELLOW}[WARN]${NC} Using default SSH key (no $KEY_PATH found)"
-        if ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new "$host" "echo 'Connection successful'" 2>/dev/null; then
+        if timeout 10 ssh $ssh_opts "$host" "echo 'Connection successful'" 2>/dev/null; then
             echo -e "${GREEN}[OK]${NC} SSH connection works!"
         else
             echo -e "${RED}[FAIL]${NC} Could not connect to $host"
+            echo ""
+            echo "Troubleshooting:"
+            echo "  1. Check if SSH port 22 is open: nc -zv $host 22"
+            echo "  2. For local server via public IP, ensure router forwards port 22"
+            echo "  3. Use Tailscale IP instead for internal connections"
             exit 1
         fi
     else
-        if ssh -i "$KEY_PATH" -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new "$host" "echo 'Connection successful'" 2>/dev/null; then
+        if timeout 10 ssh -i "$KEY_PATH" $ssh_opts "$host" "echo 'Connection successful'" 2>/dev/null; then
             echo -e "${GREEN}[OK]${NC} SSH connection works with nebula-command key!"
         else
             echo -e "${RED}[FAIL]${NC} Could not connect to $host with nebula-command key"
+            echo ""
+            echo "Troubleshooting:"
+            echo "  1. Check if SSH port 22 is open: nc -zv $host 22"
+            echo "  2. Verify the public key is in ~/.ssh/authorized_keys on $host"
+            echo "  3. Use Tailscale IP instead for internal connections"
             exit 1
         fi
     fi
@@ -150,8 +163,16 @@ full_exchange() {
     
     if [ -z "$remote" ]; then
         echo -e "${RED}[ERROR]${NC} Usage: $0 exchange user@remote-server"
+        echo ""
+        echo "For cross-server exchange, use Tailscale IPs:"
+        echo "  From Linode:  $0 exchange evin@100.x.x.x  (local Tailscale IP)"
+        echo "  From Local:   $0 exchange root@100.x.x.x (Linode Tailscale IP)"
+        echo ""
+        echo "Get Tailscale IPs with: tailscale ip -4"
         exit 1
     fi
+    
+    local ssh_opts="-o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new"
     
     echo -e "${CYAN}[1/4] Ensuring local key exists...${NC}"
     if [ ! -f "$KEY_PATH" ]; then
@@ -161,36 +182,61 @@ full_exchange() {
     fi
     
     echo ""
-    echo -e "${CYAN}[2/4] Copying public key to remote server...${NC}"
-    ssh-copy-id -i "$KEY_PATH.pub" "$remote" 2>/dev/null || {
-        echo -e "${YELLOW}[INFO]${NC} ssh-copy-id failed, trying manual method..."
-        cat "$KEY_PATH.pub" | ssh "$remote" "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
-    }
-    echo -e "${GREEN}[OK]${NC} Public key copied to $remote"
+    echo -e "${CYAN}[2/4] Testing connection to remote server...${NC}"
+    if ! timeout 15 ssh $ssh_opts "$remote" "echo 'Connected'" 2>/dev/null; then
+        echo -e "${RED}[FAIL]${NC} Cannot connect to $remote"
+        echo ""
+        echo "Troubleshooting:"
+        echo "  1. Use Tailscale IP instead of public IP for cross-server SSH"
+        echo "  2. Get Tailscale IP: tailscale ip -4"
+        echo "  3. Check firewall: sudo ufw status"
+        exit 1
+    fi
+    echo -e "${GREEN}[OK]${NC} Connection successful"
     
     echo ""
-    echo -e "${CYAN}[3/4] Getting remote server's public key...${NC}"
-    remote_key=$(ssh -i "$KEY_PATH" "$remote" "cat ~/.ssh/$KEY_NAME.pub 2>/dev/null || cat ~/.ssh/id_ed25519.pub 2>/dev/null || cat ~/.ssh/id_rsa.pub 2>/dev/null" 2>/dev/null) || {
-        echo -e "${YELLOW}[INFO]${NC} No key found on remote. Generating one..."
-        ssh -i "$KEY_PATH" "$remote" "ssh-keygen -t ed25519 -f ~/.ssh/$KEY_NAME -N '' -q"
-        remote_key=$(ssh -i "$KEY_PATH" "$remote" "cat ~/.ssh/$KEY_NAME.pub")
-    }
-    
-    echo ""
-    echo -e "${CYAN}[4/4] Adding remote key to local authorized_keys...${NC}"
-    auth_keys="$KEY_DIR/authorized_keys"
-    if grep -qF "$remote_key" "$auth_keys" 2>/dev/null; then
-        echo -e "${YELLOW}[SKIP]${NC} Remote key already in authorized_keys"
+    echo -e "${CYAN}[3/4] Copying public key to remote server...${NC}"
+    if timeout 30 ssh-copy-id -i "$KEY_PATH.pub" $ssh_opts "$remote" 2>/dev/null; then
+        echo -e "${GREEN}[OK]${NC} Public key copied to $remote"
     else
-        echo "$remote_key" >> "$auth_keys"
-        chmod 600 "$auth_keys"
-        echo -e "${GREEN}[OK]${NC} Remote key added"
+        echo -e "${YELLOW}[INFO]${NC} ssh-copy-id failed, trying manual method..."
+        cat "$KEY_PATH.pub" | timeout 30 ssh $ssh_opts "$remote" "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys" && {
+            echo -e "${GREEN}[OK]${NC} Public key copied to $remote"
+        } || {
+            echo -e "${RED}[FAIL]${NC} Could not copy key to $remote"
+            exit 1
+        }
+    fi
+    
+    echo ""
+    echo -e "${CYAN}[4/4] Getting remote server's public key...${NC}"
+    remote_key=$(timeout 15 ssh -i "$KEY_PATH" $ssh_opts "$remote" "cat ~/.ssh/$KEY_NAME.pub 2>/dev/null || cat ~/.ssh/id_ed25519.pub 2>/dev/null || cat ~/.ssh/id_rsa.pub 2>/dev/null" 2>/dev/null) || {
+        echo -e "${YELLOW}[INFO]${NC} No key found on remote. Generating one..."
+        timeout 30 ssh -i "$KEY_PATH" $ssh_opts "$remote" "ssh-keygen -t ed25519 -f ~/.ssh/$KEY_NAME -N '' -q" || true
+        remote_key=$(timeout 15 ssh -i "$KEY_PATH" $ssh_opts "$remote" "cat ~/.ssh/$KEY_NAME.pub" 2>/dev/null)
+    }
+    
+    if [ -n "$remote_key" ]; then
+        auth_keys="$KEY_DIR/authorized_keys"
+        if grep -qF "$remote_key" "$auth_keys" 2>/dev/null; then
+            echo -e "${YELLOW}[SKIP]${NC} Remote key already in authorized_keys"
+        else
+            echo "$remote_key" >> "$auth_keys"
+            chmod 600 "$auth_keys"
+            echo -e "${GREEN}[OK]${NC} Remote key added"
+        fi
+    else
+        echo -e "${YELLOW}[WARN]${NC} Could not get remote key, one-way exchange only"
     fi
     
     echo ""
     echo -e "${GREEN}━━━ Key Exchange Complete ━━━${NC}"
     echo "  Local → Remote: ✓ (can SSH to $remote)"
-    echo "  Remote → Local: ✓ (can SSH from $remote)"
+    if [ -n "$remote_key" ]; then
+        echo "  Remote → Local: ✓ (can SSH from $remote)"
+    else
+        echo "  Remote → Local: ⚠ (run this script on remote to complete)"
+    fi
     echo ""
     echo "Test with:"
     echo "  ssh -i $KEY_PATH $remote"
