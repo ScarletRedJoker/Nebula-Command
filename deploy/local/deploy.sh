@@ -663,11 +663,15 @@ case "${1:-}" in
         check_nas
         ;;
     port-check)
+        set -a
         source .env 2>/dev/null || true
+        set +a
         check_port_forwarding
         ;;
     dns-check)
+        set -a
         source .env 2>/dev/null || true
+        set +a
         validate_dns
         ;;
     up)
@@ -707,7 +711,9 @@ case "${1:-}" in
         sudo ./scripts/setup-nas-mounts.sh
         ;;
     dns-sync)
+        set -a
         source .env 2>/dev/null || true
+        set +a
         do_dns_sync
         ;;
     install)
