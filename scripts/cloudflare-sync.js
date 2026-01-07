@@ -5,6 +5,10 @@
  * - Media services: DNS-only (proxied:false) for full bandwidth
  * - Protected services: Cloudflare proxy (proxied:true) for DDoS protection
  * 
+ * Configuration is loaded from config/domains.yml which defines:
+ * - Multiple servers with their IPs (linode: fixed IP, local: auto-detect)
+ * - Subdomains with server assignment, proxy settings, and profiles
+ * 
  * Usage: CLOUDFLARE_API_TOKEN=xxx DOMAIN=yourdomain.com node cloudflare-sync.js [--verify]
  * 
  * Environment Variables:
@@ -19,7 +23,14 @@
 
 import https from 'https';
 import dns from 'dns';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
+import { parse as parseYaml } from 'yaml';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const CLOUDFLARE_API = 'https://api.cloudflare.com/client/v4';
 
@@ -28,6 +39,33 @@ const DEFAULT_RETRY_OPTIONS = {
   baseDelayMs: 1000,
   maxDelayMs: 10000,
 };
+
+function loadDomainsConfig() {
+  const possiblePaths = [
+    path.join(__dirname, '..', 'config', 'domains.yml'),
+    path.join(__dirname, '..', '..', 'config', 'domains.yml'),
+    path.join(process.cwd(), 'config', 'domains.yml'),
+    path.join(process.cwd(), '..', 'config', 'domains.yml'),
+    path.join(process.cwd(), '..', '..', 'config', 'domains.yml'),
+  ];
+
+  for (const configPath of possiblePaths) {
+    try {
+      if (fs.existsSync(configPath)) {
+        const content = fs.readFileSync(configPath, 'utf8');
+        const config = parseYaml(content);
+        console.log(`Loaded config from: ${configPath}`);
+        return config;
+      }
+    } catch (err) {
+      continue;
+    }
+  }
+
+  throw new Error(
+    `Could not find config/domains.yml. Searched paths:\n${possiblePaths.map(p => `  - ${p}`).join('\n')}`
+  );
+}
 
 class CloudflareSync {
   constructor(apiToken, retryOptions = {}) {
@@ -172,6 +210,23 @@ function getPublicIP() {
   throw new Error('Could not determine public IP from any source');
 }
 
+function resolveServerIPs(servers) {
+  const resolvedIPs = {};
+  
+  for (const [serverName, serverConfig] of Object.entries(servers)) {
+    if (serverConfig.ip === 'auto') {
+      console.log(`Detecting public IP for server "${serverName}"...`);
+      resolvedIPs[serverName] = getPublicIP();
+      console.log(`  ${serverName}: ${resolvedIPs[serverName]} (auto-detected)`);
+    } else {
+      resolvedIPs[serverName] = serverConfig.ip;
+      console.log(`  ${serverName}: ${resolvedIPs[serverName]} (from config)`);
+    }
+  }
+  
+  return resolvedIPs;
+}
+
 async function verifyDNS(fqdn, expectedIP, timeout = 5000) {
   return new Promise((resolve) => {
     const timer = setTimeout(() => {
@@ -219,33 +274,6 @@ function isProfileEnabled(subdomain, enabledProfiles) {
   return enabledProfiles.includes(subdomain.profile.toLowerCase());
 }
 
-// HYBRID SUBDOMAIN CONFIGURATION
-// proxied: false = DNS-only (direct connection, full bandwidth for streaming)
-// proxied: true = Cloudflare proxy (DDoS protection, but bandwidth limited)
-// profile: optional profile name for conditional creation
-const SUBDOMAINS = [
-  // === MEDIA SERVICES (DNS-only for FULL BANDWIDTH) ===
-  { name: 'plex', description: 'Plex Media Server', proxied: false, profile: null },
-  { name: 'jellyfin', description: 'Jellyfin Community Sharing', proxied: false, profile: null },
-  { name: 'gamestream', description: 'Sunshine Game Streaming', proxied: false, profile: 'gamestream' },
-  
-  // === HOME AUTOMATION (DNS-only for low latency) ===
-  { name: 'home', description: 'Home Assistant', proxied: false, profile: null },
-  
-  // === DASHBOARD & API (Can use proxy - low bandwidth) ===
-  { name: 'dashboard', description: 'Nebula Command Dashboard', proxied: true, profile: null },
-  { name: 'api', description: 'API/Webhooks', proxied: true, profile: null },
-  { name: 'auth', description: 'Authelia SSO', proxied: true, profile: null },
-  
-  // === PROTECTED SERVICES (Cloudflare proxy for security) ===
-  { name: 'torrent', description: 'qBittorrent (protected)', proxied: true, profile: 'torrents' },
-  { name: 'storage', description: 'MinIO Console (protected)', proxied: true, profile: null },
-  { name: 's3', description: 'MinIO S3 API (protected)', proxied: true, profile: null },
-  { name: 'vnc', description: 'Remote Desktop (protected)', proxied: true, profile: null },
-  { name: 'ssh', description: 'Web SSH Terminal (protected)', proxied: true, profile: null },
-  { name: 'vms', description: 'Cockpit VM Manager (protected)', proxied: true, profile: null },
-];
-
 function parseArgs() {
   const args = process.argv.slice(2);
   return {
@@ -271,9 +299,15 @@ Environment Variables:
                         (e.g., "torrents,gamestream,monitoring")
                         If not set, all services are synced
 
+Configuration:
+  Reads subdomain configuration from config/domains.yml which defines:
+  - servers: Named servers with IP addresses (use "auto" for public IP detection)
+  - subdomains: List of subdomains with server assignment and proxy settings
+
 Profiles:
   torrents    - torrent subdomain
   gamestream  - gamestream subdomain
+  monitoring  - grafana subdomain
 `);
 }
 
@@ -300,7 +334,18 @@ async function main() {
     process.exit(1);
   }
 
-  console.log('=== Cloudflare DNS Sync (Hybrid Mode) ===\n');
+  console.log('=== Cloudflare DNS Sync (Multi-Server Mode) ===\n');
+  
+  console.log('Loading domain configuration...');
+  const config = loadDomainsConfig();
+  const subdomains = config.subdomains || [];
+  
+  if (subdomains.length === 0) {
+    console.error('Error: No subdomains defined in config/domains.yml');
+    process.exit(1);
+  }
+  
+  console.log(`Found ${subdomains.length} subdomain(s) configured\n`);
   
   if (enabledProfiles) {
     console.log(`Enabled profiles: ${enabledProfiles.join(', ')}`);
@@ -314,9 +359,9 @@ async function main() {
     console.log('DNS verification: DISABLED (use --verify to enable)\n');
   }
   
-  console.log('Detecting public IP...');
-  const serverIP = getPublicIP();
-  console.log(`Server IP: ${serverIP}\n`);
+  console.log('Resolving server IPs...');
+  const serverIPs = resolveServerIPs(config.servers);
+  console.log('');
 
   const cf = new CloudflareSync(apiToken);
 
@@ -340,11 +385,18 @@ async function main() {
     verificationResults: [],
   };
 
-  async function processSubdomain(subdomain, serverIP, domain, zoneId, cf, recordMap, allRecords, stats, enabledProfiles, shouldVerify) {
+  async function processSubdomain(subdomain, serverIPs, domain, zoneId, cf, recordMap, allRecords, stats, enabledProfiles, shouldVerify) {
     const fqdn = `${subdomain.name}.${domain}`;
     
     if (!isProfileEnabled(subdomain, enabledProfiles)) {
       console.log(`  ⊘ ${fqdn} - SKIPPED (profile "${subdomain.profile}" not enabled)`);
+      stats.skipped++;
+      return;
+    }
+
+    const serverIP = serverIPs[subdomain.server];
+    if (!serverIP) {
+      console.log(`  ⚠ ${fqdn} - SKIPPED (unknown server "${subdomain.server}")`);
       stats.skipped++;
       return;
     }
@@ -363,38 +415,36 @@ async function main() {
     let action = 'unchanged';
 
     if (existing) {
-      // If existing record is a different type (e.g., CNAME, AAAA), delete it first
       if (existing.type !== 'A') {
         console.log(`  ⚠ ${fqdn} has ${existing.type} record, deleting to create A record`);
         await cf.deleteRecord(zoneId, existing.id);
-        // Check if there's also an A record we missed (recordMap only stores one per name)
         const aRecord = allRecords.find(r => r.name === fqdn && r.type === 'A');
         if (aRecord) {
           if (aRecord.content !== serverIP || aRecord.proxied !== subdomain.proxied) {
-            console.log(`  ↻ Updating existing A record ${fqdn} -> ${serverIP} (${proxyStatus})`);
+            console.log(`  ↻ Updating existing A record ${fqdn} -> ${serverIP} [${subdomain.server}] (${proxyStatus})`);
             await cf.updateRecord(zoneId, aRecord.id, newRecord);
           } else {
             console.log(`  ✓ ${fqdn} - A record already correct`);
           }
         } else {
-          console.log(`  + Creating ${fqdn} -> ${serverIP} (${proxyStatus})`);
+          console.log(`  + Creating ${fqdn} -> ${serverIP} [${subdomain.server}] (${proxyStatus})`);
           await cf.createRecord(zoneId, newRecord);
         }
         stats.updated++;
         stats.synced++;
         action = 'updated';
       } else if (existing.content !== serverIP || existing.proxied !== subdomain.proxied) {
-        console.log(`  ↻ Updating ${fqdn} -> ${serverIP} (${proxyStatus})`);
+        console.log(`  ↻ Updating ${fqdn} -> ${serverIP} [${subdomain.server}] (${proxyStatus})`);
         await cf.updateRecord(zoneId, existing.id, newRecord);
         stats.updated++;
         stats.synced++;
         action = 'updated';
       } else {
-        console.log(`  ✓ ${fqdn} - OK`);
+        console.log(`  ✓ ${fqdn} -> ${serverIP} [${subdomain.server}] - OK`);
         stats.unchanged++;
       }
     } else {
-      console.log(`  + Creating ${fqdn} -> ${serverIP} (${proxyStatus})`);
+      console.log(`  + Creating ${fqdn} -> ${serverIP} [${subdomain.server}] (${proxyStatus})`);
       await cf.createRecord(zoneId, newRecord);
       stats.created++;
       stats.synced++;
@@ -416,24 +466,37 @@ async function main() {
     }
   }
 
-  console.log('\n--- DNS-only (Full Bandwidth for Streaming) ---');
-  for (const subdomain of SUBDOMAINS.filter(s => !s.proxied)) {
-    await processSubdomain(subdomain, serverIP, domain, zoneId, cf, recordMap, existingRecords, stats, enabledProfiles, args.verify);
+  const dnsOnlySubdomains = subdomains.filter(s => !s.proxied);
+  const proxiedSubdomains = subdomains.filter(s => s.proxied);
+
+  if (dnsOnlySubdomains.length > 0) {
+    console.log('\n--- DNS-only (Full Bandwidth for Streaming) ---');
+    for (const subdomain of dnsOnlySubdomains) {
+      await processSubdomain(subdomain, serverIPs, domain, zoneId, cf, recordMap, existingRecords, stats, enabledProfiles, args.verify);
+    }
   }
 
-  console.log('\n--- Cloudflare Proxied (DDoS Protection) ---');
-  for (const subdomain of SUBDOMAINS.filter(s => s.proxied)) {
-    await processSubdomain(subdomain, serverIP, domain, zoneId, cf, recordMap, existingRecords, stats, enabledProfiles, args.verify);
+  if (proxiedSubdomains.length > 0) {
+    console.log('\n--- Cloudflare Proxied (DDoS Protection) ---');
+    for (const subdomain of proxiedSubdomains) {
+      await processSubdomain(subdomain, serverIPs, domain, zoneId, cf, recordMap, existingRecords, stats, enabledProfiles, args.verify);
+    }
   }
 
   console.log('\n' + '='.repeat(50));
   console.log('                    SUMMARY');
   console.log('='.repeat(50));
-  console.log(`  Total records processed: ${SUBDOMAINS.length}`);
+  console.log(`  Total records processed: ${subdomains.length}`);
   console.log(`  ├─ Created:   ${stats.created}`);
   console.log(`  ├─ Updated:   ${stats.updated}`);
   console.log(`  ├─ Unchanged: ${stats.unchanged}`);
-  console.log(`  └─ Skipped:   ${stats.skipped} (profile disabled)`);
+  console.log(`  └─ Skipped:   ${stats.skipped} (profile disabled or unknown server)`);
+  
+  console.log('\n  Server Summary:');
+  for (const [serverName, ip] of Object.entries(serverIPs)) {
+    const count = subdomains.filter(s => s.server === serverName).length;
+    console.log(`    ${serverName}: ${ip} (${count} subdomain${count !== 1 ? 's' : ''})`);
+  }
   
   if (args.verify && stats.verificationResults.length > 0) {
     console.log('\n  DNS Verification Results:');
@@ -463,6 +526,7 @@ main().catch(err => {
   console.error('\nTroubleshooting:');
   console.error('  - Verify CLOUDFLARE_API_TOKEN has Zone.DNS permissions');
   console.error('  - Ensure DOMAIN matches a zone in your Cloudflare account');
+  console.error('  - Check config/domains.yml exists and is valid YAML');
   console.error('  - Check your internet connection');
   process.exit(1);
 });
