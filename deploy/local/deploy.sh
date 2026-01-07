@@ -9,11 +9,35 @@ source "$SHARED_DIR/env-lib.sh"
 cd "$SCRIPT_DIR"
 
 VERBOSE=false
+PROFILES=""
+WITH_TORRENTS=false
+WITH_GAMESTREAM=false
+WITH_MONITORING=false
+
 for arg in "$@"; do
     case $arg in
         -v|--verbose) VERBOSE=true ;;
+        --with-torrents) WITH_TORRENTS=true ;;
+        --with-gamestream) WITH_GAMESTREAM=true ;;
+        --with-monitoring) WITH_MONITORING=true ;;
     esac
 done
+
+build_profiles() {
+    local profiles=""
+    if [ "$WITH_TORRENTS" = true ]; then
+        profiles="${profiles:+$profiles }--profile torrents"
+    fi
+    if [ "$WITH_GAMESTREAM" = true ]; then
+        profiles="${profiles:+$profiles }--profile gamestream"
+    fi
+    if [ "$WITH_MONITORING" = true ]; then
+        profiles="${profiles:+$profiles }--profile monitoring"
+    fi
+    echo "$profiles"
+}
+
+PROFILES=$(build_profiles)
 
 show_help() {
     echo "Nebula Command - Local Ubuntu Deployment"
@@ -21,7 +45,10 @@ show_help() {
     echo "Usage: ./deploy.sh [options] [command]"
     echo ""
     echo "Options:"
-    echo "  -v, --verbose  Show full output (default: compact)"
+    echo "  -v, --verbose       Show full output (default: compact)"
+    echo "  --with-torrents     Enable torrent profile (qBittorrent, etc)"
+    echo "  --with-gamestream   Enable gamestream profile (Sunshine, etc)"
+    echo "  --with-monitoring   Enable monitoring profile (Prometheus, Grafana, etc)"
     echo ""
     echo "Commands:"
     echo "  (none)       Full deployment (setup + deploy)"
@@ -33,6 +60,8 @@ show_help() {
     echo "  deploy-logs  View saved deploy logs"
     echo "  nas          Mount NAS storage"
     echo "  dns-sync     Sync Cloudflare DNS records"
+    echo "  port-check   Check if ports are accessible from outside"
+    echo "  dns-check    Validate DNS records resolve correctly"
     echo "  install      Install systemd service for auto-start on boot"
     echo "  uninstall    Remove systemd service"
     echo "  authelia     Generate Authelia password hash"
@@ -40,6 +69,126 @@ show_help() {
     echo ""
     echo "Environment:"
     echo "  KEEP_BUILD_LOGS=true  Keep deploy logs even on success"
+    echo ""
+    echo "Examples:"
+    echo "  ./deploy.sh                           # Default deployment"
+    echo "  ./deploy.sh --with-torrents           # Deploy with torrent services"
+    echo "  ./deploy.sh --with-monitoring -v      # Deploy with monitoring, verbose"
+    echo "  ./deploy.sh --with-torrents --with-gamestream  # Multiple profiles"
+    echo ""
+}
+
+get_public_ip() {
+    local ip=""
+    ip=$(curl -sf --connect-timeout 5 https://api.ipify.org 2>/dev/null) || \
+    ip=$(curl -sf --connect-timeout 5 https://ifconfig.me 2>/dev/null) || \
+    ip=$(curl -sf --connect-timeout 5 https://icanhazip.com 2>/dev/null) || \
+    ip=""
+    echo "$ip"
+}
+
+check_port_forwarding() {
+    echo -e "${CYAN}━━━ Port Forwarding Check ━━━${NC}"
+    
+    local public_ip
+    public_ip=$(get_public_ip)
+    
+    if [ -z "$public_ip" ]; then
+        echo -e "${YELLOW}[SKIP]${NC} Could not determine public IP address"
+        return 1
+    fi
+    
+    echo "Public IP: $public_ip"
+    echo ""
+    
+    local ports=(80 443 32400)
+    local port_names=("HTTP" "HTTPS" "Plex")
+    local all_ok=true
+    
+    for i in "${!ports[@]}"; do
+        local port="${ports[$i]}"
+        local name="${port_names[$i]}"
+        echo -n "  Checking port $port ($name)... "
+        
+        if curl -sf --connect-timeout 5 --max-time 10 "http://$public_ip:$port" > /dev/null 2>&1 || \
+           curl -sf --connect-timeout 5 --max-time 10 -k "https://$public_ip:$port" > /dev/null 2>&1 || \
+           nc -z -w5 "$public_ip" "$port" 2>/dev/null; then
+            echo -e "${GREEN}accessible${NC}"
+        else
+            echo -e "${YELLOW}not accessible or filtered${NC}"
+            all_ok=false
+        fi
+    done
+    
+    echo ""
+    if [ "$all_ok" = true ]; then
+        echo -e "${GREEN}[OK]${NC} All ports appear accessible from outside"
+    else
+        echo -e "${YELLOW}[WARN]${NC} Some ports may not be forwarded correctly"
+        echo "       Check your router/firewall port forwarding settings"
+    fi
+    echo ""
+}
+
+validate_dns() {
+    echo -e "${CYAN}━━━ DNS Validation ━━━${NC}"
+    
+    local domain="${DOMAIN:-}"
+    if [ -z "$domain" ] || [ "$domain" = "example.com" ]; then
+        echo -e "${YELLOW}[SKIP]${NC} DOMAIN not set or still example.com"
+        return 0
+    fi
+    
+    if ! command -v dig &> /dev/null; then
+        echo -e "${YELLOW}[SKIP]${NC} dig command not found (install dnsutils)"
+        return 0
+    fi
+    
+    local public_ip
+    public_ip=$(get_public_ip)
+    
+    if [ -z "$public_ip" ]; then
+        echo -e "${YELLOW}[SKIP]${NC} Could not determine public IP for comparison"
+        return 1
+    fi
+    
+    echo "Public IP: $public_ip"
+    echo "Domain: $domain"
+    echo ""
+    
+    local subdomains=("" "dashboard" "plex" "jellyfin" "home" "auth")
+    local all_ok=true
+    
+    for sub in "${subdomains[@]}"; do
+        local fqdn
+        if [ -z "$sub" ]; then
+            fqdn="$domain"
+        else
+            fqdn="$sub.$domain"
+        fi
+        
+        echo -n "  $fqdn -> "
+        local resolved_ip
+        resolved_ip=$(dig +short "$fqdn" A 2>/dev/null | head -1)
+        
+        if [ -z "$resolved_ip" ]; then
+            echo -e "${YELLOW}no A record${NC}"
+            all_ok=false
+        elif [ "$resolved_ip" = "$public_ip" ]; then
+            echo -e "${GREEN}$resolved_ip ✓${NC}"
+        else
+            echo -e "${YELLOW}$resolved_ip (expected $public_ip)${NC}"
+            all_ok=false
+        fi
+    done
+    
+    echo ""
+    if [ "$all_ok" = true ]; then
+        echo -e "${GREEN}[OK]${NC} All DNS records resolve correctly"
+    else
+        echo -e "${YELLOW}[WARN]${NC} Some DNS records may need attention"
+        echo "       Run './deploy.sh dns-sync' to update Cloudflare records"
+    fi
     echo ""
 }
 
@@ -101,7 +250,6 @@ ensure_ssh_keys() {
 ensure_authelia_secrets() {
     echo -e "${CYAN}━━━ Authelia Secrets ━━━${NC}"
     
-    # Generate secrets in .env if not present
     local env_file="$SCRIPT_DIR/.env"
     
     if ! grep -q "AUTHELIA_JWT_SECRET=" "$env_file" 2>/dev/null || grep -q "AUTHELIA_JWT_SECRET=$" "$env_file" 2>/dev/null; then
@@ -193,17 +341,22 @@ do_dns_sync() {
     
     echo -e "${GREEN}✓ DNS configured${NC}"
     echo ""
+    
+    validate_dns
 }
 
 do_deploy() {
     echo -e "${CYAN}[4/5] Deploying services...${NC}"
+    
+    if [ -n "$PROFILES" ]; then
+        echo -e "  Active profiles: ${GREEN}${PROFILES}${NC}"
+    fi
     
     local log_dir="$SCRIPT_DIR/logs"
     mkdir -p "$log_dir"
     local log_file="$log_dir/deploy_$(date +%Y%m%d_%H%M%S).log"
     local deploy_result=0
     
-    # Create required directories
     mkdir -p /srv/media/community 2>/dev/null || sudo mkdir -p /srv/media/community
     sudo chown 1000:1000 /srv/media/community 2>/dev/null || true
     
@@ -212,15 +365,15 @@ do_deploy() {
         echo ""
         {
             echo "=== Docker Pull ===" 
-            docker compose pull
+            docker compose $PROFILES pull
             echo ""
             echo "=== Docker Up ==="
-            docker compose down --remove-orphans 2>/dev/null || true
-            docker compose up -d
+            docker compose $PROFILES down --remove-orphans 2>/dev/null || true
+            docker compose $PROFILES up -d
         } 2>&1 | tee "$log_file" || deploy_result=$?
     else
         echo -n "  Pulling images... "
-        if docker compose pull > "$log_file" 2>&1; then
+        if docker compose $PROFILES pull > "$log_file" 2>&1; then
             echo -e "${GREEN}done${NC}"
         else
             deploy_result=$?
@@ -229,11 +382,11 @@ do_deploy() {
         
         if [ $deploy_result -eq 0 ]; then
             echo -n "  Stopping old containers... "
-            docker compose down --remove-orphans >> "$log_file" 2>&1 || true
+            docker compose $PROFILES down --remove-orphans >> "$log_file" 2>&1 || true
             echo -e "${GREEN}done${NC}"
             
             echo -n "  Starting services... "
-            if docker compose up -d >> "$log_file" 2>&1; then
+            if docker compose $PROFILES up -d >> "$log_file" 2>&1; then
                 echo -e "${GREEN}done${NC}"
             else
                 deploy_result=$?
@@ -261,34 +414,145 @@ do_deploy() {
     echo ""
 }
 
+get_container_health() {
+    local container_name=$1
+    local health
+    health=$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container_name" 2>/dev/null)
+    echo "${health:-unknown}"
+}
+
+print_health_table_row() {
+    local service=$1
+    local status=$2
+    local url=$3
+    local profile=${4:-"core"}
+    
+    local status_color
+    local status_icon
+    case "$status" in
+        healthy|running)
+            status_color="${GREEN}"
+            status_icon="●"
+            ;;
+        starting|unhealthy)
+            status_color="${YELLOW}"
+            status_icon="◐"
+            ;;
+        *)
+            status_color="${RED}"
+            status_icon="○"
+            ;;
+    esac
+    
+    printf "  │ %-18s │ %b%-12s%b │ %-35s │ %-10s │\n" \
+        "$service" "$status_color" "$status_icon $status" "$NC" "$url" "$profile"
+}
+
 do_post_deploy() {
     echo -e "${CYAN}[5/5] Health checks...${NC}"
     sleep 20
     
-    echo ""
-    echo -e "${CYAN}━━━ Service Status ━━━${NC}"
-    docker compose ps
-    
-    echo ""
-    echo -e "${CYAN}━━━ Health Checks ━━━${NC}"
-    
-    check_health() {
-        local name=$1
-        local url=$2
-        if curl -sf "$url" > /dev/null 2>&1; then
-            echo -e "  ${GREEN}✓${NC} $name"
-        else
-            echo -e "  ${YELLOW}⏳${NC} $name (starting...)"
-        fi
-    }
-    
-    check_health "Plex" "http://localhost:32400/identity"
-    check_health "Jellyfin" "http://localhost:8096/health"
-    check_health "MinIO" "http://localhost:9000/minio/health/live"
-    check_health "Home Assistant" "http://localhost:8123/"
-    check_health "Authelia" "http://localhost:9091/api/health"
-    
     local domain="${DOMAIN:-example.com}"
+    
+    echo ""
+    echo -e "${CYAN}━━━ Active Profiles ━━━${NC}"
+    if [ -n "$PROFILES" ]; then
+        echo -e "  ${GREEN}✓${NC} Core services (always enabled)"
+        [ "$WITH_TORRENTS" = true ] && echo -e "  ${GREEN}✓${NC} Torrents profile enabled"
+        [ "$WITH_GAMESTREAM" = true ] && echo -e "  ${GREEN}✓${NC} Gamestream profile enabled"
+        [ "$WITH_MONITORING" = true ] && echo -e "  ${GREEN}✓${NC} Monitoring profile enabled"
+    else
+        echo -e "  ${GREEN}✓${NC} Core services only (default)"
+        echo -e "  ${CYAN}Tip:${NC} Use --with-torrents, --with-gamestream, --with-monitoring to enable more"
+    fi
+    
+    echo ""
+    echo -e "${CYAN}━━━ Service Health Report ━━━${NC}"
+    echo "  ┌────────────────────┬──────────────┬─────────────────────────────────────┬────────────┐"
+    echo "  │ Service            │ Status       │ URL                                 │ Profile    │"
+    echo "  ├────────────────────┼──────────────┼─────────────────────────────────────┼────────────┤"
+    
+    declare -A services=(
+        ["plex"]="Plex|http://localhost:32400/identity|core"
+        ["jellyfin"]="Jellyfin|http://localhost:8096/health|core"
+        ["minio"]="MinIO|http://localhost:9000/minio/health/live|core"
+        ["homeassistant"]="Home Assistant|http://localhost:8123/|core"
+        ["authelia"]="Authelia|http://localhost:9091/api/health|core"
+        ["caddy"]="Caddy|http://localhost:80/|core"
+        ["redis"]="Redis|redis://localhost:6379|core"
+    )
+    
+    if [ "$WITH_TORRENTS" = true ]; then
+        services["qbittorrent"]="qBittorrent|http://localhost:8080/|torrents"
+        services["prowlarr"]="Prowlarr|http://localhost:9696/|torrents"
+        services["sonarr"]="Sonarr|http://localhost:8989/|torrents"
+        services["radarr"]="Radarr|http://localhost:7878/|torrents"
+    fi
+    
+    if [ "$WITH_GAMESTREAM" = true ]; then
+        services["sunshine"]="Sunshine|http://localhost:47990/|gamestream"
+    fi
+    
+    if [ "$WITH_MONITORING" = true ]; then
+        services["prometheus"]="Prometheus|http://localhost:9090/|monitoring"
+        services["grafana"]="Grafana|http://localhost:3000/|monitoring"
+        services["loki"]="Loki|http://localhost:3100/|monitoring"
+    fi
+    
+    for container in "${!services[@]}"; do
+        IFS='|' read -r name check_url profile <<< "${services[$container]}"
+        
+        local status
+        local container_status
+        container_status=$(get_container_health "$container" 2>/dev/null)
+        
+        if [ "$container_status" = "healthy" ] || [ "$container_status" = "running" ]; then
+            if curl -sf --connect-timeout 2 "$check_url" > /dev/null 2>&1; then
+                status="healthy"
+            else
+                status="starting"
+            fi
+        elif [ "$container_status" = "starting" ]; then
+            status="starting"
+        elif [ -n "$container_status" ] && [ "$container_status" != "unknown" ]; then
+            status="$container_status"
+        else
+            status="not running"
+        fi
+        
+        local public_url="https://${container}.$domain"
+        case "$container" in
+            homeassistant) public_url="https://home.$domain" ;;
+            authelia) public_url="https://auth.$domain" ;;
+            minio) public_url="https://storage.$domain" ;;
+            qbittorrent) public_url="https://torrent.$domain" ;;
+            sunshine) public_url="https://gamestream.$domain" ;;
+        esac
+        
+        print_health_table_row "$name" "$status" "$public_url" "$profile"
+    done
+    
+    echo "  └────────────────────┴──────────────┴─────────────────────────────────────┴────────────┘"
+    
+    local healthy_count=0
+    local total_count=0
+    for container in "${!services[@]}"; do
+        total_count=$((total_count + 1))
+        local status
+        status=$(get_container_health "$container" 2>/dev/null)
+        if [ "$status" = "healthy" ] || [ "$status" = "running" ]; then
+            healthy_count=$((healthy_count + 1))
+        fi
+    done
+    
+    echo ""
+    if [ "$healthy_count" -eq "$total_count" ]; then
+        echo -e "  ${GREEN}✓ All $total_count services healthy${NC}"
+    elif [ "$healthy_count" -gt 0 ]; then
+        echo -e "  ${YELLOW}◐ $healthy_count/$total_count services healthy (some still starting)${NC}"
+    else
+        echo -e "  ${RED}○ Services may still be starting...${NC}"
+    fi
     
     echo ""
     echo -e "${GREEN}═══ Local Deployment Complete ═══${NC}"
@@ -301,17 +565,20 @@ do_post_deploy() {
     echo "  Auth Portal:    https://auth.$domain"
     echo ""
     echo "Protected URLs (require Authelia login):"
-    echo "  Torrents:       https://torrent.$domain"
+    echo "  Storage:        https://storage.$domain"
+    [ "$WITH_TORRENTS" = true ] && echo "  Torrents:       https://torrent.$domain"
+    [ "$WITH_GAMESTREAM" = true ] && echo "  Game Stream:    https://gamestream.$domain"
     echo "  VNC Desktop:    https://vnc.$domain"
     echo "  SSH Terminal:   https://ssh.$domain"
     echo "  VM Manager:     https://vms.$domain"
-    echo "  Game Stream:    https://gamestream.$domain"
-    echo "  Storage:        https://storage.$domain"
+    [ "$WITH_MONITORING" = true ] && echo "  Grafana:        https://grafana.$domain"
     echo ""
     echo "Commands:"
     echo "  Logs:       docker compose logs -f [service]"
     echo "  Status:     docker compose ps"
     echo "  Restart:    docker compose restart [service]"
+    echo "  Port Check: ./deploy.sh port-check"
+    echo "  DNS Check:  ./deploy.sh dns-check"
     echo "  Auto-start: ./deploy.sh install"
 }
 
@@ -377,13 +644,21 @@ case "${1:-}" in
         env_doctor ".env" "check"
         check_nas
         ;;
+    port-check)
+        source .env 2>/dev/null || true
+        check_port_forwarding
+        ;;
+    dns-check)
+        source .env 2>/dev/null || true
+        validate_dns
+        ;;
     up)
         echo -e "${CYAN}═══ Nebula Command - Start Services ═══${NC}"
         do_deploy
         ;;
     down)
         echo -e "${CYAN}═══ Nebula Command - Stop Services ═══${NC}"
-        docker compose down
+        docker compose $PROFILES down
         echo -e "${GREEN}✓ Services stopped${NC}"
         ;;
     logs)
@@ -431,7 +706,6 @@ case "${1:-}" in
         echo "Directory: $SCRIPT_DIR"
         echo ""
         
-        # Load environment first
         set -a
         source .env 2>/dev/null || true
         set +a
@@ -439,7 +713,6 @@ case "${1:-}" in
         do_git_pull
         do_env_setup
         
-        # Reload environment after secrets are generated
         set -a
         source .env 2>/dev/null || true
         set +a
