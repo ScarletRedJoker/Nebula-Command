@@ -362,44 +362,15 @@ services:
   # ============================================================================
   # DASHBOARD
   # ============================================================================
-  dashboard:
-    build:
-      context: ../../services/dashboard-next
-      dockerfile: Dockerfile
-    container_name: homelab-dashboard
-    restart: unless-stopped
-    networks:
-      - homelab
-    depends_on:
-      dashboard-db:
-        condition: service_healthy
-      dashboard-redis:
-        condition: service_healthy
-    environment:
-      - NODE_ENV=production
-      - ADMIN_USERNAME=${WEB_USERNAME:-evin}
-      - ADMIN_PASSWORD=${WEB_PASSWORD:-nebula2024}
-      - SESSION_SECRET=${SESSION_SECRET:-NebulaCommandLocalDash2024SecureKey32chars}
-      - DATABASE_URL=postgresql://dashboard:${POSTGRES_PASSWORD:-dashboard_secure_2024}@dashboard-db:5432/homelab_dashboard
-      - REDIS_URL=redis://dashboard-redis:6379/0
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
-      - TZ=${TZ:-America/New_York}
-      - HOME_SSH_HOST=${TAILSCALE_LOCAL_HOST:-192.168.0.177}
-      - HOME_SSH_USER=${SSH_USER:-evin}
-      - LINODE_SSH_HOST=${TAILSCALE_LINODE_HOST:-}
-      - LINODE_SSH_USER=root
-    volumes:
-      - ~/.ssh:/root/.ssh:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    expose:
-      - 5000
-    healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:5000/api/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
+  # NOTE: Dashboard runs on LINODE, not locally. This is disabled.
+  # If you need a local dashboard instance, uncomment and use --profile local-dashboard
+  # dashboard:
+  #   profiles: ["local-dashboard"]
+  #   build:
+  #     context: ../../services/dashboard-next
+  #     dockerfile: Dockerfile
+  #   container_name: homelab-dashboard
+  #   ...
 
   # ============================================================================
   # COMMUNITY SYNC SERVICE

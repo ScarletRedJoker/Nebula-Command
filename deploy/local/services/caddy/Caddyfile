@@ -48,10 +48,8 @@ home.{$DOMAIN} {
         }
 }
 
-# Dashboard - Has its own auth, bypass Authelia
-dashboard.{$DOMAIN} {
-        reverse_proxy dashboard:5000
-}
+# Dashboard runs on LINODE, not locally
+# dashboard.{$DOMAIN} - handled by Linode Caddy instance
 
 # ============================================================================
 # PROTECTED SERVICES (Require Authelia authentication)

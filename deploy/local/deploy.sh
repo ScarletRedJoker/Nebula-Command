@@ -152,25 +152,30 @@ validate_dns() {
     
     local public_ip
     public_ip=$(get_public_ip)
+    local linode_ip="69.164.211.205"
     
     if [ -z "$public_ip" ]; then
         echo -e "${YELLOW}[SKIP]${NC} Could not determine public IP for comparison"
         return 1
     fi
     
-    echo "Public IP: $public_ip"
+    echo "Local Public IP: $public_ip"
+    echo "Linode IP: $linode_ip"
     echo "Domain: $domain"
     echo ""
     
-    local subdomains=("" "dashboard" "plex" "jellyfin" "home" "auth")
     local all_ok=true
     
-    for sub in "${subdomains[@]}"; do
+    check_dns() {
+        local sub=$1
+        local expected_server=$2
+        local is_proxied=$3
         local fqdn
+        
         if [ -z "$sub" ]; then
             fqdn="$domain"
         else
-            fqdn="$sub.$domain"
+            fqdn="${sub}.${domain}"
         fi
         
         echo -n "  $fqdn -> "
@@ -180,13 +185,51 @@ validate_dns() {
         if [ -z "$resolved_ip" ]; then
             echo -e "${YELLOW}no A record${NC}"
             all_ok=false
-        elif [ "$resolved_ip" = "$public_ip" ]; then
-            echo -e "${GREEN}$resolved_ip ✓${NC}"
-        else
-            echo -e "${YELLOW}$resolved_ip (expected $public_ip)${NC}"
-            all_ok=false
+            return
         fi
-    done
+        
+        local expected_ip
+        if [ "$expected_server" = "linode" ]; then
+            expected_ip="$linode_ip"
+        else
+            expected_ip="$public_ip"
+        fi
+        
+        if [ "$is_proxied" = "true" ]; then
+            if [[ "$resolved_ip" =~ ^(172\.|104\.) ]]; then
+                echo -e "${GREEN}$resolved_ip (Cloudflare proxied) ✓${NC}"
+            elif [ "$resolved_ip" = "$expected_ip" ]; then
+                echo -e "${GREEN}$resolved_ip ✓${NC}"
+            else
+                echo -e "${YELLOW}$resolved_ip (expected CF proxy or $expected_ip)${NC}"
+                all_ok=false
+            fi
+        else
+            if [ "$resolved_ip" = "$expected_ip" ]; then
+                echo -e "${GREEN}$resolved_ip ✓${NC}"
+            else
+                echo -e "${YELLOW}$resolved_ip (expected $expected_ip)${NC}"
+                all_ok=false
+            fi
+        fi
+    }
+    
+    echo "Linode services:"
+    check_dns "dashboard" "linode" "true"
+    check_dns "api" "linode" "true"
+    
+    echo ""
+    echo "Local services (DNS-only for bandwidth):"
+    check_dns "plex" "local" "false"
+    check_dns "jellyfin" "local" "false"
+    check_dns "home" "local" "false"
+    
+    echo ""
+    echo "Local services (Cloudflare proxied):"
+    check_dns "auth" "local" "true"
+    check_dns "storage" "local" "true"
+    check_dns "vnc" "local" "true"
+    check_dns "ssh" "local" "true"
     
     echo ""
     if [ "$all_ok" = true ]; then
