@@ -42,7 +42,9 @@ import {
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/quick-start", label: "Quick Start", icon: Rocket },
   { href: "/factory", label: "App Factory", icon: Factory },
+  { href: "/builder", label: "Builder", icon: Wrench },
   { href: "/code-assist", label: "Code Assist", icon: Wand2 },
   { href: "/templates", label: "Templates", icon: Package },
   { href: "/projects", label: "Projects", icon: Layers },

@@ -66,6 +66,7 @@
     "libsodium-wrappers": "^0.7.15",
     "next": "^16.1.1",
     "next-themes": "^0.3.0",
+    "node-ssh": "^13.2.1",
     "obs-websocket-js": "^5.0.7",
     "openai": "^6.9.1",
     "p-limit": "^7.2.0",

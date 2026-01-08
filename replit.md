@@ -34,12 +34,25 @@ Capabilities include an SSH Terminal with xterm.js, an SFTP File Browser, server
 ### Production Build & Dashboard Enhancements
 All API routes use a unified server configuration store. The dashboard includes real-time integration status, server management (add/edit/delete homelab servers), detailed health monitoring via SSH, activity logs, skeleton loaders, and improved error handling with mobile responsiveness.
 
-### Creation Engine Features
-- **App Factory**: Visual project scaffolding with AI-powered code generation using templates for various application types.
-- **AI Code Assistant**: Provides intelligent code analysis for refactoring, explanation, debugging, optimization, documentation, and language conversion.
-- **Deploy Pipelines**: One-click deployment to servers with real-time logs and history.
-- **Template Marketplace**: A marketplace for community templates with one-click installation.
-- **Project Manager**: Organizes development projects with status tracking and resource monitoring.
+### Universal Creation Engine
+- **Quick Start Wizard** (`/quick-start`): One-click creator kits for YouTubers, Streamers, Developers, Musicians, and communities
+  - Pre-configured bundles with websites, Discord bots, stream overlays, and branding
+  - Automated asset and service generation with progress tracking
+- **Universal Builder** (`/builder`): Build anything - websites, web apps, mobile apps, desktop apps, browser extensions, games, bots, APIs, CLI tools
+  - 9 project categories with framework selection
+  - Feature checkboxes for common functionality (auth, database, payments, etc.)
+- **App Factory** (`/factory`): Visual project scaffolding with AI-powered code generation using templates
+- **AI Code Assistant** (`/code-assist`): Code refactoring, debugging, optimization, documentation, and language conversion
+- **Deploy Pipelines** (`/pipelines`): One-click deployment to Docker/PM2 with real-time logs
+- **Template Marketplace** (`/templates`): Community templates with one-click installation
+- **Project Manager** (`/projects`): Organize projects with status tracking and resource monitoring
+
+### Auto-Deployment System
+- **Server Provisioning API** (`/api/deploy/auto-provision`): SSH key generation, Docker installation, Tailscale setup
+- **Deployment Execution API** (`/api/deploy/execute`): Docker/PM2 deployment with real-time logging
+- SSH key path configured via `SSH_KEY_PATH` environment variable for security
+
+### Creation Engine Features (Legacy)
 - **Ollama Model Catalog**: Manages local LLM models.
 - **AI Code Generation**: Natural language code creation with templates and preview.
 - **Prompt Library**: Reusable text snippets for various AI tasks.
