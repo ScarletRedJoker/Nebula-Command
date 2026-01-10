@@ -54,6 +54,14 @@ interface GeneratedImage {
   savedPath?: string;
 }
 
+interface GeneratedVideo {
+  url: string;
+  provider: string;
+  model: string;
+  duration?: number;
+  savedPath?: string;
+}
+
 export default function CreativeStudioPage() {
   const [aiStatus, setAIStatus] = useState<AIStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -67,6 +75,14 @@ export default function CreativeStudioPage() {
   const [saveLocally, setSaveLocally] = useState(true);
   const [generatingImage, setGeneratingImage] = useState(false);
   const [generatedImage, setGeneratedImage] = useState<GeneratedImage | null>(null);
+
+  const [videoPrompt, setVideoPrompt] = useState("");
+  const [videoModel, setVideoModel] = useState("wan-t2v");
+  const [videoAspectRatio, setVideoAspectRatio] = useState("16:9");
+  const [inputImageUrl, setInputImageUrl] = useState("");
+  const [saveVideoLocally, setSaveVideoLocally] = useState(true);
+  const [generatingVideo, setGeneratingVideo] = useState(false);
+  const [generatedVideo, setGeneratedVideo] = useState<GeneratedVideo | null>(null);
 
   const [chatMessage, setChatMessage] = useState("");
   const [chatHistory, setChatHistory] = useState<{ role: string; content: string }[]>([]);
@@ -122,6 +138,39 @@ export default function CreativeStudioPage() {
       alert(`Failed to generate image: ${error.message}`);
     } finally {
       setGeneratingImage(false);
+    }
+  }
+
+  async function generateVideo() {
+    if (!videoPrompt.trim() && !inputImageUrl.trim()) return;
+
+    setGeneratingVideo(true);
+    setGeneratedVideo(null);
+
+    try {
+      const res = await fetch("/api/ai/video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: videoPrompt,
+          inputImage: inputImageUrl || undefined,
+          aspectRatio: videoAspectRatio,
+          model: videoModel,
+          saveLocally: saveVideoLocally,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setGeneratedVideo(data);
+      } else {
+        const error = await res.json();
+        alert(`Error: ${error.details || error.error}`);
+      }
+    } catch (error: any) {
+      alert(`Failed to generate video: ${error.message}`);
+    } finally {
+      setGeneratingVideo(false);
     }
   }
 
@@ -403,13 +452,132 @@ export default function CreativeStudioPage() {
         </TabsContent>
 
         <TabsContent value="video" className="mt-6">
-          <div className="text-center py-12">
-            <Video className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-            <h3 className="text-lg font-medium mb-2">Video Generation Coming Soon</h3>
-            <p className="text-muted-foreground max-w-md mx-auto">
-              AI video generation with Runway, Luma, and self-hosted options is on the roadmap.
-              Create short-form content, stream intros, and social clips with AI.
-            </p>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Model</Label>
+                <Select value={videoModel} onValueChange={setVideoModel}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="wan-t2v">WAN 2.1 Text-to-Video (Fast)</SelectItem>
+                    <SelectItem value="wan-i2v">WAN 2.1 Image-to-Video</SelectItem>
+                    <SelectItem value="svd">Stable Video Diffusion</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Prompt</Label>
+                <Textarea
+                  placeholder="Describe the video you want to create..."
+                  value={videoPrompt}
+                  onChange={(e) => setVideoPrompt(e.target.value)}
+                  rows={4}
+                />
+              </div>
+
+              {(videoModel === "wan-i2v" || videoModel === "svd") && (
+                <div className="space-y-2">
+                  <Label>Input Image URL (for image-to-video)</Label>
+                  <Input
+                    placeholder="https://example.com/image.png"
+                    value={inputImageUrl}
+                    onChange={(e) => setInputImageUrl(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Provide a URL to an image to animate
+                  </p>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label>Aspect Ratio</Label>
+                <Select value={videoAspectRatio} onValueChange={setVideoAspectRatio}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="16:9">16:9 (Landscape)</SelectItem>
+                    <SelectItem value="9:16">9:16 (Portrait/TikTok)</SelectItem>
+                    <SelectItem value="1:1">1:1 (Square)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={saveVideoLocally}
+                  onCheckedChange={setSaveVideoLocally}
+                />
+                <Label>Save to server</Label>
+              </div>
+
+              <Button
+                onClick={generateVideo}
+                disabled={generatingVideo || (!videoPrompt.trim() && !inputImageUrl.trim())}
+                className="w-full"
+              >
+                {generatingVideo ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Generating (~30-60s)...
+                  </>
+                ) : (
+                  <>
+                    <Video className="h-4 w-4 mr-2" />
+                    Generate Video
+                  </>
+                )}
+              </Button>
+
+              <p className="text-xs text-muted-foreground">
+                Video generation uses Replicate API. ~5 second clips, 480p quality.
+                Requires REPLICATE_API_TOKEN secret.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <Label>Generated Video</Label>
+              <div className="border rounded-lg p-4 min-h-[300px] flex items-center justify-center bg-muted/50">
+                {generatingVideo ? (
+                  <div className="text-center">
+                    <Loader2 className="h-12 w-12 animate-spin mx-auto mb-2" />
+                    <p className="text-muted-foreground">Creating your video...</p>
+                    <p className="text-xs text-muted-foreground mt-1">This takes 30-60 seconds</p>
+                  </div>
+                ) : generatedVideo?.url ? (
+                  <div className="w-full space-y-4">
+                    <video
+                      src={generatedVideo.url}
+                      controls
+                      autoPlay
+                      loop
+                      className="w-full rounded-lg"
+                    />
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">
+                        {generatedVideo.model} • ~{generatedVideo.duration}s
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => window.open(generatedVideo.url, "_blank")}
+                      >
+                        <Download className="h-4 w-4 mr-1" />
+                        Download
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center text-muted-foreground">
+                    <Video className="h-16 w-16 mx-auto mb-2 opacity-50" />
+                    <p>Your generated video will appear here</p>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </TabsContent>
 

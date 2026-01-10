@@ -1,8 +1,9 @@
 /**
  * AI Orchestrator - Unified interface for multiple AI providers
- * Supports OpenAI, Ollama (local), and future providers
+ * Supports OpenAI, Ollama (local), Replicate (video), and future providers
  */
 import OpenAI from "openai";
+import Replicate from "replicate";
 
 export type AIProvider = "openai" | "ollama" | "auto";
 export type AICapability = "chat" | "image" | "video" | "embedding";
@@ -50,6 +51,22 @@ export interface ImageResponse {
   revisedPrompt?: string;
 }
 
+export interface VideoRequest {
+  prompt: string;
+  inputImage?: string;
+  duration?: number;
+  aspectRatio?: "16:9" | "9:16" | "1:1";
+  provider?: "replicate" | "local";
+  model?: "wan-t2v" | "wan-i2v" | "svd";
+}
+
+export interface VideoResponse {
+  url: string;
+  provider: string;
+  model: string;
+  duration?: number;
+}
+
 const DEFAULT_CONFIG: AIConfig = {
   provider: "auto",
   temperature: 0.7,
@@ -58,11 +75,13 @@ const DEFAULT_CONFIG: AIConfig = {
 
 class AIOrchestrator {
   private openaiClient: OpenAI | null = null;
+  private replicateClient: Replicate | null = null;
   private ollamaUrl: string;
 
   constructor() {
     this.ollamaUrl = process.env.OLLAMA_URL || "http://host.evindrake.net:11434";
     this.initOpenAI();
+    this.initReplicate();
   }
 
   private initOpenAI() {
@@ -74,6 +93,13 @@ class AIOrchestrator {
         baseURL: baseURL || undefined,
         apiKey,
       });
+    }
+  }
+
+  private initReplicate() {
+    const apiKey = process.env.REPLICATE_API_TOKEN;
+    if (apiKey) {
+      this.replicateClient = new Replicate({ auth: apiKey });
     }
   }
 
@@ -257,6 +283,95 @@ class AIOrchestrator {
 
   hasOpenAI(): boolean {
     return this.openaiClient !== null;
+  }
+
+  hasReplicate(): boolean {
+    return this.replicateClient !== null;
+  }
+
+  async generateVideo(request: VideoRequest): Promise<VideoResponse> {
+    if (!this.replicateClient) {
+      throw new Error("Replicate not configured - add REPLICATE_API_TOKEN");
+    }
+
+    const modelId = request.model || (request.inputImage ? "wan-i2v" : "wan-t2v");
+    
+    let output: unknown;
+    let modelName: string;
+
+    if (modelId === "wan-i2v" && request.inputImage) {
+      modelName = "wavespeedai/wan-2.1-i2v-480p";
+      output = await this.replicateClient.run(modelName as `${string}/${string}`, {
+        input: {
+          image: request.inputImage,
+          prompt: request.prompt,
+          max_area: "832x480",
+          fast_mode: "Balanced",
+          frame_num: 81,
+          sample_shift: 8,
+          sample_steps: 30,
+        },
+      });
+    } else if (modelId === "svd" && request.inputImage) {
+      modelName = "stability-ai/stable-video-diffusion";
+      output = await this.replicateClient.run(modelName as `${string}/${string}`, {
+        input: {
+          input_image: request.inputImage,
+          frames_per_second: 6,
+        },
+      });
+    } else {
+      modelName = "wavespeedai/wan-2.1-t2v-480p";
+      output = await this.replicateClient.run(modelName as `${string}/${string}`, {
+        input: {
+          prompt: request.prompt,
+          negative_prompt: "blurry, low quality, distorted, ugly",
+          max_area: request.aspectRatio === "9:16" ? "480x832" : 
+                    request.aspectRatio === "1:1" ? "640x640" : "832x480",
+          fast_mode: "Balanced",
+          frame_num: 81,
+          sample_shift: 8,
+          sample_steps: 30,
+        },
+      });
+    }
+
+    const videoUrl = typeof output === "string" ? output : 
+                     Array.isArray(output) ? output[0] : 
+                     (output as { url?: string })?.url || "";
+
+    return {
+      url: videoUrl,
+      provider: "replicate",
+      model: modelName,
+      duration: 5,
+    };
+  }
+
+  getVideoProviders() {
+    return [
+      {
+        id: "wan-t2v",
+        name: "WAN 2.1 Text-to-Video",
+        description: "Fast text-to-video generation (480p)",
+        type: "text-to-video",
+        available: this.hasReplicate(),
+      },
+      {
+        id: "wan-i2v",
+        name: "WAN 2.1 Image-to-Video",
+        description: "Animate images with AI (480p)",
+        type: "image-to-video",
+        available: this.hasReplicate(),
+      },
+      {
+        id: "svd",
+        name: "Stable Video Diffusion",
+        description: "High-quality image animation",
+        type: "image-to-video",
+        available: this.hasReplicate(),
+      },
+    ];
   }
 }
 
