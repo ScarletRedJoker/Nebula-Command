@@ -336,9 +336,21 @@ class AIOrchestrator {
       });
     }
 
-    const videoUrl = typeof output === "string" ? output : 
-                     Array.isArray(output) ? output[0] : 
-                     (output as { url?: string })?.url || "";
+    // Normalize Replicate output - different models return different shapes
+    let videoUrl = "";
+    if (typeof output === "string") {
+      videoUrl = output;
+    } else if (Array.isArray(output) && output.length > 0) {
+      videoUrl = output[0];
+    } else if (output && typeof output === "object") {
+      // WAN models return { video: "url" }, others may return { url: "url" } or { output: "url" }
+      const obj = output as { video?: string; url?: string; output?: string };
+      videoUrl = obj.video || obj.url || obj.output || "";
+    }
+
+    if (!videoUrl) {
+      throw new Error("Video generation failed - no output URL received from Replicate");
+    }
 
     return {
       url: videoUrl,
