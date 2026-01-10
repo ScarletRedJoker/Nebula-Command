@@ -250,6 +250,35 @@ export default function AppFactoryPage() {
       if (res.ok) {
         const data = await res.json();
         setGeneratedFiles(data.files);
+        
+        // Save project to database
+        try {
+          const framework = selectedTemplate.stack.find(s => 
+            ["next.js", "react", "vue", "angular", "express", "fastify", "flask", "django"].some(f => s.toLowerCase().includes(f))
+          ) || selectedTemplate.stack[0] || "custom";
+          
+          const language = selectedTemplate.stack.find(s => 
+            ["typescript", "javascript", "python", "go", "rust"].some(l => s.toLowerCase().includes(l))
+          ) || "typescript";
+
+          const res = await fetch("/api/projects", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: config.name,
+              description: config.description || `${selectedTemplate.name} project`,
+              framework: framework,
+              language: language,
+            }),
+          });
+          
+          if (!res.ok) {
+            console.error("Failed to save project:", await res.text());
+          }
+        } catch (saveError) {
+          console.error("Failed to save project to database:", saveError);
+        }
+        
         setStep("generate");
         toast({
           title: "Project Generated!",

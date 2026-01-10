@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -57,6 +57,7 @@ import {
   Eye,
   Copy,
   Archive,
+  RefreshCw,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { useRouter } from "next/navigation";
@@ -92,58 +93,6 @@ const statusConfig: Record<ProjectStatus, { icon: React.ReactNode; label: string
   error: { icon: <AlertCircle className="h-3 w-3" />, label: "Error", color: "bg-red-500/20 text-red-400" },
 };
 
-const defaultProjects: Project[] = [
-  {
-    id: "1",
-    name: "Dashboard Next",
-    description: "Main dashboard web application",
-    type: "web",
-    status: "running",
-    branch: "main",
-    lastModified: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    path: "/services/dashboard-next",
-    port: 5000,
-    memory: 256,
-    cpu: 12,
-  },
-  {
-    id: "2",
-    name: "Discord Bot",
-    description: "Community management Discord bot",
-    type: "bot",
-    status: "running",
-    branch: "main",
-    lastModified: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-    path: "/services/discord-bot",
-    port: 4000,
-    memory: 180,
-    cpu: 5,
-  },
-  {
-    id: "3",
-    name: "Stream Bot",
-    description: "Multi-platform streaming manager",
-    type: "api",
-    status: "running",
-    branch: "main",
-    lastModified: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
-    path: "/services/stream-bot",
-    port: 3000,
-    memory: 145,
-    cpu: 8,
-  },
-  {
-    id: "4",
-    name: "Landing Page",
-    description: "Marketing website",
-    type: "web",
-    status: "stopped",
-    branch: "develop",
-    lastModified: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-    path: "/projects/landing",
-  },
-];
-
 function formatTimeAgo(date: string): string {
   const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
   if (seconds < 60) return "just now";
@@ -153,10 +102,12 @@ function formatTimeAgo(date: string): string {
 }
 
 export default function ProjectsPage() {
-  const [projects, setProjects] = useState<Project[]>(defaultProjects);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | ProjectStatus>("all");
   const [showNewDialog, setShowNewDialog] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [newProject, setNewProject] = useState({
     name: "",
     description: "",
@@ -164,6 +115,47 @@ export default function ProjectsPage() {
   });
   const { toast } = useToast();
   const router = useRouter();
+
+  const fetchProjects = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch("/api/projects");
+      const data = await res.json();
+      if (data.projects) {
+        const mappedProjects: Project[] = data.projects.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          description: p.description || "No description",
+          type: mapFrameworkToType(p.framework, p.language),
+          status: p.status === "active" ? "stopped" : p.status,
+          branch: "main",
+          lastModified: p.updatedAt || p.createdAt,
+          path: p.gitUrl || `/projects/${p.name.toLowerCase().replace(/\s+/g, "-")}`,
+        }));
+        setProjects(mappedProjects);
+      }
+    } catch (error) {
+      console.error("Failed to fetch projects:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load projects",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  function mapFrameworkToType(framework: string | null, language: string | null): ProjectType {
+    if (framework?.toLowerCase().includes("discord") || framework?.toLowerCase().includes("bot")) return "bot";
+    if (framework?.toLowerCase().includes("api") || framework?.toLowerCase().includes("express")) return "api";
+    if (language?.toLowerCase().includes("service")) return "service";
+    return "web";
+  }
+
+  useEffect(() => {
+    fetchProjects();
+  }, []);
 
   const filteredProjects = projects.filter((project) => {
     const matchesSearch =
@@ -179,30 +171,55 @@ export default function ProjectsPage() {
     .filter((p) => p.status === "running")
     .reduce((acc, p) => acc + (p.memory || 0), 0);
 
-  function toggleProject(project: Project) {
+  async function toggleProject(project: Project) {
     const newStatus = project.status === "running" ? "stopped" : "running";
-    setProjects((prev) =>
-      prev.map((p) =>
-        p.id === project.id
-          ? { ...p, status: newStatus, memory: newStatus === "running" ? Math.floor(Math.random() * 200) + 100 : undefined }
-          : p
-      )
-    );
-    toast({
-      title: newStatus === "running" ? "Project Started" : "Project Stopped",
-      description: `${project.name} is now ${newStatus}`,
-    });
+    try {
+      const res = await fetch("/api/projects", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: project.id, status: newStatus }),
+      });
+      if (!res.ok) throw new Error("Failed to update");
+      
+      setProjects((prev) =>
+        prev.map((p) =>
+          p.id === project.id
+            ? { ...p, status: newStatus }
+            : p
+        )
+      );
+      toast({
+        title: newStatus === "running" ? "Project Started" : "Project Stopped",
+        description: `${project.name} is now ${newStatus}`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update project status",
+        variant: "destructive",
+      });
+    }
   }
 
-  function deleteProject(id: string) {
-    setProjects((prev) => prev.filter((p) => p.id !== id));
-    toast({
-      title: "Project Deleted",
-      description: "Project has been removed",
-    });
+  async function deleteProject(id: string) {
+    try {
+      const res = await fetch(`/api/projects?id=${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete");
+      setProjects((prev) => prev.filter((p) => p.id !== id));
+      toast({
+        title: "Project Deleted",
+        description: "Project has been removed",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete project",
+        variant: "destructive",
+      });
+    }
   }
 
-  function createProject() {
+  async function createProject() {
     if (!newProject.name) {
       toast({
         title: "Missing Name",
@@ -212,42 +229,90 @@ export default function ProjectsPage() {
       return;
     }
 
-    const project: Project = {
-      id: `project-${Date.now()}`,
-      name: newProject.name,
-      description: newProject.description || "No description",
-      type: newProject.type,
-      status: "stopped",
-      branch: "main",
-      lastModified: new Date().toISOString(),
-      path: `/projects/${newProject.name.toLowerCase().replace(/\s+/g, "-")}`,
-    };
+    try {
+      setSaving(true);
+      const res = await fetch("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newProject.name,
+          description: newProject.description,
+          framework: newProject.type,
+        }),
+      });
 
-    setProjects((prev) => [...prev, project]);
-    setShowNewDialog(false);
-    setNewProject({ name: "", description: "", type: "web" });
+      if (!res.ok) throw new Error("Failed to create project");
 
-    toast({
-      title: "Project Created",
-      description: `${project.name} has been created`,
-    });
+      const data = await res.json();
+      
+      const project: Project = {
+        id: data.project.id,
+        name: data.project.name,
+        description: data.project.description || "No description",
+        type: newProject.type,
+        status: "stopped",
+        branch: "main",
+        lastModified: new Date().toISOString(),
+        path: `/projects/${newProject.name.toLowerCase().replace(/\s+/g, "-")}`,
+      };
+
+      setProjects((prev) => [...prev, project]);
+      setShowNewDialog(false);
+      setNewProject({ name: "", description: "", type: "web" });
+
+      toast({
+        title: "Project Created",
+        description: `${project.name} has been created`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to create project",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
   }
 
-  function duplicateProject(project: Project) {
-    const newProj: Project = {
-      ...project,
-      id: `project-${Date.now()}`,
-      name: `${project.name} (Copy)`,
-      status: "stopped",
-      lastModified: new Date().toISOString(),
-      memory: undefined,
-      cpu: undefined,
-    };
-    setProjects((prev) => [...prev, newProj]);
-    toast({
-      title: "Project Duplicated",
-      description: `Created copy of ${project.name}`,
-    });
+  async function duplicateProject(project: Project) {
+    try {
+      const res = await fetch("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: `${project.name} (Copy)`,
+          description: project.description,
+          framework: project.type,
+        }),
+      });
+      
+      if (!res.ok) throw new Error("Failed to duplicate");
+      
+      const data = await res.json();
+      const newProj: Project = {
+        id: data.project.id,
+        name: data.project.name,
+        description: data.project.description || project.description,
+        type: project.type,
+        status: "stopped",
+        branch: "main",
+        lastModified: new Date().toISOString(),
+        path: `/projects/${data.project.name.toLowerCase().replace(/\s+/g, "-")}`,
+      };
+      
+      setProjects((prev) => [...prev, newProj]);
+      toast({
+        title: "Project Duplicated",
+        description: `Created copy of ${project.name}`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to duplicate project",
+        variant: "destructive",
+      });
+    }
   }
 
   return (
