@@ -52,6 +52,15 @@ All API routes use a unified server configuration store. The dashboard includes 
 - **Deployment Execution API** (`/api/deploy/execute`): Docker/PM2 deployment with real-time logging
 - SSH key path configured via `SSH_KEY_PATH` environment variable for security
 
+### Phase 1 Infrastructure (Completed)
+- **Local AI Runtime Manager** (`/ai-models`): Unified service for Ollama LLMs, Stable Diffusion, and ComfyUI with health monitoring, GPU metrics, model management (pull/load/unload)
+- **Server Registry**: Database-backed homelab server inventory with CRUD operations, health checking, auto-seeds from file config
+- **Unified Event Bus** (`/notifications`): Redis-based pub/sub notification system with:
+  - Real-time SSE streaming to dashboard
+  - Discord webhook delivery with category/severity filtering
+  - Database persistence for event history
+  - Subscription management for notification routing
+
 ### Creation Engine Features (Legacy)
 - **Ollama Model Catalog**: Manages local LLM models.
 - **AI Code Generation**: Natural language code creation with templates and preview.
