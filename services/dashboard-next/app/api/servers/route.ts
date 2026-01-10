@@ -3,7 +3,8 @@ import { Client } from "ssh2";
 import { verifySession } from "@/lib/session";
 import { cookies } from "next/headers";
 import { readFileSync, existsSync } from "fs";
-import { getAllServers, getServerById, ServerConfig, getDefaultSshKeyPath } from "@/lib/server-config-store";
+import { serverRegistry, type ServerWithHealth } from "@/lib/server-registry";
+import { getDefaultSshKeyPath } from "@/lib/server-config-store";
 
 async function checkAuth() {
   const cookieStore = await cookies();
@@ -13,13 +14,13 @@ async function checkAuth() {
   return !!user;
 }
 
-async function getServerMetrics(server: ServerConfig): Promise<any> {
+async function getServerMetrics(server: ServerWithHealth): Promise<any> {
   return new Promise((resolve) => {
     const keyPath = server.keyPath || getDefaultSshKeyPath();
     
     if (!existsSync(keyPath)) {
       resolve({
-        id: server.id,
+        id: server.slug,
         name: server.name,
         description: server.description || "",
         status: "error",
@@ -35,7 +36,7 @@ async function getServerMetrics(server: ServerConfig): Promise<any> {
     const timeout = setTimeout(() => {
       conn.end();
       resolve({
-        id: server.id,
+        id: server.slug,
         name: server.name,
         description: server.description || "",
         status: "offline",
@@ -61,7 +62,7 @@ async function getServerMetrics(server: ServerConfig): Promise<any> {
           clearTimeout(timeout);
           conn.end();
           resolve({
-            id: server.id,
+            id: server.slug,
             name: server.name,
             description: server.description || "",
             status: "error",
@@ -93,7 +94,7 @@ async function getServerMetrics(server: ServerConfig): Promise<any> {
           }
 
           resolve({
-            id: server.id,
+            id: server.slug,
             name: server.name,
             description: server.description || "",
             ip: server.host,
@@ -116,7 +117,7 @@ async function getServerMetrics(server: ServerConfig): Promise<any> {
     conn.on("error", (err) => {
       clearTimeout(timeout);
       resolve({
-        id: server.id,
+        id: server.slug,
         name: server.name,
         description: server.description || "",
         status: "offline",
@@ -130,7 +131,7 @@ async function getServerMetrics(server: ServerConfig): Promise<any> {
     try {
       conn.connect({
         host: server.host,
-        port: 22,
+        port: server.port || 22,
         username: server.user,
         privateKey: readFileSync(keyPath),
         readyTimeout: 10000,
@@ -138,7 +139,7 @@ async function getServerMetrics(server: ServerConfig): Promise<any> {
     } catch (err: any) {
       clearTimeout(timeout);
       resolve({
-        id: server.id,
+        id: server.slug,
         name: server.name,
         description: server.description || "",
         status: "error",
@@ -159,10 +160,10 @@ export async function GET(request: NextRequest) {
   const serverId = request.nextUrl.searchParams.get("id");
 
   try {
-    const servers = await getAllServers();
+    const servers = await serverRegistry.getAllServers();
     
     if (serverId) {
-      const server = servers.find((s) => s.id === serverId);
+      const server = servers.find((s) => s.slug === serverId);
       if (!server) {
         return NextResponse.json({ error: "Server not found" }, { status: 404 });
       }

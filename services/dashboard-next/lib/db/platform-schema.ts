@@ -281,3 +281,36 @@ export const communityNodes = pgTable("community_nodes", {
 
 export type CommunityNode = typeof communityNodes.$inferSelect;
 export type NewCommunityNode = typeof communityNodes.$inferInsert;
+
+export const homelabServers = pgTable("homelab_servers", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  slug: varchar("slug", { length: 50 }).notNull().unique(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  host: varchar("host", { length: 255 }).notNull(),
+  user: varchar("ssh_user", { length: 100 }).notNull(),
+  port: integer("port").default(22),
+  keyPath: varchar("key_path", { length: 500 }),
+  deployPath: varchar("deploy_path", { length: 500 }),
+  supportsWol: boolean("supports_wol").default(false),
+  macAddress: varchar("mac_address", { length: 17 }),
+  broadcastAddress: varchar("broadcast_address", { length: 255 }),
+  ipmiHost: varchar("ipmi_host", { length: 255 }),
+  ipmiUser: varchar("ipmi_user", { length: 100 }),
+  ipmiPassword: varchar("ipmi_password", { length: 255 }),
+  ipmiManagementServer: varchar("ipmi_management_server", { length: 255 }),
+  vncHost: varchar("vnc_host", { length: 255 }),
+  vncPort: integer("vnc_port"),
+  noVncUrl: varchar("novnc_url", { length: 500 }),
+  location: varchar("location", { length: 50 }).default("local"),
+  capabilities: text("capabilities").array().default([]),
+  status: varchar("status", { length: 50 }).default("unknown"),
+  lastHealthCheck: timestamp("last_health_check"),
+  healthMetrics: jsonb("health_metrics"),
+  isDefault: boolean("is_default").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type HomelabServer = typeof homelabServers.$inferSelect;
+export type NewHomelabServer = typeof homelabServers.$inferInsert;
