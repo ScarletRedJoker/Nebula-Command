@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySession } from "@/lib/session";
 import { cookies } from "next/headers";
+import { localAIRuntime } from "@/lib/local-ai-runtime";
 
 const OLLAMA_URL = process.env.OLLAMA_URL || "http://host.evindrake.net:11434";
 
@@ -33,7 +34,26 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const { searchParams } = new URL(request.url);
+  const provider = searchParams.get("provider");
+
   try {
+    if (provider === "all" || !provider) {
+      const models = await localAIRuntime.getAllModels();
+      return NextResponse.json({
+        models: models.map(m => ({
+          name: m.id,
+          sizeFormatted: m.size,
+          parameterSize: m.parameters ? `${Math.round(m.parameters / 1e9)}B` : undefined,
+          quantization: m.quantization,
+          provider: m.provider,
+          type: m.type,
+          loaded: m.loaded,
+        })),
+        count: models.length,
+      });
+    }
+
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10000);
 
@@ -50,9 +70,16 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await response.json();
-    const models: OllamaModel[] = data.models || [];
+    const ollamaModels: OllamaModel[] = data.models || [];
 
-    const formattedModels = models.map((model) => ({
+    const runningResponse = await fetch(`${OLLAMA_URL}/api/ps`).catch(() => null);
+    const loadedNames = new Set<string>();
+    if (runningResponse?.ok) {
+      const running = await runningResponse.json();
+      (running.models || []).forEach((m: { name: string }) => loadedNames.add(m.name));
+    }
+
+    const formattedModels = ollamaModels.map((model) => ({
       name: model.name,
       model: model.model,
       modifiedAt: model.modified_at,
@@ -63,6 +90,7 @@ export async function GET(request: NextRequest) {
       parameterSize: model.details?.parameter_size || "Unknown",
       quantization: model.details?.quantization_level || "Unknown",
       family: model.details?.family || "Unknown",
+      loaded: loadedNames.has(model.name),
     }));
 
     return NextResponse.json({
@@ -99,25 +127,44 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === "pull") {
-      const response = await fetch(`${OLLAMA_URL}/api/pull`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: model, stream: false }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
+      const result = await localAIRuntime.pullOllamaModel(model);
+      if (!result.success) {
         return NextResponse.json(
-          { error: "Failed to pull model", details: errorText },
-          { status: response.status }
+          { error: "Failed to pull model", details: result.message },
+          { status: 500 }
         );
       }
-
-      const result = await response.json();
       return NextResponse.json({
         success: true,
-        message: `Model ${model} pulled successfully`,
-        result,
+        message: result.message,
+      });
+    }
+
+    if (action === "load") {
+      const result = await localAIRuntime.loadOllamaModel(model);
+      if (!result.success) {
+        return NextResponse.json(
+          { error: "Failed to load model", details: result.message },
+          { status: 500 }
+        );
+      }
+      return NextResponse.json({
+        success: true,
+        message: result.message,
+      });
+    }
+
+    if (action === "unload") {
+      const result = await localAIRuntime.unloadOllamaModel(model);
+      if (!result.success) {
+        return NextResponse.json(
+          { error: "Failed to unload model", details: result.message },
+          { status: 500 }
+        );
+      }
+      return NextResponse.json({
+        success: true,
+        message: result.message,
       });
     }
 
@@ -189,23 +236,17 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Model name is required" }, { status: 400 });
     }
 
-    const response = await fetch(`${OLLAMA_URL}/api/delete`, {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: model }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
+    const result = await localAIRuntime.deleteOllamaModel(model);
+    if (!result.success) {
       return NextResponse.json(
-        { error: "Failed to delete model", details: errorText },
-        { status: response.status }
+        { error: "Failed to delete model", details: result.message },
+        { status: 500 }
       );
     }
 
     return NextResponse.json({
       success: true,
-      message: `Model ${model} deleted successfully`,
+      message: result.message,
     });
   } catch (error: any) {
     return NextResponse.json(
