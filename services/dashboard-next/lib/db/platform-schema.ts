@@ -215,6 +215,56 @@ export type Workflow = typeof workflows.$inferSelect;
 export type NewWorkflow = typeof workflows.$inferInsert;
 export type WorkflowExecution = typeof workflowExecutions.$inferSelect;
 
+export const activityLogs = pgTable("activity_logs", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id", { length: 255 }),
+  username: varchar("username", { length: 255 }),
+  sessionId: varchar("session_id", { length: 255 }),
+  activityType: varchar("activity_type", { length: 50 }),
+  action: varchar("action", { length: 100 }),
+  resourceType: varchar("resource_type", { length: 100 }),
+  resourceId: varchar("resource_id", { length: 255 }),
+  resourceName: varchar("resource_name", { length: 255 }),
+  description: text("description"),
+  previousState: jsonb("previous_state"),
+  newState: jsonb("new_state"),
+  ipAddress: varchar("ip_address", { length: 50 }),
+  userAgent: varchar("user_agent", { length: 500 }),
+  durationMs: integer("duration_ms"),
+  success: varchar("success", { length: 10 }),
+  timestamp: timestamp("timestamp").defaultNow(),
+  yearMonth: varchar("year_month", { length: 7 }),
+  metadataJson: jsonb("metadata_json"),
+});
+
+export type ActivityLog = typeof activityLogs.$inferSelect;
+export type NewActivityLog = typeof activityLogs.$inferInsert;
+
+export const templateCatalog = pgTable("template_catalog", {
+  id: serial("id").primaryKey(),
+  name: text("name"),
+  description: text("description"),
+  category: text("category"),
+  tags: text("tags"),
+  templateType: text("template_type"),
+  templateJson: text("template_json"),
+  previewImageUrl: text("preview_image_url"),
+  isOfficial: boolean("is_official"),
+  sourceServerId: text("source_server_id"),
+  createdBy: text("created_by"),
+  createdByUsername: text("created_by_username"),
+  installCount: integer("install_count").default(0),
+  rating: integer("rating"),
+  ratingCount: integer("rating_count").default(0),
+  isPublic: boolean("is_public").default(true),
+  isEnabled: boolean("is_enabled").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type TemplateCatalog = typeof templateCatalog.$inferSelect;
+export type NewTemplateCatalog = typeof templateCatalog.$inferInsert;
+
 export const communityNodes = pgTable("community_nodes", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
