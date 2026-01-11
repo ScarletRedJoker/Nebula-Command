@@ -84,6 +84,6 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const providers = aiOrchestrator.getVideoProviders();
+  const providers = await aiOrchestrator.getVideoProviders();
   return NextResponse.json({ providers });
 }

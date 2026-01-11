@@ -461,11 +461,41 @@ export default function CreativeStudioPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="wan-t2v">WAN 2.1 Text-to-Video (Fast)</SelectItem>
-                    <SelectItem value="wan-i2v">WAN 2.1 Image-to-Video</SelectItem>
-                    <SelectItem value="svd">Stable Video Diffusion</SelectItem>
+                    <SelectItem value="animatediff">
+                      <span className="flex items-center gap-2">
+                        <Cpu className="h-3 w-3 text-green-500" />
+                        AnimateDiff (Local GPU)
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="svd-local">
+                      <span className="flex items-center gap-2">
+                        <Cpu className="h-3 w-3 text-green-500" />
+                        SVD Local (Image-to-Video)
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="wan-t2v">
+                      <span className="flex items-center gap-2">
+                        <Cloud className="h-3 w-3 text-blue-500" />
+                        WAN 2.1 Text-to-Video (Cloud)
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="wan-i2v">
+                      <span className="flex items-center gap-2">
+                        <Cloud className="h-3 w-3 text-blue-500" />
+                        WAN 2.1 Image-to-Video (Cloud)
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="svd">
+                      <span className="flex items-center gap-2">
+                        <Cloud className="h-3 w-3 text-blue-500" />
+                        Stable Video Diffusion (Cloud)
+                      </span>
+                    </SelectItem>
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground">
+                  Local models use your Windows VM GPU. Cloud models use Replicate API.
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -478,7 +508,7 @@ export default function CreativeStudioPage() {
                 />
               </div>
 
-              {(videoModel === "wan-i2v" || videoModel === "svd") && (
+              {(videoModel === "wan-i2v" || videoModel === "svd" || videoModel === "svd-local") && (
                 <div className="space-y-2">
                   <Label>Input Image URL (for image-to-video)</Label>
                   <Input
