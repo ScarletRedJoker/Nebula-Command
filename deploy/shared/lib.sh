@@ -592,6 +592,7 @@ get_local_ai_state_path() {
 
 sync_local_ai_state() {
     local LOCAL_TAILSCALE_IP="${LOCAL_TAILSCALE_IP:-100.66.61.51}"
+    local SSH_USER="${HOME_SSH_USER:-evin}"
     local SSH_KEY="${HOME}/.ssh/homelab"
     local REMOTE_STATE="/opt/homelab/HomeLabHub/deploy/shared/state/local-ai.json"
     local LOCAL_STATE
@@ -606,12 +607,13 @@ sync_local_ai_state() {
     
     mkdir -p "$(dirname "$LOCAL_STATE")"
     
-    if scp -o ConnectTimeout=5 -o StrictHostKeyChecking=no -i "$SSH_KEY" \
-        "evin@${LOCAL_TAILSCALE_IP}:${REMOTE_STATE}" "$LOCAL_STATE" 2>/dev/null; then
+    # BatchMode=yes prevents password prompts - will fail silently if key auth doesn't work
+    if scp -o ConnectTimeout=5 -o StrictHostKeyChecking=no -o BatchMode=yes -i "$SSH_KEY" \
+        "${SSH_USER}@${LOCAL_TAILSCALE_IP}:${REMOTE_STATE}" "$LOCAL_STATE" 2>/dev/null; then
         echo -e "${GREEN}[OK]${NC} Synced state from local server"
         return 0
     else
-        echo -e "${YELLOW}[WARN]${NC} Could not sync state - will probe Windows VM directly"
+        echo -e "${YELLOW}[SKIP]${NC} Could not sync state - will probe Windows VM directly"
         return 1
     fi
 }

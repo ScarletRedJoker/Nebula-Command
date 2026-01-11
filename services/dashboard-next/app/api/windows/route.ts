@@ -65,8 +65,12 @@ async function checkPort(host: string, port: number, timeout = 2000): Promise<bo
 }
 
 async function executeWinRM(vmIp: string, command: string, username?: string, password?: string): Promise<{ success: boolean; output: string; error?: string }> {
-  const user = username || process.env.WINDOWS_USER || "Evin";
+  const user = username || process.env.WINDOWS_USER;
   const pass = password || process.env.WINDOWS_PASSWORD;
+  
+  if (!user) {
+    return { success: false, output: "", error: "Windows username not configured. Set WINDOWS_USER environment variable." };
+  }
   
   if (!pass) {
     return { success: false, output: "", error: "Windows password not configured. Set WINDOWS_PASSWORD environment variable." };
@@ -135,7 +139,11 @@ except Exception as e:
 }
 
 async function executeSSH(vmIp: string, command: string, username?: string): Promise<{ success: boolean; output: string; error?: string }> {
-  const user = username || process.env.WINDOWS_USER || "Evin";
+  const user = username || process.env.WINDOWS_VM_SSH_USER || process.env.WINDOWS_USER;
+  
+  if (!user) {
+    return { success: false, output: "", error: "Windows VM SSH username not configured. Set WINDOWS_VM_SSH_USER or WINDOWS_USER environment variable." };
+  }
   
   const allowedCommands = [
     /^powershell\s+-Command\s+/,

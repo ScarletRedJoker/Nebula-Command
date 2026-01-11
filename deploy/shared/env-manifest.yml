@@ -164,7 +164,13 @@ variables:
     scope: external
     required: false
     description: SSH username for Windows VM
-    hint: Default is 'evin' - used for remote command execution
+    hint: Used for SSH-based remote command execution on Windows VM
+
+  - key: WINDOWS_USER
+    scope: external
+    required: false
+    description: Windows account username for WinRM authentication
+    hint: Your Windows account name (e.g., 'Evin') - used for PowerShell remote execution
 
   - key: WINDOWS_PASSWORD
     scope: external
