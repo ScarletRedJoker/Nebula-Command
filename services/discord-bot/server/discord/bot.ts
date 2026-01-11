@@ -33,6 +33,7 @@ import { registerCustomCommandCommands, initializeCustomCommandEvents } from './
 import { registerPollCommands, handlePollButtonInteraction, handlePollSelectMenuInteraction, startPollScheduler, stopPollScheduler } from './features/polls';
 import { registerGiveawayCommands, handleGiveawayButtonInteraction, startGiveawayScheduler, stopGiveawayScheduler } from './features/giveaways';
 import { registerModerationCommands, registerAutomodConfigCommands, initializeAutomodEvents } from './features/moderation';
+import { registerConfigCommands } from './features/config';
 import { commandEngine } from '../services/commandEngine';
 import { guildIdentityService } from '../services/guildIdentityService';
 import { welcomeCardRenderer } from '../services/welcomeCardRenderer';
@@ -76,6 +77,7 @@ registerPollCommands(commands);
 registerGiveawayCommands(commands);
 registerModerationCommands(commands);
 registerAutomodConfigCommands(commands);
+registerConfigCommands(commands);
 console.log('[Discord] Total commands after all registrations:', Array.from(commands.keys()).join(', '));
 
 export async function startBot(storage: IStorage, broadcast: (data: any) => void): Promise<void> {
@@ -1753,20 +1755,22 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
           
           // Notify the requester
           try {
-            const requester = await client.users.fetch(updated.userId);
-            if (requester) {
-              const { createMediaRequestNotificationEmbed } = await import('./embed-templates');
-              const notificationEmbed = createMediaRequestNotificationEmbed({
-                id: updated.id,
-                title: updated.title,
-                mediaType: updated.mediaType,
-                status: updated.status,
-                username: updated.username,
-                userId: updated.userId,
-                year: updated.year,
-                approvedByUsername: updated.approvedByUsername
-              }, 'approved');
-              await requester.send({ embeds: [notificationEmbed] }).catch(() => {});
+            if (client) {
+              const requester = await client.users.fetch(updated.userId);
+              if (requester) {
+                const { createMediaRequestNotificationEmbed } = await import('./embed-templates');
+                const notificationEmbed = createMediaRequestNotificationEmbed({
+                  id: updated.id,
+                  title: updated.title,
+                  mediaType: updated.mediaType,
+                  status: updated.status,
+                  username: updated.username,
+                  userId: updated.userId,
+                  year: updated.year,
+                  approvedByUsername: updated.approvedByUsername
+                }, 'approved');
+                await requester.send({ embeds: [notificationEmbed] }).catch(() => {});
+              }
             }
           } catch (e) {
             console.error('Error notifying requester:', e);
@@ -1908,7 +1912,8 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
               const messages = await channel.messages.fetch({ limit: 50 });
               for (const msg of messages.values()) {
                 if (msg.components.length > 0) {
-                  const buttons = msg.components[0]?.components || [];
+                  const firstComponent = msg.components[0] as any;
+                  const buttons = firstComponent?.components || [];
                   for (const btn of buttons) {
                     if ('customId' in btn && btn.customId?.includes(`plex_deny_${requestId}`)) {
                       await msg.edit({ embeds: [embed], components: [] });
@@ -1924,21 +1929,23 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
           
           // Notify the requester
           try {
-            const requester = await client.users.fetch(updated.userId);
-            if (requester) {
-              const { createMediaRequestNotificationEmbed } = await import('./embed-templates');
-              const notificationEmbed = createMediaRequestNotificationEmbed({
-                id: updated.id,
-                title: updated.title,
-                mediaType: updated.mediaType,
-                status: updated.status,
-                username: updated.username,
-                userId: updated.userId,
-                year: updated.year,
-                reason: updated.reason,
-                approvedByUsername: updated.approvedByUsername
-              }, 'denied');
-              await requester.send({ embeds: [notificationEmbed] }).catch(() => {});
+            if (client) {
+              const requester = await client.users.fetch(updated.userId);
+              if (requester) {
+                const { createMediaRequestNotificationEmbed } = await import('./embed-templates');
+                const notificationEmbed = createMediaRequestNotificationEmbed({
+                  id: updated.id,
+                  title: updated.title,
+                  mediaType: updated.mediaType,
+                  status: updated.status,
+                  username: updated.username,
+                  userId: updated.userId,
+                  year: updated.year,
+                  reason: updated.reason,
+                  approvedByUsername: updated.approvedByUsername
+                }, 'denied');
+                await requester.send({ embeds: [notificationEmbed] }).catch(() => {});
+              }
             }
           } catch (e) {
             console.error('Error notifying requester:', e);
