@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +43,8 @@ import {
   History,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { SkeletonCard, SkeletonStats } from "@/components/ui/skeleton-card";
+import { SuccessCelebration } from "@/components/ui/success-celebration";
 
 interface Pipeline {
   id: string;
@@ -200,10 +203,13 @@ function formatTimeAgo(date: string): string {
 }
 
 export default function PipelinesPage() {
-  const [pipelines, setPipelines] = useState<Pipeline[]>(defaultPipelines);
+  const [pipelines, setPipelines] = useState<Pipeline[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedPipeline, setSelectedPipeline] = useState<Pipeline | null>(null);
   const [showLogs, setShowLogs] = useState(false);
   const [showNewDialog, setShowNewDialog] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [celebrationMessage, setCelebrationMessage] = useState("");
   const [newPipeline, setNewPipeline] = useState({
     name: "",
     project: "",
@@ -212,6 +218,70 @@ export default function PipelinesPage() {
     deployType: "docker" as Pipeline["deployType"],
   });
   const { toast } = useToast();
+
+  const fetchPipelines = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch("/api/pipelines");
+      if (!res.ok) {
+        throw new Error(`API error: ${res.status}`);
+      }
+      const data = await res.json();
+      if (data.pipelines && data.pipelines.length > 0) {
+        const mapped: Pipeline[] = data.pipelines.map((p: any) => {
+          let logs: string[] = [];
+          if (p.buildLogs) {
+            try {
+              const parsed = JSON.parse(p.buildLogs);
+              logs = Array.isArray(parsed) ? parsed.map((l: any) => l.message || String(l)) : [];
+            } catch {
+              logs = [];
+            }
+          }
+          return {
+            id: p.id,
+            name: p.projectName || `Deployment ${p.id?.slice(0, 8) || "new"}`,
+            project: p.projectName || "Unknown",
+            targetServer: p.environment || "production",
+            branch: "main",
+            deployType: "docker" as Pipeline["deployType"],
+            status: mapPipelineStatus(p.status),
+            lastRun: p.deployedAt || p.createdAt,
+            lastDuration: 120,
+            runs: logs.length > 0 ? [{
+              id: `run-${p.id}`,
+              startedAt: p.createdAt,
+              completedAt: p.deployedAt,
+              status: mapPipelineStatus(p.status) as "running" | "success" | "failed",
+              logs,
+            }] : [],
+          };
+        });
+        setPipelines(mapped);
+      } else {
+        setPipelines(defaultPipelines);
+      }
+    } catch (error) {
+      console.error("Failed to fetch pipelines:", error);
+      setPipelines(defaultPipelines);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  function mapPipelineStatus(status: string | null): Pipeline["status"] {
+    if (!status) return "idle";
+    const s = status.toLowerCase();
+    if (s === "running" || s === "deploying") return "running";
+    if (s === "success" || s === "completed") return "success";
+    if (s === "failed" || s === "error") return "failed";
+    if (s === "pending") return "idle";
+    return "idle";
+  }
+
+  useEffect(() => {
+    fetchPipelines();
+  }, []);
 
   async function runPipeline(pipeline: Pipeline) {
     setPipelines((prev) =>
@@ -294,13 +364,16 @@ export default function PipelinesPage() {
       )
     );
 
-    toast({
-      title: success ? "Deployment Successful" : "Deployment Failed",
-      description: success
-        ? `${pipeline.name} deployed successfully`
-        : `${pipeline.name} deployment failed`,
-      variant: success ? "default" : "destructive",
-    });
+    if (success) {
+      setCelebrationMessage(`${pipeline.name} deployed successfully!`);
+      setShowCelebration(true);
+    } else {
+      toast({
+        title: "Deployment Failed",
+        description: `${pipeline.name} deployment failed`,
+        variant: "destructive",
+      });
+    }
   }
 
   function createPipeline() {
@@ -346,11 +419,26 @@ export default function PipelinesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <SuccessCelebration
+        show={showCelebration}
+        title="Deployment Complete!"
+        message={celebrationMessage}
+        onComplete={() => setShowCelebration(false)}
+      />
+      
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex items-center justify-between"
+      >
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-gradient-to-br from-green-500 to-emerald-500">
+          <motion.div 
+            className="p-2 rounded-lg bg-gradient-to-br from-green-500 to-emerald-500"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
             <Rocket className="h-6 w-6 text-white" />
-          </div>
+          </motion.div>
           <div>
             <h1 className="text-2xl font-bold">Deploy Pipelines</h1>
             <p className="text-muted-foreground">
@@ -464,11 +552,31 @@ export default function PipelinesPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
+      </motion.div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {pipelines.map((pipeline) => (
-          <Card key={pipeline.id} className="relative">
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {[1, 2, 3].map((i) => (
+            <SkeletonCard key={i} rows={4} />
+          ))}
+        </div>
+      ) : (
+        <motion.div 
+          className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.1 }}
+        >
+          <AnimatePresence>
+            {pipelines.map((pipeline, index) => (
+              <motion.div
+                key={pipeline.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                transition={{ delay: index * 0.05 }}
+              >
+                <Card className="relative h-full hover:shadow-lg hover:shadow-green-500/10 transition-shadow">
             <CardHeader className="pb-2">
               <div className="flex items-start justify-between">
                 <div>
@@ -542,12 +650,15 @@ export default function PipelinesPage() {
                   onClick={() => deletePipeline(pipeline.id)}
                 >
                   <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </motion.div>
+      )}
 
       <Dialog open={showLogs} onOpenChange={setShowLogs}>
         <DialogContent className="max-w-3xl">

@@ -346,3 +346,133 @@ export const eventSubscriptions = pgTable("event_subscriptions", {
 
 export type EventSubscription = typeof eventSubscriptions.$inferSelect;
 export type NewEventSubscription = typeof eventSubscriptions.$inferInsert;
+
+export const deploymentPipelines = pgTable("deployment_pipelines", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name", { length: 255 }).notNull(),
+  projectId: uuid("project_id").references(() => projects.id),
+  targetServerId: uuid("target_server_id").references(() => homelabServers.id),
+  branch: varchar("branch", { length: 100 }).default("main"),
+  deployType: varchar("deploy_type", { length: 50 }).notNull(), // docker, pm2, static
+  buildCommand: text("build_command"),
+  startCommand: text("start_command"),
+  envVars: jsonb("env_vars"),
+  healthCheckUrl: varchar("health_check_url", { length: 500 }),
+  autoRollback: boolean("auto_rollback").default(true),
+  scheduleCron: varchar("schedule_cron", { length: 100 }),
+  lastRunStatus: varchar("last_run_status", { length: 50 }),
+  lastRunAt: timestamp("last_run_at"),
+  isActive: boolean("is_active").default(true),
+  createdBy: varchar("created_by", { length: 255 }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const pipelineRuns = pgTable("pipeline_runs", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  pipelineId: uuid("pipeline_id").references(() => deploymentPipelines.id).notNull(),
+  status: varchar("status", { length: 50 }).notNull(), // pending, running, success, failed, cancelled
+  triggeredBy: varchar("triggered_by", { length: 50 }).notNull(), // manual, webhook, schedule
+  commitHash: varchar("commit_hash", { length: 40 }),
+  commitMessage: text("commit_message"),
+  logs: jsonb("logs"),
+  buildArtifactUrl: varchar("build_artifact_url", { length: 500 }),
+  containerIds: text("container_ids").array(),
+  rollbackVersion: varchar("rollback_version", { length: 100 }),
+  durationMs: integer("duration_ms"),
+  startedAt: timestamp("started_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+});
+
+export const pipelineSteps = pgTable("pipeline_steps", {
+  id: serial("id").primaryKey(),
+  runId: uuid("run_id").references(() => pipelineRuns.id).notNull(),
+  stepNumber: integer("step_number").notNull(),
+  name: varchar("name", { length: 100 }).notNull(),
+  status: varchar("status", { length: 50 }).notNull(),
+  command: text("command"),
+  output: text("output"),
+  errorMessage: text("error_message"),
+  durationMs: integer("duration_ms"),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+});
+
+export const serverMetricsHistory = pgTable("server_metrics_history", {
+  id: serial("id").primaryKey(),
+  serverId: uuid("server_id").references(() => homelabServers.id).notNull(),
+  cpuPercent: decimal("cpu_percent", { precision: 5, scale: 2 }),
+  memoryPercent: decimal("memory_percent", { precision: 5, scale: 2 }),
+  memoryUsedMb: integer("memory_used_mb"),
+  memoryTotalMb: integer("memory_total_mb"),
+  diskPercent: decimal("disk_percent", { precision: 5, scale: 2 }),
+  diskUsedGb: integer("disk_used_gb"),
+  diskTotalGb: integer("disk_total_gb"),
+  networkInMb: decimal("network_in_mb", { precision: 10, scale: 2 }),
+  networkOutMb: decimal("network_out_mb", { precision: 10, scale: 2 }),
+  loadAverage1: decimal("load_average_1", { precision: 5, scale: 2 }),
+  loadAverage5: decimal("load_average_5", { precision: 5, scale: 2 }),
+  loadAverage15: decimal("load_average_15", { precision: 5, scale: 2 }),
+  containerCount: integer("container_count"),
+  processCount: integer("process_count"),
+  uptimeSeconds: integer("uptime_seconds"),
+  recordedAt: timestamp("recorded_at").defaultNow().notNull(),
+});
+
+export const aiModelUsage = pgTable("ai_model_usage", {
+  id: serial("id").primaryKey(),
+  modelName: varchar("model_name", { length: 255 }).notNull(),
+  provider: varchar("provider", { length: 50 }).notNull(), // ollama, openai, replicate
+  requestType: varchar("request_type", { length: 50 }), // generate, chat, embed
+  tokensIn: integer("tokens_in"),
+  tokensOut: integer("tokens_out"),
+  durationMs: integer("duration_ms"),
+  success: boolean("success").default(true),
+  errorMessage: text("error_message"),
+  userId: varchar("user_id", { length: 255 }),
+  metadata: jsonb("metadata"),
+  recordedAt: timestamp("recorded_at").defaultNow().notNull(),
+});
+
+export const quickStartKits = pgTable("quick_start_kits", {
+  id: serial("id").primaryKey(),
+  slug: varchar("slug", { length: 100 }).notNull().unique(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  category: varchar("category", { length: 50 }).notNull(), // youtuber, streamer, developer, musician, community
+  icon: varchar("icon", { length: 100 }),
+  colorScheme: varchar("color_scheme", { length: 50 }),
+  features: jsonb("features").notNull(), // Array of feature objects
+  templateIds: text("template_ids").array().default([]),
+  estimatedSetupTime: integer("estimated_setup_time"), // minutes
+  popularity: integer("popularity").default(0),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const projectAssets = pgTable("project_assets", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: uuid("project_id").references(() => projects.id).notNull(),
+  assetType: varchar("asset_type", { length: 50 }).notNull(), // logo, screenshot, document, config
+  fileName: varchar("file_name", { length: 255 }).notNull(),
+  filePath: varchar("file_path", { length: 500 }),
+  fileSize: integer("file_size"),
+  mimeType: varchar("mime_type", { length: 100 }),
+  metadata: jsonb("metadata"),
+  uploadedBy: varchar("uploaded_by", { length: 255 }),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type DeploymentPipeline = typeof deploymentPipelines.$inferSelect;
+export type NewDeploymentPipeline = typeof deploymentPipelines.$inferInsert;
+export type PipelineRun = typeof pipelineRuns.$inferSelect;
+export type NewPipelineRun = typeof pipelineRuns.$inferInsert;
+export type PipelineStep = typeof pipelineSteps.$inferSelect;
+export type ServerMetricsHistory = typeof serverMetricsHistory.$inferSelect;
+export type NewServerMetricsHistory = typeof serverMetricsHistory.$inferInsert;
+export type AiModelUsage = typeof aiModelUsage.$inferSelect;
+export type NewAiModelUsage = typeof aiModelUsage.$inferInsert;
+export type QuickStartKit = typeof quickStartKits.$inferSelect;
+export type NewQuickStartKit = typeof quickStartKits.$inferInsert;
+export type ProjectAsset = typeof projectAssets.$inferSelect;

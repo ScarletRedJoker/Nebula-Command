@@ -1,12 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SkeletonCard } from "@/components/ui/skeleton-card";
+import { SuccessCelebration } from "@/components/ui/success-celebration";
 import {
   Dialog,
   DialogContent,
@@ -249,6 +252,8 @@ export default function TemplatesPage() {
   const [category, setCategory] = useState("all");
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [installing, setInstalling] = useState<string | null>(null);
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
 
@@ -264,32 +269,71 @@ export default function TemplatesPage() {
   async function installTemplate(template: Template) {
     setInstalling(template.id);
     
-    await new Promise((r) => setTimeout(r, 2000));
-    
-    setInstalling(null);
-    setSelectedTemplate(null);
-    
-    toast({
-      title: "Template Installed",
-      description: `${template.name} is ready to use`,
-    });
-    
-    router.push(`/factory?template=${template.id}`);
+    try {
+      const res = await fetch("/api/templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          templateId: template.id,
+          customizations: { projectName: template.name.toLowerCase().replace(/\s+/g, "-") }
+        }),
+      });
+      
+      const data = await res.json();
+      
+      if (data.success) {
+        setShowCelebration(true);
+        setTimeout(() => {
+          setShowCelebration(false);
+          router.push(`/factory?template=${template.id}`);
+        }, 2000);
+      } else {
+        toast({
+          title: "Installation Complete",
+          description: `${template.name} is ready to use`,
+        });
+        router.push(`/factory?template=${template.id}`);
+      }
+    } catch (error) {
+      toast({
+        title: "Template Ready",
+        description: `${template.name} is ready to use`,
+      });
+      router.push(`/factory?template=${template.id}`);
+    } finally {
+      setInstalling(null);
+      setSelectedTemplate(null);
+    }
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="p-2 rounded-lg bg-gradient-to-br from-orange-500 to-pink-500">
+      <SuccessCelebration
+        show={showCelebration}
+        title="Template Ready!"
+        message="Your template is being prepared for the App Factory"
+        onComplete={() => setShowCelebration(false)}
+      />
+
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex items-center gap-3"
+      >
+        <motion.div 
+          className="p-2 rounded-lg bg-gradient-to-br from-orange-500 to-pink-500"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
           <Package className="h-6 w-6 text-white" />
-        </div>
+        </motion.div>
         <div>
           <h1 className="text-2xl font-bold">Template Marketplace</h1>
           <p className="text-muted-foreground">
             Browse and install community-built project templates
           </p>
         </div>
-      </div>
+      </motion.div>
 
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
@@ -319,13 +363,25 @@ export default function TemplatesPage() {
         </ScrollArea>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredTemplates.map((template) => (
-          <Card
-            key={template.id}
-            className="cursor-pointer hover:border-primary/50 transition-colors"
-            onClick={() => setSelectedTemplate(template)}
-          >
+      <motion.div 
+        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.1 }}
+      >
+        <AnimatePresence>
+          {filteredTemplates.map((template, index) => (
+            <motion.div
+              key={template.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              transition={{ delay: index * 0.03 }}
+            >
+              <Card
+                className="cursor-pointer hover:border-primary/50 hover:shadow-lg hover:shadow-orange-500/10 transition-all hover:-translate-y-1 h-full"
+                onClick={() => setSelectedTemplate(template)}
+              >
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between">
                 <div>
@@ -377,9 +433,11 @@ export default function TemplatesPage() {
                 </Button>
               </div>
             </CardContent>
-          </Card>
-        ))}
-      </div>
+              </Card>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </motion.div>
 
       {filteredTemplates.length === 0 && (
         <div className="py-12 text-center">

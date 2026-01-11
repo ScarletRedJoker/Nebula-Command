@@ -1,12 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
+import { SkeletonCard, SkeletonStats } from "@/components/ui/skeleton-card";
+import { SuccessCelebration } from "@/components/ui/success-celebration";
 import {
   Dialog,
   DialogContent,
@@ -108,6 +111,8 @@ export default function ProjectsPage() {
   const [filter, setFilter] = useState<"all" | ProjectStatus>("all");
   const [showNewDialog, setShowNewDialog] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [celebrationMessage, setCelebrationMessage] = useState("");
   const [newProject, setNewProject] = useState({
     name: "",
     description: "",
@@ -120,6 +125,9 @@ export default function ProjectsPage() {
     try {
       setLoading(true);
       const res = await fetch("/api/projects");
+      if (!res.ok) {
+        throw new Error(`API error: ${res.status}`);
+      }
       const data = await res.json();
       if (data.projects) {
         const mappedProjects: Project[] = data.projects.map((p: any) => ({
@@ -127,7 +135,7 @@ export default function ProjectsPage() {
           name: p.name,
           description: p.config?.description || p.projectType || "No description",
           type: mapProjectType(p.projectType, p.framework),
-          status: p.status === "active" ? "stopped" : p.status,
+          status: mapStatus(p.status),
           branch: "main",
           lastModified: p.updatedAt || p.createdAt,
           path: p.path || `/projects/${p.name.toLowerCase().replace(/\s+/g, "-")}`,
@@ -145,6 +153,15 @@ export default function ProjectsPage() {
       setLoading(false);
     }
   };
+
+  function mapStatus(status: string | null): ProjectStatus {
+    if (!status) return "stopped";
+    const s = status.toLowerCase();
+    if (s === "active" || s === "running") return "running";
+    if (s === "building" || s === "deploying") return "building";
+    if (s === "error" || s === "failed") return "error";
+    return "stopped";
+  }
 
   function mapProjectType(projectType: string | null, framework: string | null): ProjectType {
     const type = (projectType || framework || "").toLowerCase();
@@ -261,10 +278,8 @@ export default function ProjectsPage() {
       setShowNewDialog(false);
       setNewProject({ name: "", description: "", type: "web" });
 
-      toast({
-        title: "Project Created",
-        description: `${project.name} has been created`,
-      });
+      setCelebrationMessage(`${project.name} has been created!`);
+      setShowCelebration(true);
     } catch (error) {
       toast({
         title: "Error",
@@ -318,11 +333,26 @@ export default function ProjectsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <SuccessCelebration
+        show={showCelebration}
+        title="Project Created!"
+        message={celebrationMessage}
+        onComplete={() => setShowCelebration(false)}
+      />
+
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex items-center justify-between"
+      >
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-500">
+          <motion.div 
+            className="p-2 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-500"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
             <FolderKanban className="h-6 w-6 text-white" />
-          </div>
+          </motion.div>
           <div>
             <h1 className="text-2xl font-bold">Projects</h1>
             <p className="text-muted-foreground">
@@ -398,37 +428,52 @@ export default function ProjectsPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
+      </motion.div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-muted-foreground">Running</div>
-              <Badge className="bg-green-500/20 text-green-400">{runningCount}</Badge>
-            </div>
-            <div className="text-2xl font-bold mt-1">{runningCount} Projects</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-muted-foreground">Stopped</div>
-              <Badge variant="secondary">{stoppedCount}</Badge>
-            </div>
-            <div className="text-2xl font-bold mt-1">{stoppedCount} Projects</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-muted-foreground">Memory Usage</div>
-              <Badge className="bg-blue-500/20 text-blue-400">{totalMemory} MB</Badge>
-            </div>
-            <Progress value={(totalMemory / 1024) * 100} className="mt-2 h-2" />
-          </CardContent>
-        </Card>
-      </div>
+      {loading ? (
+        <SkeletonStats />
+      ) : (
+        <motion.div 
+          className="grid grid-cols-1 md:grid-cols-3 gap-4"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+        >
+          <motion.div whileHover={{ scale: 1.02 }} transition={{ type: "spring", stiffness: 300 }}>
+            <Card className="hover:shadow-lg hover:shadow-green-500/10 transition-shadow">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-muted-foreground">Running</div>
+                  <Badge className="bg-green-500/20 text-green-400">{runningCount}</Badge>
+                </div>
+                <div className="text-2xl font-bold mt-1">{runningCount} Projects</div>
+              </CardContent>
+            </Card>
+          </motion.div>
+          <motion.div whileHover={{ scale: 1.02 }} transition={{ type: "spring", stiffness: 300 }}>
+            <Card className="hover:shadow-lg hover:shadow-gray-500/10 transition-shadow">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-muted-foreground">Stopped</div>
+                  <Badge variant="secondary">{stoppedCount}</Badge>
+                </div>
+                <div className="text-2xl font-bold mt-1">{stoppedCount} Projects</div>
+              </CardContent>
+            </Card>
+          </motion.div>
+          <motion.div whileHover={{ scale: 1.02 }} transition={{ type: "spring", stiffness: 300 }}>
+            <Card className="hover:shadow-lg hover:shadow-blue-500/10 transition-shadow">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-muted-foreground">Memory Usage</div>
+                  <Badge className="bg-blue-500/20 text-blue-400">{totalMemory} MB</Badge>
+                </div>
+                <Progress value={(totalMemory / 1024) * 100} className="mt-2 h-2" />
+              </CardContent>
+            </Card>
+          </motion.div>
+        </motion.div>
+      )}
 
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
@@ -455,9 +500,29 @@ export default function ProjectsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {filteredProjects.map((project) => (
-          <Card key={project.id} className="relative">
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <SkeletonCard key={i} rows={4} />
+          ))}
+        </div>
+      ) : (
+        <motion.div 
+          className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.2 }}
+        >
+          <AnimatePresence>
+            {filteredProjects.map((project, index) => (
+              <motion.div
+                key={project.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                transition={{ delay: index * 0.05 }}
+              >
+                <Card className="relative h-full hover:shadow-lg hover:shadow-cyan-500/10 transition-all hover:-translate-y-1">
             <CardHeader className="pb-2">
               <div className="flex items-start justify-between">
                 <div className="flex items-start gap-3">
@@ -571,12 +636,15 @@ export default function ProjectsPage() {
                   </Button>
                 )}
               </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                </CardContent>
+              </Card>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </motion.div>
+      )}
 
-      {filteredProjects.length === 0 && (
+      {filteredProjects.length === 0 && !loading && (
         <div className="py-12 text-center">
           <FolderKanban className="h-12 w-12 mx-auto mb-4 opacity-50" />
           <p className="text-muted-foreground">No projects found</p>
