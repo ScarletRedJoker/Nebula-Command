@@ -19,6 +19,8 @@ readonly AGENT_PORT="${AGENT_PORT:-8765}"
 readonly AGENT_TOKEN="${KVM_AGENT_TOKEN:-kvm-mode-switch-2024}"
 readonly SUNSHINE_PORT="${SUNSHINE_PORT:-47989}"
 readonly RDP_PORT="${RDP_PORT:-3389}"
+readonly OLLAMA_PORT="${OLLAMA_PORT:-11434}"
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -594,6 +596,15 @@ show_status() {
         else
             warn "  RDP (port $RDP_PORT): not responding"
         fi
+        
+        if check_port "$VM_IP" "$OLLAMA_PORT"; then
+            success "  Ollama (port $OLLAMA_PORT): responding"
+            local ollama_version
+            ollama_version=$(curl -sf --connect-timeout 2 "http://${VM_IP}:${OLLAMA_PORT}/api/version" 2>/dev/null | grep -o '"version":"[^"]*"' | cut -d'"' -f4 || echo "")
+            [[ -n "$ollama_version" ]] && echo "    Version: $ollama_version"
+        else
+            warn "  Ollama (port $OLLAMA_PORT): not responding"
+        fi
     fi
     
     echo ""
@@ -636,6 +647,7 @@ Commands:
   gaming      Switch to gaming mode (Sunshine/Moonlight)
   desktop     Switch to desktop mode (RDP)
   console     Open SPICE recovery console (when Sunshine/RDP unavailable)
+  ollama      Register Windows VM Ollama for dashboard AI
   status      Show full system status
   help        Show this help message
 
@@ -684,6 +696,14 @@ main() {
             ;;
         console|c|recovery)
             open_console
+            ;;
+        ollama|ai)
+            if [[ -x "$SCRIPT_DIR/vm-ollama-bridge.sh" ]]; then
+                "$SCRIPT_DIR/vm-ollama-bridge.sh" register
+            else
+                error "vm-ollama-bridge.sh not found in $SCRIPT_DIR"
+                exit 1
+            fi
             ;;
         status|s)
             show_status
