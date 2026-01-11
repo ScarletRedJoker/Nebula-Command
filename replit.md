@@ -52,6 +52,20 @@ All API routes use a unified server configuration store. The dashboard includes 
 - **Deployment Execution API** (`/api/deploy/execute`): Docker/PM2 deployment with real-time logging
 - SSH key path configured via `SSH_KEY_PATH` environment variable for security
 
+### SSH Key Management (Development)
+The dashboard uses SSH keys for remote server management. In the Replit development environment:
+- **SSH Key Location**: `~/.ssh/homelab` (auto-detected based on environment)
+- **SSH API** (`/api/ssh`): Manage SSH keys via REST API
+  - `GET ?action=status`: Check key existence and get public key
+  - `POST action=generate`: Generate new ed25519 keypair
+  - `POST action=test`: Test SSH connectivity to a server
+- **Environment Variable**: `SSH_KEY_PATH` overrides default location
+
+**To enable SSH from Replit to your servers**, add this public key to `~/.ssh/authorized_keys` on each remote server:
+```
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJL8fIGHczJbg2r8xFPNb7tRXA4wpCvCcokk0e3PIsK+ replit-dev-20260111
+```
+
 ### Phase 1 Infrastructure (Completed)
 - **Local AI Runtime Manager** (`/ai-models`): Unified service for Ollama LLMs, Stable Diffusion, and ComfyUI with health monitoring, GPU metrics, model management (pull/load/unload)
 - **Server Registry**: Database-backed homelab server inventory with CRUD operations, health checking, auto-seeds from file config
