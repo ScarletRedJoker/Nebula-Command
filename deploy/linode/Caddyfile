@@ -2,6 +2,12 @@
     email evin@evindrake.net
 }
 
+# Default health endpoint for Docker healthchecks
+:80 {
+    respond /health 200
+    respond 404
+}
+
 bot.rig-city.com {
     reverse_proxy discord-bot:4000 {
         header_up Host {host}

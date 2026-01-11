@@ -9,6 +9,12 @@
         acme_dns cloudflare {$CLOUDFLARE_API_TOKEN}
 }
 
+# Default health endpoint for Docker healthchecks
+:80 {
+        respond /health 200
+        respond 404
+}
+
 # ============================================================================
 # AUTHENTICATION ENDPOINT (Authelia)
 # ============================================================================

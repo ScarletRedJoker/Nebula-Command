@@ -5,4 +5,7 @@ RUN xcaddy build \
 
 FROM caddy:2-alpine
 
+# Install wget for healthcheck
+RUN apk add --no-cache wget
+
 COPY --from=builder /usr/bin/caddy /usr/bin/caddy

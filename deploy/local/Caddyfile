@@ -2,6 +2,12 @@
     email evin@evindrake.net
 }
 
+# Default health endpoint for Docker healthchecks
+:80 {
+    respond /health 200
+    respond 404
+}
+
 plex.evindrake.net {
     reverse_proxy 172.17.0.1:32400 {
         header_up Host {host}
