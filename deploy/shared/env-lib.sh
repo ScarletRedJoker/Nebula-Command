@@ -241,14 +241,18 @@ interactive_setup() {
 env_doctor() {
     local env_file="${1:-.env}"
     local action="${2:-check}"
+    local deployment_type="${3:-linode}"
     
     case "$action" in
         check)
             echo -e "${CYAN}═══ Environment Health Check ═══${NC}"
             normalize_env_file "$env_file"
             echo ""
-            echo -e "${CYAN}━━━ Internal Secrets ━━━${NC}"
             
+            local missing_critical=0
+            local missing_optional=0
+            
+            echo -e "${CYAN}━━━ Internal Secrets (auto-generated) ━━━${NC}"
             local internal_vars=(
                 "POSTGRES_PASSWORD"
                 "DISCORD_DB_PASSWORD"
@@ -256,22 +260,92 @@ env_doctor() {
                 "JARVIS_DB_PASSWORD"
                 "SERVICE_AUTH_TOKEN"
                 "SESSION_SECRET"
-                "SECRET_KEY"
-                "REDIS_PASSWORD"
-                "JWT_SECRET"
             )
             
             for var in "${internal_vars[@]}"; do
                 local val
                 val=$(get_env_value "$var" "$env_file")
-                if [ -n "$val" ]; then
+                if [ -n "$val" ] && [ "$val" != "xxxxx" ]; then
                     echo -e "${GREEN}[OK]${NC} $var"
                 else
-                    echo -e "${RED}[MISSING]${NC} $var"
+                    echo -e "${RED}[MISSING]${NC} $var - run './deploy.sh setup' to generate"
+                    missing_critical=1
                 fi
             done
             
-            check_external_tokens "$env_file"
+            echo ""
+            echo -e "${CYAN}━━━ Discord Bot Secrets ━━━${NC}"
+            local discord_vars=("DISCORD_BOT_TOKEN" "DISCORD_CLIENT_ID" "DISCORD_CLIENT_SECRET" "DISCORD_APP_ID")
+            for var in "${discord_vars[@]}"; do
+                local val
+                val=$(get_env_value "$var" "$env_file")
+                if [ -n "$val" ] && [ "$val" != "xxxxx" ]; then
+                    echo -e "${GREEN}[OK]${NC} $var"
+                else
+                    echo -e "${RED}[MISSING]${NC} $var - https://discord.com/developers"
+                    missing_critical=1
+                fi
+            done
+            
+            echo ""
+            echo -e "${CYAN}━━━ Stream Bot OAuth Secrets ━━━${NC}"
+            local twitch_vars=("TWITCH_CLIENT_ID" "TWITCH_CLIENT_SECRET")
+            for var in "${twitch_vars[@]}"; do
+                local val
+                val=$(get_env_value "$var" "$env_file")
+                if [ -n "$val" ] && [ "$val" != "xxxxx" ]; then
+                    echo -e "${GREEN}[OK]${NC} $var"
+                else
+                    echo -e "${YELLOW}[WARN]${NC} $var - https://dev.twitch.tv/console"
+                    missing_optional=1
+                fi
+            done
+            
+            local youtube_vars=("YOUTUBE_CLIENT_ID" "YOUTUBE_CLIENT_SECRET")
+            for var in "${youtube_vars[@]}"; do
+                local val
+                val=$(get_env_value "$var" "$env_file")
+                if [ -n "$val" ] && [ "$val" != "xxxxx" ]; then
+                    echo -e "${GREEN}[OK]${NC} $var"
+                else
+                    echo -e "${YELLOW}[WARN]${NC} $var - https://console.cloud.google.com"
+                    missing_optional=1
+                fi
+            done
+            
+            echo ""
+            echo -e "${CYAN}━━━ Infrastructure Secrets ━━━${NC}"
+            local infra_vars=("TAILSCALE_AUTHKEY" "CLOUDFLARE_API_TOKEN" "OPENAI_API_KEY" "DOMAIN")
+            for var in "${infra_vars[@]}"; do
+                local val
+                val=$(get_env_value "$var" "$env_file")
+                if [ -n "$val" ] && [ "$val" != "xxxxx" ] && [ "$val" != "example.com" ]; then
+                    echo -e "${GREEN}[OK]${NC} $var"
+                else
+                    if [ "$var" = "DOMAIN" ]; then
+                        echo -e "${RED}[MISSING]${NC} $var - set your domain (e.g., example.com)"
+                        missing_critical=1
+                    else
+                        echo -e "${YELLOW}[WARN]${NC} $var (optional)"
+                        missing_optional=1
+                    fi
+                fi
+            done
+            
+            echo ""
+            if [ $missing_critical -gt 0 ]; then
+                echo -e "${RED}═══ CRITICAL: Missing required secrets! ═══${NC}"
+                echo "Run './deploy.sh setup' to configure interactively"
+                echo "Or copy .env.example and fill in values manually"
+                return 1
+            elif [ $missing_optional -gt 0 ]; then
+                echo -e "${YELLOW}═══ Some optional features disabled ═══${NC}"
+                echo "Run './deploy.sh setup' to configure additional services"
+                return 0
+            else
+                echo -e "${GREEN}═══ All secrets configured! ═══${NC}"
+                return 0
+            fi
             ;;
         generate)
             echo -e "${CYAN}═══ Generating Missing Secrets ═══${NC}"

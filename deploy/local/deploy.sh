@@ -67,6 +67,7 @@ show_help() {
     echo "  down         Stop services"
     echo "  restart      Restart all services"
     echo "  verify       Extended health checks with retries (up to 60s)"
+    echo "  doctor       Check all required secrets and configuration"
     echo "  logs         View service logs (docker compose logs)"
     echo "  status       Show service status"
     echo "  deploy-logs  View saved deploy logs"
@@ -719,6 +720,11 @@ case "${1:-}" in
         ;;
     verify)
         do_verify
+        ;;
+    doctor)
+        echo -e "${CYAN}═══ Nebula Command - Secrets Doctor ═══${NC}"
+        source ".env" 2>/dev/null || true
+        env_doctor ".env" "check" "local"
         ;;
     prune)
         echo -e "${CYAN}═══ Nebula Command - Cleanup ═══${NC}"
