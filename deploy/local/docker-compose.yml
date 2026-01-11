@@ -312,11 +312,12 @@ services:
     volumes:
       - /home/${LOCAL_USER:-evin}:/home/user:rw
     healthcheck:
-      test: ["CMD-SHELL", "(echo > /dev/tcp/127.0.0.1/7681) 2>/dev/null || exit 1"]
+      # ttyd uses Alpine which doesn't have bash /dev/tcp - use wget instead
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:7681/ || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s
+      start_period: 15s
 
   # ============================================================================
   # REMOTE ACCESS - Sunshine Game Streaming
