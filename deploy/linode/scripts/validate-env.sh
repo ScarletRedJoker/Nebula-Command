@@ -162,7 +162,8 @@ print_section "DNS Management (REQUIRED)"
 check_required "CLOUDFLARE_API_TOKEN" "Cloudflare API token for DNS automation"
 
 print_section "Local Services Access (OPTIONAL)"
-check_optional "TAILSCALE_LOCAL_HOST" "Tailscale IP for local Ubuntu host (e.g., 10.200.0.2)"
+check_optional "TAILSCALE_LOCAL_HOST" "Tailscale IP for local Ubuntu host (e.g., 100.66.61.51)"
+check_optional "WINDOWS_VM_TAILSCALE_IP" "Windows VM with GPU for Ollama (e.g., 100.118.44.102)"
 check_optional "PLEX_TOKEN" "Plex authentication token"
 check_optional "HOME_ASSISTANT_TOKEN" "Home Assistant long-lived access token"
 

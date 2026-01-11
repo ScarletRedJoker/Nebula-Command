@@ -116,6 +116,7 @@ set_var_if_missing "GRAFANA_ADMIN_PASSWORD" "$(generate_password)" "Grafana admi
 
 # Defaults
 set_var_if_missing "TAILSCALE_LOCAL_HOST" "192.168.0.177" "Local Ubuntu IP via Tailscale"
+set_var_if_missing "WINDOWS_VM_TAILSCALE_IP" "100.118.44.102" "Windows VM with GPU (Ollama)"
 set_var_if_missing "TZ" "America/New_York" "Timezone"
 
 echo ""

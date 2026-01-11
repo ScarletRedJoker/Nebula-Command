@@ -137,8 +137,9 @@ services:
       - HOME_SSH_HOST=${TAILSCALE_LOCAL_HOST}
       - HOME_SSH_USER=evin
       - SSH_KEY_PATH=/root/.ssh/homelab
-      - OLLAMA_URL=http://${TAILSCALE_LOCAL_HOST}:11434
+      - OLLAMA_URL=http://${WINDOWS_VM_TAILSCALE_IP:-${TAILSCALE_LOCAL_HOST}}:11434
       - STABLE_DIFFUSION_URL=http://${TAILSCALE_LOCAL_HOST}:7860
+      - WINDOWS_VM_TAILSCALE_IP=${WINDOWS_VM_TAILSCALE_IP}
     volumes:
       - /root/.ssh:/root/.ssh:ro
       - /var/run/docker.sock:/var/run/docker.sock
