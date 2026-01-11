@@ -16,6 +16,7 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Palette,
   Terminal,
   FolderOpen,
@@ -30,6 +31,11 @@ import {
   Box,
   Factory,
   Layers,
+  GitBranch,
+  Play,
+  Cog,
+  Zap,
+  type LucideIcon,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -39,68 +45,240 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
-const navItems = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/quick-start", label: "Quick Start", icon: Rocket },
-  { href: "/factory", label: "App Factory", icon: Factory },
-  { href: "/builder", label: "Builder", icon: Wrench },
-  { href: "/code-assist", label: "Code Assist", icon: Wand2 },
-  { href: "/templates", label: "Templates", icon: Package },
-  { href: "/projects", label: "Projects", icon: Layers },
-  { href: "/activity", label: "Activity", icon: History },
-  { href: "/status", label: "Status", icon: Activity },
-  { href: "/services", label: "Services", icon: Server },
-  { href: "/marketplace", label: "Marketplace", icon: Package },
-  { href: "/resources", label: "Resources", icon: Shield },
-  { href: "/agents", label: "AI Agents", icon: Cpu },
-  { href: "/incidents", label: "Incidents", icon: AlertTriangle },
-  { href: "/websites", label: "Websites", icon: Globe },
-  { href: "/designer", label: "Designer", icon: Palette },
-  { href: "/editor", label: "Code Editor", icon: Code2 },
-  { href: "/deploy", label: "Deploy", icon: Rocket },
-  { href: "/pipelines", label: "Pipelines", icon: Rocket },
-  { href: "/servers", label: "Servers", icon: HardDrive },
-  { href: "/remote", label: "Remote Console", icon: Monitor },
-  { href: "/windows", label: "Windows VM", icon: Monitor },
-  { href: "/files-remote", label: "Remote Files", icon: FolderOpen },
-  { href: "/terminal", label: "Terminal", icon: Terminal },
-  { href: "/creative", label: "Creative Studio", icon: Sparkles },
-  { href: "/ai", label: "Jarvis AI", icon: Bot },
-  { href: "/ai-sandbox", label: "AI Sandbox", icon: Wand2 },
-  { href: "/models", label: "Model Catalog", icon: Box },
-  { href: "/self", label: "Self", icon: Wrench },
-  { href: "/settings", label: "Settings", icon: Settings },
+interface NavItem {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+}
+
+interface NavGroup {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  items: NavItem[];
+  defaultOpen?: boolean;
+}
+
+const navGroups: NavGroup[] = [
+  {
+    id: "overview",
+    label: "Overview",
+    icon: LayoutDashboard,
+    defaultOpen: true,
+    items: [
+      { href: "/", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/status", label: "Status", icon: Activity },
+      { href: "/activity", label: "Activity", icon: History },
+      { href: "/incidents", label: "Incidents", icon: AlertTriangle },
+    ],
+  },
+  {
+    id: "infrastructure",
+    label: "Infrastructure",
+    icon: Server,
+    defaultOpen: true,
+    items: [
+      { href: "/servers", label: "Servers", icon: HardDrive },
+      { href: "/services", label: "Services", icon: Server },
+      { href: "/resources", label: "Resources", icon: Shield },
+      { href: "/terminal", label: "Terminal", icon: Terminal },
+      { href: "/remote", label: "Remote Console", icon: Monitor },
+      { href: "/windows", label: "Windows VM", icon: Monitor },
+      { href: "/files-remote", label: "Remote Files", icon: FolderOpen },
+    ],
+  },
+  {
+    id: "automation",
+    label: "Automation",
+    icon: Zap,
+    items: [
+      { href: "/pipelines", label: "Pipelines", icon: GitBranch },
+      { href: "/deploy", label: "Deploy", icon: Rocket },
+      { href: "/agents", label: "AI Agents", icon: Cpu },
+    ],
+  },
+  {
+    id: "ai-media",
+    label: "AI & Creative",
+    icon: Sparkles,
+    items: [
+      { href: "/ai", label: "Jarvis AI", icon: Bot },
+      { href: "/ai-sandbox", label: "AI Sandbox", icon: Wand2 },
+      { href: "/creative", label: "Creative Studio", icon: Sparkles },
+      { href: "/models", label: "Model Catalog", icon: Box },
+    ],
+  },
+  {
+    id: "development",
+    label: "Development",
+    icon: Code2,
+    items: [
+      { href: "/quick-start", label: "Quick Start", icon: Rocket },
+      { href: "/factory", label: "App Factory", icon: Factory },
+      { href: "/builder", label: "Builder", icon: Wrench },
+      { href: "/code-assist", label: "Code Assist", icon: Wand2 },
+      { href: "/projects", label: "Projects", icon: Layers },
+      { href: "/templates", label: "Templates", icon: Package },
+      { href: "/marketplace", label: "Marketplace", icon: Package },
+      { href: "/editor", label: "Code Editor", icon: Code2 },
+    ],
+  },
+  {
+    id: "websites",
+    label: "Websites",
+    icon: Globe,
+    items: [
+      { href: "/websites", label: "Websites", icon: Globe },
+      { href: "/designer", label: "Designer", icon: Palette },
+    ],
+  },
+  {
+    id: "system",
+    label: "System",
+    icon: Cog,
+    items: [
+      { href: "/self", label: "Self", icon: Wrench },
+      { href: "/settings", label: "Settings", icon: Settings },
+    ],
+  },
 ];
+
+function NavGroupComponent({ 
+  group, 
+  collapsed = false, 
+  onNavClick,
+  pathname,
+  openGroups,
+  toggleGroup,
+}: { 
+  group: NavGroup;
+  collapsed?: boolean;
+  onNavClick?: () => void;
+  pathname: string;
+  openGroups: Set<string>;
+  toggleGroup: (id: string) => void;
+}) {
+  const isOpen = openGroups.has(group.id);
+  const hasActiveItem = group.items.some(item => 
+    pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href))
+  );
+
+  if (collapsed) {
+    return (
+      <div className="space-y-1">
+        {group.items.map((item) => {
+          const isActive = pathname === item.href || 
+            (item.href !== "/" && pathname.startsWith(item.href));
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={onNavClick}
+              className={cn(
+                "flex items-center justify-center rounded-lg p-2 transition-colors touch-manipulation",
+                isActive
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              )}
+              title={item.label}
+            >
+              <item.icon className="h-5 w-5" />
+            </Link>
+          );
+        })}
+      </div>
+    );
+  }
+
+  return (
+    <Collapsible open={isOpen} onOpenChange={() => toggleGroup(group.id)}>
+      <CollapsibleTrigger className={cn(
+        "flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+        hasActiveItem 
+          ? "text-foreground" 
+          : "text-muted-foreground hover:text-foreground"
+      )}>
+        <div className="flex items-center gap-2">
+          <group.icon className="h-4 w-4" />
+          <span>{group.label}</span>
+        </div>
+        <ChevronDown className={cn(
+          "h-4 w-4 transition-transform",
+          isOpen && "rotate-180"
+        )} />
+      </CollapsibleTrigger>
+      <CollapsibleContent className="pl-4 space-y-1 mt-1">
+        {group.items.map((item) => {
+          const isActive = pathname === item.href || 
+            (item.href !== "/" && pathname.startsWith(item.href));
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={onNavClick}
+              className={cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors touch-manipulation",
+                isActive
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              )}
+            >
+              <item.icon className="h-4 w-4 shrink-0" />
+              <span className="truncate">{item.label}</span>
+            </Link>
+          );
+        })}
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
 
 function NavContent({ collapsed = false, onNavClick }: { collapsed?: boolean; onNavClick?: () => void }) {
   const pathname = usePathname();
+  const [openGroups, setOpenGroups] = useState<Set<string>>(() => {
+    const initial = new Set<string>();
+    navGroups.forEach(group => {
+      if (group.defaultOpen) initial.add(group.id);
+      if (group.items.some(item => 
+        pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href))
+      )) {
+        initial.add(group.id);
+      }
+    });
+    return initial;
+  });
+
+  const toggleGroup = (id: string) => {
+    setOpenGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
   
   return (
-    <nav className="flex-1 p-2 sm:p-4 space-y-1 sm:space-y-2 overflow-y-auto">
-      {navItems.map((item) => {
-        const isActive = pathname === item.href || 
-          (item.href !== "/" && pathname.startsWith(item.href));
-        
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            onClick={onNavClick}
-            className={cn(
-              "flex items-center gap-3 rounded-lg px-3 py-2.5 sm:py-2 text-sm transition-colors touch-manipulation",
-              isActive
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground active:bg-accent",
-              collapsed && "justify-center px-2"
-            )}
-            title={collapsed ? item.label : undefined}
-          >
-            <item.icon className="h-5 w-5 shrink-0" />
-            {!collapsed && <span className="truncate">{item.label}</span>}
-          </Link>
-        );
-      })}
+    <nav className="flex-1 p-2 sm:p-4 space-y-2 overflow-y-auto">
+      {navGroups.map((group) => (
+        <NavGroupComponent
+          key={group.id}
+          group={group}
+          collapsed={collapsed}
+          onNavClick={onNavClick}
+          pathname={pathname}
+          openGroups={openGroups}
+          toggleGroup={toggleGroup}
+        />
+      ))}
     </nav>
   );
 }

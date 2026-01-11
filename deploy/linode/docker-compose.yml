@@ -70,9 +70,17 @@ services:
     restart: unless-stopped
     networks:
       - homelab
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes --maxmemory 200mb --maxmemory-policy allkeys-lru
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -87,6 +95,14 @@ services:
       homelab:
         aliases:
           - postgres
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -120,6 +136,14 @@ services:
         condition: service_healthy
     networks:
       - homelab
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
     environment:
       - NODE_ENV=production
       - ADMIN_USERNAME=${WEB_USERNAME:-admin}
@@ -169,8 +193,18 @@ services:
     depends_on:
       homelab-postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - homelab
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
     dns:
       - 8.8.8.8
       - 8.8.4.4
@@ -212,6 +246,16 @@ services:
     depends_on:
       homelab-postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
     dns:
       - 8.8.8.8
       - 8.8.4.4

@@ -7,7 +7,10 @@ DEPLOY_DIR="$(dirname "$SCRIPT_DIR")"
 source "${DEPLOY_DIR}/../shared/lib.sh"
 
 SSH_SOURCE="/root/.ssh"
-SSH_VOLUME_NAME="linode_dashboard_ssh"
+
+SCRIPT_DIR_PARENT="$(dirname "$DEPLOY_DIR")"
+COMPOSE_PROJECT="${COMPOSE_PROJECT_NAME:-linode}"
+SSH_VOLUME_NAME="${COMPOSE_PROJECT}_dashboard_ssh"
 
 print_header "Dashboard SSH Key Sync"
 
