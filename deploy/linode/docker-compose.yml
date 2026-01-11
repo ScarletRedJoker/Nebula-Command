@@ -173,6 +173,7 @@ services:
       - COMFYUI_URL=http://${TAILSCALE_LOCAL_HOST}:8188
       - WINDOWS_VM_TAILSCALE_IP=${WINDOWS_VM_TAILSCALE_IP}
       - WINDOWS_VM_SSH_USER=${WINDOWS_VM_SSH_USER:-evin}
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
     volumes:
       - dashboard_ssh:/app/.ssh:ro
       - /var/run/docker.sock:/var/run/docker.sock

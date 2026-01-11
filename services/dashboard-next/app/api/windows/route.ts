@@ -52,16 +52,30 @@ async function getVMConfig(): Promise<{ vmName: string; vmIp: string } | null> {
   return { vmName: "RDPWindows", vmIp: "100.118.44.102" };
 }
 
-async function checkPort(host: string, port: number, timeout = 2000): Promise<boolean> {
-  try {
-    const { stdout } = await execAsync(
-      `timeout ${timeout / 1000} bash -c "echo >/dev/tcp/${host}/${port}" 2>/dev/null && echo "open" || echo "closed"`,
-      { timeout: timeout + 1000 }
-    );
-    return stdout.trim() === "open";
-  } catch {
-    return false;
-  }
+async function checkPort(host: string, port: number, timeout = 3000): Promise<boolean> {
+  return new Promise((resolve) => {
+    const net = require("net");
+    const socket = new net.Socket();
+    
+    socket.setTimeout(timeout);
+    
+    socket.on("connect", () => {
+      socket.destroy();
+      resolve(true);
+    });
+    
+    socket.on("timeout", () => {
+      socket.destroy();
+      resolve(false);
+    });
+    
+    socket.on("error", () => {
+      socket.destroy();
+      resolve(false);
+    });
+    
+    socket.connect(port, host);
+  });
 }
 
 async function executeWinRM(vmIp: string, command: string, username?: string, password?: string): Promise<{ success: boolean; output: string; error?: string }> {
@@ -244,9 +258,16 @@ export async function GET(request: NextRequest) {
         let ollamaVersion: string | undefined;
         if (ollama) {
           try {
-            const { stdout } = await execAsync(`curl -sf --connect-timeout 2 http://${vmIp}:11434/api/version`);
-            const data = JSON.parse(stdout);
-            ollamaVersion = data.version;
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 3000);
+            const res = await fetch(`http://${vmIp}:11434/api/version`, { 
+              signal: controller.signal 
+            });
+            clearTimeout(timeoutId);
+            if (res.ok) {
+              const data = await res.json();
+              ollamaVersion = data.version;
+            }
           } catch {}
         }
         
