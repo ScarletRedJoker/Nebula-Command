@@ -153,3 +153,21 @@ variables:
     required: false
     description: Tailscale IP of local Ubuntu homelab server
     hint: Default is 100.66.61.51 (local server)
+
+  - key: REPLICATE_API_TOKEN
+    scope: external
+    required: false
+    description: Replicate API token for video generation
+    hint: Get from https://replicate.com/account/api-tokens
+
+  - key: WINDOWS_VM_SSH_USER
+    scope: external
+    required: false
+    description: SSH username for Windows VM
+    hint: Default is 'evin' - used for remote command execution
+
+  - key: WINDOWS_PASSWORD
+    scope: external
+    required: false
+    description: Windows VM password for WinRM authentication
+    hint: Required for PowerShell remote execution via WinRM

@@ -21,6 +21,13 @@ interface WindowsVMState {
 }
 
 async function getVMConfig(): Promise<{ vmName: string; vmIp: string } | null> {
+  const envVmIp = process.env.WINDOWS_VM_TAILSCALE_IP || process.env.WINDOWS_VM_IP;
+  const envVmName = process.env.WINDOWS_VM_NAME || "RDPWindows";
+  
+  if (envVmIp) {
+    return { vmName: envVmName, vmIp: envVmIp };
+  }
+  
   try {
     const content = await fs.readFile(KVM_CONFIG, "utf-8");
     const lines = content.split("\n");
@@ -39,10 +46,10 @@ async function getVMConfig(): Promise<{ vmName: string; vmIp: string } | null> {
     if (vmName && vmIp) {
       return { vmName, vmIp };
     }
-    return null;
   } catch {
-    return null;
   }
+  
+  return { vmName: "RDPWindows", vmIp: "100.118.44.102" };
 }
 
 async function checkPort(host: string, port: number, timeout = 2000): Promise<boolean> {
