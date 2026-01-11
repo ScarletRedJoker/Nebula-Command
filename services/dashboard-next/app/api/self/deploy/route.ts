@@ -57,7 +57,8 @@ async function runDeployment(config: DeployConfig, jobId: string): Promise<void>
   job.status = "running";
   job.logs.push(`[${new Date().toISOString()}] Starting deployment to ${config.target}...`);
 
-  const keyPath = process.env.SSH_KEY_PATH || "/root/.ssh/id_rsa";
+  const keyPath = process.env.SSH_KEY_PATH || 
+    (process.env.REPL_ID ? `${process.env.HOME}/.ssh/homelab` : "/root/.ssh/homelab");
 
   return new Promise((resolve) => {
     if (!existsSync(keyPath)) {

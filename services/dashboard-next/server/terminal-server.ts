@@ -13,20 +13,23 @@ interface ServerConfig {
   keyPath: string;
 }
 
+const DEFAULT_SSH_KEY_PATH = process.env.SSH_KEY_PATH || 
+  (process.env.REPL_ID ? `${process.env.HOME}/.ssh/homelab` : "/root/.ssh/homelab");
+
 const servers: Record<string, ServerConfig> = {
   linode: {
     id: "linode",
     name: "Linode Server",
     host: process.env.LINODE_SSH_HOST || "linode.evindrake.net",
     user: process.env.LINODE_SSH_USER || "root",
-    keyPath: process.env.SSH_KEY_PATH || "/root/.ssh/id_rsa",
+    keyPath: DEFAULT_SSH_KEY_PATH,
   },
   home: {
     id: "home",
     name: "Home Server",
     host: process.env.HOME_SSH_HOST || "host.evindrake.net",
     user: process.env.HOME_SSH_USER || "evin",
-    keyPath: process.env.SSH_KEY_PATH || "/root/.ssh/id_rsa",
+    keyPath: DEFAULT_SSH_KEY_PATH,
   },
 };
 

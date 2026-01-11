@@ -910,7 +910,7 @@ function SettingsPageContent() {
                 id="serverKeyPath"
                 value={serverForm.keyPath}
                 onChange={(e) => setServerForm({ ...serverForm, keyPath: e.target.value })}
-                placeholder="/root/.ssh/id_rsa"
+                placeholder="~/.ssh/homelab"
               />
               <p className="text-xs text-muted-foreground">Leave empty to use default key</p>
             </div>
