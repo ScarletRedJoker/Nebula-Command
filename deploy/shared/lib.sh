@@ -720,18 +720,48 @@ register_local_ai_services() {
     
     local preferred_ip="${tailscale_ip:-$local_ip}"
     
+    local WINDOWS_VM_IP="${WINDOWS_VM_TAILSCALE_IP:-100.118.44.102}"
+    local WINDOWS_VM_NAME="${WINDOWS_VM_NAME:-RDPWindows}"
+    
     local ollama_status="offline"
     local ollama_url="http://${preferred_ip}:11434"
     local ollama_version=""
     local ollama_models=""
+    local ollama_source="ubuntu-host"
     
-    if curl -sf --connect-timeout 3 "${ollama_url}/api/version" > /dev/null 2>&1; then
+    local win_ollama_status="offline"
+    local win_ollama_url="http://${WINDOWS_VM_IP}:11434"
+    local win_ollama_version=""
+    local win_ollama_models=""
+    
+    echo "Checking Windows VM (${WINDOWS_VM_NAME} @ ${WINDOWS_VM_IP})..."
+    if curl -sf --connect-timeout 5 "${win_ollama_url}/api/version" > /dev/null 2>&1; then
+        win_ollama_status="online"
+        win_ollama_version=$(curl -sf --connect-timeout 3 "${win_ollama_url}/api/version" 2>/dev/null | grep -o '"version":"[^"]*"' | cut -d'"' -f4 || echo "unknown")
+        win_ollama_models=$(curl -sf --connect-timeout 5 "${win_ollama_url}/api/tags" 2>/dev/null | grep -o '"name":"[^"]*"' | cut -d'"' -f4 | tr '\n' ',' | sed 's/,$//' || echo "")
+        echo -e "${GREEN}[OK]${NC} Windows VM Ollama: online (v${win_ollama_version}) - GPU: NVIDIA RTX 3060"
+        [ -n "$win_ollama_models" ] && echo "      Models: $win_ollama_models"
         ollama_status="online"
-        ollama_version=$(curl -sf --connect-timeout 3 "${ollama_url}/api/version" 2>/dev/null | grep -o '"version":"[^"]*"' | cut -d'"' -f4 || echo "unknown")
-        ollama_models=$(curl -sf --connect-timeout 5 "${ollama_url}/api/tags" 2>/dev/null | grep -o '"name":"[^"]*"' | cut -d'"' -f4 | tr '\n' ',' | sed 's/,$//' || echo "")
-        echo -e "${GREEN}[OK]${NC} Ollama: online (v${ollama_version})"
+        ollama_url="$win_ollama_url"
+        ollama_version="$win_ollama_version"
+        ollama_models="$win_ollama_models"
+        ollama_source="windows-vm-gpu"
     else
-        echo -e "${RED}[--]${NC} Ollama: offline"
+        echo -e "${YELLOW}[--]${NC} Windows VM Ollama: offline (VM may be shut down)"
+    fi
+    
+    if [ "$win_ollama_status" != "online" ]; then
+        echo "Checking Ubuntu host..."
+        if curl -sf --connect-timeout 3 "http://${preferred_ip}:11434/api/version" > /dev/null 2>&1; then
+            ollama_status="online"
+            ollama_version=$(curl -sf --connect-timeout 3 "http://${preferred_ip}:11434/api/version" 2>/dev/null | grep -o '"version":"[^"]*"' | cut -d'"' -f4 || echo "unknown")
+            ollama_models=$(curl -sf --connect-timeout 5 "http://${preferred_ip}:11434/api/tags" 2>/dev/null | grep -o '"name":"[^"]*"' | cut -d'"' -f4 | tr '\n' ',' | sed 's/,$//' || echo "")
+            ollama_url="http://${preferred_ip}:11434"
+            ollama_source="ubuntu-host"
+            echo -e "${GREEN}[OK]${NC} Ubuntu Ollama: online (v${ollama_version}) - CPU only"
+        else
+            echo -e "${RED}[--]${NC} Ubuntu Ollama: offline"
+        fi
     fi
     
     local sd_status="offline"
@@ -759,12 +789,20 @@ register_local_ai_services() {
   "tailscaleIp": "${tailscale_ip:-null}",
   "preferredIp": "$preferred_ip",
   "registeredAt": "$timestamp",
+  "primaryOllama": {
+    "status": "$ollama_status",
+    "url": "$ollama_url",
+    "source": "$ollama_source",
+    "version": "$ollama_version",
+    "models": "$ollama_models"
+  },
   "services": {
     "ollama": {
       "status": "$ollama_status",
       "url": "$ollama_url",
       "version": "$ollama_version",
-      "models": "$ollama_models"
+      "models": "$ollama_models",
+      "source": "$ollama_source"
     },
     "stableDiffusion": {
       "status": "$sd_status",
@@ -773,6 +811,23 @@ register_local_ai_services() {
     "comfyui": {
       "status": "$comfy_status",
       "url": "$comfy_url"
+    }
+  },
+  "windowsVm": {
+    "name": "$WINDOWS_VM_NAME",
+    "tailscaleIp": "$WINDOWS_VM_IP",
+    "gpu": {
+      "model": "NVIDIA GeForce RTX 3060",
+      "vram": "12GB",
+      "passthrough": "kvm"
+    },
+    "services": {
+      "ollama": {
+        "status": "$win_ollama_status",
+        "url": "$win_ollama_url",
+        "version": "$win_ollama_version",
+        "models": "$win_ollama_models"
+      }
     }
   }
 }
