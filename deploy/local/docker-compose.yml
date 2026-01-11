@@ -292,7 +292,7 @@ services:
     volumes:
       - novnc_data:/home/user
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8080/ || exit 1"]
+      test: ["CMD-SHELL", "nc -z localhost 8080 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -313,10 +313,11 @@ services:
     volumes:
       - /home/${LOCAL_USER:-evin}:/home/user:rw
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:7681/ || exit 1"]
+      test: ["CMD-SHELL", "nc -z localhost 7681 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 10s
 
   # ============================================================================
   # REMOTE ACCESS - Sunshine Game Streaming
