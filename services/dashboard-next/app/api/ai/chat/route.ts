@@ -170,7 +170,8 @@ async function chatWithOllama(
   model: string,
   stream: boolean
 ): Promise<Response | { content: string; provider: string; model: string }> {
-  const ollamaUrl = process.env.OLLAMA_URL || "http://host.evindrake.net:11434";
+  const WINDOWS_VM_IP = process.env.WINDOWS_VM_TAILSCALE_IP || "100.118.44.102";
+  const ollamaUrl = process.env.OLLAMA_URL || `http://${WINDOWS_VM_IP}:11434`;
 
   const formattedMessages = [
     { role: "system", content: systemPrompt },

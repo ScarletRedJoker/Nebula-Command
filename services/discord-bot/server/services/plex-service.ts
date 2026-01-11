@@ -72,8 +72,14 @@ export class PlexService {
   private errorLogIntervalMs = 300000;
 
   constructor() {
-    this.plexUrl = process.env.PLEX_URL || 'http://100.64.0.1:32400';
+    const LOCAL_SERVER_IP = process.env.LOCAL_TAILSCALE_IP || '100.66.61.51';
+    this.plexUrl = process.env.PLEX_URL || `http://${LOCAL_SERVER_IP}:32400`;
     this.plexToken = process.env.PLEX_TOKEN || '';
+    
+    if (!process.env.PLEX_URL && !process.env.LOCAL_TAILSCALE_IP) {
+      console.log(`[Plex Service] Using default Plex URL: ${this.plexUrl}`);
+      console.log('[Plex Service] Set PLEX_URL or LOCAL_TAILSCALE_IP env var to override');
+    }
   }
 
   isConfigured(): boolean {

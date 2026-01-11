@@ -15,30 +15,47 @@ export interface ServiceEndpoint {
 
 const ENV = (process.env.NODE_ENV === "production" ? "production" : "development") as Environment;
 
+const WINDOWS_VM_IP = process.env.WINDOWS_VM_TAILSCALE_IP || "100.118.44.102";
+const LOCAL_SERVER_IP = process.env.LOCAL_TAILSCALE_IP || "100.66.61.51";
+
+function getOllamaUrl(): string {
+  if (process.env.OLLAMA_URL) return process.env.OLLAMA_URL;
+  return `http://${WINDOWS_VM_IP}:11434`;
+}
+
+function getStableDiffusionUrl(): string {
+  if (process.env.STABLE_DIFFUSION_URL) return process.env.STABLE_DIFFUSION_URL;
+  return `http://${WINDOWS_VM_IP}:7860`;
+}
+
+function getLocalServiceUrl(port: number): string {
+  return `http://${LOCAL_SERVER_IP}:${port}`;
+}
+
 const SERVICE_ENDPOINTS: Record<string, Record<Environment, string>> = {
   "ollama": {
-    production: process.env.OLLAMA_URL || "http://100.110.227.25:11434",
-    development: process.env.OLLAMA_URL || "http://host.evindrake.net:11434",
+    production: getOllamaUrl(),
+    development: getOllamaUrl(),
   },
   "stable-diffusion": {
-    production: process.env.STABLE_DIFFUSION_URL || "http://100.110.227.25:7860",
-    development: process.env.STABLE_DIFFUSION_URL || "http://host.evindrake.net:7860",
+    production: getStableDiffusionUrl(),
+    development: getStableDiffusionUrl(),
   },
   "openai": {
     production: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || "https://api.openai.com/v1",
     development: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || "https://api.openai.com/v1",
   },
   "plex": {
-    production: "http://100.110.227.25:32400",
-    development: "http://host.evindrake.net:32400",
+    production: process.env.PLEX_URL || getLocalServiceUrl(32400),
+    development: process.env.PLEX_URL || getLocalServiceUrl(32400),
   },
   "minio": {
-    production: "http://100.110.227.25:9000",
-    development: "http://host.evindrake.net:9000",
+    production: process.env.MINIO_URL || getLocalServiceUrl(9000),
+    development: process.env.MINIO_URL || getLocalServiceUrl(9000),
   },
   "home-assistant": {
-    production: "http://100.110.227.25:8123",
-    development: "http://host.evindrake.net:8123",
+    production: process.env.HOME_ASSISTANT_URL || getLocalServiceUrl(8123),
+    development: process.env.HOME_ASSISTANT_URL || getLocalServiceUrl(8123),
   },
   "discord-bot": {
     production: "http://localhost:4000",

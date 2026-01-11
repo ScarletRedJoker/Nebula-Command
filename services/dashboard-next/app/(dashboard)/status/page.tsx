@@ -16,6 +16,9 @@ import {
   AlertCircle,
   CheckCircle2,
   Settings,
+  Brain,
+  Image,
+  Palette,
 } from "lucide-react";
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
@@ -27,6 +30,9 @@ const serviceIcons: Record<string, LucideIcon> = {
   database: Database,
   redis: Server,
   docker: HardDrive,
+  ollama: Brain,
+  "stable-diffusion": Image,
+  comfyui: Palette,
 };
 
 interface HealthResponse {

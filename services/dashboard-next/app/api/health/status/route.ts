@@ -404,8 +404,120 @@ function checkDockerHealth(): Omit<ServiceHealth, "id" | "name"> {
   };
 }
 
+async function checkAIService(name: string, url: string, healthPath: string): Promise<Omit<ServiceHealth, "id" | "name">> {
+  const start = Date.now();
+  
+  if (!url) {
+    return {
+      status: "unknown",
+      lastChecked: new Date().toISOString(),
+      details: `${name} URL not configured`,
+    };
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    
+    const response = await fetch(`${url}${healthPath}`, {
+      signal: controller.signal,
+      headers: { 'Accept': 'application/json' },
+    });
+    clearTimeout(timeout);
+    
+    if (!response.ok) {
+      return {
+        status: "unhealthy",
+        responseTime: Date.now() - start,
+        lastChecked: new Date().toISOString(),
+        error: `HTTP ${response.status}`,
+      };
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      return {
+        status: "unhealthy",
+        responseTime: Date.now() - start,
+        lastChecked: new Date().toISOString(),
+        error: "Invalid response format (expected JSON)",
+      };
+    }
+
+    const data = await response.json();
+    
+    if (name === "Ollama") {
+      const modelCount = data.models?.length || 0;
+      if (modelCount === 0) {
+        return {
+          status: "unhealthy",
+          responseTime: Date.now() - start,
+          lastChecked: new Date().toISOString(),
+          error: "No models loaded",
+        };
+      }
+      return {
+        status: "healthy",
+        responseTime: Date.now() - start,
+        lastChecked: new Date().toISOString(),
+        details: `${modelCount} models available`,
+      };
+    }
+    
+    if (name === "Stable Diffusion") {
+      if (data && typeof data === 'object' && data.sd_model_checkpoint) {
+        return {
+          status: "healthy",
+          responseTime: Date.now() - start,
+          lastChecked: new Date().toISOString(),
+          details: `Model: ${data.sd_model_checkpoint}`,
+        };
+      }
+      return {
+        status: "unhealthy",
+        responseTime: Date.now() - start,
+        lastChecked: new Date().toISOString(),
+        error: "No SD model loaded",
+      };
+    }
+    
+    if (name === "ComfyUI") {
+      if (data && typeof data === 'object' && (data.devices || data.system)) {
+        return {
+          status: "healthy",
+          responseTime: Date.now() - start,
+          lastChecked: new Date().toISOString(),
+          details: data.devices?.length > 0 ? `${data.devices.length} GPU(s)` : "Connected",
+        };
+      }
+      return {
+        status: "unhealthy",
+        responseTime: Date.now() - start,
+        lastChecked: new Date().toISOString(),
+        error: "ComfyUI not ready",
+      };
+    }
+    
+    return {
+      status: "healthy",
+      responseTime: Date.now() - start,
+      lastChecked: new Date().toISOString(),
+      details: "Connected",
+    };
+  } catch (error) {
+    const isTimeout = error instanceof Error && error.name === "AbortError";
+    return {
+      status: "unhealthy",
+      responseTime: Date.now() - start,
+      lastChecked: new Date().toISOString(),
+      error: isTimeout ? "Connection timeout" : "Service unreachable",
+    };
+  }
+}
+
 export async function GET() {
   const services: ServiceHealth[] = [];
+  const WINDOWS_VM_IP = process.env.WINDOWS_VM_TAILSCALE_IP || "100.118.44.102";
 
   services.push({
     id: "dashboard",
@@ -417,11 +529,18 @@ export async function GET() {
     uptime: 100,
   });
 
-  const [discordBot, streamBot, database, serverMetrics] = await Promise.all([
+  const ollamaUrl = process.env.OLLAMA_URL || `http://${WINDOWS_VM_IP}:11434`;
+  const sdUrl = process.env.STABLE_DIFFUSION_URL || `http://${WINDOWS_VM_IP}:7860`;
+  const comfyUrl = process.env.COMFYUI_URL || `http://${WINDOWS_VM_IP}:8188`;
+
+  const [discordBot, streamBot, database, serverMetrics, ollama, stableDiffusion, comfyui] = await Promise.all([
     checkServiceHealth("http://localhost:4000/health"),
     checkServiceHealth("http://localhost:3000/health"),
     checkDatabaseHealth(),
     Promise.all(servers.map(getServerSystemMetrics)),
+    checkAIService("Ollama", ollamaUrl, "/api/tags"),
+    checkAIService("Stable Diffusion", sdUrl, "/sdapi/v1/options"),
+    checkAIService("ComfyUI", comfyUrl, "/system_stats"),
   ]);
 
   const redis = checkRedisHealth();
@@ -432,7 +551,10 @@ export async function GET() {
     { id: "stream-bot", name: "Stream Bot", ...streamBot },
     { id: "database", name: "PostgreSQL", ...database },
     { id: "redis", name: "Redis Cache", ...redis },
-    { id: "docker", name: "Docker Engine", ...docker }
+    { id: "docker", name: "Docker Engine", ...docker },
+    { id: "ollama", name: "Ollama (GPU)", ...ollama },
+    { id: "stable-diffusion", name: "Stable Diffusion", ...stableDiffusion },
+    { id: "comfyui", name: "ComfyUI", ...comfyui }
   );
 
   const healthyCount = services.filter((s) => s.status === "healthy").length;

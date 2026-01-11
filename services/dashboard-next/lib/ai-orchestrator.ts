@@ -79,7 +79,8 @@ class AIOrchestrator {
   private ollamaUrl: string;
 
   constructor() {
-    this.ollamaUrl = process.env.OLLAMA_URL || "http://host.evindrake.net:11434";
+    const WINDOWS_VM_IP = process.env.WINDOWS_VM_TAILSCALE_IP || "100.118.44.102";
+    this.ollamaUrl = process.env.OLLAMA_URL || `http://${WINDOWS_VM_IP}:11434`;
     this.initOpenAI();
     this.initReplicate();
   }
@@ -206,7 +207,8 @@ class AIOrchestrator {
   }
 
   private async generateWithSD(request: ImageRequest): Promise<ImageResponse> {
-    const sdUrl = process.env.STABLE_DIFFUSION_URL || "http://host.evindrake.net:7860";
+    const WINDOWS_VM_IP = process.env.WINDOWS_VM_TAILSCALE_IP || "100.118.44.102";
+    const sdUrl = process.env.STABLE_DIFFUSION_URL || `http://${WINDOWS_VM_IP}:7860`;
 
     const response = await fetch(`${sdUrl}/sdapi/v1/txt2img`, {
       method: "POST",

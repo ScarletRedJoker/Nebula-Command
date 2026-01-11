@@ -81,3 +81,20 @@ Features a per-server customization system allowing server admins to configure t
 *   **Caddy:** Reverse proxy.
 *   **Ollama:** Local large language model (LLM) inference.
 *   **Stable Diffusion:** Local image generation.
+
+## Infrastructure IPs
+*   **Windows VM (GPU):** 100.118.44.102 (Tailscale) - Hosts Ollama with RTX 3060, primary for AI inference
+*   **Local Ubuntu Server:** 100.66.61.51 (Tailscale) - Hosts Plex, MinIO, Home Assistant, media services
+*   **Linode Cloud:** 69.164.211.205 - Hosts Dashboard, Discord Bot, Stream Bot
+
+## AI Priority Chain
+1. Windows VM Ollama (GPU accelerated) - Primary
+2. Ubuntu Ollama (CPU fallback) - Secondary
+3. OpenAI API - Cloud fallback
+
+## Status Page
+The dashboard includes a comprehensive status page at `/status` that monitors:
+- Core services (Dashboard, Discord Bot, Stream Bot)
+- Databases (PostgreSQL, Redis)
+- AI services (Ollama, Stable Diffusion, ComfyUI)
+- Server health via SSH (when accessible)

@@ -68,9 +68,10 @@ class LocalAIRuntime {
   private jobQueue: GenerationJob[] = [];
 
   constructor() {
-    this.ollamaUrl = process.env.OLLAMA_URL || "http://host.evindrake.net:11434";
-    this.sdUrl = process.env.STABLE_DIFFUSION_URL || "http://host.evindrake.net:7860";
-    this.comfyUrl = process.env.COMFYUI_URL || "http://host.evindrake.net:8188";
+    const WINDOWS_VM_IP = process.env.WINDOWS_VM_TAILSCALE_IP || "100.118.44.102";
+    this.ollamaUrl = process.env.OLLAMA_URL || `http://${WINDOWS_VM_IP}:11434`;
+    this.sdUrl = process.env.STABLE_DIFFUSION_URL || `http://${WINDOWS_VM_IP}:7860`;
+    this.comfyUrl = process.env.COMFYUI_URL || `http://${WINDOWS_VM_IP}:8188`;
   }
 
   async checkAllRuntimes(): Promise<RuntimeHealth[]> {

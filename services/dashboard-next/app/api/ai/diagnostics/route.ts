@@ -69,7 +69,8 @@ export async function GET(request: NextRequest) {
     };
   }
 
-  const ollamaUrl = process.env.OLLAMA_URL || "http://host.evindrake.net:11434";
+  const WINDOWS_VM_IP = process.env.WINDOWS_VM_TAILSCALE_IP || "100.118.44.102";
+  const ollamaUrl = process.env.OLLAMA_URL || `http://${WINDOWS_VM_IP}:11434`;
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 3000);

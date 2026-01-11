@@ -111,3 +111,45 @@ variables:
     required: false
     description: Spotify API client secret
     hint: Get from https://developer.spotify.com/dashboard
+
+  - key: PLEX_URL
+    scope: external
+    required: false
+    description: Plex server URL (defaults to LOCAL_TAILSCALE_IP:32400)
+    hint: Format http://IP:32400 - set if Plex is on a different host
+
+  - key: PLEX_TOKEN
+    scope: external
+    required: false
+    description: Plex authentication token for Now Playing presence
+    hint: Get from Plex > Settings > Account > Show XML button, find X-Plex-Token in URL
+
+  - key: KICK_CLIENT_ID
+    scope: external
+    required: false
+    description: Kick API client ID for streaming features
+    hint: Get from https://kick.com/dashboard/developer
+
+  - key: KICK_CLIENT_SECRET
+    scope: external
+    required: false
+    description: Kick API client secret
+    hint: Get from https://kick.com/dashboard/developer
+
+  - key: HOME_ASSISTANT_TOKEN
+    scope: external
+    required: false
+    description: Home Assistant long-lived access token
+    hint: Get from Home Assistant > Profile > Long-Lived Access Tokens
+
+  - key: WINDOWS_VM_TAILSCALE_IP
+    scope: external
+    required: false
+    description: Tailscale IP of Windows VM with GPU for local AI
+    hint: Default is 100.118.44.102 (RDPWindows VM)
+
+  - key: LOCAL_TAILSCALE_IP
+    scope: external
+    required: false
+    description: Tailscale IP of local Ubuntu homelab server
+    hint: Default is 100.66.61.51 (local server)
