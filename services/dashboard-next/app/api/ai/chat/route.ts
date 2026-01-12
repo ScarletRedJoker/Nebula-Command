@@ -3,6 +3,7 @@ import OpenAI from "openai";
 import { verifySession } from "@/lib/session";
 import { cookies } from "next/headers";
 import { localAIRuntime } from "@/lib/local-ai-runtime";
+import { getOpenAITools, executeJarvisTool } from "@/lib/jarvis-tools";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -126,6 +127,67 @@ async function isOllamaAvailable(): Promise<boolean> {
   }
 }
 
+function detectToolIntent(message: string): boolean {
+  const lowerMessage = message.toLowerCase();
+  
+  const toolKeywords = [
+    "generate image", "create image", "make image", "draw", "picture of",
+    "generate video", "create video", "make video",
+    "restart", "stop", "start", "reboot",
+    "deploy", "redeploy", "push", "update services",
+    "status", "running", "health", "check",
+    "logs", "show log", "view log", "debug",
+    "container", "docker", "service",
+    "linode", "home server", "windows vm",
+    "discord bot", "stream bot", "plex", "jellyfin",
+    "dashboard",
+  ];
+
+  const toolPatterns = [
+    /generate\s+(an?\s+)?image/i,
+    /create\s+(an?\s+)?image/i,
+    /make\s+(an?\s+)?image/i,
+    /make\s+(me\s+)?(an?\s+)?picture/i,
+    /draw\s+(an?\s+)?/i,
+    /picture\s+of/i,
+    /generate\s+(a\s+)?video/i,
+    /create\s+(a\s+)?video/i,
+    /make\s+(a\s+)?video/i,
+    /restart\s+(the\s+)?[\w-]+/i,
+    /stop\s+(the\s+)?[\w-]+/i,
+    /start\s+(the\s+)?[\w-]+/i,
+    /reboot\s+(the\s+)?[\w-]+/i,
+    /deploy\s+to\s+[\w]+/i,
+    /deploy\s+[\w]+/i,
+    /redeploy/i,
+    /push\s+(to\s+)?production/i,
+    /update\s+(the\s+)?services/i,
+    /check\s+(the\s+)?(server\s+)?status/i,
+    /what('s|\s+is)\s+running/i,
+    /what\s+services/i,
+    /server\s+status/i,
+    /container\s+status/i,
+    /are\s+.*\s+running/i,
+    /is\s+.*\s+running/i,
+    /is\s+.*\s+up/i,
+    /is\s+.*\s+down/i,
+    /show\s+(me\s+)?(the\s+)?logs/i,
+    /get\s+(the\s+)?logs/i,
+    /view\s+(the\s+)?logs/i,
+    /container\s+logs/i,
+    /logs\s+for\s+[\w-]+/i,
+    /debug\s+[\w-]+/i,
+    /what's\s+wrong\s+with/i,
+    /docker\s+(ps|status|logs)/i,
+  ];
+
+  if (toolKeywords.some(keyword => lowerMessage.includes(keyword))) {
+    return true;
+  }
+
+  return toolPatterns.some(pattern => pattern.test(message));
+}
+
 async function selectProvider(requestedProvider: AIProvider): Promise<{ provider: "openai" | "ollama"; fallback: boolean }> {
   if (requestedProvider === "openai") {
     return { provider: "openai", fallback: false };
@@ -146,44 +208,51 @@ async function selectProvider(requestedProvider: AIProvider): Promise<{ provider
   return { provider: "openai", fallback: false };
 }
 
-const systemPrompt = `You are Jarvis, an AI assistant for Nebula Command - a comprehensive homelab management platform.
+const systemPrompt = `You are Jarvis, an autonomous AI assistant for Nebula Command - a comprehensive homelab management platform.
 
-**YOUR ROLE:**
-You help users manage their homelab by providing information, suggestions, and actionable commands.
+**YOUR CAPABILITIES:**
+You have access to tools that let you DIRECTLY execute actions. Use them proactively when users ask for things:
+
+1. **generate_image** - Generate images from text descriptions (DALL-E, Stable Diffusion)
+2. **generate_video** - Generate short videos from text descriptions
+3. **docker_action** - Start, stop, restart containers or view logs
+4. **deploy** - Trigger deployments to Linode or Home servers
+5. **get_server_status** - Check the health of all services and containers
+6. **get_container_logs** - Get logs from specific containers for debugging
 
 **SERVICES OVERVIEW:**
 - Linode Server: Discord Bot (port 4000), Stream Bot (port 3000), Dashboard, PostgreSQL, Redis, Caddy
 - Home Server: Plex (port 32400), Home Assistant (port 8123), MinIO, Tailscale, Ollama, Stable Diffusion
+- Windows VM (GPU): Ollama, ComfyUI, Stable Diffusion for local AI
 
-**WHAT YOU CAN HELP WITH:**
-1. Explain how to check container status (user goes to Services page)
-2. Explain how to deploy (user goes to Deploy page or clicks Quick Actions)
-3. Explain how to check server metrics (user goes to Servers page)
-4. Generate code and debug issues
-5. Answer questions about homelab setup and configuration
-6. Provide Docker commands, SSH commands, and configuration help
-7. Manage local AI models via the AI Models page
+**WHEN TO USE TOOLS:**
+- "Generate an image of X" → Use generate_image tool
+- "Restart the discord bot" → Use docker_action tool with action="restart"
+- "Deploy to linode" → Use deploy tool
+- "What's running?" or "Check status" → Use get_server_status tool
+- "Show me logs for X" → Use get_container_logs tool
+- "Create a video of X" → Use generate_video tool
 
 **GUIDELINES:**
-1. Be helpful and concise
-2. Use markdown for formatting
-3. When users ask about status, guide them to the appropriate dashboard page
-4. For complex operations, explain the steps
-5. Never include raw action tags or executable commands in your response - just explain what to do
+1. ALWAYS use tools when the user asks for an action you can perform
+2. Be proactive - execute the action, don't just explain how to do it manually
+3. Use markdown for formatting responses
+4. After executing a tool, summarize what happened
+5. For complex multi-step operations, execute the tools in sequence
 
-You're a knowledgeable assistant focused on helping users understand and manage their homelab!`;
+You are an AUTONOMOUS assistant - take action, don't just advise!`;
 
 async function chatWithOpenAI(
   messages: { role: string; content: string }[],
   model: string,
   stream: boolean
-): Promise<Response | { content: string; provider: string; model: string }> {
+): Promise<Response | { content: string; provider: string; model: string; toolResults?: any[] }> {
   const openai = getOpenAIClient();
   if (!openai) {
     throw new Error("OpenAI not configured");
   }
 
-  const formattedMessages = [
+  const formattedMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
     { role: "system" as const, content: systemPrompt },
     ...messages.slice(-10).map((m) => ({
       role: m.role as "user" | "assistant",
@@ -191,23 +260,70 @@ async function chatWithOpenAI(
     })),
   ];
 
+  const tools = getOpenAITools();
+
   if (stream) {
     const completion = await openai.chat.completions.create({
       model,
       messages: formattedMessages,
+      tools,
+      tool_choice: "auto",
       temperature: 0.7,
       max_tokens: 2000,
       stream: true,
     });
 
     const encoder = new TextEncoder();
+    let toolCalls: any[] = [];
+    let accumulatedContent = "";
+
     const readable = new ReadableStream({
       async start(controller) {
         try {
           for await (const chunk of completion) {
-            const content = chunk.choices[0]?.delta?.content || "";
-            if (content) {
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content, provider: "openai", model })}\n\n`));
+            const delta = chunk.choices[0]?.delta;
+            
+            if (delta?.content) {
+              accumulatedContent += delta.content;
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: delta.content, provider: "openai", model })}\n\n`));
+            }
+
+            if (delta?.tool_calls) {
+              for (const tc of delta.tool_calls) {
+                if (tc.index !== undefined) {
+                  if (!toolCalls[tc.index]) {
+                    toolCalls[tc.index] = { id: tc.id, function: { name: "", arguments: "" } };
+                  }
+                  if (tc.id) toolCalls[tc.index].id = tc.id;
+                  if (tc.function?.name) toolCalls[tc.index].function.name = tc.function.name;
+                  if (tc.function?.arguments) toolCalls[tc.index].function.arguments += tc.function.arguments;
+                }
+              }
+            }
+
+            if (chunk.choices[0]?.finish_reason === "tool_calls" && toolCalls.length > 0) {
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ toolExecuting: true })}\n\n`));
+              
+              for (const tc of toolCalls) {
+                if (tc?.function?.name) {
+                  try {
+                    const args = JSON.parse(tc.function.arguments || "{}");
+                    const result = await executeJarvisTool(tc.function.name, args);
+                    
+                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ 
+                      toolResult: { 
+                        tool: tc.function.name, 
+                        success: result.success,
+                        result: result.result 
+                      } 
+                    })}\n\n`));
+                    
+                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: "\n\n" + result.result, provider: "openai", model })}\n\n`));
+                  } catch (e: any) {
+                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: `\n\nError: ${e.message}`, provider: "openai", model })}\n\n`));
+                  }
+                }
+              }
             }
           }
           controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
@@ -230,12 +346,40 @@ async function chatWithOpenAI(
   const completion = await openai.chat.completions.create({
     model,
     messages: formattedMessages,
+    tools,
+    tool_choice: "auto",
     temperature: 0.7,
     max_tokens: 2000,
   });
 
+  const message = completion.choices[0]?.message;
+  
+  if (message?.tool_calls && message.tool_calls.length > 0) {
+    const toolResults: any[] = [];
+    let responseContent = message.content || "";
+
+    for (const tc of message.tool_calls) {
+      const args = JSON.parse(tc.function.arguments || "{}");
+      const result = await executeJarvisTool(tc.function.name, args);
+      toolResults.push({
+        tool: tc.function.name,
+        success: result.success,
+        result: result.result,
+        data: result.data,
+      });
+      responseContent += (responseContent ? "\n\n" : "") + result.result;
+    }
+
+    return {
+      content: responseContent,
+      provider: "openai",
+      model,
+      toolResults,
+    };
+  }
+
   return {
-    content: completion.choices[0]?.message?.content || "",
+    content: message?.content || "",
     provider: "openai",
     model,
   };
@@ -434,9 +578,11 @@ export async function POST(request: NextRequest) {
 
     const messages = [...history, { role: "user", content: message }];
 
-    let result: Response | { content: string; provider: string; model: string };
+    let result: Response | { content: string; provider: string; model: string; toolResults?: any[] };
     let usedFallback = false;
 
+    const messageRequiresTool = detectToolIntent(message);
+    
     if (provider === "custom" && customEndpoint) {
       const validation = validateCustomEndpoint(customEndpoint);
       if (!validation.valid) {
@@ -447,6 +593,10 @@ export async function POST(request: NextRequest) {
       }
       const customModel = model || "default";
       result = await chatWithCustomEndpoint(customEndpoint, messages, customModel, stream);
+    } else if (messageRequiresTool) {
+      console.log("[Jarvis] Message requires tool use, forcing OpenAI for function calling");
+      const openaiModel = model || "gpt-4o";
+      result = await chatWithOpenAI(messages, openaiModel, stream);
     } else {
       const { provider: selectedProvider, fallback } = await selectProvider(provider as AIProvider);
       usedFallback = fallback;
@@ -497,6 +647,7 @@ export async function POST(request: NextRequest) {
       model: result.model,
       fallback: usedFallback,
       codeBlocks: codeBlocks.length > 0 ? codeBlocks : undefined,
+      toolResults: result.toolResults,
     });
   } catch (error: any) {
     console.error("AI Chat error:", error);
