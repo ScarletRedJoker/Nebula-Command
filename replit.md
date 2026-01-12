@@ -158,11 +158,39 @@ When running on Linode (Tailscale network):
 - Added `presenceVisible` and `mediaPreferences` columns to `discord_users` table
 - Plex integration added to `/profile` and `/nowplaying` commands - shows what users are watching
 
-### Stable Diffusion Setup (Windows VM)
-Requires Python 3.10.6 - run on Windows VM:
-```powershell
-cd C:\AI\stable-diffusion-webui
-winget install Python.Python.3.10
-python --version  # Should show 3.10.x
-.\webui-user.bat
+### Stable Diffusion WebUI Setup (Windows VM)
+Location: `C:\stable-diffusion-webui`
+Port: 7860 (local only via Tailscale)
+
+**IMPORTANT FIX**: Stability-AI made their repo private (Dec 2024). Edit `webui-user.bat` to add:
+```batch
+set STABLE_DIFFUSION_REPO=https://github.com/w-e-w/stablediffusion.git
 ```
+
+Full `webui-user.bat`:
+```batch
+@echo off
+set STABLE_DIFFUSION_REPO=https://github.com/w-e-w/stablediffusion.git
+set PYTHON=
+set GIT=
+set VENV_DIR=
+set COMMANDLINE_ARGS=
+call webui.bat
+```
+
+### ComfyUI Setup (Windows VM)
+Location: `C:\Users\Evin\Documents\ComfyUI_windows_portable`
+Port: 8188 (listening on 0.0.0.0)
+
+Start command:
+```powershell
+cd C:\Users\Evin\Documents\ComfyUI_windows_portable
+.\python_embeded\python.exe -s ComfyUI\main.py --windows-standalone-build --listen 0.0.0.0
+```
+
+Models installed via ComfyUI-Manager:
+- Stable Video Diffusion (SVD)
+- SDXL Refiner 1.0
+- SDXL Inpainting
+- AnimateDiff v3
+- ControlNet LoRAs (Canny, Depth)
