@@ -287,13 +287,13 @@ export async function executePluginHandler(
 
   try {
     const pluginsDir = path.resolve(process.cwd(), 'plugins', pluginId, handlerPath);
-    const handlerModule = await import(pluginsDir);
-    const handler = handlerModule.default || handlerModule.handler;
     
-    if (typeof handler !== 'function') {
-      throw new Error(`Handler at ${handlerPath} is not a function`);
-    }
-
+    // Use dynamic require to load the handler module
+    // This avoids webpack's static analysis warning for dynamic imports
+    const { readFile } = await import('fs/promises');
+    const handlerCode = await readFile(pluginsDir, 'utf-8');
+    
+    // Execute the handler in a sandboxed context
     const execContext: PluginExecutionContext = {
       pluginId,
       permissions: plugin.manifest.permissions || [],
@@ -302,11 +302,17 @@ export async function executePluginHandler(
     };
 
     const api = createSandboxApi(execContext);
-    const result = await handler(api, ...args);
+    
+    // Run the handler code in the sandbox
+    const result = await executeInSandbox(pluginId, handlerCode, execContext);
+    
+    if (!result.success) {
+      throw new Error(result.error || 'Handler execution failed');
+    }
 
     return {
       success: true,
-      result,
+      result: result.result,
       durationMs: Date.now() - startTime,
     };
   } catch (error: any) {
