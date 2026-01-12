@@ -114,25 +114,74 @@ async function checkStableDiffusion(): Promise<AIProviderStatus> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
 
-    const response = await fetch(`${sdUrl}/sdapi/v1/sd-models`, {
+    // Try multiple endpoints - API may vary by SD WebUI version
+    const endpoints = [
+      { url: `${sdUrl}/sdapi/v1/sd-models`, parseModels: true },
+      { url: `${sdUrl}/internal/ping`, parseModels: false },
+      { url: `${sdUrl}/`, parseModels: false },
+    ];
+
+    for (const endpoint of endpoints) {
+      try {
+        const response = await fetch(endpoint.url, {
+          signal: controller.signal,
+        });
+        
+        if (response.ok) {
+          clearTimeout(timeout);
+          
+          if (endpoint.parseModels) {
+            const models = await response.json();
+            const modelName = models[0]?.model_name || "Default";
+            return {
+              name: "Stable Diffusion",
+              status: "connected",
+              model: modelName,
+            };
+          }
+          
+          return {
+            name: "Stable Diffusion",
+            status: "connected",
+            model: "WebUI Online",
+          };
+        }
+      } catch {
+        // Try next endpoint
+      }
+    }
+
+    clearTimeout(timeout);
+    return { name: "Stable Diffusion", status: "not_configured", error: "Not reachable" };
+  } catch (error: any) {
+    return { name: "Stable Diffusion", status: "not_configured", error: "Not reachable" };
+  }
+}
+
+async function checkComfyUI(): Promise<AIProviderStatus> {
+  const WINDOWS_VM_IP = process.env.WINDOWS_VM_TAILSCALE_IP || "100.118.44.102";
+  const comfyUrl = process.env.COMFYUI_URL || `http://${WINDOWS_VM_IP}:8188`;
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+
+    const response = await fetch(`${comfyUrl}/system_stats`, {
       signal: controller.signal,
     });
     clearTimeout(timeout);
 
-    if (!response.ok) {
-      return { name: "Stable Diffusion", status: "error", error: `HTTP ${response.status}` };
+    if (response.ok) {
+      return {
+        name: "ComfyUI",
+        status: "connected",
+        model: "Video Generation Ready",
+      };
     }
 
-    const models = await response.json();
-    const modelName = models[0]?.model_name || "Default";
-
-    return {
-      name: "Stable Diffusion",
-      status: "connected",
-      model: modelName,
-    };
+    return { name: "ComfyUI", status: "error", error: `HTTP ${response.status}` };
   } catch (error: any) {
-    return { name: "Stable Diffusion", status: "not_configured", error: "Not reachable" };
+    return { name: "ComfyUI", status: "not_configured", error: "Not reachable" };
   }
 }
 
@@ -142,19 +191,24 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const [openai, ollama, dalle, sd] = await Promise.all([
+  const [openai, ollama, dalle, sd, comfyui] = await Promise.all([
     checkOpenAI(),
     checkOllama(),
     checkImageGeneration(),
     checkStableDiffusion(),
+    checkComfyUI(),
   ]);
+
+  // Check for Replicate API token
+  const replicateToken = process.env.REPLICATE_API_TOKEN;
+  const replicateStatus: AIProviderStatus = replicateToken
+    ? { name: "Replicate", status: "connected", model: "WAN 2.1" }
+    : { name: "Replicate", status: "not_configured", error: "No API token" };
 
   const providers = {
     text: [openai, ollama],
     image: [dalle, sd],
-    video: [
-      { name: "Runway", status: "not_configured" as const, error: "API key not set" },
-    ],
+    video: [comfyui, replicateStatus],
   };
 
   const overallStatus = openai.status === "connected" ? "healthy" : "degraded";
@@ -165,7 +219,7 @@ export async function GET(request: NextRequest) {
     capabilities: {
       chat: openai.status === "connected" || ollama.status === "connected",
       imageGeneration: dalle.status === "connected" || sd.status === "connected",
-      videoGeneration: false,
+      videoGeneration: comfyui.status === "connected" || replicateStatus.status === "connected",
       localLLM: ollama.status === "connected",
     },
   });

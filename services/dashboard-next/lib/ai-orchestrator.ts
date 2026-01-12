@@ -402,17 +402,27 @@ class AIOrchestrator {
       return false;
     }
 
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000);
-      const response = await fetch(`${this.stableDiffusionUrl}/sdapi/v1/sd-models`, {
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-      return response.ok;
-    } catch {
-      return false;
+    // Try multiple endpoints - API may vary by SD WebUI version
+    const endpoints = [
+      `${this.stableDiffusionUrl}/sdapi/v1/sd-models`,
+      `${this.stableDiffusionUrl}/internal/ping`,
+      `${this.stableDiffusionUrl}/`,
+    ];
+
+    for (const endpoint of endpoints) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        const response = await fetch(endpoint, {
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        if (response.ok) return true;
+      } catch {
+        // Try next endpoint
+      }
     }
+    return false;
   }
 
   private async uploadImageToComfyUI(imageUrl: string): Promise<string> {
