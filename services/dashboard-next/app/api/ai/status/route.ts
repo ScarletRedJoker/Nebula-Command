@@ -188,11 +188,6 @@ async function checkComfyUI(): Promise<AIProviderStatus> {
 }
 
 export async function GET(request: NextRequest) {
-  const user = await checkAuth();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const [openai, ollama, dalle, sd, comfyui] = await Promise.all([
     checkOpenAI(),
     checkOllama(),
