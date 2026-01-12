@@ -332,28 +332,26 @@ class AIOrchestrator {
 
   private async selectBestProvider(capability: AICapability): Promise<AIProvider> {
     if (isReplitEnv()) {
+      console.log("[AI Orchestrator] Replit environment detected, using OpenAI");
       return "openai";
     }
 
     if (capability === "chat") {
-      if (this.isOllamaOnlineFromState()) {
-        console.log("[AI Orchestrator] Using Ollama (state file indicates online)");
-        return "ollama";
-      }
-      
+      // Always do a live probe - state file can be stale or container networking may not reach Tailscale IPs
       try {
         const response = await fetch(`${this.ollamaUrl}/api/tags`, {
-          signal: AbortSignal.timeout(3000),
+          signal: AbortSignal.timeout(2000),
         });
         if (response.ok) {
           const data = await response.json();
           if (data.models?.length > 0) {
-            console.log("[AI Orchestrator] Using Ollama (live probe succeeded)");
+            console.log(`[AI Orchestrator] Using Ollama at ${this.ollamaUrl} (live probe succeeded, ${data.models.length} models available)`);
             return "ollama";
           }
         }
       } catch (error) {
-        console.log("[AI Orchestrator] Ollama probe failed, falling back to OpenAI");
+        // Ollama not reachable - this is expected if running in Docker without Tailscale routing
+        console.log(`[AI Orchestrator] Ollama at ${this.ollamaUrl} not reachable, using OpenAI fallback`);
       }
     }
 

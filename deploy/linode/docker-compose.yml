@@ -121,30 +121,6 @@ services:
       retries: 5
       start_period: 30s
 
-  dashboard-tailscale:
-    image: tailscale/tailscale:stable
-    container_name: dashboard-tailscale
-    hostname: nebula-dashboard
-    restart: unless-stopped
-    networks:
-      - homelab
-    cap_add:
-      - NET_ADMIN
-      - NET_RAW
-    volumes:
-      - /dev/net/tun:/dev/net/tun
-    environment:
-      - TS_AUTHKEY=${TAILSCALE_AUTHKEY}
-      - TS_STATE_DIR=/var/lib/tailscale
-      - TS_EXTRA_ARGS=--hostname=nebula-dashboard --accept-dns=false
-    command: ["sh", "-c", "tailscaled --state=mem: & sleep 5 && tailscale up --authkey=$${TS_AUTHKEY} --accept-routes && tail -f /dev/null"]
-    healthcheck:
-      test: ["CMD", "tailscale", "status"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-
   homelab-dashboard:
     build:
       context: ../../services/dashboard-next
@@ -159,9 +135,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      dashboard-tailscale:
-        condition: service_healthy
-    network_mode: "service:dashboard-tailscale"
+    networks:
+      - homelab
     deploy:
       resources:
         limits:

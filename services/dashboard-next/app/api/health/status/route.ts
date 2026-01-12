@@ -370,8 +370,9 @@ async function checkDatabaseHealth(): Promise<Omit<ServiceHealth, "id" | "name">
   }
 }
 
-function checkRedisHealth(): Omit<ServiceHealth, "id" | "name"> {
+async function checkRedisHealth(): Promise<Omit<ServiceHealth, "id" | "name">> {
   const redisUrl = process.env.REDIS_URL;
+  const start = Date.now();
 
   if (!redisUrl) {
     return {
@@ -381,15 +382,35 @@ function checkRedisHealth(): Omit<ServiceHealth, "id" | "name"> {
     };
   }
 
-  return {
-    status: "unknown",
-    lastChecked: new Date().toISOString(),
-    details: "Redis client not installed",
-  };
+  try {
+    const Redis = (await import("ioredis")).default;
+    const redis = new Redis(redisUrl, { connectTimeout: 3000, lazyConnect: true });
+    
+    await redis.connect();
+    const pong = await redis.ping();
+    await redis.quit();
+    
+    return {
+      status: pong === "PONG" ? "healthy" : "unhealthy",
+      responseTime: Date.now() - start,
+      lastChecked: new Date().toISOString(),
+      details: "Redis connection successful",
+    };
+  } catch (error) {
+    return {
+      status: "unhealthy",
+      responseTime: Date.now() - start,
+      lastChecked: new Date().toISOString(),
+      error: error instanceof Error ? error.message : "Redis connection failed",
+    };
+  }
 }
 
-function checkDockerHealth(): Omit<ServiceHealth, "id" | "name"> {
-  if (process.env.NODE_ENV !== "production") {
+async function checkDockerHealth(): Promise<Omit<ServiceHealth, "id" | "name">> {
+  const start = Date.now();
+  
+  // In dev/Replit, Docker isn't available
+  if (process.env.REPL_ID || process.env.NODE_ENV !== "production") {
     return {
       status: "unknown",
       lastChecked: new Date().toISOString(),
@@ -397,11 +418,83 @@ function checkDockerHealth(): Omit<ServiceHealth, "id" | "name"> {
     };
   }
 
-  return {
-    status: "unknown",
-    lastChecked: new Date().toISOString(),
-    details: "Docker socket check unavailable",
-  };
+  try {
+    // Try to reach Docker socket via HTTP API
+    const fs = await import("fs");
+    const socketPath = "/var/run/docker.sock";
+    
+    if (!fs.existsSync(socketPath)) {
+      return {
+        status: "unknown",
+        lastChecked: new Date().toISOString(),
+        details: "Docker socket not mounted",
+      };
+    }
+    
+    // Use node's http module to query Docker socket
+    const http = await import("http");
+    
+    return new Promise((resolve) => {
+      const req = http.request(
+        {
+          socketPath,
+          path: "/v1.41/version",
+          method: "GET",
+          timeout: 3000,
+        },
+        (res) => {
+          let data = "";
+          res.on("data", (chunk) => (data += chunk));
+          res.on("end", () => {
+            try {
+              const version = JSON.parse(data);
+              resolve({
+                status: "healthy",
+                responseTime: Date.now() - start,
+                lastChecked: new Date().toISOString(),
+                details: `Docker ${version.Version}`,
+              });
+            } catch {
+              resolve({
+                status: "unhealthy",
+                responseTime: Date.now() - start,
+                lastChecked: new Date().toISOString(),
+                error: "Invalid Docker response",
+              });
+            }
+          });
+        }
+      );
+      
+      req.on("error", (err) => {
+        resolve({
+          status: "unhealthy",
+          responseTime: Date.now() - start,
+          lastChecked: new Date().toISOString(),
+          error: err.message,
+        });
+      });
+      
+      req.on("timeout", () => {
+        req.destroy();
+        resolve({
+          status: "unhealthy",
+          responseTime: Date.now() - start,
+          lastChecked: new Date().toISOString(),
+          error: "Docker socket timeout",
+        });
+      });
+      
+      req.end();
+    });
+  } catch (error) {
+    return {
+      status: "unhealthy",
+      responseTime: Date.now() - start,
+      lastChecked: new Date().toISOString(),
+      error: error instanceof Error ? error.message : "Docker check failed",
+    };
+  }
 }
 
 async function checkAIService(name: string, url: string, healthPath: string): Promise<Omit<ServiceHealth, "id" | "name">> {
@@ -536,7 +629,7 @@ export async function GET() {
   const discordBotUrl = process.env.DISCORD_BOT_URL || (process.env.NODE_ENV === "production" ? "http://discord-bot:4000" : "http://localhost:4000");
   const streamBotUrl = process.env.STREAM_BOT_URL || (process.env.NODE_ENV === "production" ? "http://stream-bot:5000" : "http://localhost:3000");
 
-  const [discordBot, streamBot, database, serverMetrics, ollama, stableDiffusion, comfyui] = await Promise.all([
+  const [discordBot, streamBot, database, serverMetrics, ollama, stableDiffusion, comfyui, redis, docker] = await Promise.all([
     checkServiceHealth(`${discordBotUrl}/health`),
     checkServiceHealth(`${streamBotUrl}/health`),
     checkDatabaseHealth(),
@@ -544,10 +637,9 @@ export async function GET() {
     checkAIService("Ollama", ollamaUrl, "/api/tags"),
     checkAIService("Stable Diffusion", sdUrl, "/sdapi/v1/options"),
     checkAIService("ComfyUI", comfyUrl, "/system_stats"),
+    checkRedisHealth(),
+    checkDockerHealth(),
   ]);
-
-  const redis = checkRedisHealth();
-  const docker = checkDockerHealth();
 
   services.push(
     { id: "discord-bot", name: "Discord Bot", ...discordBot },
