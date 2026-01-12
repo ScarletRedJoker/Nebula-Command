@@ -3,8 +3,7 @@ import Docker from "dockerode";
 import { verifySession } from "@/lib/session";
 import { cookies } from "next/headers";
 import { Client } from "ssh2";
-import { readFileSync, existsSync } from "fs";
-import { getDefaultSshKeyPath } from "@/lib/server-config-store";
+import { getDefaultSshKeyPath, getSSHPrivateKey } from "@/lib/server-config-store";
 
 const docker = new Docker({ socketPath: "/var/run/docker.sock" });
 
@@ -36,10 +35,10 @@ async function checkAuth() {
 
 async function getRemoteContainers(server: RemoteServer): Promise<any[]> {
   return new Promise((resolve) => {
-    const keyPath = server.keyPath;
+    const privateKey = getSSHPrivateKey();
     
-    if (!existsSync(keyPath)) {
-      console.log(`SSH key not found for ${server.name} at ${keyPath}`);
+    if (!privateKey) {
+      console.log(`SSH key not found for ${server.name}`);
       resolve([]);
       return;
     }
@@ -114,7 +113,7 @@ async function getRemoteContainers(server: RemoteServer): Promise<any[]> {
         host: server.host,
         port: 22,
         username: server.user,
-        privateKey: readFileSync(keyPath),
+        privateKey: privateKey,
         readyTimeout: 10000,
       });
     } catch (err: any) {
@@ -260,9 +259,9 @@ export async function POST(request: NextRequest) {
 
 async function executeRemoteDockerAction(server: RemoteServer, containerId: string, action: string): Promise<any> {
   return new Promise((resolve) => {
-    const keyPath = server.keyPath;
+    const privateKey = getSSHPrivateKey();
     
-    if (!existsSync(keyPath)) {
+    if (!privateKey) {
       resolve({ error: "SSH key not found", success: false });
       return;
     }
@@ -331,7 +330,7 @@ async function executeRemoteDockerAction(server: RemoteServer, containerId: stri
         host: server.host,
         port: 22,
         username: server.user,
-        privateKey: readFileSync(keyPath),
+        privateKey: privateKey,
         readyTimeout: 10000,
       });
     } catch (err: any) {

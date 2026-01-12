@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { Client } from "ssh2";
-import { readFileSync, existsSync } from "fs";
-import { getServerById, getDefaultSshKeyPath } from "@/lib/server-config-store";
+import { getServerById, getDefaultSshKeyPath, getSSHPrivateKey } from "@/lib/server-config-store";
 
 export const dynamic = "force-dynamic";
 
@@ -62,12 +61,13 @@ function parseAutheliaNotification(content: string): SecurityNotification | null
 
 async function fetchAutheliaNotifications(
   host: string,
-  user: string,
-  keyPath: string
+  user: string
 ): Promise<SecurityNotification[]> {
   return new Promise((resolve) => {
-    if (!existsSync(keyPath)) {
-      console.error("SSH key not found at", keyPath);
+    const privateKey = getSSHPrivateKey();
+    
+    if (!privateKey) {
+      console.error("SSH key not found");
       resolve([]);
       return;
     }
@@ -126,7 +126,7 @@ async function fetchAutheliaNotifications(
         host,
         port: 22,
         username: user,
-        privateKey: readFileSync(keyPath),
+        privateKey: privateKey,
         readyTimeout: 10000,
       });
     } catch (err: any) {
@@ -145,11 +145,9 @@ export async function GET() {
       return NextResponse.json({ notifications: [], error: "Home server not configured" });
     }
 
-    const keyPath = homeServer.keyPath || getDefaultSshKeyPath();
     const notifications = await fetchAutheliaNotifications(
       homeServer.host,
-      homeServer.user,
-      keyPath
+      homeServer.user
     );
 
     return NextResponse.json({

@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Client } from "ssh2";
 import { verifySession } from "@/lib/session";
 import { cookies } from "next/headers";
-import { readFileSync, existsSync } from "fs";
-import { getServerById, getDefaultSshKeyPath } from "@/lib/server-config-store";
+import { getServerById, getDefaultSshKeyPath, getSSHPrivateKey } from "@/lib/server-config-store";
 import wol from "wake_on_lan";
 
 async function checkAuth() {
@@ -24,11 +23,12 @@ interface PowerRequest {
 async function executeSSHCommand(
   host: string,
   user: string,
-  keyPath: string,
   command: string
 ): Promise<{ success: boolean; output?: string; error?: string }> {
   return new Promise((resolve) => {
-    if (!existsSync(keyPath)) {
+    const privateKey = getSSHPrivateKey();
+    
+    if (!privateKey) {
       resolve({ success: false, error: "SSH key not found" });
       return;
     }
@@ -84,7 +84,7 @@ async function executeSSHCommand(
         host,
         port: 22,
         username: user,
-        privateKey: readFileSync(keyPath),
+        privateKey: privateKey,
         readyTimeout: 30000,
       });
     } catch (err: any) {
@@ -172,12 +172,10 @@ export async function POST(request: NextRequest) {
 
     const command =
       action === "restart" ? "sudo shutdown -r now" : "sudo shutdown -h now";
-    const keyPath = server.keyPath || getDefaultSshKeyPath();
 
     const result = await executeSSHCommand(
       server.host,
       server.user,
-      keyPath,
       command
     );
 

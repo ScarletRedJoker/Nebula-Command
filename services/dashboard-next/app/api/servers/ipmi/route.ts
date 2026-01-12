@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Client } from "ssh2";
 import { verifySession } from "@/lib/session";
 import { cookies } from "next/headers";
-import { readFileSync, existsSync } from "fs";
-import { getServerById, getAllServers, getDefaultSshKeyPath } from "@/lib/server-config-store";
+import { getServerById, getAllServers, getDefaultSshKeyPath, getSSHPrivateKey } from "@/lib/server-config-store";
 
 function escapeShellArg(arg: string): string {
   if (!arg) return "''";
@@ -35,11 +34,12 @@ async function checkAuth() {
 async function executeSSHCommand(
   host: string,
   user: string,
-  keyPath: string,
   command: string
 ): Promise<{ success: boolean; output?: string; error?: string }> {
   return new Promise((resolve) => {
-    if (!existsSync(keyPath)) {
+    const privateKey = getSSHPrivateKey();
+    
+    if (!privateKey) {
       resolve({ success: false, error: "SSH key not found" });
       return;
     }
@@ -96,7 +96,7 @@ async function executeSSHCommand(
         host,
         port: 22,
         username: user,
-        privateKey: readFileSync(keyPath),
+        privateKey: privateKey,
         readyTimeout: 30000,
       });
     } catch (err: any) {
@@ -176,7 +176,6 @@ export async function GET(request: NextRequest) {
 
   const ipmiUser = server.ipmiUser || "admin";
   const ipmiPass = server.ipmiPassword || process.env.IPMI_PASSWORD || "";
-  const mgmtKeyPath = managementServer.keyPath || getDefaultSshKeyPath();
 
   try {
     validateIpmiInput(server.ipmiHost, "IPMI host");
@@ -191,7 +190,6 @@ export async function GET(request: NextRequest) {
     const powerResult = await executeSSHCommand(
       managementServer.host,
       managementServer.user,
-      mgmtKeyPath,
       powerCmd
     );
 
@@ -199,7 +197,6 @@ export async function GET(request: NextRequest) {
     const sensorsResult = await executeSSHCommand(
       managementServer.host,
       managementServer.user,
-      mgmtKeyPath,
       sensorsCmd
     );
 
@@ -277,7 +274,6 @@ export async function POST(request: NextRequest) {
 
     const ipmiUser = server.ipmiUser || "admin";
     const ipmiPass = server.ipmiPassword || process.env.IPMI_PASSWORD || "";
-    const mgmtKeyPath = managementServer.keyPath || getDefaultSshKeyPath();
 
     validateIpmiInput(server.ipmiHost, "IPMI host");
     validateIpmiInput(ipmiUser, "IPMI user");
@@ -291,7 +287,6 @@ export async function POST(request: NextRequest) {
     const result = await executeSSHCommand(
       managementServer.host,
       managementServer.user,
-      mgmtKeyPath,
       ipmiCmd
     );
 

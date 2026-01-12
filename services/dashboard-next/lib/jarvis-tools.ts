@@ -148,12 +148,24 @@ async function getBaseUrl(): Promise<string> {
   if (typeof window !== "undefined") {
     return window.location.origin;
   }
-  const host = process.env.REPL_SLUG
-    ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER?.toLowerCase()}.repl.co`
-    : process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : "http://localhost:5000";
-  return host;
+  
+  if (process.env.DASHBOARD_URL) {
+    return process.env.DASHBOARD_URL;
+  }
+  
+  if (process.env.REPL_SLUG) {
+    return `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER?.toLowerCase()}.repl.co`;
+  }
+  
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  
+  if (process.env.NODE_ENV === "production") {
+    return "https://dashboard.evindrake.net";
+  }
+  
+  return "http://localhost:5000";
 }
 
 async function internalFetch(path: string, options: RequestInit = {}) {

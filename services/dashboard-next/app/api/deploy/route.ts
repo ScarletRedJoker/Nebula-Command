@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Client } from "ssh2";
 import { verifySession } from "@/lib/session";
 import { cookies } from "next/headers";
-import { readFileSync, existsSync } from "fs";
-import { getAllServers, getServerById, getDefaultSshKeyPath, ServerConfig } from "@/lib/server-config-store";
+import { getAllServers, getServerById, getDefaultSshKeyPath, getSSHPrivateKey, ServerConfig } from "@/lib/server-config-store";
 
 async function checkAuth() {
   const cookieStore = await cookies();
@@ -25,8 +24,6 @@ interface DeploymentLog {
 const activeDeployments: Map<string, DeploymentLog> = new Map();
 
 async function runDeploy(server: ServerConfig, deployId: string): Promise<void> {
-  const keyPath = server.keyPath || getDefaultSshKeyPath();
-  
   const deployment = activeDeployments.get(deployId);
   if (!deployment) return;
 
@@ -52,10 +49,12 @@ async function runDeploy(server: ServerConfig, deployId: string): Promise<void> 
     return;
   }
 
+  const privateKey = getSSHPrivateKey();
+
   return new Promise((resolve, reject) => {
-    if (!existsSync(keyPath)) {
+    if (!privateKey) {
       deployment.status = "failed";
-      deployment.logs.push("ERROR: SSH key not found at " + keyPath);
+      deployment.logs.push("ERROR: SSH key not found");
       deployment.endTime = new Date();
       reject(new Error("SSH key not found"));
       return;
@@ -118,7 +117,7 @@ async function runDeploy(server: ServerConfig, deployId: string): Promise<void> 
         host: server.host,
         port: 22,
         username: server.user,
-        privateKey: readFileSync(keyPath),
+        privateKey: privateKey,
         readyTimeout: 30000,
       });
     } catch (err: any) {

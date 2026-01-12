@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySession } from "@/lib/session";
 import { cookies } from "next/headers";
-import fs, { readFileSync, existsSync } from "fs";
+import fs from "fs";
 import path from "path";
 import yaml from "js-yaml";
 import { db } from "@/lib/db";
 import { marketplacePackages, installations as installationsTable } from "@/lib/db/platform-schema";
 import { eq } from "drizzle-orm";
 import { Client } from "ssh2";
-import { getServerById, getDefaultSshKeyPath } from "@/lib/server-config-store";
+import { getServerById, getDefaultSshKeyPath, getSSHPrivateKey } from "@/lib/server-config-store";
 
 async function checkAuth() {
   const cookieStore = await cookies();
@@ -312,12 +312,13 @@ function escapeShellArg(arg: string): string {
 async function executeSSHCommand(
   host: string,
   user: string,
-  keyPath: string,
   command: string
 ): Promise<{ success: boolean; output?: string; error?: string }> {
   return new Promise((resolve) => {
-    if (!existsSync(keyPath)) {
-      resolve({ success: false, error: `SSH key not found: ${keyPath}` });
+    const privateKey = getSSHPrivateKey();
+    
+    if (!privateKey) {
+      resolve({ success: false, error: "SSH key not found" });
       return;
     }
 
@@ -373,7 +374,7 @@ async function executeSSHCommand(
         host,
         port: 22,
         username: user,
-        privateKey: readFileSync(keyPath),
+        privateKey: privateKey,
         readyTimeout: 30000,
       });
     } catch (err: any) {
@@ -399,8 +400,6 @@ async function queueInstallation(
       throw new Error(`Server not found: ${serverId}`);
     }
 
-    const keyPath = server.keyPath || getDefaultSshKeyPath();
-
     const envArgs = pkg.variables
       ?.map(v => {
         const value = config[v.name] || v.default || "";
@@ -419,7 +418,6 @@ async function queueInstallation(
     const result = await executeSSHCommand(
       server.host,
       server.user,
-      keyPath,
       dockerCommand
     );
 

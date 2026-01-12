@@ -1,4 +1,5 @@
 import fs from "fs/promises";
+import { readFileSync, existsSync } from "fs";
 import path from "path";
 
 export interface ServerConfig {
@@ -228,6 +229,28 @@ export async function deleteServer(id: string): Promise<ServerConfig[]> {
 
 export function getDefaultSshKeyPath(): string {
   return DEFAULT_SSH_KEY_PATH;
+}
+
+export function getSSHPrivateKey(): Buffer | null {
+  if (process.env.SSH_PRIVATE_KEY) {
+    return Buffer.from(process.env.SSH_PRIVATE_KEY);
+  }
+  
+  const keyPath = DEFAULT_SSH_KEY_PATH;
+  if (existsSync(keyPath)) {
+    try {
+      return readFileSync(keyPath);
+    } catch (err: any) {
+      console.error(`Failed to read SSH key from file: ${err.message}`);
+      return null;
+    }
+  }
+  
+  return null;
+}
+
+export function hasSSHKey(): boolean {
+  return !!process.env.SSH_PRIVATE_KEY || existsSync(DEFAULT_SSH_KEY_PATH);
 }
 
 export function getDefaultServers(): ServerConfig[] {

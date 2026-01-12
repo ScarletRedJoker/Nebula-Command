@@ -98,3 +98,37 @@ The dashboard includes a comprehensive status page at `/status` that monitors:
 - Databases (PostgreSQL, Redis)
 - AI services (Ollama, Stable Diffusion, ComfyUI)
 - Server health via SSH (when accessible)
+
+## Production Configuration
+
+### Required Secrets (Production)
+- `SESSION_SECRET` - JWT session signing (min 32 chars)
+- `SSH_PRIVATE_KEY` - SSH private key for server access (from env var, not file)
+- `DATABASE_URL` - PostgreSQL connection string
+- `AI_INTEGRATIONS_OPENAI_API_KEY` - OpenAI API key for AI features
+- `CLOUDFLARE_API_TOKEN` - DNS management
+
+### Environment Detection
+The dashboard automatically detects environment:
+- **Replit (dev)**: Uses `REPL_ID` detection, skips local AI (unreachable), uses OpenAI fallback
+- **Production (Linode)**: Reads `/opt/homelab/HomeLabHub/deploy/shared/state/local-ai.json` for local AI state, connects to Windows VM via Tailscale
+
+### SSH Key Handling
+All SSH-dependent features (terminal, Docker management, deployments) read keys from:
+1. `SSH_PRIVATE_KEY` environment variable (preferred)
+2. File at `SSH_KEY_PATH` or `/root/.ssh/homelab` (fallback)
+
+### Jarvis AI Tools
+Jarvis has 6 autonomous tools with OpenAI function calling:
+- `generate_image` - DALL-E 3 or local Stable Diffusion
+- `generate_video` - Replicate or local ComfyUI
+- `docker_action` - Start/stop/restart containers
+- `deploy` - Trigger deployment to Linode or Home server
+- `get_server_status` - Health check all services
+- `get_container_logs` - Retrieve container logs
+
+### Local AI (Production Only)
+When running on Linode (Tailscale network):
+- Windows VM Ollama: `http://100.118.44.102:11434`
+- Windows VM ComfyUI: `http://100.118.44.102:8188`
+- Ubuntu Ollama fallback: `http://100.66.61.51:11434`

@@ -5,8 +5,7 @@ import { db } from "@/lib/db";
 import { workflows, workflowExecutions } from "@/lib/db/platform-schema";
 import { eq, desc, and } from "drizzle-orm";
 import { Client } from "ssh2";
-import { readFileSync, existsSync } from "fs";
-import { getServerById, getDefaultSshKeyPath } from "@/lib/server-config-store";
+import { getServerById, getDefaultSshKeyPath, getSSHPrivateKey } from "@/lib/server-config-store";
 
 interface ActionResult {
   actionId: string;
@@ -95,12 +94,13 @@ async function executeHttpRequest(config: HttpRequestConfig): Promise<{ success:
 async function executeSSHCommand(
   host: string,
   user: string,
-  keyPath: string,
   command: string
 ): Promise<{ success: boolean; output?: string; error?: string }> {
   return new Promise((resolve) => {
-    if (!existsSync(keyPath)) {
-      resolve({ success: false, error: `SSH key not found: ${keyPath}` });
+    const privateKey = getSSHPrivateKey();
+    
+    if (!privateKey) {
+      resolve({ success: false, error: "SSH key not found" });
       return;
     }
 
@@ -156,7 +156,7 @@ async function executeSSHCommand(
         host,
         port: 22,
         username: user,
-        privateKey: readFileSync(keyPath),
+        privateKey: privateKey,
         readyTimeout: 30000,
       });
     } catch (err: any) {
@@ -178,16 +178,16 @@ async function executeSshCommandAction(config: SshCommandConfig): Promise<{ succ
     return { success: false, error: `Server not found: ${serverId}. Available servers can be configured in Settings.` };
   }
 
-  const keyPath = server.keyPath || getDefaultSshKeyPath();
+  const privateKey = getSSHPrivateKey();
   
-  if (!existsSync(keyPath)) {
+  if (!privateKey) {
     return { 
       success: false, 
-      error: `SSH key not found at ${keyPath}. Please configure the SSH key path in Settings > Servers.` 
+      error: "SSH key not found. Please configure the SSH key in Settings > Servers." 
     };
   }
 
-  return executeSSHCommand(server.host, server.user, keyPath, command);
+  return executeSSHCommand(server.host, server.user, command);
 }
 
 async function executeDiscordNotify(config: DiscordNotifyConfig): Promise<{ success: boolean; output?: unknown; error?: string }> {

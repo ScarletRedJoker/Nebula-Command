@@ -1,18 +1,18 @@
 import { NextResponse } from "next/server";
 import { Client } from "ssh2";
-import { readFileSync, existsSync } from "fs";
-import { getServerById, getDefaultSshKeyPath } from "@/lib/server-config-store";
+import { getServerById, getDefaultSshKeyPath, getSSHPrivateKey } from "@/lib/server-config-store";
 
 export const dynamic = "force-dynamic";
 
 async function fetchTotpQr(
   host: string,
-  user: string,
-  keyPath: string
+  user: string
 ): Promise<{ base64: string; filename: string } | null> {
   return new Promise((resolve) => {
-    if (!existsSync(keyPath)) {
-      console.error("SSH key not found at", keyPath);
+    const privateKey = getSSHPrivateKey();
+    
+    if (!privateKey) {
+      console.error("SSH key not found");
       resolve(null);
       return;
     }
@@ -82,7 +82,7 @@ async function fetchTotpQr(
         host,
         port: 22,
         username: user,
-        privateKey: readFileSync(keyPath),
+        privateKey: privateKey,
         readyTimeout: 15000,
       });
     } catch (err: any) {
@@ -101,11 +101,9 @@ export async function GET() {
       return NextResponse.json({ qrCode: null, error: "Home server not configured" });
     }
 
-    const keyPath = homeServer.keyPath || getDefaultSshKeyPath();
     const result = await fetchTotpQr(
       homeServer.host,
-      homeServer.user,
-      keyPath
+      homeServer.user
     );
 
     if (result) {
@@ -132,11 +130,12 @@ export async function GET() {
 
 async function deleteTotpQr(
   host: string,
-  user: string,
-  keyPath: string
+  user: string
 ): Promise<{ success: boolean; error?: string }> {
   return new Promise((resolve) => {
-    if (!existsSync(keyPath)) {
+    const privateKey = getSSHPrivateKey();
+    
+    if (!privateKey) {
       resolve({ success: false, error: "SSH key not found" });
       return;
     }
@@ -176,7 +175,7 @@ async function deleteTotpQr(
         host,
         port: 22,
         username: user,
-        privateKey: readFileSync(keyPath),
+        privateKey: privateKey,
         readyTimeout: 10000,
       });
     } catch (err: any) {
@@ -194,8 +193,7 @@ export async function DELETE() {
       return NextResponse.json({ success: false, error: "Home server not configured" });
     }
 
-    const keyPath = homeServer.keyPath || getDefaultSshKeyPath();
-    const result = await deleteTotpQr(homeServer.host, homeServer.user, keyPath);
+    const result = await deleteTotpQr(homeServer.host, homeServer.user);
     
     return NextResponse.json(result);
   } catch (error: any) {

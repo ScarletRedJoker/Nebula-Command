@@ -2,9 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { Client } from "ssh2";
 import { verifySession } from "@/lib/session";
 import { cookies } from "next/headers";
-import { readFileSync, existsSync } from "fs";
 import { serverRegistry, type ServerWithHealth } from "@/lib/server-registry";
-import { getDefaultSshKeyPath } from "@/lib/server-config-store";
+import { getDefaultSshKeyPath, getSSHPrivateKey } from "@/lib/server-config-store";
 
 async function checkAuth() {
   const cookieStore = await cookies();
@@ -16,9 +15,9 @@ async function checkAuth() {
 
 async function getServerMetrics(server: ServerWithHealth): Promise<any> {
   return new Promise((resolve) => {
-    const keyPath = server.keyPath || getDefaultSshKeyPath();
+    const privateKey = getSSHPrivateKey();
     
-    if (!existsSync(keyPath)) {
+    if (!privateKey) {
       resolve({
         id: server.slug,
         name: server.name,
@@ -133,7 +132,7 @@ async function getServerMetrics(server: ServerWithHealth): Promise<any> {
         host: server.host,
         port: server.port || 22,
         username: server.user,
-        privateKey: readFileSync(keyPath),
+        privateKey: privateKey,
         readyTimeout: 10000,
       });
     } catch (err: any) {
