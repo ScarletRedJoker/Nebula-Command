@@ -118,6 +118,8 @@ export const discordUsers = pgTable("discord_users", {
   lastSeenAt: timestamp("last_seen_at").defaultNow(),
   adminGuilds: text("admin_guilds"), // JSON string of guilds user is admin in
   connectedServers: text("connected_servers"), // JSON string of servers where bot is connected
+  presenceVisible: boolean("presence_visible").default(true), // Whether profile/nowplaying is visible to others
+  mediaPreferences: text("media_preferences"), // JSON: connected media services (Plex, Jellyfin, Spotify prefs)
 });
 
 // Ticket categories

@@ -25,8 +25,68 @@ import {
 } from 'discord.js';
 import { getLanyardService, initLanyardService, FormattedPresence } from '../../../services/lanyard-service';
 import { IStorage } from '../../../storage';
+import { db } from '../../../db';
+import { discordUsers } from '@shared/schema';
+import { eq } from 'drizzle-orm';
 
-const userPresenceSettings = new Map<string, boolean>();
+// Cache presence settings in memory for performance, but persist to database
+const userPresenceCache = new Map<string, boolean>();
+
+// Initialize cache from database on startup
+async function loadPresenceSettings(): Promise<void> {
+  try {
+    const users = await db.select({ id: discordUsers.id, presenceVisible: discordUsers.presenceVisible })
+      .from(discordUsers);
+    for (const user of users) {
+      if (user.presenceVisible !== null) {
+        userPresenceCache.set(user.id, user.presenceVisible);
+      }
+    }
+    console.log(`[Presence] Loaded ${userPresenceCache.size} presence settings from database`);
+  } catch (error) {
+    console.log('[Presence] Could not load presence settings from database, using defaults');
+  }
+}
+
+// Persist presence setting to database
+async function setPresenceVisible(userId: string, visible: boolean): Promise<void> {
+  userPresenceCache.set(userId, visible);
+  try {
+    // Upsert user presence setting
+    const existing = await db.select().from(discordUsers).where(eq(discordUsers.id, userId));
+    if (existing.length > 0) {
+      await db.update(discordUsers)
+        .set({ presenceVisible: visible })
+        .where(eq(discordUsers.id, userId));
+    } else {
+      await db.insert(discordUsers).values({
+        id: userId,
+        username: 'unknown',
+        discriminator: '0',
+        presenceVisible: visible,
+      });
+    }
+  } catch (error) {
+    console.error('[Presence] Failed to persist presence setting:', error);
+  }
+}
+
+// Get presence visibility (from cache first, then database)
+async function getPresenceVisible(userId: string): Promise<boolean> {
+  if (userPresenceCache.has(userId)) {
+    return userPresenceCache.get(userId)!;
+  }
+  try {
+    const [user] = await db.select({ presenceVisible: discordUsers.presenceVisible })
+      .from(discordUsers)
+      .where(eq(discordUsers.id, userId));
+    const visible = user?.presenceVisible ?? true;
+    userPresenceCache.set(userId, visible);
+    return visible;
+  } catch (error) {
+    return true; // Default to visible
+  }
+}
 
 interface CommandContext {
   storage: IStorage;
@@ -42,6 +102,7 @@ export function registerPresenceCommands(commands: Collection<string, Command>):
   console.log('[Presence] Registering presence commands...');
   
   initLanyardService();
+  loadPresenceSettings(); // Load presence settings from database
   
   const nowPlayingCmd: Command = {
     data: new SlashCommandBuilder()
@@ -109,11 +170,14 @@ async function handleNowPlaying(
     return;
   }
 
-  if (targetUser.id !== interaction.user.id && !isPresenceVisible(targetUser.id)) {
-    await interaction.editReply({
-      content: `\`[LOCKED]\` **${targetUser.displayName}** has their activity set to private.`,
-    });
-    return;
+  if (targetUser.id !== interaction.user.id) {
+    const isVisible = await getPresenceVisible(targetUser.id);
+    if (!isVisible) {
+      await interaction.editReply({
+        content: `\`[LOCKED]\` **${targetUser.displayName}** has their activity set to private.`,
+      });
+      return;
+    }
   }
 
   const presence = await lanyard.getPresence(targetUser.id);
@@ -145,11 +209,14 @@ async function handleProfile(
     return;
   }
 
-  if (targetUser.id !== interaction.user.id && !isPresenceVisible(targetUser.id)) {
-    await interaction.editReply({
-      content: `\`[LOCKED]\` **${targetUser.displayName}** has their profile set to private.`,
-    });
-    return;
+  if (targetUser.id !== interaction.user.id) {
+    const isVisible = await getPresenceVisible(targetUser.id);
+    if (!isVisible) {
+      await interaction.editReply({
+        content: `\`[LOCKED]\` **${targetUser.displayName}** has their profile set to private.`,
+      });
+      return;
+    }
   }
 
   const presence = await lanyard.getPresence(targetUser.id);
@@ -174,21 +241,24 @@ async function handlePresenceSettings(
   const subcommand = interaction.options.getSubcommand();
   
   if (subcommand === 'toggle') {
+    await interaction.deferReply({ ephemeral: true });
+    
     const userId = interaction.user.id;
-    const currentState = userPresenceSettings.get(userId) ?? true;
+    const currentState = await getPresenceVisible(userId);
     const newState = !currentState;
-    userPresenceSettings.set(userId, newState);
+    await setPresenceVisible(userId, newState);
 
     const statusEmoji = newState ? '🟢' : '🔒';
     const statusText = newState ? 'visible to everyone' : 'hidden from others';
 
-    await interaction.reply({
-      content: `${statusEmoji} Your activity is now **${statusText}**.`,
-      ephemeral: true,
+    await interaction.editReply({
+      content: `${statusEmoji} Your activity is now **${statusText}**.\n\`[SAVED]\` This setting persists across restarts.`,
     });
   } else if (subcommand === 'status') {
+    await interaction.deferReply({ ephemeral: true });
+    
     const userId = interaction.user.id;
-    const isVisible = isPresenceVisible(userId);
+    const isVisible = await getPresenceVisible(userId);
 
     const lanyard = getLanyardService();
     let lanyardStatus = '❓ Unknown';
@@ -228,12 +298,8 @@ async function handlePresenceSettings(
       )
       .setFooter({ text: 'Use /presence toggle to change visibility' });
 
-    await interaction.reply({ embeds: [embed], ephemeral: true });
+    await interaction.editReply({ embeds: [embed] });
   }
-}
-
-function isPresenceVisible(userId: string): boolean {
-  return userPresenceSettings.get(userId) ?? true;
 }
 
 function createNowPlayingEmbed(user: User, presence: FormattedPresence): EmbedBuilder {

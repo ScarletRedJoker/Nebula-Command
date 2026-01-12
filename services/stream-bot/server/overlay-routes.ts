@@ -461,6 +461,618 @@ router.get('/spotify/obs', setOBSHeaders, async (req, res) => {
 });
 
 /**
+ * Standalone OBS-friendly YouTube overlay
+ * GET /api/overlay/youtube/obs
+ * Returns a self-contained HTML page for YouTube livestream info
+ */
+router.get('/youtube/obs', setOBSHeaders, async (req, res) => {
+  const { token } = req.query;
+  
+  if (!token || typeof token !== 'string') {
+    return res.status(400).send(`
+      <!DOCTYPE html>
+      <html><head><title>OBS Overlay Error</title></head>
+      <body style="background:transparent;color:#ff4444;font-family:sans-serif;padding:20px;">
+        <h2>Missing Token</h2>
+        <p>Please generate an overlay URL from your dashboard settings.</p>
+      </body></html>
+    `);
+  }
+
+  try {
+    verifyOverlayToken(token);
+  } catch (error: any) {
+    return res.status(401).send(`
+      <!DOCTYPE html>
+      <html><head><title>OBS Overlay Error</title></head>
+      <body style="background:transparent;color:#ff4444;font-family:sans-serif;padding:20px;">
+        <h2>Invalid or Expired Token</h2>
+        <p>${error.message}</p>
+        <p>Please generate a new overlay URL from your dashboard.</p>
+      </body></html>
+    `);
+  }
+
+  const protocol = req.get('x-forwarded-proto') || req.protocol || 'https';
+  const host = req.get('host') || 'localhost:3000';
+  const baseUrl = `${protocol}://${host}`;
+  const apiUrl = `${baseUrl}/api/overlay/youtube/data?token=${encodeURIComponent(token)}`;
+
+  res.type('html').send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <title>YouTube Live - OBS</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      background: transparent; 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      overflow: hidden;
+    }
+    .container {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: flex-end;
+      justify-content: flex-start;
+      padding: 24px;
+    }
+    .card {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 16px;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(12px);
+      border: 2px solid rgba(255, 0, 0, 0.5);
+      border-radius: 12px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      max-width: 420px;
+      opacity: 0;
+      transform: translateY(20px) scale(0.95);
+      transition: opacity 0.5s ease, transform 0.5s ease;
+    }
+    .card.visible { opacity: 1; transform: translateY(0) scale(1); }
+    .card.hidden { opacity: 0; transform: translateY(20px) scale(0.95); }
+    .thumbnail {
+      flex-shrink: 0;
+      width: 120px;
+      height: 68px;
+      border-radius: 6px;
+      object-fit: cover;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+    }
+    .info { flex: 1; min-width: 0; overflow: hidden; }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .yt-icon {
+      width: 24px;
+      height: 17px;
+      fill: #FF0000;
+    }
+    .live-badge {
+      background: #FF0000;
+      color: white;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+    .title {
+      font-size: 16px;
+      font-weight: 700;
+      color: white;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 4px;
+    }
+    .viewers {
+      font-size: 13px;
+      color: #aaa;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .viewer-count { color: #FF0000; font-weight: 600; }
+    .waiting {
+      padding: 16px 20px;
+      background: rgba(50, 50, 50, 0.9);
+      border-radius: 8px;
+      color: #888;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="waiting" class="waiting" style="display: none;">Waiting for livestream...</div>
+    <div id="overlay" class="card hidden">
+      <img id="thumbnail" class="thumbnail" src="" alt="Stream Thumbnail">
+      <div class="info">
+        <div class="header">
+          <svg class="yt-icon" viewBox="0 0 24 17">
+            <path d="M23.5 2.8c-.3-1-1-1.8-2-2.1C19.6 0 12 0 12 0S4.4 0 2.5.7c-1 .3-1.7 1.1-2 2.1C0 4.7 0 8.5 0 8.5s0 3.8.5 5.7c.3 1 1 1.8 2 2.1 1.9.5 9.5.5 9.5.5s7.6 0 9.5-.7c1-.3 1.7-1.1 2-2.1.5-1.7.5-5.5.5-5.5s0-3.8-.5-5.7zM9.6 12.1V4.9l6.4 3.6-6.4 3.6z"/>
+          </svg>
+          <span class="live-badge">LIVE</span>
+        </div>
+        <div id="title" class="title"></div>
+        <div class="viewers">
+          <span id="viewerCount" class="viewer-count">0</span> watching now
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    const API_URL = "${apiUrl}";
+    const overlay = document.getElementById('overlay');
+    const thumbnail = document.getElementById('thumbnail');
+    const title = document.getElementById('title');
+    const viewerCount = document.getElementById('viewerCount');
+    const waitingDiv = document.getElementById('waiting');
+    let isLive = false;
+
+    async function fetchLivestream() {
+      try {
+        const response = await fetch(API_URL, { cache: 'no-store' });
+        if (!response.ok) return;
+        const data = await response.json();
+        
+        if (data.isLive && data.title) {
+          waitingDiv.style.display = 'none';
+          thumbnail.src = data.thumbnailUrl || '';
+          title.textContent = data.title || '';
+          viewerCount.textContent = (data.viewerCount || 0).toLocaleString();
+          overlay.classList.remove('hidden');
+          overlay.classList.add('visible');
+          isLive = true;
+        } else {
+          overlay.classList.remove('visible');
+          overlay.classList.add('hidden');
+          isLive = false;
+          waitingDiv.style.display = 'block';
+        }
+      } catch (error) {
+        console.error('Fetch error:', error);
+      }
+    }
+
+    fetchLivestream();
+    setInterval(fetchLivestream, 10000);
+  </script>
+</body>
+</html>`);
+});
+
+/**
+ * Standalone OBS-friendly Alerts overlay
+ * GET /api/overlay/alerts/obs
+ * Returns a self-contained HTML page for stream alerts with WebSocket
+ */
+router.get('/alerts/obs', setOBSHeaders, async (req, res) => {
+  const { token } = req.query;
+  
+  if (!token || typeof token !== 'string') {
+    return res.status(400).send(`
+      <!DOCTYPE html>
+      <html><head><title>OBS Overlay Error</title></head>
+      <body style="background:transparent;color:#ff4444;font-family:sans-serif;padding:20px;">
+        <h2>Missing Token</h2>
+        <p>Please generate an overlay URL from your dashboard settings.</p>
+      </body></html>
+    `);
+  }
+
+  try {
+    verifyOverlayToken(token);
+  } catch (error: any) {
+    return res.status(401).send(`
+      <!DOCTYPE html>
+      <html><head><title>OBS Overlay Error</title></head>
+      <body style="background:transparent;color:#ff4444;font-family:sans-serif;padding:20px;">
+        <h2>Invalid or Expired Token</h2>
+        <p>${error.message}</p>
+      </body></html>
+    `);
+  }
+
+  const protocol = req.get('x-forwarded-proto') || req.protocol || 'https';
+  const host = req.get('host') || 'localhost:3000';
+  const wsProtocol = protocol === 'https' ? 'wss' : 'ws';
+  const wsUrl = `${wsProtocol}://${host}/ws/overlay?token=${encodeURIComponent(token)}`;
+
+  res.type('html').send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stream Alerts - OBS</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      background: transparent; 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      overflow: hidden;
+    }
+    .container {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px;
+    }
+    .alert {
+      padding: 24px 40px;
+      background: rgba(0, 0, 0, 0.9);
+      backdrop-filter: blur(12px);
+      border-radius: 16px;
+      text-align: center;
+      opacity: 0;
+      transform: scale(0.8) translateY(20px);
+      transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+      max-width: 600px;
+    }
+    .alert.visible {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+    .alert.follow { border: 3px solid #9146FF; }
+    .alert.subscribe { border: 3px solid #1DB954; }
+    .alert.donation { border: 3px solid #FFD700; }
+    .alert.raid { border: 3px solid #FF6B6B; }
+    .alert-icon {
+      font-size: 48px;
+      margin-bottom: 12px;
+    }
+    .alert-title {
+      font-size: 28px;
+      font-weight: 700;
+      color: white;
+      margin-bottom: 8px;
+    }
+    .alert-message {
+      font-size: 18px;
+      color: #ccc;
+    }
+    .alert.follow .alert-title { color: #9146FF; }
+    .alert.subscribe .alert-title { color: #1DB954; }
+    .alert.donation .alert-title { color: #FFD700; }
+    .alert.raid .alert-title { color: #FF6B6B; }
+    @keyframes bounce {
+      0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+      40% { transform: translateY(-10px); }
+      60% { transform: translateY(-5px); }
+    }
+    .alert.visible .alert-icon { animation: bounce 1s ease; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="alert" class="alert">
+      <div id="alertIcon" class="alert-icon"></div>
+      <div id="alertTitle" class="alert-title"></div>
+      <div id="alertMessage" class="alert-message"></div>
+    </div>
+  </div>
+  <script>
+    const WS_URL = "${wsUrl}";
+    const alertDiv = document.getElementById('alert');
+    const alertIcon = document.getElementById('alertIcon');
+    const alertTitle = document.getElementById('alertTitle');
+    const alertMessage = document.getElementById('alertMessage');
+    
+    const alertQueue = [];
+    let isShowing = false;
+    
+    const alertConfig = {
+      follow: { icon: '💜', title: 'New Follower!', duration: 5000 },
+      subscribe: { icon: '🎉', title: 'New Subscriber!', duration: 7000 },
+      donation: { icon: '💰', title: 'Donation!', duration: 8000 },
+      raid: { icon: '⚔️', title: 'Raid Incoming!', duration: 10000 },
+      bits: { icon: '💎', title: 'Bits!', duration: 6000 },
+      gift: { icon: '🎁', title: 'Gift Sub!', duration: 7000 }
+    };
+    
+    function showAlert(data) {
+      const config = alertConfig[data.type] || alertConfig.follow;
+      alertDiv.className = 'alert ' + (data.type || 'follow');
+      alertIcon.textContent = config.icon;
+      alertTitle.textContent = data.title || config.title;
+      alertMessage.textContent = data.message || data.username || '';
+      
+      alertDiv.classList.add('visible');
+      
+      setTimeout(() => {
+        alertDiv.classList.remove('visible');
+        setTimeout(processQueue, 500);
+      }, data.duration || config.duration);
+    }
+    
+    function processQueue() {
+      if (alertQueue.length > 0) {
+        isShowing = true;
+        showAlert(alertQueue.shift());
+      } else {
+        isShowing = false;
+      }
+    }
+    
+    function queueAlert(data) {
+      alertQueue.push(data);
+      if (!isShowing) processQueue();
+    }
+    
+    function connect() {
+      const ws = new WebSocket(WS_URL);
+      
+      ws.onopen = () => console.log('[Alerts] Connected');
+      
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'stream_alert' || data.alertType) {
+            queueAlert({
+              type: data.alertType || data.type,
+              title: data.title,
+              message: data.message,
+              username: data.username,
+              amount: data.amount,
+              duration: data.duration
+            });
+          }
+        } catch (e) {
+          console.error('[Alerts] Parse error:', e);
+        }
+      };
+      
+      ws.onclose = () => {
+        console.log('[Alerts] Disconnected, reconnecting in 5s...');
+        setTimeout(connect, 5000);
+      };
+      
+      ws.onerror = (err) => console.error('[Alerts] Error:', err);
+    }
+    
+    connect();
+  </script>
+</body>
+</html>`);
+});
+
+/**
+ * Standalone OBS-friendly Chat overlay
+ * GET /api/overlay/chat/obs
+ * Returns a self-contained HTML page for chat display with WebSocket
+ */
+router.get('/chat/obs', setOBSHeaders, async (req, res) => {
+  const { token } = req.query;
+  
+  if (!token || typeof token !== 'string') {
+    return res.status(400).send(`
+      <!DOCTYPE html>
+      <html><head><title>OBS Overlay Error</title></head>
+      <body style="background:transparent;color:#ff4444;font-family:sans-serif;padding:20px;">
+        <h2>Missing Token</h2>
+        <p>Please generate an overlay URL from your dashboard settings.</p>
+      </body></html>
+    `);
+  }
+
+  try {
+    verifyOverlayToken(token);
+  } catch (error: any) {
+    return res.status(401).send(`
+      <!DOCTYPE html>
+      <html><head><title>OBS Overlay Error</title></head>
+      <body style="background:transparent;color:#ff4444;font-family:sans-serif;padding:20px;">
+        <h2>Invalid or Expired Token</h2>
+        <p>${error.message}</p>
+      </body></html>
+    `);
+  }
+
+  const protocol = req.get('x-forwarded-proto') || req.protocol || 'https';
+  const host = req.get('host') || 'localhost:3000';
+  const wsProtocol = protocol === 'https' ? 'wss' : 'ws';
+  const wsUrl = `${wsProtocol}://${host}/ws/overlay?token=${encodeURIComponent(token)}`;
+
+  res.type('html').send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat Overlay - OBS</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      background: transparent; 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      overflow: hidden;
+    }
+    .container {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 20px;
+    }
+    .chat-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: calc(100vh - 40px);
+      overflow: hidden;
+    }
+    .message {
+      padding: 10px 14px;
+      background: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(8px);
+      border-radius: 8px;
+      border-left: 3px solid #9146FF;
+      opacity: 0;
+      transform: translateX(-20px);
+      animation: slideIn 0.3s ease forwards;
+      max-width: 500px;
+    }
+    @keyframes slideIn {
+      to { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes fadeOut {
+      to { opacity: 0; transform: translateX(20px); }
+    }
+    .message.removing {
+      animation: fadeOut 0.3s ease forwards;
+    }
+    .message-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+    .platform-badge {
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .platform-twitch { background: #9146FF; color: white; }
+    .platform-youtube { background: #FF0000; color: white; }
+    .platform-kick { background: #53FC18; color: black; }
+    .username {
+      font-size: 13px;
+      font-weight: 700;
+      color: #9146FF;
+    }
+    .text {
+      font-size: 14px;
+      color: white;
+      line-height: 1.4;
+      word-wrap: break-word;
+    }
+    .connection-status {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      padding: 4px 8px;
+      background: rgba(0,0,0,0.7);
+      border-radius: 4px;
+      font-size: 10px;
+      color: #888;
+    }
+    .connection-status.connected { color: #1DB954; }
+    .connection-status.disconnected { color: #FF4444; }
+  </style>
+</head>
+<body>
+  <div id="status" class="connection-status disconnected">Connecting...</div>
+  <div class="container">
+    <div id="chatList" class="chat-list"></div>
+  </div>
+  <script>
+    const WS_URL = "${wsUrl}";
+    const chatList = document.getElementById('chatList');
+    const statusDiv = document.getElementById('status');
+    const MAX_MESSAGES = 10;
+    const MESSAGE_LIFETIME = 30000; // 30 seconds
+    
+    const platformColors = {
+      twitch: '#9146FF',
+      youtube: '#FF0000',
+      kick: '#53FC18'
+    };
+    
+    function addMessage(data) {
+      const msg = document.createElement('div');
+      msg.className = 'message';
+      msg.style.borderLeftColor = data.color || platformColors[data.platform] || '#9146FF';
+      
+      const platformClass = data.platform ? 'platform-' + data.platform.toLowerCase() : 'platform-twitch';
+      
+      msg.innerHTML = \`
+        <div class="message-header">
+          <span class="platform-badge \${platformClass}">\${data.platform || 'Chat'}</span>
+          <span class="username" style="color: \${data.color || platformColors[data.platform] || '#9146FF'}">\${escapeHtml(data.username || 'Anonymous')}</span>
+        </div>
+        <div class="text">\${escapeHtml(data.message || data.text || '')}</div>
+      \`;
+      
+      chatList.appendChild(msg);
+      
+      // Remove old messages
+      while (chatList.children.length > MAX_MESSAGES) {
+        const oldest = chatList.firstChild;
+        oldest.classList.add('removing');
+        setTimeout(() => oldest.remove(), 300);
+      }
+      
+      // Auto-remove after lifetime
+      setTimeout(() => {
+        if (msg.parentNode) {
+          msg.classList.add('removing');
+          setTimeout(() => msg.remove(), 300);
+        }
+      }, MESSAGE_LIFETIME);
+    }
+    
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+    
+    function connect() {
+      const ws = new WebSocket(WS_URL);
+      
+      ws.onopen = () => {
+        statusDiv.textContent = 'Connected';
+        statusDiv.className = 'connection-status connected';
+        setTimeout(() => statusDiv.style.display = 'none', 3000);
+      };
+      
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'chat_message' || data.message) {
+            addMessage(data);
+          }
+        } catch (e) {
+          console.error('[Chat] Parse error:', e);
+        }
+      };
+      
+      ws.onclose = () => {
+        statusDiv.textContent = 'Disconnected';
+        statusDiv.className = 'connection-status disconnected';
+        statusDiv.style.display = 'block';
+        setTimeout(connect, 5000);
+      };
+      
+      ws.onerror = (err) => console.error('[Chat] Error:', err);
+    }
+    
+    connect();
+  </script>
+</body>
+</html>`);
+});
+
+/**
  * Verify overlay token (for React overlay component to call)
  * GET /verify-token
  */
