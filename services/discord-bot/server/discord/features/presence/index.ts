@@ -24,6 +24,7 @@ import {
   SlashCommandSubcommandsOnlyBuilder
 } from 'discord.js';
 import { getLanyardService, initLanyardService, FormattedPresence } from '../../../services/lanyard-service';
+import { getPlexService, PlexSession } from '../../../services/plex-service';
 import { IStorage } from '../../../storage';
 import { db } from '../../../db';
 import { discordUsers } from '@shared/schema';
@@ -49,10 +50,9 @@ async function loadPresenceSettings(): Promise<void> {
 }
 
 // Persist presence setting to database
-async function setPresenceVisible(userId: string, visible: boolean): Promise<void> {
+async function setPresenceVisible(userId: string, visible: boolean, username?: string, discriminator?: string): Promise<void> {
   userPresenceCache.set(userId, visible);
   try {
-    // Upsert user presence setting
     const existing = await db.select().from(discordUsers).where(eq(discordUsers.id, userId));
     if (existing.length > 0) {
       await db.update(discordUsers)
@@ -61,8 +61,8 @@ async function setPresenceVisible(userId: string, visible: boolean): Promise<voi
     } else {
       await db.insert(discordUsers).values({
         id: userId,
-        username: 'unknown',
-        discriminator: '0',
+        username: username || 'unknown',
+        discriminator: discriminator || '0',
         presenceVisible: visible,
       });
     }
@@ -243,10 +243,10 @@ async function handlePresenceSettings(
   if (subcommand === 'toggle') {
     await interaction.deferReply({ ephemeral: true });
     
-    const userId = interaction.user.id;
-    const currentState = await getPresenceVisible(userId);
+    const user = interaction.user;
+    const currentState = await getPresenceVisible(user.id);
     const newState = !currentState;
-    await setPresenceVisible(userId, newState);
+    await setPresenceVisible(user.id, newState, user.username, user.discriminator);
 
     const statusEmoji = newState ? '🟢' : '🔒';
     const statusText = newState ? 'visible to everyone' : 'hidden from others';
@@ -311,6 +311,10 @@ function createNowPlayingEmbed(user: User, presence: FormattedPresence): EmbedBu
     })
     .setTimestamp();
 
+  const plexService = getPlexService();
+  const plexData = plexService?.getNowPlaying();
+  const hasPlexActivity = plexData && plexData.sessions.length > 0;
+
   if (presence.spotify?.isListening) {
     embed.setTitle('🎵 NOW PLAYING');
     embed.setDescription(
@@ -327,6 +331,46 @@ function createNowPlayingEmbed(user: User, presence: FormattedPresence): EmbedBu
       name: 'Progress',
       value: '`' + createProgressBar(presence.spotify.progress || 0) + '`',
       inline: false,
+    });
+  } else if (hasPlexActivity) {
+    const session = plexData.sessions[0];
+    const progress = session.duration > 0 ? Math.round((session.viewOffset / session.duration) * 100) : 0;
+    const playerName = session.player || 'Unknown Player';
+    
+    embed.setTitle('🎬 NOW WATCHING');
+    if (session.type === 'episode') {
+      embed.setDescription(
+        '```\n' +
+        `${session.grandparentTitle || session.title}\n` +
+        `Season ${session.parentTitle?.replace(/Season\s*/i, '') || '?'} • ${session.title}\n` +
+        '```'
+      );
+    } else if (session.type === 'movie') {
+      embed.setDescription(
+        '```\n' +
+        `${session.title}${session.year ? ` (${session.year})` : ''}\n` +
+        '```'
+      );
+    } else if (session.type === 'track') {
+      embed.setTitle('🎵 NOW PLAYING');
+      embed.setDescription(
+        '```\n' +
+        `${session.title}\n` +
+        `by ${session.grandparentTitle || 'Unknown Artist'}\n` +
+        '```'
+      );
+    } else {
+      embed.setDescription('```\n' + session.title + '\n```');
+    }
+    embed.addFields({
+      name: 'Progress',
+      value: '`' + createProgressBar(progress) + '`',
+      inline: true,
+    });
+    embed.addFields({
+      name: 'Player',
+      value: '`' + playerName + '`',
+      inline: true,
     });
   } else if (presence.activities.length > 0) {
     const mainActivity = presence.activities[0];
@@ -348,6 +392,7 @@ function createNowPlayingEmbed(user: User, presence: FormattedPresence): EmbedBu
   if (presence.platforms.desktop) platforms.push('🖥️ Desktop');
   if (presence.platforms.web) platforms.push('🌐 Web');
   if (presence.platforms.mobile) platforms.push('📱 Mobile');
+  if (hasPlexActivity) platforms.push('📺 Plex');
 
   if (platforms.length > 0) {
     embed.setFooter({ text: platforms.join(' • ') });
@@ -388,6 +433,30 @@ function createProfileEmbed(user: User, presence: FormattedPresence): EmbedBuild
     });
   }
 
+  const plexService = getPlexService();
+  const plexData = plexService?.getNowPlaying();
+  if (plexData && plexData.sessions.length > 0) {
+    const plexSessions = plexData.sessions.slice(0, 2).map(session => {
+      const stateIcon = session.state === 'playing' ? '▶️' : session.state === 'paused' ? '⏸️' : '⏳';
+      const progress = session.duration > 0 ? Math.round((session.viewOffset / session.duration) * 100) : 0;
+      
+      if (session.type === 'episode') {
+        return `${stateIcon} **${session.grandparentTitle || session.title}**\n   └─ S${session.parentTitle?.replace(/Season\s*/i, '') || '?'} · ${session.title}\n   └─ \`${createProgressBar(progress)}\``;
+      } else if (session.type === 'movie') {
+        return `${stateIcon} **${session.title}**${session.year ? ` (${session.year})` : ''}\n   └─ \`${createProgressBar(progress)}\``;
+      } else if (session.type === 'track') {
+        return `${stateIcon} **${session.title}**\n   └─ ${session.grandparentTitle || 'Unknown Artist'}\n   └─ \`${createProgressBar(progress)}\``;
+      }
+      return `${stateIcon} **${session.title}**`;
+    }).join('\n\n');
+
+    embed.addFields({
+      name: '🎬 PLEX NOW PLAYING',
+      value: plexSessions || 'Nothing playing',
+      inline: false,
+    });
+  }
+
   if (presence.activities.length > 0) {
     const activityList = presence.activities
       .slice(0, 3)
@@ -414,8 +483,13 @@ function createProfileEmbed(user: User, presence: FormattedPresence): EmbedBuild
     });
   }
 
+  const footerParts = [`ID: ${user.id}`, 'Powered by Lanyard'];
+  if (plexData && plexData.sessions.length > 0) {
+    footerParts.push('Plex');
+  }
+
   embed.setFooter({
-    text: `ID: ${user.id} • Powered by Lanyard`,
+    text: footerParts.join(' • '),
   });
 
   return embed;
