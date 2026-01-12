@@ -148,6 +148,18 @@ When running on Linode (Tailscale network):
 - Improved error messages with specific troubleshooting guidance for local AI connectivity
 - Updated Creative Studio UI to default to local models (AnimateDiff) and clearly show "Unrestricted" labeling
 - Local image/video generation now works without content restrictions when Stable Diffusion/ComfyUI are running on Windows VM
+- Added detailed error messages for missing ComfyUI custom nodes with installation instructions
+
+**ComfyUI Required Custom Nodes for Video Generation:**
+1. **AnimateDiff Evolved** - For text-to-video generation
+   - Install via ComfyUI Manager → Install Custom Nodes → Search "AnimateDiff Evolved"
+   - Download motion model `mm_sd_v15_v2.ckpt` to `ComfyUI/custom_nodes/ComfyUI-AnimateDiff-Evolved/models/`
+2. **VideoHelperSuite** - For video output encoding
+   - Install via ComfyUI Manager → Install Custom Nodes → Search "VideoHelperSuite"
+
+**Stable Diffusion WebUI API Requirements:**
+- Must be started with `--api` flag: `webui-user.bat` should include `set COMMANDLINE_ARGS=--api --listen`
+- Port 7860 must be accessible via Tailscale
 
 
 

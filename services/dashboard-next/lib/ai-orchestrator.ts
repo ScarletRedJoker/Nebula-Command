@@ -286,37 +286,50 @@ class AIOrchestrator {
       "1024x1792": { width: 576, height: 1024 },
     };
     
-    const dimensions = sizeMap[request.size || "1024x1024"] || { width: 1024, height: 1024 };
+    const dimensions = sizeMap[request.size || "1024x1024"] || { width: 512, height: 512 };
     
-    const response = await fetch(`${this.stableDiffusionUrl}/sdapi/v1/txt2img`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        prompt: request.prompt,
-        negative_prompt: request.negativePrompt || "blurry, low quality, distorted, watermark, text",
-        width: dimensions.width,
-        height: dimensions.height,
-        steps: 30,
-        cfg_scale: 7,
-        sampler_name: "DPM++ 2M Karras",
-        enable_hr: dimensions.width > 768,
-        hr_scale: dimensions.width > 768 ? 1.5 : 1,
-        hr_upscaler: "Latent",
-        denoising_strength: 0.5,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => response.statusText);
-      throw new Error(`Stable Diffusion error at ${this.stableDiffusionUrl}: ${errorText}`);
+    console.log(`[SD] Generating image at ${this.stableDiffusionUrl}/sdapi/v1/txt2img`);
+    
+    let response: Response;
+    try {
+      response = await fetch(`${this.stableDiffusionUrl}/sdapi/v1/txt2img`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: request.prompt,
+          negative_prompt: request.negativePrompt || "blurry, low quality, distorted, watermark, text",
+          width: dimensions.width,
+          height: dimensions.height,
+          steps: 25,
+          cfg_scale: 7,
+          sampler_name: "DPM++ 2M Karras",
+        }),
+      });
+    } catch (fetchError) {
+      throw new Error(`Cannot connect to Stable Diffusion at ${this.stableDiffusionUrl}. Ensure SD WebUI is running with --api flag and Tailscale is connected.`);
     }
 
-    const data = await response.json();
+    const responseText = await response.text();
+    
+    if (!response.ok) {
+      console.error(`[SD] Error response: ${responseText.substring(0, 500)}`);
+      throw new Error(`Stable Diffusion error (${response.status}): ${responseText.substring(0, 200)}`);
+    }
+
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error(`[SD] Invalid JSON response: ${responseText.substring(0, 500)}`);
+      throw new Error(`Stable Diffusion returned invalid response. Check that SD WebUI is started with --api flag. Response preview: ${responseText.substring(0, 100)}`);
+    }
 
     if (!data.images?.[0]) {
-      throw new Error("Stable Diffusion returned no image data");
+      console.error(`[SD] No images in response:`, data);
+      throw new Error("Stable Diffusion returned no image data. Check SD WebUI console for errors.");
     }
 
+    console.log(`[SD] Successfully generated image`);
     return {
       base64: data.images[0],
       provider: "stable-diffusion",
@@ -637,8 +650,26 @@ class AIOrchestrator {
     });
 
     if (!queueResponse.ok) {
-      const error = await queueResponse.text();
-      throw new Error(`ComfyUI queue error: ${error}`);
+      const errorText = await queueResponse.text();
+      let parsedError;
+      try {
+        parsedError = JSON.parse(errorText);
+      } catch {
+        parsedError = { error: errorText };
+      }
+      
+      if (parsedError.node_errors || errorText.includes("does not exist")) {
+        const nodeError = JSON.stringify(parsedError.node_errors || parsedError);
+        if (nodeError.includes("ADE_AnimateDiff") || nodeError.includes("AnimateDiff")) {
+          throw new Error(`AnimateDiff nodes not installed in ComfyUI. To fix:\n1. Open ComfyUI Manager (click Manager button in ComfyUI)\n2. Click "Install Custom Nodes"\n3. Search for "AnimateDiff Evolved" and install it\n4. Restart ComfyUI\n5. Also install the motion model: mm_sd_v15_v2.ckpt in ComfyUI/custom_nodes/ComfyUI-AnimateDiff-Evolved/models/`);
+        }
+        if (nodeError.includes("VHS_VideoCombine")) {
+          throw new Error(`VideoHelperSuite nodes not installed in ComfyUI. To fix:\n1. Open ComfyUI Manager\n2. Install "VideoHelperSuite" custom nodes\n3. Restart ComfyUI`);
+        }
+        throw new Error(`ComfyUI missing required nodes: ${nodeError.substring(0, 200)}`);
+      }
+      
+      throw new Error(`ComfyUI queue error: ${errorText.substring(0, 300)}`);
     }
 
     const { prompt_id } = await queueResponse.json();
