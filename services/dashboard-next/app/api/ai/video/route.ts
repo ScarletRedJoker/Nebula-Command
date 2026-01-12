@@ -79,11 +79,6 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET() {
-  const user = await checkAuth();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const providers = await aiOrchestrator.getVideoProviders();
   return NextResponse.json({ providers });
 }

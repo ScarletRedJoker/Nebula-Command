@@ -86,11 +86,6 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
-  const user = await checkAuth();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const sdAvailable = await aiOrchestrator.checkStableDiffusion();
 
   const providers = [
