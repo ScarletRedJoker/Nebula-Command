@@ -16,8 +16,8 @@ async function checkAuth() {
 }
 
 function getAssetsDir() {
-  const baseDir = process.env.REPL_ID ? "./data" : "/opt/homelab/HomeLabHub";
-  const assetsDir = join(baseDir, "generated-assets", "videos");
+  const baseDir = process.env.REPL_ID ? "./public" : "/opt/homelab/HomeLabHub/services/dashboard-next/public";
+  const assetsDir = join(baseDir, "generated-videos");
   if (!existsSync(assetsDir)) {
     mkdirSync(assetsDir, { recursive: true });
   }
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { prompt, inputImage, aspectRatio, model, saveLocally } = body;
+    const { prompt, inputImage, aspectRatio, model } = body;
 
     if (!prompt && !inputImage) {
       return NextResponse.json(
@@ -60,23 +60,56 @@ export async function POST(request: NextRequest) {
       provider: selectedModel?.includes("local") || selectedModel === "animatediff" ? "local" : undefined,
     });
 
-    if (saveLocally && result.url) {
+    const isInternalUrl = result.url.includes("100.118.44.102") || 
+                          result.url.includes("100.66.61.51") ||
+                          result.url.includes("localhost") ||
+                          result.url.includes("127.0.0.1");
+
+    if (isInternalUrl) {
       try {
+        console.log(`[Video API] Proxying video from internal URL: ${result.url}`);
         const assetsDir = getAssetsDir();
         const filename = `video_${Date.now()}.mp4`;
         const filepath = join(assetsDir, filename);
 
         const response = await fetch(result.url);
-        const buffer = Buffer.from(await response.arrayBuffer());
-        writeFileSync(filepath, buffer);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch video: ${response.status} ${response.statusText}`);
+        }
+        
+        const contentType = response.headers.get("content-type") || "";
+        if (contentType.includes("text/html")) {
+          const text = await response.text();
+          console.error("[Video API] ComfyUI returned HTML instead of video:", text.substring(0, 200));
+          throw new Error("ComfyUI returned an error page instead of video");
+        }
 
+        const buffer = Buffer.from(await response.arrayBuffer());
+        if (buffer.length < 1000) {
+          throw new Error(`Video file too small (${buffer.length} bytes) - generation may have failed`);
+        }
+        
+        writeFileSync(filepath, buffer);
+        console.log(`[Video API] Saved video to ${filepath} (${buffer.length} bytes)`);
+
+        const publicUrl = `/generated-videos/${filename}`;
+        
         return NextResponse.json({
           ...result,
+          url: publicUrl,
           savedPath: filepath,
           filename,
         });
-      } catch (saveError: any) {
-        console.error("Failed to save video locally:", saveError);
+      } catch (proxyError: any) {
+        console.error("[Video API] Failed to proxy video:", proxyError);
+        return NextResponse.json(
+          { 
+            error: "Failed to retrieve generated video", 
+            details: proxyError.message,
+            hint: "The video was generated but couldn't be retrieved. Check ComfyUI is running and accessible."
+          },
+          { status: 500 }
+        );
       }
     }
 
