@@ -87,6 +87,10 @@ const DEFAULT_CONFIG: AIConfig = {
   maxTokens: 2000,
 };
 
+const isReplitEnv = (): boolean => {
+  return !!process.env.REPL_ID || !!process.env.REPLIT_DEV_DOMAIN;
+};
+
 class AIOrchestrator {
   private openaiClient: OpenAI | null = null;
   private replicateClient: Replicate | null = null;
@@ -327,6 +331,10 @@ class AIOrchestrator {
   }
 
   private async selectBestProvider(capability: AICapability): Promise<AIProvider> {
+    if (isReplitEnv()) {
+      return "openai";
+    }
+
     if (capability === "chat") {
       try {
         const response = await fetch(`${this.ollamaUrl}/api/tags`, {
@@ -354,6 +362,10 @@ class AIOrchestrator {
   }
 
   async checkComfyUI(): Promise<boolean> {
+    if (isReplitEnv()) {
+      return false;
+    }
+
     if (this.isComfyUIOnlineFromState()) {
       try {
         const controller = new AbortController();
@@ -381,6 +393,10 @@ class AIOrchestrator {
   }
 
   async checkStableDiffusion(): Promise<boolean> {
+    if (isReplitEnv()) {
+      return false;
+    }
+
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000);
