@@ -336,17 +336,24 @@ class AIOrchestrator {
     }
 
     if (capability === "chat") {
+      if (this.isOllamaOnlineFromState()) {
+        console.log("[AI Orchestrator] Using Ollama (state file indicates online)");
+        return "ollama";
+      }
+      
       try {
         const response = await fetch(`${this.ollamaUrl}/api/tags`, {
-          signal: AbortSignal.timeout(2000),
+          signal: AbortSignal.timeout(3000),
         });
         if (response.ok) {
           const data = await response.json();
           if (data.models?.length > 0) {
+            console.log("[AI Orchestrator] Using Ollama (live probe succeeded)");
             return "ollama";
           }
         }
-      } catch {
+      } catch (error) {
+        console.log("[AI Orchestrator] Ollama probe failed, falling back to OpenAI");
       }
     }
 
