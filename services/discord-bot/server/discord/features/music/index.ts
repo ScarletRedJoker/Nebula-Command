@@ -121,7 +121,9 @@ export async function initMusicPlayer(client: Client): Promise<void> {
   try {
     player = new Player(client);
 
-    await player.extractors.loadDefault();
+    // Load extractors using the new API (loadDefault was deprecated in discord-player 6.x)
+    const { DefaultExtractors } = await import('@discord-player/extractor');
+    await player.extractors.loadMulti(DefaultExtractors);
     
     player.events.on('playerStart', (queue, track) => {
       const embed = createNowPlayingEmbed(track);
