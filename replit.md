@@ -132,3 +132,24 @@ When running on Linode (Tailscale network):
 - Windows VM Ollama: `http://100.118.44.102:11434`
 - Windows VM ComfyUI: `http://100.118.44.102:8188`
 - Ubuntu Ollama fallback: `http://100.66.61.51:11434`
+
+## Recent Changes (January 2026)
+
+### Stream Bot Overlays
+- Added OBS overlay endpoints: `/api/overlay/youtube/obs`, `/api/overlay/alerts/obs`, `/api/overlay/chat/obs`
+- Token-based authentication for all overlay endpoints
+- WebSocket support for real-time alerts and chat
+
+### Discord Bot Presence
+- User presence visibility settings now persist to database (survives restarts)
+- Added `presenceVisible` and `mediaPreferences` columns to `discord_users` table
+- Plex integration added to `/profile` and `/nowplaying` commands - shows what users are watching
+
+### Stable Diffusion Setup (Windows VM)
+Requires Python 3.10.6 - run on Windows VM:
+```powershell
+cd C:\AI\stable-diffusion-webui
+winget install Python.Python.3.10
+python --version  # Should show 3.10.x
+.\webui-user.bat
+```
