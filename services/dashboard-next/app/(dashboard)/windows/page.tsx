@@ -26,6 +26,10 @@ import {
   Download,
   Trash2,
   Send,
+  Gamepad2,
+  ExternalLink,
+  Maximize2,
+  MonitorPlay,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -41,6 +45,8 @@ interface VMStatus {
   };
   services: {
     ollama?: { status: string; version?: string };
+    sunshine?: { status: string; port?: number };
+    comfyui?: { status: string; port?: number };
   };
   error?: string;
 }
@@ -61,7 +67,10 @@ export default function WindowsVMPage() {
   const [packageName, setPackageName] = useState("");
   const [modelName, setModelName] = useState("");
   const [ollamaModels, setOllamaModels] = useState<string[]>([]);
+  const [gamestreamFullscreen, setGamestreamFullscreen] = useState(false);
   const { toast } = useToast();
+  
+  const GAMESTREAM_URL = process.env.NEXT_PUBLIC_GAMESTREAM_URL || "https://gamestream.evindrake.net";
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -339,6 +348,34 @@ export default function WindowsVMPage() {
         </Card>
       </div>
 
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Sunshine Gamestream</CardTitle>
+            <Gamepad2 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <Badge variant={status?.services?.sunshine?.status === "online" ? "default" : "secondary"}>
+              {status?.services?.sunshine?.status === "online" ? "Online" : "Offline"}
+            </Badge>
+            <p className="text-xs text-muted-foreground mt-1">Port 47989 (Moonlight compatible)</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">ComfyUI</CardTitle>
+            <Cpu className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <Badge variant={status?.services?.comfyui?.status === "online" ? "default" : "secondary"}>
+              {status?.services?.comfyui?.status === "online" ? "Online" : "Offline"}
+            </Badge>
+            <p className="text-xs text-muted-foreground mt-1">AI Video Generation (Port 8188)</p>
+          </CardContent>
+        </Card>
+      </div>
+
       <div className="flex gap-2 flex-wrap">
         <Button
           variant="outline"
@@ -360,13 +397,110 @@ export default function WindowsVMPage() {
         </Button>
       </div>
 
-      <Tabs defaultValue="terminal" className="space-y-4">
+      <Tabs defaultValue="gamestream" className="space-y-4">
         <TabsList>
+          <TabsTrigger value="gamestream">
+            <Gamepad2 className="h-4 w-4 mr-2" />
+            Gamestream
+          </TabsTrigger>
           <TabsTrigger value="terminal">Terminal</TabsTrigger>
           <TabsTrigger value="packages">Packages</TabsTrigger>
           <TabsTrigger value="ollama">Ollama AI</TabsTrigger>
           <TabsTrigger value="ports">Ports</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="gamestream" className="space-y-4">
+          <Card className={gamestreamFullscreen ? "fixed inset-4 z-50" : ""}>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <MonitorPlay className="h-5 w-5" />
+                  Remote Desktop via Sunshine
+                </CardTitle>
+                <CardDescription>
+                  Stream your Windows VM desktop with low-latency game streaming
+                </CardDescription>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setGamestreamFullscreen(!gamestreamFullscreen)}
+                >
+                  <Maximize2 className="h-4 w-4 mr-2" />
+                  {gamestreamFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.open(GAMESTREAM_URL, "_blank")}
+                >
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Open in New Tab
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center gap-4 p-3 rounded-lg border bg-muted/50">
+                  <Badge variant={status?.services?.sunshine?.status === "online" ? "default" : "secondary"}>
+                    {status?.services?.sunshine?.status === "online" ? "Sunshine Online" : "Sunshine Offline"}
+                  </Badge>
+                  <span className="text-sm text-muted-foreground">
+                    Connect via Moonlight client or use the web viewer below
+                  </span>
+                </div>
+                
+                <div className={`rounded-lg border bg-black overflow-hidden ${gamestreamFullscreen ? "h-[calc(100vh-200px)]" : "h-[500px]"}`}>
+                  {isOnline ? (
+                    <iframe
+                      src={GAMESTREAM_URL}
+                      className="w-full h-full border-0"
+                      allow="autoplay; fullscreen; gamepad; microphone"
+                      title="Windows VM Gamestream"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                      <Monitor className="h-16 w-16 mb-4 opacity-50" />
+                      <p className="text-lg font-medium">Windows VM is Offline</p>
+                      <p className="text-sm">Start the VM to enable remote desktop streaming</p>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="grid gap-4 md:grid-cols-3">
+                  <Card className="p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Gamepad2 className="h-4 w-4 text-primary" />
+                      <span className="font-medium">Moonlight Client</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      For best performance, use the Moonlight app on your device
+                    </p>
+                  </Card>
+                  <Card className="p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Monitor className="h-4 w-4 text-primary" />
+                      <span className="font-medium">Web Viewer</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Use the embedded viewer above for quick access
+                    </p>
+                  </Card>
+                  <Card className="p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Server className="h-4 w-4 text-primary" />
+                      <span className="font-medium">Connection</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Sunshine streams via Tailscale: {status?.vmIp || "100.118.44.102"}
+                    </p>
+                  </Card>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="terminal" className="space-y-4">
           <Card>

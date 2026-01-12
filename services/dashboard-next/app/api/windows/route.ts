@@ -17,6 +17,8 @@ interface WindowsVMState {
   sshAvailable: boolean;
   services: {
     ollama?: { status: string; version?: string };
+    sunshine?: { status: string; port?: number };
+    comfyui?: { status: string; port?: number };
   };
 }
 
@@ -247,12 +249,14 @@ export async function GET(request: NextRequest) {
     
     switch (action) {
       case "status": {
-        const [winrmHttp, winrmHttps, ssh, rdp, ollama] = await Promise.all([
+        const [winrmHttp, winrmHttps, ssh, rdp, ollama, sunshine, comfyui] = await Promise.all([
           checkPort(vmIp, 5985),
           checkPort(vmIp, 5986),
           checkPort(vmIp, 22),
           checkPort(vmIp, 3389),
           checkPort(vmIp, 11434),
+          checkPort(vmIp, 47989),
+          checkPort(vmIp, 8188),
         ]);
         
         let ollamaVersion: string | undefined;
@@ -284,7 +288,9 @@ export async function GET(request: NextRequest) {
           winrmAvailable: winrmHttp || winrmHttps,
           sshAvailable: ssh,
           services: {
-            ollama: ollama ? { status: "online", version: ollamaVersion } : { status: "offline" }
+            ollama: ollama ? { status: "online", version: ollamaVersion } : { status: "offline" },
+            sunshine: sunshine ? { status: "online", port: 47989 } : { status: "offline" },
+            comfyui: comfyui ? { status: "online", port: 8188 } : { status: "offline" }
           }
         };
         
@@ -296,7 +302,9 @@ export async function GET(request: NextRequest) {
             winrmHttps: { port: 5986, available: winrmHttps },
             ssh: { port: 22, available: ssh },
             rdp: { port: 3389, available: rdp },
-            ollama: { port: 11434, available: ollama }
+            ollama: { port: 11434, available: ollama },
+            sunshine: { port: 47989, available: sunshine },
+            comfyui: { port: 8188, available: comfyui }
           }
         });
       }

@@ -4,6 +4,20 @@
  */
 import OpenAI from "openai";
 import Replicate from "replicate";
+import { readFileSync, existsSync } from "fs";
+
+interface LocalAIState {
+  windows_vm?: {
+    ollama?: { status: string; url?: string };
+    comfyui?: { status: string; url?: string };
+    stable_diffusion?: { status: string; url?: string };
+  };
+  ubuntu?: {
+    ollama?: { status: string; url?: string };
+    stable_diffusion?: { status: string; url?: string };
+  };
+  timestamp?: string;
+}
 
 export type AIProvider = "openai" | "ollama" | "auto";
 export type AICapability = "chat" | "image" | "video" | "embedding";
@@ -79,6 +93,10 @@ class AIOrchestrator {
   private ollamaUrl: string;
   private comfyuiUrl: string;
   private stableDiffusionUrl: string;
+  private localAIState: LocalAIState | null = null;
+  private stateLastRead: number = 0;
+  private static readonly STATE_CACHE_TTL = 30000;
+  private static readonly STATE_FILE_PATH = process.env.LOCAL_AI_STATE_FILE || "/opt/homelab/HomeLabHub/deploy/shared/state/local-ai.json";
 
   constructor() {
     const WINDOWS_VM_IP = process.env.WINDOWS_VM_TAILSCALE_IP || "100.118.44.102";
@@ -87,6 +105,49 @@ class AIOrchestrator {
     this.stableDiffusionUrl = process.env.STABLE_DIFFUSION_URL || `http://${WINDOWS_VM_IP}:7860`;
     this.initOpenAI();
     this.initReplicate();
+    this.loadLocalAIState();
+  }
+
+  private loadLocalAIState(): void {
+    try {
+      if (existsSync(AIOrchestrator.STATE_FILE_PATH)) {
+        const content = readFileSync(AIOrchestrator.STATE_FILE_PATH, "utf-8");
+        this.localAIState = JSON.parse(content);
+        this.stateLastRead = Date.now();
+        console.log("[AI Orchestrator] Loaded local AI state:", this.localAIState);
+        
+        if (this.localAIState?.windows_vm?.comfyui?.url) {
+          this.comfyuiUrl = this.localAIState.windows_vm.comfyui.url;
+        }
+        if (this.localAIState?.windows_vm?.ollama?.url) {
+          this.ollamaUrl = this.localAIState.windows_vm.ollama.url;
+        }
+        if (this.localAIState?.windows_vm?.stable_diffusion?.url) {
+          this.stableDiffusionUrl = this.localAIState.windows_vm.stable_diffusion.url;
+        }
+      }
+    } catch (error) {
+      console.warn("[AI Orchestrator] Failed to load local AI state:", error);
+    }
+  }
+
+  private refreshStateIfNeeded(): void {
+    if (Date.now() - this.stateLastRead > AIOrchestrator.STATE_CACHE_TTL) {
+      this.loadLocalAIState();
+    }
+  }
+
+  isComfyUIOnlineFromState(): boolean {
+    this.refreshStateIfNeeded();
+    return this.localAIState?.windows_vm?.comfyui?.status === "online";
+  }
+
+  isOllamaOnlineFromState(): boolean {
+    this.refreshStateIfNeeded();
+    return (
+      this.localAIState?.windows_vm?.ollama?.status === "online" ||
+      this.localAIState?.ubuntu?.ollama?.status === "online"
+    );
   }
 
   private initOpenAI() {
@@ -293,6 +354,19 @@ class AIOrchestrator {
   }
 
   async checkComfyUI(): Promise<boolean> {
+    if (this.isComfyUIOnlineFromState()) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        const response = await fetch(`${this.comfyuiUrl}/system_stats`, {
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        if (response.ok) return true;
+      } catch {
+      }
+    }
+    
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000);
