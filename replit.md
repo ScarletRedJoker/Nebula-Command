@@ -141,6 +141,15 @@ When running on Linode (Tailscale network):
 
 ## Recent Changes (January 2026)
 
+### AI Provider & Redis Improvements (January 13, 2026)
+- Fixed Redis connection spam in Replit dev environment - REDIS_URL now only configured in production
+- Added graceful Redis error handling with retry strategy and error event listeners to EventBus
+- Removed Replit-specific code blocks that prevented local AI usage in production  
+- AI orchestrator "auto" mode now properly: tries local Windows VM first (SD/ComfyUI), falls back to cloud (DALL-E/Replicate) if unreachable
+- Explicit "local" selection degrades gracefully to cloud providers when local services unavailable
+- Added safeParseJSON() helper to prevent crashes from non-JSON error responses
+- Production on Linode uses local AI on Windows VM GPU via Tailscale; dev in Replit uses cloud-only
+
 ### Creative Studio Local AI Improvements (January 12, 2026)
 - Fixed Docker Compose environment variables to point Stable Diffusion and ComfyUI to Windows VM IP (was incorrectly pointing to Ubuntu server)
 - Added `extra_hosts` routing to dashboard container for Tailscale IP accessibility
