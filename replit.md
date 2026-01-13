@@ -80,6 +80,40 @@ The Windows VM (Tailscale IP: 100.118.44.102) hosts GPU-accelerated AI services 
 - Supports adding multiple GPU nodes via Tailscale
 - Job queue for VRAM-aware scheduling (future)
 
+### AI Services API Endpoints
+
+**Speech Services:**
+- `POST /api/ai/speech/tts` - Text-to-speech generation (XTTS, Piper, Edge-TTS, OpenAI fallback)
+- `GET /api/ai/speech/tts` - List available TTS models
+- `POST /api/ai/speech/stt` - Speech-to-text transcription (Whisper local + OpenAI fallback)
+- `GET /api/ai/speech/stt` - List available STT models
+
+**Job Scheduling:**
+- `GET /api/ai/jobs` - List GPU jobs with filtering (status, type, priority)
+- `POST /api/ai/jobs` - Queue a new GPU job
+- `GET /api/ai/jobs/[id]` - Get job details and progress
+
+**Training:**
+- `GET /api/ai/training` - List training runs (LoRA, QLoRA, SDXL, DreamBooth)
+- `POST /api/ai/training` - Create new training run with config
+- `GET /api/ai/training/[id]` - Get training run details
+- `PATCH /api/ai/training/[id]` - Start/cancel/update training run
+- `DELETE /api/ai/training/[id]` - Cancel training run
+- `GET /api/ai/training/[id]/events` - SSE stream for real-time progress updates
+
+**Embeddings/RAG:**
+- `POST /api/ai/embeddings` - Generate embeddings or perform semantic search
+  - action=embed: Generate embeddings for text
+  - action=search: Semantic search across knowledge base
+  - action=chunk: Text chunking for processing
+- `GET /api/ai/embeddings` - Get stats and available models
+
+**Core AI Libraries:**
+- `lib/ai-scheduler/` - GPU-aware job scheduling with VRAM management and mutex locks
+- `lib/speech/` - TTS (TextToSpeechService) and STT (SpeechToTextService) with hybrid local/cloud
+- `lib/rag/` - EmbeddingService, TextChunker, KnowledgeRetriever for RAG
+- `lib/training/` - TrainingRunManager and TrainingEventBus for model training
+
 **Model Capability Matrix:** See `docs/LOCAL_AI_CAPABILITY_MATRIX.md` for complete model list with VRAM requirements.
 **Deployment Guide:** See `docs/LOCAL_AI_DEPLOYMENT_GUIDE.md` for setup instructions.
 
