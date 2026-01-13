@@ -61,6 +61,7 @@ interface GeneratedVideo {
   model: string;
   duration?: number;
   savedPath?: string;
+  isBlob?: boolean;
 }
 
 export default function CreativeStudioPage() {
@@ -179,11 +180,18 @@ export default function CreativeStudioPage() {
           inputImage: inputImageUrl || undefined,
           aspectRatio: videoAspectRatio,
           model: videoModel,
-          saveLocally: saveVideoLocally,
         }),
       });
 
-      if (res.ok) {
+      const contentType = res.headers.get("content-type") || "";
+      
+      if (res.ok && contentType.includes("video/")) {
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const provider = res.headers.get("x-provider") || "local";
+        const model = res.headers.get("x-model") || videoModel;
+        setGeneratedVideo({ url: blobUrl, provider, model, isBlob: true });
+      } else if (res.ok) {
         const data = await res.json();
         setGeneratedVideo(data);
       } else {
