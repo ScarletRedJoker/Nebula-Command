@@ -71,11 +71,33 @@ class EventBus {
       this.publisher = new Redis(redisUrl, {
         maxRetriesPerRequest: 3,
         lazyConnect: true,
+        retryStrategy: (times) => {
+          if (times > 3) {
+            console.log("EventBus: Redis connection failed after 3 retries, giving up");
+            return null;
+          }
+          return Math.min(times * 200, 2000);
+        },
       });
 
       this.subscriber = new Redis(redisUrl, {
         maxRetriesPerRequest: 3,
         lazyConnect: true,
+        retryStrategy: (times) => {
+          if (times > 3) return null;
+          return Math.min(times * 200, 2000);
+        },
+      });
+
+      // Handle connection errors gracefully to prevent unhandled error spam
+      this.publisher.on("error", (err) => {
+        if (!this.isConnected) return; // Only log if we were previously connected
+        console.error("EventBus: Redis publisher error:", err.message);
+      });
+
+      this.subscriber.on("error", (err) => {
+        if (!this.isConnected) return;
+        console.error("EventBus: Redis subscriber error:", err.message);
       });
 
       await Promise.all([
@@ -98,6 +120,15 @@ class EventBus {
     } catch (error) {
       console.error("EventBus: Failed to connect to Redis:", error);
       this.isConnected = false;
+      // Clean up failed connections
+      if (this.publisher) {
+        this.publisher.disconnect();
+        this.publisher = null;
+      }
+      if (this.subscriber) {
+        this.subscriber.disconnect();
+        this.subscriber = null;
+      }
       return false;
     }
   }

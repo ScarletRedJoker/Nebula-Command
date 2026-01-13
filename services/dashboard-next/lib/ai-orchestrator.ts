@@ -245,20 +245,37 @@ class AIOrchestrator {
   }
 
   async generateImage(request: ImageRequest): Promise<ImageResponse> {
-    const provider = request.provider || "openai";
-    const inReplit = isReplitEnv();
+    const provider = request.provider || "auto";
 
-    if (provider === "stable-diffusion") {
-      if (inReplit) {
-        if (this.hasOpenAI()) {
-          throw new Error(`Local Stable Diffusion is not reachable from Replit's cloud servers - your Windows VM is on a different network.\n\nOptions:\n1. Use DALL-E 3 instead (select it from the provider dropdown)\n2. Self-host this dashboard on your local network with direct access to Stable Diffusion`);
+    // Auto mode: try local SD first if available, fall back to DALL-E
+    if (provider === "auto") {
+      const sdAvailable = await this.checkStableDiffusion();
+      if (sdAvailable) {
+        console.log("[AI Orchestrator] Auto: Using local Stable Diffusion (GPU)");
+        try {
+          return await this.generateWithSD(request);
+        } catch (err) {
+          console.log(`[AI Orchestrator] SD failed, falling back to DALL-E: ${err instanceof Error ? err.message : err}`);
+          if (this.hasOpenAI()) {
+            return this.generateWithDALLE(request);
+          }
+          throw err;
         }
-        throw new Error(`Local Stable Diffusion is not reachable from Replit's cloud servers.\n\nTo generate images, you can add an OpenAI API key to use DALL-E 3.`);
+      } else if (this.hasOpenAI()) {
+        console.log("[AI Orchestrator] Auto: Local SD unavailable, using DALL-E 3");
+        return this.generateWithDALLE(request);
+      } else {
+        throw new Error("No image provider available. Start Stable Diffusion on Windows VM or add OpenAI API key.");
       }
+    }
+
+    // Explicit stable-diffusion selection
+    if (provider === "stable-diffusion") {
       console.log(`[AI Orchestrator] Generating image with local Stable Diffusion at ${this.stableDiffusionUrl}`);
       return this.generateWithSD(request);
     }
 
+    // OpenAI/DALL-E
     console.log("[AI Orchestrator] Generating image with DALL-E 3 (cloud)");
     return this.generateWithDALLE(request);
   }
@@ -735,37 +752,62 @@ class AIOrchestrator {
   }
 
   async generateVideo(request: VideoRequest): Promise<VideoResponse> {
-    const inReplit = isReplitEnv();
-    const comfyAvailable = inReplit ? false : await this.checkComfyUI();
+    const comfyAvailable = await this.checkComfyUI();
     const isLocalModel = request.model === "animatediff" || request.model === "svd-local";
     const isLocalProvider = request.provider === "local" || request.provider === "comfyui";
     const isCloudModel = request.model === "wan-t2v" || request.model === "wan-i2v" || request.model === "svd";
+    const isAutoMode = !request.model;
     
-    console.log(`[AI Orchestrator] Video generation - model: ${request.model}, provider: ${request.provider}, ComfyUI: ${comfyAvailable}, Replicate: ${this.hasReplicate()}, inReplit: ${inReplit}`);
+    console.log(`[AI Orchestrator] Video generation - model: ${request.model}, provider: ${request.provider}, ComfyUI: ${comfyAvailable}, Replicate: ${this.hasReplicate()}`);
     
-    if (isLocalProvider || isLocalModel) {
-      if (inReplit) {
-        if (this.hasReplicate()) {
-          throw new Error(`Local video generation (${request.model}) is not available from Replit's cloud servers - your Windows VM is on a different network.\n\nOptions:\n1. Use cloud models instead: WAN 2.1 Text-to-Video or Image-to-Video (requires REPLICATE_API_TOKEN)\n2. Self-host this dashboard on your local network with direct access to ComfyUI`);
+    // Auto mode: try local first, fall back to cloud
+    if (isAutoMode) {
+      if (comfyAvailable) {
+        console.log("[AI Orchestrator] Auto: Using local ComfyUI for video generation");
+        try {
+          return await this.generateVideoWithComfyUI(request);
+        } catch (err) {
+          console.log(`[AI Orchestrator] ComfyUI failed, falling back to Replicate: ${err instanceof Error ? err.message : err}`);
+          if (this.hasReplicate()) {
+            request.model = "wan-t2v";
+            // Fall through to Replicate
+          } else {
+            throw err;
+          }
         }
-        throw new Error(`Local video generation (${request.model}) is not available from Replit's cloud servers.\n\nTo generate videos, add REPLICATE_API_TOKEN to use cloud-based video generation models.`);
+      } else if (this.hasReplicate()) {
+        console.log("[AI Orchestrator] Auto: Local ComfyUI unavailable, using Replicate");
+        request.model = "wan-t2v";
+        // Fall through to Replicate
+      } else {
+        throw new Error("No video provider available. Start ComfyUI on Windows VM or add REPLICATE_API_TOKEN.");
       }
+    }
+    
+    // Explicit local model selection
+    if (isLocalProvider || isLocalModel) {
       if (comfyAvailable) {
         console.log("[AI Orchestrator] Using local ComfyUI for video generation - no content restrictions");
         return this.generateVideoWithComfyUI(request);
       }
-      throw new Error(`ComfyUI not reachable at ${this.comfyuiUrl} - ensure ComfyUI is running on your Windows VM with AnimateDiff/SVD installed. Check that Tailscale is connected.`);
+      // If local requested but unavailable, try cloud fallback if available
+      if (this.hasReplicate()) {
+        console.log("[AI Orchestrator] Local ComfyUI unavailable, falling back to Replicate WAN model");
+        request.model = "wan-t2v";
+      } else {
+        throw new Error(`ComfyUI not reachable at ${this.comfyuiUrl} - ensure ComfyUI is running on your Windows VM with AnimateDiff/SVD installed. Check that Tailscale is connected.`);
+      }
     }
 
-    if (isCloudModel && this.replicateClient) {
-      console.log(`[AI Orchestrator] Using Replicate for ${request.model}`);
-    } else if (!this.replicateClient) {
+    if (!this.replicateClient) {
       if (comfyAvailable) {
-        console.log("[AI Orchestrator] Replicate not configured, falling back to local ComfyUI");
+        console.log("[AI Orchestrator] Replicate not configured, using local ComfyUI");
         return this.generateVideoWithComfyUI(request);
       }
       throw new Error(`No video generation provider available. Options:\n1. Start ComfyUI on Windows VM (${this.comfyuiUrl}) for local generation\n2. Add REPLICATE_API_TOKEN for cloud generation\n\nTip: Local generation has no content restrictions and is free.`);
     }
+    
+    console.log(`[AI Orchestrator] Using Replicate for ${request.model}`);
 
     const modelId = request.model || (request.inputImage ? "wan-i2v" : "wan-t2v");
     
@@ -834,31 +876,28 @@ class AIOrchestrator {
   }
 
   async getVideoProviders() {
-    const inReplit = isReplitEnv();
-    const comfyAvailable = inReplit ? false : await this.checkComfyUI();
+    const comfyAvailable = await this.checkComfyUI();
     
     return [
       {
         id: "animatediff",
         name: "AnimateDiff (Local)",
-        description: inReplit 
-          ? "Requires ComfyUI on local network (not available from cloud)"
-          : "Local text-to-video via ComfyUI on Windows VM",
+        description: comfyAvailable 
+          ? "Local text-to-video via ComfyUI on Windows VM - no content restrictions"
+          : "ComfyUI not reachable - start ComfyUI on Windows VM",
         type: "text-to-video",
         available: comfyAvailable,
         provider: "local",
-        requiresLocalNetwork: true,
       },
       {
         id: "svd-local",
         name: "SVD (Local)",
-        description: inReplit
-          ? "Requires ComfyUI on local network (not available from cloud)"
-          : "Local image-to-video via ComfyUI on Windows VM",
+        description: comfyAvailable
+          ? "Local image-to-video via ComfyUI on Windows VM - no content restrictions"
+          : "ComfyUI not reachable - start ComfyUI on Windows VM",
         type: "image-to-video",
         available: comfyAvailable,
         provider: "local",
-        requiresLocalNetwork: true,
       },
       {
         id: "wan-t2v",

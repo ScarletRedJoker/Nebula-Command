@@ -105,7 +105,6 @@ JARVIS_DATABASE_URL = "postgresql://neondb_owner:npg_zB8JH4rsFIAq@ep-divine-rain
 WEB_USERNAME = "admin"
 WEB_PASSWORD = "admin123"
 DASHBOARD_API_KEY = "test-api-key-for-dashboard"
-REDIS_URL = "redis://localhost:6379/0"
 FLASK_ENV = "development"
 STREAM_BOT_WEBHOOK_SECRET = "a26a11876826c590655cb5f7272e3e950b47ea4f2e7f68cfadc31cc3034c10fc"
 DISCORD_BOT_URL = "http://localhost:4000"

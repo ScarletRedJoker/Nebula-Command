@@ -33,35 +33,7 @@ export async function POST(request: NextRequest) {
 
     console.log(`[Image API] Received prompt: "${prompt.substring(0, 50)}..." (${prompt.length} chars)`);
 
-    let selectedProvider = provider || "auto";
-    const isReplit = !!process.env.REPL_ID || !!process.env.REPLIT_DEV_DOMAIN;
-    
-    if (selectedProvider === "auto") {
-      if (!isReplit) {
-        const sdAvailable = await aiOrchestrator.checkStableDiffusion();
-        if (sdAvailable) {
-          selectedProvider = "stable-diffusion";
-          console.log("[Image API] Using local Stable Diffusion (GPU) - no content restrictions");
-        } else if (aiOrchestrator.hasOpenAI()) {
-          selectedProvider = "openai";
-          console.log("[Image API] Falling back to DALL-E 3 (SD unavailable)");
-        } else {
-          return NextResponse.json(
-            { error: "No image generation provider available", details: "Configure Stable Diffusion on Windows VM or add OpenAI API key" },
-            { status: 503 }
-          );
-        }
-      } else if (aiOrchestrator.hasOpenAI()) {
-        selectedProvider = "openai";
-        console.log("[Image API] Running in Replit - using DALL-E 3 (local SD not reachable from cloud)");
-      } else {
-        return NextResponse.json(
-          { error: "No image generation provider available", details: "Add OpenAI API key to use DALL-E 3 for image generation (local Stable Diffusion is not reachable from Replit's cloud)" },
-          { status: 503 }
-        );
-      }
-    }
-
+    const selectedProvider = provider || "auto";
     console.log(`[Image API] Generating with provider: ${selectedProvider}, size: ${size || "1024x1024"}`);
     
     const result = await aiOrchestrator.generateImage({
@@ -140,16 +112,15 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET() {
-  const isReplit = !!process.env.REPL_ID || !!process.env.REPLIT_DEV_DOMAIN;
-  const sdAvailable = isReplit ? false : await aiOrchestrator.checkStableDiffusion();
+  const sdAvailable = await aiOrchestrator.checkStableDiffusion();
 
   const providers = [
     {
       id: "auto",
-      name: isReplit ? "Auto (Cloud)" : "Auto (Local First)",
-      description: isReplit 
-        ? "Uses DALL-E 3 (local SD not reachable from cloud)"
-        : "Uses local Stable Diffusion if available, falls back to DALL-E",
+      name: "Auto (Local First)",
+      description: sdAvailable 
+        ? "Using local Stable Diffusion on Windows VM GPU"
+        : "Local SD unavailable - will use DALL-E 3",
       sizes: ["512x512", "768x768", "1024x1024"],
       styles: ["vivid", "natural"],
       available: true,
@@ -158,14 +129,13 @@ export async function GET() {
     {
       id: "stable-diffusion",
       name: "Stable Diffusion (Local GPU)",
-      description: isReplit 
-        ? "Not available from Replit cloud (requires local network access)"
-        : "Self-hosted on RTX 3060 - No content restrictions",
+      description: sdAvailable 
+        ? "Self-hosted on RTX 3060 - No content restrictions"
+        : "Not reachable - start Stable Diffusion WebUI on Windows VM",
       sizes: ["512x512", "768x768", "1024x1024"],
       styles: [],
       available: sdAvailable,
       unrestricted: true,
-      requiresLocalNetwork: true,
     },
     {
       id: "openai",
@@ -177,5 +147,5 @@ export async function GET() {
     },
   ];
 
-  return NextResponse.json({ providers, sdAvailable, isReplit });
+  return NextResponse.json({ providers, sdAvailable });
 }
