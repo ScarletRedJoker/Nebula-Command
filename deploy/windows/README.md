@@ -17,71 +17,107 @@ This deployment bundle turns your Windows machine into a powerful AI inference a
 | **Training** | kohya_ss | 8-12GB | LoRA/SDXL fine-tuning |
 | **Training** | Unsloth | 10-12GB | LLM fine-tuning (QLoRA) |
 
+## One-Line Install (Recommended)
+
+The fastest way to set up your Windows AI node:
+
+```powershell
+# Open PowerShell as Administrator and run:
+# First, set your repository URL
+$env:NEBULA_REPO_URL = "https://github.com/your-org/nebula-command.git"
+
+# Then run the bootstrap
+Set-ExecutionPolicy Bypass -Scope Process -Force
+irm https://raw.githubusercontent.com/your-org/nebula-command/main/deploy/windows/bootstrap.ps1 | iex
+```
+
+Or with explicit parameters:
+```powershell
+.\bootstrap.ps1 -RepoUrl "https://github.com/your-org/nebula-command.git"
+```
+
+This automatically:
+- Checks system requirements (GPU, VRAM, disk space)
+- Installs all dependencies (Git, Python, Tailscale)
+- Deploys AI services (Ollama, Stable Diffusion, ComfyUI)
+- Configures firewall and auto-start
+- Runs verification tests
+- Starts the health daemon
+
+### One-Line Install Options
+
+```powershell
+# With dashboard webhook pre-configured:
+$env:WEBHOOK = "https://your-dashboard.com/api/ai/health-webhook"
+irm https://raw.githubusercontent.com/.../bootstrap.ps1 | iex
+
+# Unattended mode (no prompts):
+powershell -Command "& { irm https://raw.githubusercontent.com/.../bootstrap.ps1 | iex } -Unattended"
+
+# Skip specific services:
+.\bootstrap.ps1 -SkipStableDiffusion -SkipComfyUI
+```
+
 ## Prerequisites
 
 1. **Windows 11** (Windows 10 may work but untested)
 2. **NVIDIA GPU** with 8GB+ VRAM (RTX 3060 12GB recommended)
 3. **NVIDIA Drivers** (535+ for CUDA 12.x support)
-4. **Tailscale** installed and joined to your mesh network
-5. **Git for Windows** (for cloning repositories)
-6. **Python 3.10+** (for Stable Diffusion, training tools)
-7. **Administrator PowerShell** access
+4. **Administrator PowerShell** access
 
-## Quick Start
+The installer automatically handles: Tailscale, Git, Python 3.11, Visual C++ Runtime
 
-### 1. Install Tailscale
-```powershell
-# Download from https://tailscale.com/download/windows
-# Or via winget:
-winget install Tailscale.Tailscale
+## Manual Installation
 
-# Join your Tailscale network
-tailscale up --accept-routes
-```
+If you prefer step-by-step control:
 
-### 2. Clone This Repository
+### 1. Clone Repository
 ```powershell
 git clone https://github.com/YOUR_ORG/nebula-command.git C:\NebulaCommand
 cd C:\NebulaCommand\deploy\windows
 ```
 
-### 3. Configure Environment
-```powershell
-# Copy and edit the environment template
-Copy-Item configs\environment.ps1.example configs\environment.ps1
-notepad configs\environment.ps1
-
-# Required settings:
-# $env:NEBULA_HEALTH_WEBHOOK = "https://your-dashboard.com/api/ai/health-webhook"
-# $env:KVM_AGENT_TOKEN = "your-secure-token-from-openssl"
-# $env:TAILSCALE_IP = "100.x.x.x"  # Your Windows machine's Tailscale IP
-```
-
-### 4. Run Setup Script
+### 2. Run Unified Installer
 ```powershell
 # Run as Administrator
 Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
-.\scripts\setup-windows-ai.ps1
+.\scripts\install-ai-node.ps1
 ```
 
-This will:
-- Install Ollama and pull recommended models
-- Set up Stable Diffusion WebUI (AUTOMATIC1111)
-- Configure ComfyUI with AnimateDiff/SVD nodes
-- Register Windows services for auto-start
-- Start the health daemon
+**Installer Options:**
+```powershell
+# Preview changes without making them
+.\scripts\install-ai-node.ps1 -WhatIf
 
-### 5. Verify Installation
+# Skip specific services
+.\scripts\install-ai-node.ps1 -SkipStableDiffusion -SkipWhisper
+
+# Include training tools (kohya_ss, Unsloth)
+.\scripts\install-ai-node.ps1 -InstallTraining
+
+# Unattended with webhook
+.\scripts\install-ai-node.ps1 -Unattended -DashboardWebhook "https://your-dashboard.com/api/ai/health-webhook"
+```
+
+### 3. Verify Installation
 ```powershell
 # Check service status
 .\scripts\windows-ai-supervisor.ps1 -Action status
 
-# Test Ollama
-Invoke-RestMethod -Uri "http://localhost:11434/api/tags"
+# View installation report
+Get-Content C:\ProgramData\NebulaCommand\logs\install.log -Tail 50
 
-# Test Stable Diffusion
-Start-Process "http://localhost:7860"
+# Check node manifest
+Get-Content C:\ProgramData\NebulaCommand\node-manifest.json | ConvertFrom-Json
 ```
+
+The installer performs these phases:
+1. **Preflight** - Validates GPU, VRAM, disk space, Windows version
+2. **Dependencies** - Installs Git, Python 3.11, VC++ Runtime, Tailscale
+3. **AI Services** - Deploys Ollama, Stable Diffusion, ComfyUI, Whisper
+4. **Configuration** - Sets up environment, firewall rules for Tailscale
+5. **Verification** - Smoke tests each service
+6. **Startup** - Launches supervisor and health daemon
 
 ## Folder Structure
 
