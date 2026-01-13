@@ -186,15 +186,23 @@ if (-not $SkipStableDiffusion) {
         Write-Host "[Stable Diffusion] Cloning repository..." -ForegroundColor Yellow
         & git clone https://github.com/AUTOMATIC1111/stable-diffusion-webui.git $sdPath
         
-        # Create webui-user.bat with optimal settings (skip Stability-AI repo that requires auth)
+        # Create webui-user.bat with optimal settings for network access
         $webuiUser = @"
 @echo off
 set PYTHON=
 set GIT=
 set VENV_DIR=
-set COMMANDLINE_ARGS=--xformers --api --listen --port 7860 --enable-insecure-extension-access --no-download-sd-model
+set COMMANDLINE_ARGS=--xformers --api --listen 0.0.0.0 --port 7860 --enable-insecure-extension-access --no-download-sd-model
 "@
         $webuiUser | Set-Content -Path "$sdPath\webui-user.bat"
+        
+        # Create standalone launcher for supervisor
+        $sdLauncher = @"
+@echo off
+cd /d $sdPath
+call webui.bat
+"@
+        $sdLauncher | Set-Content -Path "$sdPath\start-sd.bat"
         
         # Note: First-time setup requires interaction for git auth
         # Skip auto-setup in unattended mode - user will run webui.bat manually
@@ -236,6 +244,14 @@ if (-not $SkipComfyUI) {
         & pip install -r requirements.txt
         & pip install xformers
         Pop-Location
+        
+        # Create launcher script for supervisor
+        $comfyLauncher = @"
+@echo off
+cd /d $comfyPath
+python main.py --listen 0.0.0.0 --port 8188
+"@
+        $comfyLauncher | Set-Content -Path "$comfyPath\start-comfyui.bat"
         
         # Install ComfyUI Manager
         $customNodesPath = "$comfyPath\custom_nodes"

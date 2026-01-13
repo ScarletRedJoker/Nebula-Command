@@ -28,8 +28,8 @@ $Script:Config = @{
         stable_diffusion = @{
             Name = "Stable Diffusion WebUI"
             Port = 7860
-            StartDir = "C:\stable-diffusion-webui"
-            StartCommand = ".\webui-user.bat"
+            StartDir = "C:\AI\stable-diffusion-webui"
+            StartCommand = ".\webui.bat"
             HealthEndpoint = "/sdapi/v1/sd-models"
             StartupTimeout = 300  # Takes time to load
             Priority = 2
@@ -37,9 +37,10 @@ $Script:Config = @{
         comfyui = @{
             Name = "ComfyUI"
             Port = 8188
-            StartDir = "C:\Users\Evin\Documents\ComfyUI_windows_portable"
-            StartCommand = ".\python_embeded\python.exe -s ComfyUI\main.py --listen 0.0.0.0 --port 8188"
+            StartDir = "C:\AI\ComfyUI"
+            StartCommand = "python main.py --listen 0.0.0.0 --port 8188"
             HealthEndpoint = "/system_stats"
+            StartupTimeout = 120
             Priority = 3
         }
     }
