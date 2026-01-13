@@ -131,6 +131,49 @@ cd C:\NebulaCommand\deploy\windows
 **Model Capability Matrix:** See `docs/LOCAL_AI_CAPABILITY_MATRIX.md` for complete model list with VRAM requirements.
 **Deployment Guide:** See `docs/LOCAL_AI_DEPLOYMENT_GUIDE.md` for setup instructions.
 
+### Model Management System
+Unified model management via dashboard at `/models`:
+- **Windows Model Agent** (`deploy/windows/agent/`): Node.js Express server on port 8765 with bearer token auth
+- **Model Inventory**: Lists all SD checkpoints, LoRAs, VAE, embeddings, ComfyUI models, and Ollama models
+- **Download Manager**: Download models from Civitai/HuggingFace URLs with progress tracking
+- **VRAM Estimates**: Shows estimated VRAM usage for each model
+- **One-Click Delete**: Remove models directly from dashboard
+
+**Model API Endpoints:**
+- `GET /api/models` - List all models across SD, ComfyUI, and Ollama
+- `POST /api/models/download` - Queue a model download (url, type, filename)
+- `GET /api/models/download/:id` - Get download progress
+- `DELETE /api/models/:type/:name` - Delete a model
+
+**Windows Agent Setup:**
+```powershell
+cd C:\NebulaCommand\deploy\windows\agent
+npm install
+$env:NEBULA_AGENT_TOKEN = "your-secure-token"
+.\start.ps1 start
+```
+
+### Docker Marketplace
+One-click Docker stack deployment at `/marketplace`:
+- **24+ Pre-built Packages**: Plex, Jellyfin, Nextcloud, Gitea, Portainer, Grafana, Pi-hole, Traefik, n8n, etc.
+- **9 Categories**: Media, Development, Monitoring, Networking, Storage, Database, AI, Tools, Security
+- **One-Click Deploy**: Configure env vars and deploy to any SSH-connected server
+- **Installation Tracking**: See deployed packages and their status
+
+**Marketplace API Endpoints:**
+- `GET /api/marketplace` - List all packages with filtering
+- `GET /api/marketplace/:id` - Get package details
+- `POST /api/marketplace/:id/deploy` - Deploy package to server
+- `GET /api/marketplace/installed` - List installed packages
+
+### Settings System
+Comprehensive settings at `/settings`:
+- **AI Settings Tab**: OpenAI key status, Ollama URL, SD URL with connection testing
+- **Servers Tab**: SSH server management with connection testing
+- **Integrations Tab**: Status for all connected services (Discord, Twitch, YouTube, etc.)
+- **General Settings**: Profile, appearance (dark mode), notifications
+- **Test Buttons**: Verify connections before saving
+
 ### Development vs Production
 - **Replit (Development):** SSH features limited (no key file), uses cloud AI only (OpenAI via AI_INTEGRATIONS)
 - **Linode (Production):** Full SSH access, local AI via Tailscale, Windows VM control enabled
