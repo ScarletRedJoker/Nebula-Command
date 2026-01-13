@@ -54,6 +54,19 @@ Features a per-server customization system allowing server admins to configure t
 - **Local AI (Production Only):** When running on Linode (Tailscale network), local AI services on Windows VM (Ollama, ComfyUI) and Ubuntu (Ollama fallback) are utilized.
 - **VM & Service Management:** An `/infrastructure` page provides remote control for VMs (via libvirt over SSH) and Windows services (Ollama, Stable Diffusion WebUI, ComfyUI) on homelab resources.
 
+### Local AI Services (Windows VM)
+The Windows VM (Tailscale IP: 100.118.44.102) hosts GPU-accelerated AI services:
+- **Ollama:** Port 11434 - LLM inference (llama3.2, mistral, codellama)
+- **Stable Diffusion WebUI:** Port 7860 - AUTOMATIC1111 image generation
+- **ComfyUI:** Port 8188 - Node-based video/image workflows
+
+Setup guide: See `docs/WINDOWS_VM_AI_SETUP.md` for complete installation instructions.
+
+### Development vs Production
+- **Replit (Development):** SSH features limited (no key file), uses cloud AI only (OpenAI via AI_INTEGRATIONS)
+- **Linode (Production):** Full SSH access, local AI via Tailscale, Windows VM control enabled
+- **SSH Key Errors in Replit:** Expected behavior - Replit dev environment doesn't have SSH keys configured
+
 ## External Dependencies
 *   **PostgreSQL:** Primary relational database (Neon for development, self-hosted for production).
 *   **Redis:** Caching and session management.
