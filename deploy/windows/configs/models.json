@@ -1,0 +1,115 @@
+{
+  "ollama": {
+    "recommended_models": [
+      {
+        "name": "qwen2.5-coder:7b",
+        "category": "code",
+        "vram_gb": 5,
+        "description": "Best coding assistant for 12GB GPU"
+      },
+      {
+        "name": "llama3.2:8b",
+        "category": "general",
+        "vram_gb": 6,
+        "description": "General purpose chat and reasoning"
+      },
+      {
+        "name": "mistral:7b-instruct-q4_0",
+        "category": "general",
+        "vram_gb": 4,
+        "description": "Fast, efficient general purpose model"
+      },
+      {
+        "name": "deepseek-coder:6.7b",
+        "category": "code",
+        "vram_gb": 5,
+        "description": "Alternative coding model"
+      },
+      {
+        "name": "nomic-embed-text",
+        "category": "embeddings",
+        "vram_gb": 0.5,
+        "description": "Text embeddings for RAG"
+      }
+    ],
+    "optional_models": [
+      {
+        "name": "llama3.3:70b-instruct-q4_K_M",
+        "category": "general",
+        "vram_gb": 10,
+        "description": "Large model - requires VRAM management"
+      },
+      {
+        "name": "codellama:34b-instruct-q4_0",
+        "category": "code",
+        "vram_gb": 10,
+        "description": "Large coding model - exclusive mode only"
+      }
+    ]
+  },
+  "stable_diffusion": {
+    "checkpoints": [
+      {
+        "name": "dreamshaper_8.safetensors",
+        "category": "general",
+        "vram_gb": 6,
+        "url": "https://civitai.com/models/4384"
+      },
+      {
+        "name": "realvisxlV40.safetensors",
+        "category": "realistic",
+        "vram_gb": 8,
+        "url": "https://civitai.com/models/139562"
+      }
+    ],
+    "loras": [
+      {
+        "name": "detail_slider",
+        "category": "utility",
+        "description": "Adjust detail level"
+      }
+    ]
+  },
+  "comfyui": {
+    "custom_nodes": [
+      "ComfyUI-AnimateDiff-Evolved",
+      "ComfyUI-VideoHelperSuite",
+      "ComfyUI-Manager",
+      "ComfyUI-Impact-Pack"
+    ],
+    "models": [
+      {
+        "name": "animatediff_v3_sd15_mm.safetensors",
+        "category": "video",
+        "vram_gb": 8
+      },
+      {
+        "name": "svd_xt.safetensors",
+        "category": "video",
+        "vram_gb": 10
+      }
+    ]
+  },
+  "whisper": {
+    "models": [
+      {
+        "name": "small.en",
+        "category": "speech-to-text",
+        "vram_gb": 1,
+        "description": "English-only, fast transcription"
+      },
+      {
+        "name": "medium",
+        "category": "speech-to-text",
+        "vram_gb": 3,
+        "description": "Multi-language, balanced"
+      },
+      {
+        "name": "large-v3",
+        "category": "speech-to-text",
+        "vram_gb": 6,
+        "description": "Best quality, requires dedicated VRAM"
+      }
+    ]
+  }
+}

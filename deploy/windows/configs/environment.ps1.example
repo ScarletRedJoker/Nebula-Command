@@ -1,0 +1,39 @@
+# Nebula Command Windows AI Environment Configuration
+# Copy this file to environment.ps1 and fill in your values
+
+# Dashboard Integration (Required)
+$env:NEBULA_HEALTH_WEBHOOK = "https://your-dashboard.domain.com/api/ai/health-webhook"
+$env:KVM_AGENT_TOKEN = "generate-with-openssl-rand-hex-32"
+
+# Network Configuration
+$env:TAILSCALE_IP = "100.x.x.x"  # Your Windows machine's Tailscale IP
+$env:DASHBOARD_URL = "https://your-dashboard.domain.com"
+
+# Service Ports (defaults shown)
+$env:OLLAMA_PORT = "11434"
+$env:SD_WEBUI_PORT = "7860"
+$env:COMFYUI_PORT = "8188"
+$env:AGENT_PORT = "8765"
+
+# Installation Paths
+$env:OLLAMA_HOME = "C:\Users\$env:USERNAME\.ollama"
+$env:SD_WEBUI_PATH = "C:\AI\stable-diffusion-webui"
+$env:COMFYUI_PATH = "C:\AI\ComfyUI"
+$env:WHISPER_PATH = "C:\AI\whisper.cpp"
+
+# Model Preferences
+$env:DEFAULT_LLM_MODEL = "qwen2.5-coder:7b"
+$env:DEFAULT_SD_MODEL = "dreamshaper_8.safetensors"
+
+# VRAM Management
+$env:MAX_VRAM_GB = "12"
+$env:VRAM_SAFETY_MARGIN_GB = "1"
+
+# Logging
+$env:LOG_PATH = "C:\ProgramData\NebulaCommand\logs"
+$env:LOG_LEVEL = "INFO"  # DEBUG, INFO, WARN, ERROR
+
+# Training Configuration (Optional)
+$env:TRAINING_DATA_PATH = "C:\AI\Training\Datasets"
+$env:TRAINING_OUTPUT_PATH = "C:\AI\Training\Output"
+$env:KOHYA_SS_PATH = "C:\AI\kohya_ss"

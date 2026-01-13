@@ -20,7 +20,12 @@ The platform is built around three distributed core services:
 Services share a PostgreSQL database and Redis for caching. The Stream Bot uses webhooks for Discord notifications, and the Dashboard and Discord Bot communicate via APIs.
 
 ### Deployment Architecture
-The system utilizes a distributed deployment model where a cloud server hosts the Dashboard, Discord Bot, and Stream Bot. A local Ubuntu Homelab hosts Plex, MinIO, Home Assistant, Ollama, and Stable Diffusion. Tailscale provides secure mesh networking for cloud services to access local homelab resources.
+The system utilizes a distributed deployment model:
+- **Cloud (Linode):** Dashboard, Discord Bot, Stream Bot → `deploy/linode/`
+- **Ubuntu Homelab:** Plex, MinIO, Home Assistant, Ollama fallback → `deploy/local/`
+- **Windows AI Node:** GPU AI services (Ollama, SD, ComfyUI, training) → `deploy/windows/`
+
+Tailscale provides secure mesh networking for cloud services to access local homelab resources.
 
 ### Database Schema
 A shared PostgreSQL instance organizes data into distinct databases for each core service: `homelab_jarvis` (Dashboard), `discord_bot`, and `stream_bot`.
