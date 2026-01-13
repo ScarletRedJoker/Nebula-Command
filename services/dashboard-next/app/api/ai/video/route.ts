@@ -16,10 +16,10 @@ async function checkAuth() {
 }
 
 function getAssetsDir() {
-  const baseDir = process.env.REPL_ID ? "./public" : "/opt/homelab/HomeLabHub/services/dashboard-next/public";
-  const assetsDir = join(baseDir, "generated-videos");
+  const assetsDir = join(process.cwd(), "public", "generated-videos");
   if (!existsSync(assetsDir)) {
     mkdirSync(assetsDir, { recursive: true });
+    console.log(`[Video API] Created assets directory: ${assetsDir}`);
   }
   return assetsDir;
 }
@@ -52,6 +52,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    console.log(`[Video API] Generating with model: ${selectedModel}`);
     const result = await aiOrchestrator.generateVideo({
       prompt: prompt || "Animate this image with natural motion",
       inputImage,
@@ -59,6 +60,8 @@ export async function POST(request: NextRequest) {
       model: selectedModel || (inputImage ? "wan-i2v" : "wan-t2v"),
       provider: selectedModel?.includes("local") || selectedModel === "animatediff" ? "local" : undefined,
     });
+
+    console.log(`[Video API] Got result: url=${result.url}`);
 
     const isInternalUrl = result.url.includes("100.118.44.102") || 
                           result.url.includes("100.66.61.51") ||

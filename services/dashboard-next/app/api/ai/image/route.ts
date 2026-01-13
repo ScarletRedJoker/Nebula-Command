@@ -13,10 +13,10 @@ async function checkAuth() {
 }
 
 function getAssetsDir() {
-  const baseDir = process.env.REPL_ID ? "./public" : "/opt/homelab/HomeLabHub/services/dashboard-next/public";
-  const assetsDir = join(baseDir, "generated-images");
+  const assetsDir = join(process.cwd(), "public", "generated-images");
   if (!existsSync(assetsDir)) {
     mkdirSync(assetsDir, { recursive: true });
+    console.log(`[Image API] Created assets directory: ${assetsDir}`);
   }
   return assetsDir;
 }
@@ -53,6 +53,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    console.log(`[Image API] Generating with provider: ${selectedProvider}`);
     const result = await aiOrchestrator.generateImage({
       prompt,
       negativePrompt,
@@ -60,6 +61,8 @@ export async function POST(request: NextRequest) {
       style: style || "vivid",
       provider: selectedProvider,
     });
+
+    console.log(`[Image API] Got result from orchestrator: hasBase64=${!!result.base64}, hasUrl=${!!result.url}`);
 
     if (result.base64) {
       try {
@@ -69,12 +72,14 @@ export async function POST(request: NextRequest) {
         const filepath = join(assetsDir, filename);
 
         const buffer = Buffer.from(result.base64, "base64");
+        console.log(`[Image API] Buffer size: ${buffer.length} bytes`);
+        
         if (buffer.length < 100) {
           throw new Error(`Image data too small (${buffer.length} bytes)`);
         }
         
         writeFileSync(filepath, buffer);
-        console.log(`[Image API] Saved image to ${filepath} (${buffer.length} bytes)`);
+        console.log(`[Image API] Successfully saved image to ${filepath}`);
 
         const publicUrl = `/generated-images/${filename}`;
         
@@ -87,7 +92,8 @@ export async function POST(request: NextRequest) {
       } catch (saveError: any) {
         console.error("[Image API] Failed to save image:", saveError);
         return NextResponse.json({
-          ...result,
+          base64: result.base64,
+          provider: result.provider,
           warning: "Failed to save image locally: " + saveError.message
         });
       }
