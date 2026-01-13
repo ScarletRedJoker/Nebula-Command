@@ -125,6 +125,22 @@ export default function CreativeStudioPage() {
     }
   }
 
+  async function safeParseJSON(res: Response): Promise<any> {
+    const contentType = res.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) {
+      const text = await res.text();
+      if (text.startsWith("<!DOCTYPE") || text.startsWith("<html")) {
+        throw new Error("Server returned an HTML error page. The AI service may be unavailable or misconfigured.");
+      }
+      throw new Error(text || `Server returned non-JSON response (${res.status})`);
+    }
+    try {
+      return await res.json();
+    } catch (e) {
+      throw new Error(`Invalid JSON response from server: ${e}`);
+    }
+  }
+
   async function generateImage() {
     if (!imagePrompt.trim()) return;
 
@@ -152,11 +168,15 @@ export default function CreativeStudioPage() {
         const provider = res.headers.get("x-provider") || "unknown";
         setGeneratedImage({ url: blobUrl, provider, isBlob: true });
       } else if (res.ok) {
-        const data = await res.json();
+        const data = await safeParseJSON(res);
         setGeneratedImage(data);
       } else {
-        const error = await res.json();
-        alert(`Error: ${error.details || error.error}`);
+        try {
+          const error = await safeParseJSON(res);
+          alert(`Error: ${error.details || error.error || "Unknown error"}`);
+        } catch (parseError: any) {
+          alert(`Error: ${parseError.message}`);
+        }
       }
     } catch (error: any) {
       alert(`Failed to generate image: ${error.message}`);
@@ -192,11 +212,15 @@ export default function CreativeStudioPage() {
         const model = res.headers.get("x-model") || videoModel;
         setGeneratedVideo({ url: blobUrl, provider, model, isBlob: true });
       } else if (res.ok) {
-        const data = await res.json();
+        const data = await safeParseJSON(res);
         setGeneratedVideo(data);
       } else {
-        const error = await res.json();
-        alert(`Error: ${error.details || error.error}`);
+        try {
+          const error = await safeParseJSON(res);
+          alert(`Error: ${error.details || error.error || "Unknown error"}`);
+        } catch (parseError: any) {
+          alert(`Error: ${parseError.message}`);
+        }
       }
     } catch (error: any) {
       alert(`Failed to generate video: ${error.message}`);

@@ -246,8 +246,15 @@ class AIOrchestrator {
 
   async generateImage(request: ImageRequest): Promise<ImageResponse> {
     const provider = request.provider || "openai";
+    const inReplit = isReplitEnv();
 
     if (provider === "stable-diffusion") {
+      if (inReplit) {
+        if (this.hasOpenAI()) {
+          throw new Error(`Local Stable Diffusion is not reachable from Replit's cloud servers - your Windows VM is on a different network.\n\nOptions:\n1. Use DALL-E 3 instead (select it from the provider dropdown)\n2. Self-host this dashboard on your local network with direct access to Stable Diffusion`);
+        }
+        throw new Error(`Local Stable Diffusion is not reachable from Replit's cloud servers.\n\nTo generate images, you can add an OpenAI API key to use DALL-E 3.`);
+      }
       console.log(`[AI Orchestrator] Generating image with local Stable Diffusion at ${this.stableDiffusionUrl}`);
       return this.generateWithSD(request);
     }
@@ -728,14 +735,21 @@ class AIOrchestrator {
   }
 
   async generateVideo(request: VideoRequest): Promise<VideoResponse> {
-    const comfyAvailable = await this.checkComfyUI();
+    const inReplit = isReplitEnv();
+    const comfyAvailable = inReplit ? false : await this.checkComfyUI();
     const isLocalModel = request.model === "animatediff" || request.model === "svd-local";
     const isLocalProvider = request.provider === "local" || request.provider === "comfyui";
     const isCloudModel = request.model === "wan-t2v" || request.model === "wan-i2v" || request.model === "svd";
     
-    console.log(`[AI Orchestrator] Video generation - model: ${request.model}, provider: ${request.provider}, ComfyUI: ${comfyAvailable}, Replicate: ${this.hasReplicate()}`);
+    console.log(`[AI Orchestrator] Video generation - model: ${request.model}, provider: ${request.provider}, ComfyUI: ${comfyAvailable}, Replicate: ${this.hasReplicate()}, inReplit: ${inReplit}`);
     
     if (isLocalProvider || isLocalModel) {
+      if (inReplit) {
+        if (this.hasReplicate()) {
+          throw new Error(`Local video generation (${request.model}) is not available from Replit's cloud servers - your Windows VM is on a different network.\n\nOptions:\n1. Use cloud models instead: WAN 2.1 Text-to-Video or Image-to-Video (requires REPLICATE_API_TOKEN)\n2. Self-host this dashboard on your local network with direct access to ComfyUI`);
+        }
+        throw new Error(`Local video generation (${request.model}) is not available from Replit's cloud servers.\n\nTo generate videos, add REPLICATE_API_TOKEN to use cloud-based video generation models.`);
+      }
       if (comfyAvailable) {
         console.log("[AI Orchestrator] Using local ComfyUI for video generation - no content restrictions");
         return this.generateVideoWithComfyUI(request);
@@ -820,24 +834,31 @@ class AIOrchestrator {
   }
 
   async getVideoProviders() {
-    const comfyAvailable = await this.checkComfyUI();
+    const inReplit = isReplitEnv();
+    const comfyAvailable = inReplit ? false : await this.checkComfyUI();
     
     return [
       {
         id: "animatediff",
         name: "AnimateDiff (Local)",
-        description: "Local text-to-video via ComfyUI on Windows VM",
+        description: inReplit 
+          ? "Requires ComfyUI on local network (not available from cloud)"
+          : "Local text-to-video via ComfyUI on Windows VM",
         type: "text-to-video",
         available: comfyAvailable,
         provider: "local",
+        requiresLocalNetwork: true,
       },
       {
         id: "svd-local",
         name: "SVD (Local)",
-        description: "Local image-to-video via ComfyUI on Windows VM",
+        description: inReplit
+          ? "Requires ComfyUI on local network (not available from cloud)"
+          : "Local image-to-video via ComfyUI on Windows VM",
         type: "image-to-video",
         available: comfyAvailable,
         provider: "local",
+        requiresLocalNetwork: true,
       },
       {
         id: "wan-t2v",
