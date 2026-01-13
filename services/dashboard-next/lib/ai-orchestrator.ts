@@ -331,13 +331,21 @@ class AIOrchestrator {
     }
 
     if (!data.images?.[0]) {
-      console.error(`[SD] No images in response:`, data);
+      console.error(`[SD] No images in response:`, JSON.stringify(data).substring(0, 500));
       throw new Error("Stable Diffusion returned no image data. Check SD WebUI console for errors.");
     }
 
-    console.log(`[SD] Successfully generated image`);
+    const base64Data = data.images[0];
+    const estimatedBytes = Math.ceil(base64Data.length * 0.75);
+    console.log(`[SD] Successfully generated image - base64 length: ${base64Data.length}, estimated bytes: ${estimatedBytes}`);
+    
+    if (base64Data.length < 1000) {
+      console.error(`[SD] Image data too small - likely empty or error: ${base64Data.substring(0, 100)}`);
+      throw new Error("Stable Diffusion returned empty/corrupt image. Check SD WebUI model is loaded.");
+    }
+    
     return {
-      base64: data.images[0],
+      base64: base64Data,
       provider: "stable-diffusion",
     };
   }
