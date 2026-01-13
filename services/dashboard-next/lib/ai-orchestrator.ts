@@ -156,13 +156,24 @@ class AIOrchestrator {
 
   private initOpenAI() {
     const baseURL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
-    const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+    let apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
 
     if (apiKey) {
+      apiKey = apiKey.trim();
+      
+      if (!apiKey.startsWith("sk-")) {
+        console.error("[AI Orchestrator] OpenAI API key has invalid format (should start with sk-)");
+        return;
+      }
+      
+      console.log(`[AI Orchestrator] OpenAI initialized with key: ${apiKey.substring(0, 10)}...${apiKey.substring(apiKey.length - 4)}`);
+      
       this.openaiClient = new OpenAI({
         baseURL: baseURL || undefined,
         apiKey,
       });
+    } else {
+      console.log("[AI Orchestrator] No OpenAI API key configured");
     }
   }
 
@@ -282,23 +293,43 @@ class AIOrchestrator {
 
   private async generateWithDALLE(request: ImageRequest): Promise<ImageResponse> {
     if (!this.openaiClient) {
-      throw new Error("OpenAI not configured");
+      throw new Error("OpenAI not configured - add OPENAI_API_KEY to environment");
     }
 
-    const response = await this.openaiClient.images.generate({
-      model: "dall-e-3",
-      prompt: request.prompt,
-      size: request.size || "1024x1024",
-      style: request.style || "vivid",
-      quality: "hd",
-      n: 1,
-    });
+    console.log(`[DALL-E] Generating image with prompt: "${request.prompt.substring(0, 50)}..."`);
+    
+    try {
+      const response = await this.openaiClient.images.generate({
+        model: "dall-e-3",
+        prompt: request.prompt,
+        size: request.size || "1024x1024",
+        style: request.style || "vivid",
+        quality: "hd",
+        n: 1,
+      });
 
-    return {
-      url: response.data?.[0]?.url,
-      provider: "openai",
-      revisedPrompt: response.data?.[0]?.revised_prompt,
-    };
+      console.log("[DALL-E] Successfully generated image");
+      
+      return {
+        url: response.data?.[0]?.url,
+        provider: "openai",
+        revisedPrompt: response.data?.[0]?.revised_prompt,
+      };
+    } catch (error: any) {
+      console.error(`[DALL-E] Generation failed:`, error.message);
+      
+      if (error.status === 401) {
+        const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+        console.error(`[DALL-E] API key check: exists=${!!apiKey}, length=${apiKey?.length || 0}, prefix=${apiKey?.substring(0, 7) || 'none'}`);
+        throw new Error("OpenAI API key is invalid or expired. Please verify your OPENAI_API_KEY in the environment.");
+      }
+      
+      if (error.status === 400 && error.message?.includes("safety")) {
+        throw new Error("Content was rejected by OpenAI's safety system. Try using local Stable Diffusion for unrestricted generation.");
+      }
+      
+      throw error;
+    }
   }
 
   private async generateWithSD(request: ImageRequest): Promise<ImageResponse> {

@@ -23,8 +23,45 @@ export interface ServerConfig {
   isDefault?: boolean;
 }
 
-const SETTINGS_DIR = process.env.STUDIO_PROJECTS_DIR || 
-  (process.env.REPL_ID ? "./data/studio-projects" : "/opt/homelab/studio-projects");
+const FALLBACK_SETTINGS_DIR = "/app/data";
+const PRIMARY_SETTINGS_DIR = "/opt/homelab/studio-projects";
+
+function getSettingsDir(): string {
+  if (process.env.STUDIO_PROJECTS_DIR) {
+    return process.env.STUDIO_PROJECTS_DIR;
+  }
+  if (process.env.REPL_ID) {
+    return "./data/studio-projects";
+  }
+  
+  try {
+    if (existsSync(PRIMARY_SETTINGS_DIR)) {
+      const testFile = `${PRIMARY_SETTINGS_DIR}/.write-test-${Date.now()}`;
+      try {
+        require("fs").writeFileSync(testFile, "test");
+        require("fs").unlinkSync(testFile);
+        return PRIMARY_SETTINGS_DIR;
+      } catch {
+        console.log(`[Server Config] Primary directory ${PRIMARY_SETTINGS_DIR} not writable, using fallback`);
+      }
+    }
+  } catch {
+    console.log(`[Server Config] Primary directory ${PRIMARY_SETTINGS_DIR} not accessible, using fallback`);
+  }
+  
+  return FALLBACK_SETTINGS_DIR;
+}
+
+let cachedSettingsDir: string | null = null;
+
+function getSettingsDirCached(): string {
+  if (!cachedSettingsDir) {
+    cachedSettingsDir = getSettingsDir();
+    console.log(`[Server Config] Using settings directory: ${cachedSettingsDir}`);
+  }
+  return cachedSettingsDir;
+}
+
 const SETTINGS_FILE = "user-settings.json";
 
 // SSH key path - on Linode the key is at /root/.ssh/homelab, on Replit at $HOME/.ssh/homelab
@@ -74,9 +111,10 @@ async function ensureDir(dir: string): Promise<void> {
 }
 
 async function loadSettingsFile(): Promise<any> {
+  const settingsDir = getSettingsDirCached();
   try {
-    await ensureDir(SETTINGS_DIR);
-    const filePath = path.join(SETTINGS_DIR, SETTINGS_FILE);
+    await ensureDir(settingsDir);
+    const filePath = path.join(settingsDir, SETTINGS_FILE);
     const content = await fs.readFile(filePath, "utf-8");
     return JSON.parse(content);
   } catch (error: any) {
@@ -88,8 +126,9 @@ async function loadSettingsFile(): Promise<any> {
 }
 
 async function saveSettingsFile(settings: any): Promise<void> {
-  await ensureDir(SETTINGS_DIR);
-  const filePath = path.join(SETTINGS_DIR, SETTINGS_FILE);
+  const settingsDir = getSettingsDirCached();
+  await ensureDir(settingsDir);
+  const filePath = path.join(settingsDir, SETTINGS_FILE);
   await fs.writeFile(filePath, JSON.stringify(settings, null, 2));
 }
 

@@ -51,6 +51,10 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 RUN mkdir -p /app/public/generated-images /app/public/generated-videos && \
     chown -R nextjs:nodejs /app/public
 
+# Create directories for settings and data that might not have volume mounts
+RUN mkdir -p /app/data /opt/homelab/studio-projects && \
+    chown -R nextjs:nodejs /app/data /opt/homelab/studio-projects
+
 USER nextjs
 
 EXPOSE 5000

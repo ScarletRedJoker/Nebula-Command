@@ -5,8 +5,41 @@ import fs from "fs/promises";
 import path from "path";
 import { getAllServers, saveServers, ServerConfig } from "@/lib/server-config-store";
 
-const SETTINGS_DIR = process.env.STUDIO_PROJECTS_DIR || 
-  (process.env.REPL_ID ? "./data/studio-projects" : "/opt/homelab/studio-projects");
+import { existsSync, accessSync, constants } from "fs";
+
+const FALLBACK_SETTINGS_DIR = "/app/data";
+const PRIMARY_SETTINGS_DIR = "/opt/homelab/studio-projects";
+
+function getSettingsDir(): string {
+  if (process.env.STUDIO_PROJECTS_DIR) {
+    return process.env.STUDIO_PROJECTS_DIR;
+  }
+  if (process.env.REPL_ID) {
+    return "./data/studio-projects";
+  }
+  
+  try {
+    if (existsSync(PRIMARY_SETTINGS_DIR)) {
+      accessSync(PRIMARY_SETTINGS_DIR, constants.W_OK);
+      return PRIMARY_SETTINGS_DIR;
+    }
+  } catch {
+    console.log(`[Settings API] Primary directory ${PRIMARY_SETTINGS_DIR} not writable, using fallback`);
+  }
+  
+  return FALLBACK_SETTINGS_DIR;
+}
+
+let cachedSettingsDir: string | null = null;
+
+function getSettingsDirCached(): string {
+  if (!cachedSettingsDir) {
+    cachedSettingsDir = getSettingsDir();
+    console.log(`[Settings API] Using settings directory: ${cachedSettingsDir}`);
+  }
+  return cachedSettingsDir;
+}
+
 const SETTINGS_FILE = "user-settings.json";
 
 interface UserSettings {
@@ -40,14 +73,21 @@ async function ensureDir(dir: string) {
   try {
     await fs.access(dir);
   } catch {
-    await fs.mkdir(dir, { recursive: true });
+    try {
+      await fs.mkdir(dir, { recursive: true, mode: 0o755 });
+    } catch (mkdirErr: any) {
+      console.error(`[Settings API] Failed to create directory ${dir}:`, mkdirErr.message);
+      throw new Error(`Cannot create settings directory: ${mkdirErr.message}`);
+    }
   }
 }
 
 async function loadSettings(): Promise<UserSettings> {
+  const settingsDir = getSettingsDirCached();
   try {
-    await ensureDir(SETTINGS_DIR);
-    const filePath = path.join(SETTINGS_DIR, SETTINGS_FILE);
+    console.log(`[Settings API] Loading settings from ${settingsDir}`);
+    await ensureDir(settingsDir);
+    const filePath = path.join(settingsDir, SETTINGS_FILE);
     const content = await fs.readFile(filePath, "utf-8");
     const stored = JSON.parse(content);
     
@@ -102,8 +142,9 @@ async function loadSettings(): Promise<UserSettings> {
 }
 
 async function saveSettingsFile(settings: Omit<UserSettings, "servers"> & { servers?: any }): Promise<void> {
-  await ensureDir(SETTINGS_DIR);
-  const filePath = path.join(SETTINGS_DIR, SETTINGS_FILE);
+  const settingsDir = getSettingsDirCached();
+  await ensureDir(settingsDir);
+  const filePath = path.join(settingsDir, SETTINGS_FILE);
   await fs.writeFile(filePath, JSON.stringify(settings, null, 2));
 }
 
@@ -117,8 +158,20 @@ export async function GET(request: NextRequest) {
     const settings = await loadSettings();
     return NextResponse.json(settings);
   } catch (error: any) {
-    console.error("Settings GET error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[Settings API] GET error:", error);
+    
+    if (error.code === "EACCES" || error.message?.includes("permission")) {
+      return NextResponse.json({ 
+        error: "Permission denied accessing settings directory",
+        details: `Path: ${getSettingsDirCached()}`,
+        code: "PERMISSION_DENIED"
+      }, { status: 500 });
+    }
+    
+    return NextResponse.json({ 
+      error: error.message || "Failed to load settings",
+      code: error.code || "UNKNOWN"
+    }, { status: 500 });
   }
 }
 
