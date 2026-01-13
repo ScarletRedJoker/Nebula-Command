@@ -20,11 +20,14 @@ export async function GET(request: NextRequest) {
   const legacyKey = process.env.OPENAI_API_KEY;
   const activeKey = integrationKey || legacyKey;
 
+  const projectId = process.env.OPENAI_PROJECT_ID;
+  
   const diagnostics: Record<string, any> = {
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV,
     keySource: integrationKey ? "AI_INTEGRATIONS_OPENAI_API_KEY" : legacyKey ? "OPENAI_API_KEY" : "none",
     keyPresent: !!activeKey,
+    projectId: projectId ? { present: true, prefix: projectId.substring(0, 10) } : { present: false },
   };
 
   if (activeKey) {
@@ -49,6 +52,7 @@ export async function GET(request: NextRequest) {
     try {
       const openai = new OpenAI({
         apiKey: trimmedKey,
+        ...(projectId && { project: projectId.trim() }),
       });
 
       const start = Date.now();

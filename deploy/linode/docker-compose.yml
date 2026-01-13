@@ -155,6 +155,7 @@ services:
       - ADMIN_PASSWORD=${WEB_PASSWORD}
       - SESSION_SECRET=${SESSION_SECRET}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_PROJECT_ID=${OPENAI_PROJECT_ID:-}
       - DATABASE_URL=postgresql://jarvis:${JARVIS_DB_PASSWORD}@homelab-postgres:5432/homelab_jarvis
       - REDIS_URL=redis://redis:6379/0
       - DISCORD_BOT_URL=http://discord-bot:4000
