@@ -2,23 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { aiOrchestrator } from "@/lib/ai-orchestrator";
 import { verifySession } from "@/lib/session";
 import { cookies } from "next/headers";
-import { writeFileSync, mkdirSync, existsSync } from "fs";
-import { join } from "path";
 
 async function checkAuth() {
   const cookieStore = await cookies();
   const session = cookieStore.get("session");
   if (!session?.value) return null;
   return await verifySession(session.value);
-}
-
-function getAssetsDir() {
-  const assetsDir = join(process.cwd(), "public", "generated-images");
-  if (!existsSync(assetsDir)) {
-    mkdirSync(assetsDir, { recursive: true });
-    console.log(`[Image API] Created assets directory: ${assetsDir}`);
-  }
-  return assetsDir;
 }
 
 export async function POST(request: NextRequest) {
@@ -65,39 +54,19 @@ export async function POST(request: NextRequest) {
     console.log(`[Image API] Got result from orchestrator: hasBase64=${!!result.base64}, hasUrl=${!!result.url}`);
 
     if (result.base64) {
-      try {
-        console.log("[Image API] Saving base64 image to file...");
-        const assetsDir = getAssetsDir();
-        const filename = `image_${Date.now()}.png`;
-        const filepath = join(assetsDir, filename);
-
-        const buffer = Buffer.from(result.base64, "base64");
-        console.log(`[Image API] Buffer size: ${buffer.length} bytes`);
-        
-        if (buffer.length < 100) {
-          throw new Error(`Image data too small (${buffer.length} bytes)`);
-        }
-        
-        writeFileSync(filepath, buffer);
-        console.log(`[Image API] Successfully saved image to ${filepath}`);
-
-        const publicUrl = `/generated-images/${filename}`;
-        
-        return NextResponse.json({
-          url: publicUrl,
-          base64: result.base64,
-          provider: result.provider,
-          savedPath: filepath,
-          filename,
-        });
-      } catch (saveError: any) {
-        console.error("[Image API] Failed to save image:", saveError);
-        return NextResponse.json({
-          base64: result.base64,
-          provider: result.provider,
-          warning: "Failed to save image locally: " + saveError.message
-        });
-      }
+      console.log("[Image API] Returning binary image data");
+      const buffer = Buffer.from(result.base64, "base64");
+      console.log(`[Image API] Image buffer size: ${buffer.length} bytes`);
+      
+      return new NextResponse(buffer, {
+        status: 200,
+        headers: {
+          "Content-Type": "image/png",
+          "Content-Length": buffer.length.toString(),
+          "X-Provider": result.provider || selectedProvider,
+          "Cache-Control": "no-store",
+        },
+      });
     }
 
     if (result.url) {
@@ -109,34 +78,39 @@ export async function POST(request: NextRequest) {
       if (isInternalUrl) {
         try {
           console.log(`[Image API] Proxying image from internal URL: ${result.url}`);
-          const assetsDir = getAssetsDir();
-          const filename = `image_${Date.now()}.png`;
-          const filepath = join(assetsDir, filename);
-
           const response = await fetch(result.url);
           if (!response.ok) {
             throw new Error(`Failed to fetch: ${response.status}`);
           }
           
           const buffer = Buffer.from(await response.arrayBuffer());
-          writeFileSync(filepath, buffer);
-          console.log(`[Image API] Saved proxied image to ${filepath}`);
+          console.log(`[Image API] Proxied image size: ${buffer.length} bytes`);
 
-          const publicUrl = `/generated-images/${filename}`;
-          
-          return NextResponse.json({
-            url: publicUrl,
-            provider: result.provider,
-            savedPath: filepath,
-            filename,
+          return new NextResponse(buffer, {
+            status: 200,
+            headers: {
+              "Content-Type": "image/png",
+              "Content-Length": buffer.length.toString(),
+              "X-Provider": result.provider || selectedProvider,
+              "Cache-Control": "no-store",
+            },
           });
         } catch (proxyError: any) {
           console.error("[Image API] Failed to proxy image:", proxyError);
+          return NextResponse.json(
+            { error: "Failed to retrieve image", details: proxyError.message },
+            { status: 500 }
+          );
         }
       }
+
+      return NextResponse.json({ url: result.url, provider: result.provider });
     }
 
-    return NextResponse.json(result);
+    return NextResponse.json(
+      { error: "No image data received from provider" },
+      { status: 500 }
+    );
   } catch (error: any) {
     console.error("Image generation error:", error);
     return NextResponse.json(

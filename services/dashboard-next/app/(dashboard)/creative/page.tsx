@@ -52,6 +52,7 @@ interface GeneratedImage {
   provider: string;
   revisedPrompt?: string;
   savedPath?: string;
+  isBlob?: boolean;
 }
 
 interface GeneratedVideo {
@@ -139,11 +140,17 @@ export default function CreativeStudioPage() {
           size: imageSize,
           style: imageStyle,
           provider: imageProvider,
-          saveLocally,
         }),
       });
 
-      if (res.ok) {
+      const contentType = res.headers.get("content-type") || "";
+      
+      if (res.ok && contentType.includes("image/")) {
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const provider = res.headers.get("x-provider") || "unknown";
+        setGeneratedImage({ url: blobUrl, provider, isBlob: true });
+      } else if (res.ok) {
         const data = await res.json();
         setGeneratedImage(data);
       } else {
@@ -443,10 +450,10 @@ export default function CreativeStudioPage() {
             <div className="space-y-4">
               <Label>Generated Image</Label>
               <div className="border rounded-lg bg-muted/50 min-h-[400px] flex items-center justify-center">
-                {generatedImage?.base64 ? (
+                {generatedImage?.url ? (
                   <div className="relative w-full">
                     <img
-                      src={`data:image/png;base64,${generatedImage.base64}`}
+                      src={generatedImage.url}
                       alt="Generated"
                       className="w-full rounded-lg"
                     />
@@ -454,9 +461,13 @@ export default function CreativeStudioPage() {
                       <Button
                         size="sm"
                         variant="secondary"
-                        onClick={() => {
+                        onClick={async () => {
                           const link = document.createElement('a');
-                          link.href = `data:image/png;base64,${generatedImage.base64}`;
+                          if (generatedImage.isBlob) {
+                            link.href = generatedImage.url!;
+                          } else {
+                            link.href = generatedImage.url!;
+                          }
                           link.download = `generated-${Date.now()}.png`;
                           link.click();
                         }}
@@ -465,9 +476,9 @@ export default function CreativeStudioPage() {
                       </Button>
                     </div>
                   </div>
-                ) : generatedImage?.url ? (
+                ) : generatedImage?.base64 ? (
                   <img
-                    src={generatedImage.url}
+                    src={`data:image/png;base64,${generatedImage.base64}`}
                     alt="Generated"
                     className="w-full rounded-lg"
                   />
