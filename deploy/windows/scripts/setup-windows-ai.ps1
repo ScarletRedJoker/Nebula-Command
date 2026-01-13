@@ -240,6 +240,8 @@ if (-not $SkipComfyUI) {
         & git clone https://github.com/comfyanonymous/ComfyUI.git $comfyPath
         
         Push-Location $comfyPath
+        Write-Host "[ComfyUI] Installing PyTorch with CUDA support..." -ForegroundColor Yellow
+        & pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
         Write-Host "[ComfyUI] Installing dependencies..." -ForegroundColor Yellow
         & pip install -r requirements.txt
         & pip install xformers
