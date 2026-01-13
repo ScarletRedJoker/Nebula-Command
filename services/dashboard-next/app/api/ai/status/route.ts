@@ -20,17 +20,18 @@ interface AIProviderStatus {
 
 async function checkOpenAI(): Promise<AIProviderStatus> {
   const baseURL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
-  const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
-  const directKey = process.env.OPENAI_API_KEY;
+  const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+  const projectId = process.env.OPENAI_PROJECT_ID;
 
-  if (!apiKey && !directKey) {
+  if (!apiKey) {
     return { name: "OpenAI", status: "not_configured", error: "No API key configured" };
   }
 
   try {
     const openai = new OpenAI({
       baseURL: baseURL || undefined,
-      apiKey: apiKey || directKey,
+      apiKey: apiKey.trim(),
+      ...(projectId && { project: projectId.trim() }),
     });
 
     const start = Date.now();
@@ -94,16 +95,33 @@ async function checkOllama(): Promise<AIProviderStatus> {
 
 async function checkImageGeneration(): Promise<AIProviderStatus> {
   const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+  const projectId = process.env.OPENAI_PROJECT_ID;
 
   if (!apiKey) {
     return { name: "DALL-E 3", status: "not_configured", error: "No API key" };
   }
 
-  return {
-    name: "DALL-E 3",
-    status: "connected",
-    model: "dall-e-3",
-  };
+  try {
+    const openai = new OpenAI({
+      apiKey: apiKey.trim(),
+      ...(projectId && { project: projectId.trim() }),
+    });
+    
+    const models = await openai.models.list();
+    const hasDALLE = models.data.some(m => m.id.includes("dall-e"));
+    
+    if (!hasDALLE) {
+      return { name: "DALL-E 3", status: "error", error: "DALL-E not available on this key" };
+    }
+    
+    return {
+      name: "DALL-E 3",
+      status: "connected",
+      model: "dall-e-3",
+    };
+  } catch (error: any) {
+    return { name: "DALL-E 3", status: "error", error: error.message || "Validation failed" };
+  }
 }
 
 async function checkStableDiffusion(): Promise<AIProviderStatus> {
