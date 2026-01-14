@@ -100,21 +100,32 @@ function Test-PythonVersion {
 
 function Test-ServiceRunning {
     param([int]$Port)
-    # Use TCP socket check instead of HTTP - more reliable for AI services
-    # that may return non-200 during loading or block user agents
+    # Method 1: Try TCP connection (synchronous with timeout)
     try {
         $tcp = New-Object System.Net.Sockets.TcpClient
-        $result = $tcp.BeginConnect("127.0.0.1", $Port, $null, $null)
-        $wait = $result.AsyncWaitHandle.WaitOne(5000, $false)  # 5 second timeout
-        if ($wait -and $tcp.Connected) {
+        $async = $tcp.BeginConnect("127.0.0.1", $Port, $null, $null)
+        $wait = $async.AsyncWaitHandle.WaitOne(5000, $false)
+        if ($wait) {
+            try {
+                $tcp.EndConnect($async)
+                $connected = $tcp.Connected
+                $tcp.Close()
+                if ($connected) { return $true }
+            } catch {
+                $tcp.Close()
+            }
+        } else {
             $tcp.Close()
-            return $true
         }
-        $tcp.Close()
-        return $false
-    } catch {
-        return $false
-    }
+    } catch { }
+    
+    # Method 2: Fallback - check if process is listening on port
+    try {
+        $listener = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+        if ($listener) { return $true }
+    } catch { }
+    
+    return $false
 }
 
 function Start-Ollama {
