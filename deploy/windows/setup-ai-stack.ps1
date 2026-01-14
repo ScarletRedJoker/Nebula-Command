@@ -15,7 +15,7 @@
     The action to perform: install, configure, verify, uninstall, or status
     
 .PARAMETER Components
-    Comma-separated list of components: python, cuda, ollama, sd, comfyui, agent, all
+    Comma-separated list of components: python, cuda, ollama, sd, comfyui, agent, opencode, all
     
 .PARAMETER DryRun
     Show what would be done without making changes
@@ -488,6 +488,96 @@ function Install-NebulaAgent {
     }
 }
 
+function Install-OpenCode {
+    Write-Section "Installing OpenCode AI Coding Agent"
+    
+    $opencode = Get-Command opencode -ErrorAction SilentlyContinue
+    if ($opencode -and -not $Force) {
+        try {
+            $version = & opencode --version 2>&1
+            Write-Log "OpenCode already installed: $version" -Level SUCCESS
+        } catch {
+            Write-Log "OpenCode already installed" -Level SUCCESS
+        }
+        return $true
+    }
+    
+    $node = Get-Command node -ErrorAction SilentlyContinue
+    $npm = Get-Command npm -ErrorAction SilentlyContinue
+    
+    if (-not $node -or -not $npm) {
+        Write-Log "Node.js and npm are required for OpenCode" -Level ERROR
+        Write-Log "Install from: https://nodejs.org" -Level INFO
+        return $false
+    }
+    
+    if ($DryRun) {
+        Write-Log "[DRY-RUN] Would install OpenCode via npm" -Level INFO
+        return $true
+    }
+    
+    try {
+        Write-Log "Installing OpenCode via npm..." -Level STEP
+        
+        $npmResult = & npm install -g opencode-ai 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            Write-Log "npm install failed: $npmResult" -Level WARN
+            
+            Write-Log "Trying alternative installation..." -Level STEP
+            $installerUrl = "https://opencode.ai/install.ps1"
+            try {
+                $installer = Invoke-WebRequest -Uri $installerUrl -UseBasicParsing -ErrorAction Stop
+                Invoke-Expression $installer.Content
+            } catch {
+                Write-Log "Alternative installation also failed" -Level ERROR
+                return $false
+            }
+        }
+        
+        Write-Log "Configuring OpenCode for local Ollama..." -Level STEP
+        
+        $configDir = "$env:USERPROFILE\.config\opencode"
+        if (-not (Test-Path $configDir)) {
+            New-Item -ItemType Directory -Force -Path $configDir | Out-Null
+        }
+        
+        $sharedConfig = "C:\NebulaCommand\deploy\shared\opencode-config.json"
+        if (Test-Path $sharedConfig) {
+            Copy-Item $sharedConfig "$configDir\config.json" -Force
+            Write-Log "Copied shared OpenCode configuration" -Level INFO
+        } else {
+            $config = @{
+                provider = "ollama"
+                model = "qwen2.5-coder:14b"
+                baseUrl = "http://localhost:11434"
+                lsp = @{
+                    enabled = $true
+                    typescript = $true
+                    python = $true
+                }
+                fallback = @{
+                    enabled = $true
+                    provider = "openai"
+                }
+            }
+            $config | ConvertTo-Json -Depth 3 | Set-Content "$configDir\config.json" -Encoding UTF8
+            Write-Log "Created OpenCode configuration" -Level INFO
+        }
+        
+        $opencode = Get-Command opencode -ErrorAction SilentlyContinue
+        if ($opencode) {
+            Write-Log "OpenCode installed and configured for local AI" -Level SUCCESS
+            return $true
+        } else {
+            Write-Log "OpenCode installed - restart terminal to use" -Level WARN
+            return $true
+        }
+    } catch {
+        Write-Log "Failed to install OpenCode: $_" -Level ERROR
+        return $false
+    }
+}
+
 function Set-Autostart {
     Write-Section "Configuring Auto-Start"
     
@@ -594,10 +684,11 @@ function Invoke-Installation {
         "sd" = { Install-StableDiffusion }
         "comfyui" = { Install-ComfyUI }
         "agent" = { Install-NebulaAgent }
+        "opencode" = { Install-OpenCode }
     }
     
     if ($ComponentList -contains "all") {
-        $ComponentList = @("python", "cuda", "ollama", "sd", "comfyui", "agent")
+        $ComponentList = @("python", "cuda", "ollama", "sd", "comfyui", "agent", "opencode")
     }
     
     $results = @{}

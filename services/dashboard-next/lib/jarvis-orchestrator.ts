@@ -1,9 +1,11 @@
 /**
  * Jarvis Orchestrator - Multi-agent orchestration and task management
  * Handles job queuing, subagent spawning, task prioritization, and resource management
+ * Integrates with OpenCode for autonomous development capabilities
  */
 
 import { localAIRuntime, RuntimeHealth } from "./local-ai-runtime";
+import { openCodeIntegration, CodeTask, OpenCodeConfig } from "./opencode-integration";
 
 export type JobPriority = "low" | "normal" | "high" | "critical";
 export type JobStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
@@ -11,7 +13,7 @@ export type SubagentStatus = "idle" | "busy" | "stopped" | "error";
 
 export interface JarvisJob {
   id: string;
-  type: "code_analysis" | "code_fix" | "file_operation" | "command_execution" | "ai_generation" | "subagent_task";
+  type: "code_analysis" | "code_fix" | "file_operation" | "command_execution" | "ai_generation" | "subagent_task" | "opencode_task";
   priority: JobPriority;
   status: JobStatus;
   progress: number;
@@ -124,6 +126,13 @@ class JarvisOrchestrator {
         priority: 100,
       },
       {
+        provider: "opencode",
+        type: "local",
+        status: "offline",
+        capabilities: ["code-generation", "code-refactoring", "code-review", "feature-development"],
+        priority: 110,
+      },
+      {
         provider: "openai",
         type: "cloud",
         status: "available",
@@ -153,6 +162,12 @@ class JarvisOrchestrator {
           resource.status = runtime.status === "online" ? "available" : "offline";
           resource.latencyMs = runtime.latencyMs;
         }
+      }
+
+      const openCodeAvailable = await openCodeIntegration.checkInstallation();
+      const openCodeResource = this.aiResources.find(r => r.provider === "opencode");
+      if (openCodeResource) {
+        openCodeResource.status = openCodeAvailable ? "available" : "offline";
       }
 
       const openaiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
@@ -527,6 +542,156 @@ class JarvisOrchestrator {
     this.jobs.clear();
     this.subagents.clear();
     this.listeners.clear();
+  }
+
+  async executeOpenCodeTask(
+    task: CodeTask,
+    config?: Partial<OpenCodeConfig>,
+    jobOptions?: Partial<Pick<JarvisJob, "priority" | "timeout" | "notifyOnComplete">>
+  ): Promise<JarvisJob> {
+    const job = await this.createJob(
+      "opencode_task",
+      { task, config },
+      {
+        priority: jobOptions?.priority || "normal",
+        timeout: jobOptions?.timeout || 300000,
+        notifyOnComplete: jobOptions?.notifyOnComplete ?? true,
+      }
+    );
+
+    this.runOpenCodeJob(job.id, task, config);
+    return job;
+  }
+
+  private async runOpenCodeJob(
+    jobId: string,
+    task: CodeTask,
+    config?: Partial<OpenCodeConfig>
+  ): Promise<void> {
+    try {
+      this.updateJobProgress(jobId, 10, { status: "Starting OpenCode task" });
+
+      const result = await openCodeIntegration.executeTask(task, config);
+
+      if (result.success) {
+        this.completeJob(jobId, {
+          output: result.output,
+          changes: result.changes,
+        });
+      } else {
+        this.failJob(jobId, result.error || "OpenCode task failed");
+      }
+    } catch (error: any) {
+      this.failJob(jobId, error.message);
+    }
+  }
+
+  async developFeature(
+    spec: string,
+    priority: JobPriority = "normal"
+  ): Promise<JarvisJob> {
+    const job = await this.createJob(
+      "opencode_task",
+      { action: "develop_feature", spec },
+      { priority, timeout: 600000, notifyOnComplete: true }
+    );
+
+    this.runDevelopFeatureJob(job.id, spec);
+    return job;
+  }
+
+  private async runDevelopFeatureJob(jobId: string, spec: string): Promise<void> {
+    try {
+      this.updateJobProgress(jobId, 10, { status: "Analyzing feature requirements" });
+
+      const result = await openCodeIntegration.developFeature(spec);
+
+      this.updateJobProgress(jobId, 50, { status: "Feature generated", files: result.files.length });
+
+      this.completeJob(jobId, {
+        files: result.files,
+        commands: result.commands,
+        tests: result.tests,
+      });
+    } catch (error: any) {
+      this.failJob(jobId, error.message);
+    }
+  }
+
+  async fixCodeBugs(
+    description: string,
+    files?: string[],
+    priority: JobPriority = "high"
+  ): Promise<JarvisJob> {
+    const job = await this.createJob(
+      "opencode_task",
+      { action: "fix_bugs", description, files },
+      { priority, timeout: 300000, notifyOnComplete: true }
+    );
+
+    this.runFixBugsJob(job.id, description, files);
+    return job;
+  }
+
+  private async runFixBugsJob(jobId: string, description: string, files?: string[]): Promise<void> {
+    try {
+      this.updateJobProgress(jobId, 10, { status: "Analyzing bugs" });
+
+      const result = await openCodeIntegration.fixBugs(description, files);
+
+      this.completeJob(jobId, { fixes: result.fixes });
+    } catch (error: any) {
+      this.failJob(jobId, error.message);
+    }
+  }
+
+  async reviewCode(
+    files: string[],
+    priority: JobPriority = "normal"
+  ): Promise<JarvisJob> {
+    const job = await this.createJob(
+      "opencode_task",
+      { action: "review_code", files },
+      { priority, timeout: 300000, notifyOnComplete: true }
+    );
+
+    this.runReviewCodeJob(job.id, files);
+    return job;
+  }
+
+  private async runReviewCodeJob(jobId: string, files: string[]): Promise<void> {
+    try {
+      this.updateJobProgress(jobId, 10, { status: "Reviewing code" });
+
+      const result = await openCodeIntegration.reviewCode(files);
+
+      this.completeJob(jobId, {
+        issues: result.issues,
+        suggestions: result.suggestions,
+      });
+    } catch (error: any) {
+      this.failJob(jobId, error.message);
+    }
+  }
+
+  async getOpenCodeStatus(): Promise<{
+    available: boolean;
+    provider: string;
+    model: string;
+    sessions: number;
+  }> {
+    const available = await openCodeIntegration.checkInstallation();
+    const providerInfo = await (openCodeIntegration as any).selectBestProvider?.() || {
+      provider: "ollama",
+      model: "qwen2.5-coder:7b",
+    };
+
+    return {
+      available,
+      provider: providerInfo.provider,
+      model: providerInfo.model,
+      sessions: openCodeIntegration.getActiveSessions().length,
+    };
   }
 }
 

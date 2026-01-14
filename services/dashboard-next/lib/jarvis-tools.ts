@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { jarvisOrchestrator } from "./jarvis-orchestrator";
 import { localAIRuntime } from "./local-ai-runtime";
+import { openCodeIntegration } from "./opencode-integration";
 import { exec } from "child_process";
 import { promisify } from "util";
 import * as fs from "fs/promises";
@@ -297,6 +298,154 @@ export const jarvisTools: JarvisTool[] = [
         },
       },
       required: ["model_name"],
+    },
+  },
+  {
+    name: "develop_feature",
+    description: "Create a new feature using AI-powered code generation. Uses local Ollama first to avoid API costs. Use when user wants to develop, create, or build a new feature.",
+    parameters: {
+      type: "object",
+      properties: {
+        specification: {
+          type: "string",
+          description: "Detailed specification of the feature to develop",
+        },
+        target_directory: {
+          type: "string",
+          description: "Directory where files should be created (optional)",
+        },
+        technology: {
+          type: "string",
+          description: "Technology stack to use",
+          enum: ["react", "nextjs", "typescript", "python", "nodejs", "auto"],
+        },
+      },
+      required: ["specification"],
+    },
+  },
+  {
+    name: "fix_code_opencode",
+    description: "Fix bugs in code files using AI analysis. Uses local Ollama first. Use when user asks to fix bugs or errors in code.",
+    parameters: {
+      type: "object",
+      properties: {
+        description: {
+          type: "string",
+          description: "Description of the bug or error to fix",
+        },
+        files: {
+          type: "string",
+          description: "Comma-separated list of file paths to analyze and fix",
+        },
+        auto_apply: {
+          type: "string",
+          description: "Whether to automatically apply fixes",
+          enum: ["true", "false"],
+        },
+      },
+      required: ["description"],
+    },
+  },
+  {
+    name: "refactor_code",
+    description: "Refactor code for better quality, readability, or performance. Uses local Ollama first. Use when user asks to refactor, improve, or optimize code.",
+    parameters: {
+      type: "object",
+      properties: {
+        files: {
+          type: "string",
+          description: "Comma-separated list of file paths to refactor",
+        },
+        instructions: {
+          type: "string",
+          description: "Specific refactoring instructions or goals",
+        },
+        refactor_type: {
+          type: "string",
+          description: "Type of refactoring to perform",
+          enum: ["performance", "readability", "maintainability", "security", "all"],
+        },
+      },
+      required: ["files"],
+    },
+  },
+  {
+    name: "run_opencode",
+    description: "Execute an arbitrary OpenCode command for AI-assisted coding. Uses local Ollama first to avoid API costs. Use for general AI coding assistance.",
+    parameters: {
+      type: "object",
+      properties: {
+        prompt: {
+          type: "string",
+          description: "The coding task or question to execute",
+        },
+        task_type: {
+          type: "string",
+          description: "Type of coding task",
+          enum: ["generate", "refactor", "fix", "explain", "review"],
+        },
+        files: {
+          type: "string",
+          description: "Comma-separated list of files to work with (optional)",
+        },
+        model: {
+          type: "string",
+          description: "Specific model to use (optional, defaults to best available)",
+        },
+      },
+      required: ["prompt"],
+    },
+  },
+  {
+    name: "deploy_local",
+    description: "Deploy changes to local development servers. Use when user asks to deploy or run locally.",
+    parameters: {
+      type: "object",
+      properties: {
+        project_path: {
+          type: "string",
+          description: "Path to the project to deploy",
+        },
+        target: {
+          type: "string",
+          description: "Deployment target",
+          enum: ["development", "staging", "preview"],
+        },
+        build_first: {
+          type: "string",
+          description: "Whether to build before deploying",
+          enum: ["true", "false"],
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "review_code_opencode",
+    description: "Review code files for issues, bugs, security vulnerabilities using AI. Uses local Ollama first. Use when user asks for a comprehensive code review.",
+    parameters: {
+      type: "object",
+      properties: {
+        files: {
+          type: "string",
+          description: "Comma-separated list of file paths to review",
+        },
+        review_focus: {
+          type: "string",
+          description: "Focus area for the review",
+          enum: ["bugs", "security", "performance", "style", "all"],
+        },
+      },
+      required: ["files"],
+    },
+  },
+  {
+    name: "check_opencode_status",
+    description: "Check the status of OpenCode AI coding capabilities. Shows available models and current provider.",
+    parameters: {
+      type: "object",
+      properties: {},
+      required: [],
     },
   },
 ];
@@ -1082,6 +1231,231 @@ export async function executeJarvisTool(
           success: false,
           result: `Source "${source}" is not yet supported for model installation. Currently supported: ollama`,
         };
+      }
+
+      case "develop_feature": {
+        const specification = args.specification;
+        const targetDir = args.target_directory || process.cwd();
+        const technology = args.technology || "auto";
+
+        try {
+          const enhancedSpec = technology !== "auto" 
+            ? `${specification}\n\nUse ${technology} as the technology stack.`
+            : specification;
+
+          const job = await jarvisOrchestrator.developFeature(enhancedSpec);
+
+          return {
+            success: true,
+            result: `🚀 Feature development started!\n\n**Job ID:** ${job.id}\n**Status:** ${job.status}\n**Provider:** Local Ollama (cost-free)\n\nI'm analyzing the requirements and generating code. This uses local AI to avoid API costs.\n\nMonitor progress in the AI Jobs panel or ask me for status updates.`,
+            data: { jobId: job.id, status: job.status },
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            result: `Failed to start feature development: ${error.message}`,
+          };
+        }
+      }
+
+      case "fix_code_opencode": {
+        const description = args.description;
+        const files = args.files ? args.files.split(",").map((f: string) => f.trim()) : undefined;
+        const autoApply = args.auto_apply === "true";
+
+        try {
+          const job = await jarvisOrchestrator.fixCodeBugs(description, files);
+
+          let result = `🔧 Bug fix analysis started!\n\n**Job ID:** ${job.id}\n**Status:** ${job.status}\n**Provider:** Local Ollama (cost-free)\n`;
+
+          if (files && files.length > 0) {
+            result += `**Files:** ${files.join(", ")}\n`;
+          }
+
+          result += `\nAnalyzing the issue and generating fixes. ${autoApply ? "Fixes will be applied automatically." : "You'll review the fixes before applying."}`;
+
+          return {
+            success: true,
+            result,
+            data: { jobId: job.id, status: job.status, autoApply },
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            result: `Failed to start bug fix: ${error.message}`,
+          };
+        }
+      }
+
+      case "refactor_code": {
+        const files = args.files.split(",").map((f: string) => f.trim());
+        const instructions = args.instructions || "Improve code quality, readability, and maintainability";
+        const refactorType = args.refactor_type || "all";
+
+        try {
+          const enhancedInstructions = `${instructions}\n\nFocus on: ${refactorType}`;
+          const result = await openCodeIntegration.refactorCode(files, enhancedInstructions);
+
+          if (result.success) {
+            let output = `✨ Code refactoring complete!\n\n**Provider:** Local Ollama (cost-free)\n**Files processed:** ${files.length}\n\n`;
+
+            if (result.changes && result.changes.length > 0) {
+              output += `**Changes detected in:**\n${result.changes.map(c => `- ${c}`).join("\n")}\n\n`;
+            }
+
+            output += `**Refactoring output:**\n\`\`\`\n${result.output.slice(0, 3000)}\n\`\`\``;
+
+            return {
+              success: true,
+              result: output,
+              data: { files, changes: result.changes },
+            };
+          } else {
+            return {
+              success: false,
+              result: `Refactoring failed: ${result.error}`,
+            };
+          }
+        } catch (error: any) {
+          return {
+            success: false,
+            result: `Failed to refactor code: ${error.message}`,
+          };
+        }
+      }
+
+      case "run_opencode": {
+        const prompt = args.prompt;
+        const taskType = args.task_type || "generate";
+        const files = args.files ? args.files.split(",").map((f: string) => f.trim()) : undefined;
+        const model = args.model;
+
+        try {
+          const result = await openCodeIntegration.executeTask(
+            {
+              type: taskType as any,
+              prompt,
+              files,
+            },
+            model ? { model } : undefined
+          );
+
+          if (result.success) {
+            let output = `🤖 OpenCode task completed!\n\n**Task type:** ${taskType}\n**Provider:** Local Ollama (cost-free)\n\n`;
+
+            if (result.changes && result.changes.length > 0) {
+              output += `**Files affected:**\n${result.changes.map(c => `- ${c}`).join("\n")}\n\n`;
+            }
+
+            output += `**Output:**\n\`\`\`\n${result.output.slice(0, 4000)}\n\`\`\``;
+
+            return {
+              success: true,
+              result: output,
+              data: { taskType, changes: result.changes },
+            };
+          } else {
+            return {
+              success: false,
+              result: `OpenCode task failed: ${result.error}`,
+            };
+          }
+        } catch (error: any) {
+          return {
+            success: false,
+            result: `Failed to execute OpenCode task: ${error.message}`,
+          };
+        }
+      }
+
+      case "deploy_local": {
+        const projectPath = args.project_path || process.cwd();
+        const target = args.target || "development";
+        const buildFirst = args.build_first !== "false";
+
+        try {
+          const result = await openCodeIntegration.deployLocal(projectPath, target);
+
+          if (result.success) {
+            let output = `🚀 Local deployment complete!\n\n**Target:** ${target}\n**Project:** ${projectPath}\n\n`;
+            output += `**Steps completed:**\n${result.steps.map(s => `✅ ${s}`).join("\n")}\n\n`;
+
+            if (result.output) {
+              output += `**Output:**\n\`\`\`\n${result.output.slice(0, 2000)}\n\`\`\``;
+            }
+
+            return {
+              success: true,
+              result: output,
+              data: { target, steps: result.steps },
+            };
+          } else {
+            return {
+              success: false,
+              result: `Local deployment failed: ${result.output}`,
+            };
+          }
+        } catch (error: any) {
+          return {
+            success: false,
+            result: `Failed to deploy locally: ${error.message}`,
+          };
+        }
+      }
+
+      case "review_code_opencode": {
+        const files = args.files.split(",").map((f: string) => f.trim());
+        const reviewFocus = args.review_focus || "all";
+
+        try {
+          const job = await jarvisOrchestrator.reviewCode(files);
+
+          return {
+            success: true,
+            result: `📝 Code review started!\n\n**Job ID:** ${job.id}\n**Status:** ${job.status}\n**Provider:** Local Ollama (cost-free)\n**Files:** ${files.join(", ")}\n**Focus:** ${reviewFocus}\n\nReviewing code for issues, security vulnerabilities, and improvements. Results will be available shortly.`,
+            data: { jobId: job.id, files, focus: reviewFocus },
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            result: `Failed to start code review: ${error.message}`,
+          };
+        }
+      }
+
+      case "check_opencode_status": {
+        try {
+          const status = await jarvisOrchestrator.getOpenCodeStatus();
+          const available = await openCodeIntegration.checkInstallation();
+          const models = await openCodeIntegration.getAvailableModels("ollama");
+
+          let result = `## OpenCode AI Status\n\n`;
+          result += `**Available:** ${available ? "✅ Yes" : "❌ No"}\n`;
+          result += `**Provider:** ${status.provider} (local-first to avoid API costs)\n`;
+          result += `**Model:** ${status.model}\n`;
+          result += `**Active Sessions:** ${status.sessions}\n\n`;
+
+          if (models.length > 0) {
+            result += `### Available Local Models\n`;
+            result += models.slice(0, 10).map(m => `- ${m}`).join("\n");
+            if (models.length > 10) {
+              result += `\n- ... and ${models.length - 10} more`;
+            }
+          } else {
+            result += `### Models\nNo local models available. Install models using Ollama to enable cost-free AI coding.`;
+          }
+
+          return {
+            success: true,
+            result,
+            data: { status, models },
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            result: `Failed to check OpenCode status: ${error.message}`,
+          };
+        }
       }
 
       default:

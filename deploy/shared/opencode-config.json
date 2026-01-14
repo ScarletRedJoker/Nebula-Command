@@ -1,0 +1,26 @@
+{
+  "provider": "ollama",
+  "model": "qwen2.5-coder:14b",
+  "baseUrl": "http://localhost:11434",
+  "lsp": {
+    "enabled": true,
+    "typescript": true,
+    "python": true
+  },
+  "fallback": {
+    "enabled": true,
+    "provider": "openai"
+  },
+  "keybindings": {
+    "submit": "enter",
+    "newline": "shift+enter"
+  },
+  "editor": {
+    "theme": "auto",
+    "fontSize": 14
+  },
+  "context": {
+    "maxFiles": 50,
+    "maxTokens": 100000
+  }
+}

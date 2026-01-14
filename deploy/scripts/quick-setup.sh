@@ -410,6 +410,82 @@ run_health_checks() {
     fi
 }
 
+install_opencode() {
+    print_section "Installing OpenCode AI Coding Agent"
+    
+    if command -v opencode &>/dev/null; then
+        local version=$(opencode --version 2>/dev/null || echo "unknown")
+        log INFO "OpenCode already installed: $version"
+        return 0
+    fi
+    
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log INFO "[DRY-RUN] Would install OpenCode"
+        return 0
+    fi
+    
+    log STEP "Installing OpenCode..."
+    
+    if command -v npm &>/dev/null; then
+        log STEP "Installing via npm..."
+        if npm install -g opencode-ai 2>/dev/null; then
+            log INFO "OpenCode installed via npm"
+        else
+            log WARN "npm install failed, trying curl installer..."
+            if curl -fsSL https://opencode.ai/install 2>/dev/null | bash; then
+                log INFO "OpenCode installed via curl"
+            else
+                log ERROR "Failed to install OpenCode"
+                return 1
+            fi
+        fi
+    else
+        log STEP "npm not found, using curl installer..."
+        if curl -fsSL https://opencode.ai/install 2>/dev/null | bash; then
+            log INFO "OpenCode installed via curl"
+        else
+            log ERROR "Failed to install OpenCode - install npm or check network"
+            return 1
+        fi
+    fi
+    
+    log STEP "Configuring OpenCode for local AI..."
+    
+    local config_dir="$HOME/.config/opencode"
+    mkdir -p "$config_dir"
+    
+    if [[ -f "$DEPLOY_ROOT/shared/opencode-config.json" ]]; then
+        cp "$DEPLOY_ROOT/shared/opencode-config.json" "$config_dir/config.json"
+        log INFO "Copied shared OpenCode configuration"
+    else
+        cat > "$config_dir/config.json" << 'EOF'
+{
+  "provider": "ollama",
+  "model": "qwen2.5-coder:14b",
+  "baseUrl": "http://localhost:11434",
+  "lsp": {
+    "enabled": true,
+    "typescript": true,
+    "python": true
+  },
+  "fallback": {
+    "enabled": true,
+    "provider": "openai"
+  }
+}
+EOF
+        log INFO "Created OpenCode configuration"
+    fi
+    
+    if command -v opencode &>/dev/null; then
+        log INFO "OpenCode installed and configured for local AI"
+        return 0
+    else
+        log WARN "OpenCode installed but not in PATH - may need to restart shell"
+        return 0
+    fi
+}
+
 usage() {
     cat << EOF
 ${BOLD}Nebula Command - Quick Setup Wizard${NC}

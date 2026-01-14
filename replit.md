@@ -1,7 +1,7 @@
 # Nebula Command
 
 ## Overview
-Nebula Command is a creation engine designed for homelab management, AI-powered content creation, Discord community integration, and multi-platform streaming. It provides a comprehensive, integrated solution for managing homelabs, fostering online communities, and streamlining content creation and distribution, optimized for distributed deployment across cloud and local infrastructure. Key capabilities include a web-based dashboard, a Discord bot, a Stream bot, and hybrid AI services.
+Nebula Command is a creation engine for homelab management, AI-powered content creation, Discord community integration, and multi-platform streaming. It provides a comprehensive, integrated solution for managing homelabs, fostering online communities, and streamlining content creation and distribution, optimized for distributed deployment across cloud and local infrastructure. Its key capabilities include a web-based dashboard, a Discord bot, a Stream bot, and hybrid AI services. The project aims to provide a unified platform for digital creators and homelab enthusiasts, offering market potential in automation, content generation, and community engagement.
 
 ## User Preferences
 - **Development Workflow:** Edit in Replit → Push to GitHub → Pull on servers
@@ -16,141 +16,35 @@ The platform is built around three distributed core services:
 *   **Discord Bot (Node.js/React):** A highly customizable bot for community management with per-server identity and granular feature toggles.
 *   **Stream Bot (Node.js/React/Vite):** Manages multi-platform content posting and interaction across Twitch, YouTube, and Kick.
 
-### Cross-Service Integration
-Services share a PostgreSQL database and Redis for caching. Communication occurs via webhooks (Stream Bot to Discord) and APIs (Dashboard and Discord Bot).
+### Cross-Service Integration and Deployment
+Services share a PostgreSQL database and Redis for caching, communicating via webhooks and APIs. The system uses a distributed deployment model across cloud (Linode), Ubuntu Homelab, and Windows AI Node, secured by Tailscale. The database schema organizes data into distinct databases for each core service.
 
-### Deployment Architecture
-The system utilizes a distributed deployment model across cloud (Linode), Ubuntu Homelab, and Windows AI Node. Tailscale provides secure mesh networking.
+### Platform Architecture
+The system features a three-layer design (Experience, Control Plane, Execution Plane) with an event-driven spine, including a Marketplace API for Docker packages, an Agent Orchestrator API for AI agents with function calling, and Service Discovery via `service-map.yml`. A Creative Studio offers AI-powered content creation. The platform includes a Quick Start Wizard, Universal Builder, App Factory (AI-powered code generation), AI Code Assistant, Deploy Pipelines, Template Marketplace, and Project Manager.
 
-### Database Schema
-A shared PostgreSQL instance organizes data into distinct databases for each core service: `homelab_jarvis`, `discord_bot`, and `stream_bot`.
+### Auto-Deployment and AI Gateway
+An auto-deployment system handles server provisioning and deployment for Docker/PM2, including preflight checks, secret generation, and continuous monitoring. The AI Gateway provides a unified chat interface with provider/model selection, real-time responses, and a circuit breaker for fallback. Local AI services (Ollama, Stable Diffusion, ComfyUI) are automatically discovered via Tailscale.
 
-### Platform Architecture Expansion
-The system features a three-layer design (Experience, Control Plane, Execution Plane) with an event-driven spine. It includes a Marketplace API for Docker packages, an Agent Orchestrator API for AI agents with function calling, and Service Discovery via a `service-map.yml`. A Creative Studio offers AI-powered content creation with multi-model support.
+### AI Node Management and Unified Windows AI Stack
+A dedicated dashboard page (`/ai-nodes`) monitors service health, GPU statistics, detects issues, and tracks package versions for local AI services on a Windows VM. It offers one-click repair actions. A PowerShell script (`Start-NebulaAiStack.ps1`) provides one-command startup for all Windows AI services, including Python and PyTorch validation, ordered service start, and auto-start on boot.
 
-### Universal Creation Engine
-The platform includes a Quick Start Wizard, Universal Builder, App Factory (AI-powered code generation), AI Code Assistant, Deploy Pipelines, Template Marketplace, and a Project Manager.
+### AI Services and Model Management
+APIs are provided for Speech Services (TTS/STT), Job Scheduling, Training, and Embeddings/RAG. A unified model management system via the dashboard and a Windows Model Agent offers model inventory, download management from Civitai/HuggingFace, and VRAM estimates. The Model Registry (`lib/model-registry.ts`) manages local models and integrates with HuggingFace and Civitai for browsing and downloading.
 
-### Auto-Deployment System
-Features a Server Provisioning API and a Deployment Execution API for Docker/PM2 deployments, including preflight checks, auto-secret generation, Authelia setup, health checks, Cloudflare DNS sync, smoke tests, and continuous monitoring.
+### Jarvis AI Orchestrator and Autonomous Development
+The Jarvis Orchestrator (`lib/jarvis-orchestrator.ts`) provides multi-agent AI capabilities with a job queue, subagent management, local-first resource selection, and progress tracking. It includes tools for image/video generation, Docker actions, deployment, code management, and AI service checks. The OpenCode Integration (`lib/opencode-integration.ts`) enables autonomous code development using local AI, prioritizing models like qwen2.5-coder and deepseek-coder for feature development, bug fixing, code review, and refactoring.
 
-### AI Gateway Architecture
-Features a unified AI Chat interface with provider/model selection, real-time streaming responses, and a circuit breaker for fallback. Local AI services (Ollama, Stable Diffusion, ComfyUI) are automatically discovered and configured via Tailscale.
+### Local Deployment Pipeline and Health Monitoring
+The Local Deploy Manager (`lib/local-deploy.ts`) provides secure multi-target deployment to Ubuntu homelab and Windows VM, including Git operations, service restarts, rollbacks, and health checks. The Health Monitor (`lib/health-monitor.ts`) tracks system health across all deployment targets (Windows VM, Linode, Ubuntu, Replit) for services like Ollama, PostgreSQL, and Docker, detecting issues and offering auto-fix options.
 
-### Discord Bot Architecture
-Includes a per-server customization system for bot identity and feature toggles.
+### Notification and Power Management
+A Notification Service provides multi-channel alerts with severity levels, deduplication, and actionable buttons. A WoL Relay system (`lib/wol-relay.ts`) enables remote server power control from the cloud, using the Ubuntu homelab to wake the Windows VM.
 
-### Production Configuration
-The dashboard automatically detects development (Replit) or production (Linode) environments, adjusting AI access and SSH key handling. Jarvis AI has autonomous tools using OpenAI function calling. Local AI services on Windows VM and Ubuntu are utilized when running in production via Tailscale. An `/infrastructure` page provides remote control for VMs and Windows services.
+### Development vs. Production and Replit Modelfarm
+The system dynamically adjusts behavior based on environment detection (Replit vs. Linode). In Replit, the dashboard integrates with Replit Modelfarm for AI services, specifically supporting models like gpt-4o and gpt-image-1, with immediate "connected" status. SSH key handling requires PEM format private keys, with dashboard attempts at automatic conversion.
 
-### Local AI Services (Windows VM)
-A Windows VM hosts GPU-accelerated AI services: Ollama (LLM inference), Stable Diffusion WebUI (image generation), and ComfyUI (node-based video/image workflows). An Auto-Deployment System provides unified management, dependency handling, and a Windows AI Supervisor for service management.
-
-### AI Node Management System
-A comprehensive dashboard page (`/ai-nodes`) provides (Agent Port: 9765 via Tailscale):
-- **Service Health Monitoring:** Real-time status for Ollama (11434), Stable Diffusion (7860), ComfyUI (8188), and Whisper (8765)
-- **GPU Statistics:** Memory usage, utilization, and temperature from nvidia-smi
-- **Issue Detection:** Automatic detection of known problems including NumPy 2.x incompatibility, torch.library custom_op errors, xformers mismatches, triton missing, protobuf conflicts, and comfy_kitchen issues
-- **Package Version Tracking:** Current vs target versions for numpy (1.26.4), torch (2.3.1), protobuf (5.28.3), xformers (0.0.28), transformers, diffusers
-- **One-Click Repair:** Dashboard buttons to restart services, update dependencies, fix specific issues, or repair all
-- **Health Daemon:** Windows PowerShell script (`deploy/windows/scripts/start-health-daemon.ps1`) runs continuously, scanning logs for error patterns and reporting package versions every 30 seconds (deep scans every 5 minutes)
-- **API Endpoint:** `/api/ai/node-manager` with GET for diagnostics and POST for repair actions
-- **Agent Communication:** Requires `NEBULA_AGENT_TOKEN` secret for secure communication with Windows VM agent via Tailscale (100.118.44.102)
-
-### Unified Windows AI Stack Startup
-The `deploy/windows/scripts/Start-NebulaAiStack.ps1` script provides one-command startup for all Windows AI services:
-- **Python Validation:** Requires Python 3.10-3.12 (rejects 3.14+ as PyTorch lacks CUDA wheels)
-- **PyTorch CUDA Repair:** Automatically detects CPU-only PyTorch and reinstalls with CUDA 12.1
-- **Ordered Service Start:** Ollama → Stable Diffusion → ComfyUI → Nebula Agent
-- **Auto-Start on Boot:** `.\Start-NebulaAiStack.ps1 install` registers as Windows scheduled task
-- **Commands:** `start`, `stop`, `status`, `repair`, `validate`, `install`
-- **Known Issue Fix:** "Torch not compiled with CUDA enabled" error caused by wrong PyTorch build or Python 3.14
-
-### AI Services API Endpoints
-Provides APIs for Speech Services (TTS/STT), Job Scheduling (GPU jobs), Training (LoRA, QLoRA, etc.), and Embeddings/RAG (semantic search, chunking). Core AI libraries support GPU-aware scheduling, hybrid speech services, RAG, and model training.
-
-### Model Management System
-A unified model management system via the dashboard and a Windows Model Agent provides model inventory, download management from Civitai/HuggingFace, VRAM estimates, and one-click deletion.
-
-### Model Registry & Catalog Browsing
-The Model Registry (`lib/model-registry.ts`) provides unified AI model management:
-- **Local Model Inventory:** Track all models across providers (SD checkpoints, LoRAs, Ollama, ComfyUI)
-- **HuggingFace Integration:** Search models by task type (text-to-image, text-generation), library, author
-- **Civitai Integration:** Browse checkpoints, LoRAs, TextualInversions with ratings and downloads
-- **Download Queue:** Queue model downloads to Windows VM with progress tracking
-- **API Endpoints:** `/api/ai/models` (inventory), `/api/ai/models/catalog` (browse), `/api/ai/models/install` (download)
-- **Graceful Degradation:** Works in offline mode when Windows VM agent is unavailable
-
-### Jarvis AI Orchestrator
-The Jarvis Orchestrator (`lib/jarvis-orchestrator.ts`) provides multi-agent AI capabilities:
-- **Job Queue System:** Async task management with priorities (critical, high, normal, low)
-- **Subagent Management:** Spawn specialized AI workers (code, research, automation, creative)
-- **Local-First Resource Selection:** Prefers local GPU resources over cloud APIs
-- **Progress Tracking:** Real-time job progress with listener callbacks
-- **Tools Available:** generate_image, generate_video, docker_action, deploy, get_server_status, search_codebase, check_ai_services, browse_models, install_model
-- **Security:** Dangerous tools (run_command, file operations) are disabled pending proper sandboxing
-
-### Cross-Deployment Health Monitoring
-The Health Monitor (`lib/health-monitor.ts`) provides comprehensive system health tracking:
-- **Deployment Targets:** Windows VM, Linode, Ubuntu homelab, Replit
-- **Service Monitoring:** Ollama, Stable Diffusion, ComfyUI, Whisper, PostgreSQL, Redis, Docker
-- **Issue Detection:** service_down, high_cpu, high_memory, high_disk, high_gpu_usage, slow_response
-- **Configurable Thresholds:** CPU (80%/95%), Memory (85%/95%), GPU (90%/98%), Disk (85%/95%)
-- **Issue Tracking:** Acknowledgement, dismissal, auto-fix with runbooks
-- **API Endpoint:** `/api/health/check` for comprehensive health checks
-
-### Notification Service
-The Notification Service (`lib/notification-service.ts`) provides actionable alerts:
-- **Multi-Channel:** In-app notifications, Discord webhook, email (future)
-- **Severity Levels:** Critical, warning, info
-- **Deduplication:** 5-minute window to prevent notification spam
-- **Actionable Buttons:** View, auto-fix, acknowledge, dismiss
-- **Auto-Cleanup:** 24-hour expiry, max 100 stored notifications
-
-### Server Power Management & WoL Relay
-The WoL Relay system (`lib/wol-relay.ts`) enables remote server power control from the cloud:
-- **Wake-on-LAN Relay:** Uses Ubuntu homelab server to send WoL packets to Windows VM
-- **Cross-Network Wake:** Wake Windows VM from Replit/cloud via relay through home server
-- **Unified Power Controls:** `/infrastructure` page shows all servers with wake/restart/shutdown buttons
-- **Wait for Online:** Polls target server after WoL until it responds
-- **Server Config:** All servers (Linode, Home, Windows) configured in `lib/server-config-store.ts`
-- **Environment Variables:** `WINDOWS_VM_MAC`, `WINDOWS_VM_BROADCAST`, `WINDOWS_VM_TAILSCALE_IP`
-
-### Windows Deployment API
-The Windows Deployment API (`/api/deploy/windows`) enables deployment to Windows VM:
-- **Actions:** wake, status, git-pull, restart-service, restart-all, execute, models, ollama-pull
-- **Agent Communication:** Communicates with Nebula agent on port 9765 via Tailscale
-- **Authentication:** Requires `NEBULA_AGENT_TOKEN` secret
-- **Service Management:** Restart ollama, comfyui, stable-diffusion, sunshine services
-
-### AI Provider Fallback
-The image generation system automatically falls back to available providers:
-- **Provider Priority:** Stable Diffusion (if connected) > OpenAI (if configured) > Error
-- **Auto-Detection:** Creative Studio auto-selects the best available provider
-- **Graceful Degradation:** No errors when OpenAI is not configured if SD is available
-
-### Docker Marketplace
-A marketplace offers 24+ pre-built Docker packages across 9 categories for one-click deployment to SSH-connected servers.
-
-### Settings System
-A comprehensive settings interface provides configuration for AI, servers, integrations (Discord, Twitch, YouTube), and general settings (profile, appearance, notifications), with connection testing.
-
-### Development vs Production
-Differences in SSH access, AI service utilization (cloud vs. local), and specific feature availability are managed by environment detection. Replit development uses modelfarm for OpenAI integration.
-
-### Replit Modelfarm Integration
-When running in Replit, the dashboard uses the Replit modelfarm for AI services:
-- **Detection:** `AI_INTEGRATIONS_OPENAI_BASE_URL` containing "modelfarm"
-- **Chat Models:** gpt-4o, gpt-4o-mini, gpt-4.1, gpt-4.1-mini, gpt-5, gpt-5-mini (NOT gpt-3.5-turbo or gpt-4-turbo)
-- **Image Model:** `gpt-image-1` (NOT dall-e-3, and no style/quality parameters)
-- **Status Detection:** Dashboard returns "connected" status immediately for modelfarm without API probe
-
-### SSH Key Format Requirements
-The ssh2 library (v1.17.0) only supports PEM format private keys, NOT OpenSSH format:
-- **Supported:** `-----BEGIN RSA PRIVATE KEY-----`, `-----BEGIN PRIVATE KEY-----`, `-----BEGIN EC PRIVATE KEY-----`
-- **Not Supported:** `-----BEGIN OPENSSH PRIVATE KEY-----` (modern OpenSSH default since v7.8)
-- **Conversion:** Dashboard attempts automatic conversion, or user can run: `ssh-keygen -p -m pem -f ~/.ssh/id_rsa`
-- **Alternative:** Generate new key in PEM format: `ssh-keygen -t rsa -m pem -f ~/.ssh/id_rsa_pem`
+### Docker Marketplace and Settings
+A Docker marketplace offers over 24 pre-built packages for one-click deployment. A comprehensive settings interface manages configurations for AI, servers, and integrations, including connection testing.
 
 ## External Dependencies
 *   **PostgreSQL:** Primary relational database.
