@@ -122,6 +122,16 @@ async function checkImageGeneration(): Promise<AIProviderStatus> {
     return { name: "DALL-E 3", status: "not_configured", error: "API key must start with 'sk-'" };
   }
 
+  // For Replit modelfarm, skip models.list() check as it's not supported
+  // Assume DALL-E is available if the integration is configured
+  if (isReplitIntegration) {
+    return {
+      name: "DALL-E 3",
+      status: "connected",
+      model: "dall-e-3 (via Replit)",
+    };
+  }
+
   try {
     const openai = new OpenAI({
       baseURL: baseURL || undefined,
