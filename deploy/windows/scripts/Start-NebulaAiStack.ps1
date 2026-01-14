@@ -255,9 +255,13 @@ function Main {
     
     switch ($Action) {
         "start" {
-            # First clean up any zombie processes
-            Write-Log "Cleaning up zombie processes..." "STEP"
-            Stop-AllServices
+            # Only stop services if -Force is set, otherwise let per-service checks handle it
+            if ($Force) {
+                Write-Log "Force flag set - stopping all services first..." "STEP"
+                Stop-AllServices
+            } else {
+                Write-Log "Checking service status (use -Force to restart all)..." "STEP"
+            }
             
             $py = Test-PythonVersion
             if (-not $py -and -not $SkipValidation) { exit 1 }
@@ -282,8 +286,18 @@ function Main {
             $py = Test-PythonVersion
             if ($py) {
                 Write-Log "Repairing dependencies..." "STEP"
-                & $py.Path -m pip install numpy==1.26.4 protobuf==5.28.3 --quiet 2>&1 | Out-Null
+                # opencv-python 4.10.0.84 works with numpy 1.26.4 (newer versions require numpy>=2)
+                & $py.Path -m pip install numpy==1.26.4 protobuf==5.28.3 opencv-python==4.10.0.84 --quiet 2>&1 | Out-Null
                 Write-Log "Repair complete" "OK"
+            }
+            
+            # Also repair ComfyUI venv if it exists
+            $comfyVenv = "C:\AI\ComfyUI\venv\Scripts\python.exe"
+            if (Test-Path $comfyVenv) {
+                Write-Log "Repairing ComfyUI venv dependencies..." "STEP"
+                & $comfyVenv -m pip uninstall comfy_kitchen -y 2>&1 | Out-Null
+                & $comfyVenv -m pip install numpy==1.26.4 opencv-python==4.10.0.84 --quiet 2>&1 | Out-Null
+                Write-Log "ComfyUI venv repair complete" "OK"
             }
         }
         "validate" { Test-PythonVersion | Out-Null }
