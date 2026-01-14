@@ -72,6 +72,41 @@ Provides APIs for Speech Services (TTS/STT), Job Scheduling (GPU jobs), Training
 ### Model Management System
 A unified model management system via the dashboard and a Windows Model Agent provides model inventory, download management from Civitai/HuggingFace, VRAM estimates, and one-click deletion.
 
+### Model Registry & Catalog Browsing
+The Model Registry (`lib/model-registry.ts`) provides unified AI model management:
+- **Local Model Inventory:** Track all models across providers (SD checkpoints, LoRAs, Ollama, ComfyUI)
+- **HuggingFace Integration:** Search models by task type (text-to-image, text-generation), library, author
+- **Civitai Integration:** Browse checkpoints, LoRAs, TextualInversions with ratings and downloads
+- **Download Queue:** Queue model downloads to Windows VM with progress tracking
+- **API Endpoints:** `/api/ai/models` (inventory), `/api/ai/models/catalog` (browse), `/api/ai/models/install` (download)
+- **Graceful Degradation:** Works in offline mode when Windows VM agent is unavailable
+
+### Jarvis AI Orchestrator
+The Jarvis Orchestrator (`lib/jarvis-orchestrator.ts`) provides multi-agent AI capabilities:
+- **Job Queue System:** Async task management with priorities (critical, high, normal, low)
+- **Subagent Management:** Spawn specialized AI workers (code, research, automation, creative)
+- **Local-First Resource Selection:** Prefers local GPU resources over cloud APIs
+- **Progress Tracking:** Real-time job progress with listener callbacks
+- **Tools Available:** generate_image, generate_video, docker_action, deploy, get_server_status, search_codebase, check_ai_services, browse_models, install_model
+- **Security:** Dangerous tools (run_command, file operations) are disabled pending proper sandboxing
+
+### Cross-Deployment Health Monitoring
+The Health Monitor (`lib/health-monitor.ts`) provides comprehensive system health tracking:
+- **Deployment Targets:** Windows VM, Linode, Ubuntu homelab, Replit
+- **Service Monitoring:** Ollama, Stable Diffusion, ComfyUI, Whisper, PostgreSQL, Redis, Docker
+- **Issue Detection:** service_down, high_cpu, high_memory, high_disk, high_gpu_usage, slow_response
+- **Configurable Thresholds:** CPU (80%/95%), Memory (85%/95%), GPU (90%/98%), Disk (85%/95%)
+- **Issue Tracking:** Acknowledgement, dismissal, auto-fix with runbooks
+- **API Endpoint:** `/api/health/check` for comprehensive health checks
+
+### Notification Service
+The Notification Service (`lib/notification-service.ts`) provides actionable alerts:
+- **Multi-Channel:** In-app notifications, Discord webhook, email (future)
+- **Severity Levels:** Critical, warning, info
+- **Deduplication:** 5-minute window to prevent notification spam
+- **Actionable Buttons:** View, auto-fix, acknowledge, dismiss
+- **Auto-Cleanup:** 24-hour expiry, max 100 stored notifications
+
 ### Docker Marketplace
 A marketplace offers 24+ pre-built Docker packages across 9 categories for one-click deployment to SSH-connected servers.
 
