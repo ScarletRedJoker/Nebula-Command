@@ -27,6 +27,8 @@ $Script:Config = @{
     Python310Path = "C:\Python310\python.exe"
     AiVenvPath = "C:\AI\.venv"
     ComfyUIPath = "C:\AI\ComfyUI"
+    # Prefer Forge over original WebUI (better performance, fewer conflicts)
+    StableDiffusionForgePath = "C:\AI\stable-diffusion-webui-forge"
     StableDiffusionPath = "C:\AI\stable-diffusion-webui"
     AgentPath = "C:\NebulaCommand\deploy\windows\agent"
     
@@ -375,28 +377,57 @@ function Start-Ollama {
 function Start-StableDiffusion {
     param([string]$PythonPath)
     
-    Write-Log "Starting Stable Diffusion WebUI..." "INFO"
+    Write-Log "Starting Stable Diffusion..." "INFO"
     
     if (Test-ServiceRunning -Key "stable_diffusion" -Port 7860) {
         Write-Log "Stable Diffusion already running" "OK"
         return $true
     }
     
-    $sdPath = $Script:Config.StableDiffusionPath
-    if (-not (Test-Path $sdPath)) {
-        Write-Log "Stable Diffusion not found at $sdPath" "WARN"
+    # Prefer Forge over original WebUI
+    $forgePath = $Script:Config.StableDiffusionForgePath
+    $originalPath = $Script:Config.StableDiffusionPath
+    
+    $sdPath = $null
+    $sdType = $null
+    
+    if (Test-Path $forgePath) {
+        $sdPath = $forgePath
+        $sdType = "Forge"
+        Write-Log "Using Stable Diffusion Forge (recommended)" "OK"
+    } elseif (Test-Path $originalPath) {
+        $sdPath = $originalPath
+        $sdType = "WebUI"
+        Write-Log "Using original Stable Diffusion WebUI" "INFO"
+    } else {
+        Write-Log "Stable Diffusion not found at $forgePath or $originalPath" "WARN"
         return $false
+    }
+    
+    # Fix protobuf in venv if needed
+    $venvPython = Join-Path $sdPath "venv\Scripts\python.exe"
+    if (Test-Path $venvPython) {
+        Write-Log "Checking venv protobuf version..." "INFO"
+        $protobufCheck = & $venvPython -c "import google.protobuf; print(google.protobuf.__version__)" 2>&1
+        if ($protobufCheck -notmatch "^[45]\.") {
+            Write-Log "Fixing protobuf in SD venv..." "WARN"
+            & $venvPython -m pip install protobuf==5.28.3 --quiet 2>&1 | Out-Null
+        }
     }
     
     Push-Location $sdPath
     
-    # Use the correct Python and launch with API enabled
-    $webui = Join-Path $sdPath "webui.bat"
+    # Use webui-user.bat for proper venv activation
+    $webui = Join-Path $sdPath "webui-user.bat"
+    if (-not (Test-Path $webui)) {
+        $webui = Join-Path $sdPath "webui.bat"
+    }
+    
     Start-Process -FilePath "cmd.exe" -ArgumentList "/c", $webui -WindowStyle Hidden
     
     Pop-Location
     
-    Write-Log "Stable Diffusion starting (takes 2-3 minutes to load models)..." "INFO"
+    Write-Log "Stable Diffusion $sdType starting (takes 2-3 minutes to load models)..." "INFO"
     return $true
 }
 
