@@ -175,9 +175,16 @@ Comprehensive settings at `/settings`:
 - **Test Buttons**: Verify connections before saving
 
 ### Development vs Production
-- **Replit (Development):** SSH features limited (no key file), uses cloud AI only (OpenAI via AI_INTEGRATIONS)
-- **Linode (Production):** Full SSH access, local AI via Tailscale, Windows VM control enabled
+- **Replit (Development):** SSH features limited (no key file), uses cloud AI only (OpenAI via AI_INTEGRATIONS), video generation via Replicate
+- **Linode (Production):** Full SSH access, local AI via Tailscale, Windows VM control enabled, video via ComfyUI
 - **SSH Key Errors in Replit:** Expected behavior - Replit dev environment doesn't have SSH keys configured
+- **OpenAI/DALL-E in Replit:** Uses Replit's modelfarm integration (AI_INTEGRATIONS_OPENAI_BASE_URL), which doesn't require sk- prefixed keys
+
+### Recent Changes (January 2026)
+- **Dockerfile:** Updated to use `npm prune --omit=dev` (modern npm syntax) instead of deprecated `--production`
+- **Port Conflict Handling:** Terminal server now gracefully handles EADDRINUSE instead of crashing
+- **Vite HMR:** Disabled in production builds; only enabled in development mode to prevent port conflicts
+- **OpenAI Integration:** Fixed AI status checks to support both Replit modelfarm integration and direct API keys
 
 ## External Dependencies
 *   **PostgreSQL:** Primary relational database (Neon for development, self-hosted for production).
