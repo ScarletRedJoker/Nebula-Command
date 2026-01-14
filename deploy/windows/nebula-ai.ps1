@@ -334,6 +334,13 @@ function Invoke-Repair {
     Write-Log "Clearing pip cache..." "INFO"
     & python -m pip cache purge 2>&1 | Out-Null
     
+    Write-Log "Removing incompatible packages before repair..." "INFO"
+    $xformersVersion = Get-InstalledPackageVersion -PackageName "xformers"
+    if ($xformersVersion) {
+        Write-Log "Uninstalling xformers $xformersVersion (will reinstall compatible version)..." "INFO"
+        & python -m pip uninstall xformers -y 2>&1 | Out-Null
+    }
+    
     foreach ($action in $repairActions) {
         Write-Log "Installing $($action.Package)==$($action.TargetVersion)..." "INFO"
         

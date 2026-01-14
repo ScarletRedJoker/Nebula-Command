@@ -254,7 +254,7 @@
       },
       {
         "name": "transformers",
-        "packages": ["transformers==4.44.2", "accelerate==0.33.0", "safetensors==0.4.5", "huggingface-hub==0.25.2"]
+        "packages": ["tokenizers==0.19.1", "transformers==4.44.2", "accelerate==0.33.0", "safetensors==0.4.5", "huggingface-hub==0.25.2"]
       },
       {
         "name": "diffusion",
