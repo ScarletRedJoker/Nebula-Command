@@ -270,14 +270,28 @@ function Main {
             Start-Ollama
             Start-Sleep -Seconds 3
             Start-StableDiffusion
-            Start-Sleep -Seconds 3
+            Start-Sleep -Seconds 5
             Start-ComfyUI -PythonPath $pyPath
-            Start-Sleep -Seconds 3
+            Start-Sleep -Seconds 5
             Start-NebulaAgent
             
-            Write-Log "Startup complete!" "OK"
-            Write-Log "Note: SD and ComfyUI take 2-3 min to fully load" "INFO"
-            Start-Sleep -Seconds 5
+            Write-Log "All services launched!" "OK"
+            Write-Log "Waiting 60 seconds for services to initialize..." "INFO"
+            
+            # Countdown with periodic status checks
+            for ($i = 60; $i -gt 0; $i -= 15) {
+                Write-Host "  Waiting $i seconds... (Ctrl+C to skip)" -ForegroundColor Gray
+                Start-Sleep -Seconds 15
+                
+                # Show which services are up so far
+                $upCount = 0
+                foreach ($svc in $Script:Config.Services) {
+                    if (Test-ServiceRunning -Port $svc.Port) { $upCount++ }
+                }
+                Write-Host "  Services responding: $upCount/4" -ForegroundColor Cyan
+            }
+            
+            Write-Log "Checking final status..." "STEP"
             Get-StackStatus
         }
         "stop" { Stop-AllServices }
