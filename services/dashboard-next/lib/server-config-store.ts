@@ -8,6 +8,7 @@ export interface ServerConfig {
   description?: string;
   host: string;
   user: string;
+  port?: number;
   keyPath?: string;
   deployPath?: string;
   supportsWol?: boolean;
