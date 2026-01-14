@@ -22,18 +22,25 @@ async function checkOpenAI(): Promise<AIProviderStatus> {
   const baseURL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
   const integrationKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
   const directKey = process.env.OPENAI_API_KEY;
-  // Skip dummy/placeholder keys
-  const apiKey = (integrationKey && integrationKey.startsWith('sk-')) ? integrationKey : directKey;
   const projectId = process.env.OPENAI_PROJECT_ID;
+  
+  // Replit's modelfarm uses a different key format - check if integration is configured
+  const isReplitIntegration = baseURL && baseURL.includes('modelfarm');
+  const apiKey = integrationKey || directKey;
 
-  if (!apiKey || !apiKey.startsWith('sk-')) {
+  if (!apiKey && !isReplitIntegration) {
     return { name: "OpenAI", status: "not_configured", error: "No valid API key configured" };
+  }
+  
+  // For non-Replit integrations, require sk- prefix
+  if (!isReplitIntegration && apiKey && !apiKey.startsWith('sk-')) {
+    return { name: "OpenAI", status: "not_configured", error: "API key must start with 'sk-'" };
   }
 
   try {
     const openai = new OpenAI({
       baseURL: baseURL || undefined,
-      apiKey: apiKey.trim(),
+      apiKey: apiKey?.trim() || '',
       ...(projectId && { project: projectId.trim() }),
     });
 
@@ -97,19 +104,28 @@ async function checkOllama(): Promise<AIProviderStatus> {
 }
 
 async function checkImageGeneration(): Promise<AIProviderStatus> {
+  const baseURL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
   const integrationKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
   const directKey = process.env.OPENAI_API_KEY;
-  // Skip dummy/placeholder keys
-  const apiKey = (integrationKey && integrationKey.startsWith('sk-')) ? integrationKey : directKey;
   const projectId = process.env.OPENAI_PROJECT_ID;
+  
+  // Replit's modelfarm uses a different key format
+  const isReplitIntegration = baseURL && baseURL.includes('modelfarm');
+  const apiKey = integrationKey || directKey;
 
-  if (!apiKey || !apiKey.startsWith('sk-')) {
+  if (!apiKey && !isReplitIntegration) {
     return { name: "DALL-E 3", status: "not_configured", error: "No valid API key" };
+  }
+  
+  // For non-Replit integrations, require sk- prefix
+  if (!isReplitIntegration && apiKey && !apiKey.startsWith('sk-')) {
+    return { name: "DALL-E 3", status: "not_configured", error: "API key must start with 'sk-'" };
   }
 
   try {
     const openai = new OpenAI({
-      apiKey: apiKey.trim(),
+      baseURL: baseURL || undefined,
+      apiKey: apiKey?.trim() || '',
       ...(projectId && { project: projectId.trim() }),
     });
     

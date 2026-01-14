@@ -158,11 +158,19 @@ class AIOrchestrator {
     const baseURL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
     const integrationKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
     const directKey = process.env.OPENAI_API_KEY;
-    // Skip dummy/placeholder keys
-    const apiKey = (integrationKey && integrationKey.startsWith('sk-')) ? integrationKey : directKey;
     const projectId = process.env.OPENAI_PROJECT_ID;
+    
+    // Check if using Replit's modelfarm integration
+    const isReplitIntegration = baseURL && baseURL.includes('modelfarm');
+    const apiKey = integrationKey || directKey;
 
-    if (apiKey && apiKey.startsWith('sk-')) {
+    if (isReplitIntegration && apiKey) {
+      console.log(`[AI Orchestrator] OpenAI initialized via Replit modelfarm`);
+      this.openaiClient = new OpenAI({
+        baseURL,
+        apiKey: apiKey.trim(),
+      });
+    } else if (apiKey && apiKey.startsWith('sk-')) {
       const trimmedKey = apiKey.trim();
       
       console.log(`[AI Orchestrator] OpenAI initialized with key: ${trimmedKey.substring(0, 10)}...${trimmedKey.substring(trimmedKey.length - 4)}${projectId ? ' (with project ID)' : ''}`);
