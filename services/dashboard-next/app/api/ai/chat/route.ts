@@ -706,7 +706,7 @@ export async function GET(request: NextRequest) {
       id: "openai",
       name: "OpenAI",
       description: "Cloud-based GPT models",
-      models: ["gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo"],
+      models: ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "gpt-4.1-mini"],
       available: openai !== null,
       type: "cloud",
     },

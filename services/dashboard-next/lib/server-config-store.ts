@@ -1,6 +1,7 @@
 import fs from "fs/promises";
 import { readFileSync, existsSync } from "fs";
 import path from "path";
+import { convertSSHKeyToPEM, detectSSHKeyFormat } from "./ssh-key-converter";
 
 export interface ServerConfig {
   id: string;
@@ -272,21 +273,44 @@ export function getDefaultSshKeyPath(): string {
 }
 
 export function getSSHPrivateKey(): Buffer | null {
-  if (process.env.SSH_PRIVATE_KEY) {
-    return Buffer.from(process.env.SSH_PRIVATE_KEY);
-  }
-  
-  const keyPath = DEFAULT_SSH_KEY_PATH;
-  if (existsSync(keyPath)) {
-    try {
-      return readFileSync(keyPath);
-    } catch (err: any) {
-      console.error(`Failed to read SSH key from file: ${err.message}`);
+  try {
+    let keyBuffer: Buffer | null = null;
+    
+    if (process.env.SSH_PRIVATE_KEY) {
+      keyBuffer = Buffer.from(process.env.SSH_PRIVATE_KEY);
+    } else {
+      const keyPath = DEFAULT_SSH_KEY_PATH;
+      if (existsSync(keyPath)) {
+        try {
+          keyBuffer = readFileSync(keyPath);
+        } catch (err: any) {
+          console.error(`Failed to read SSH key from file: ${err.message}`);
+          return null;
+        }
+      }
+    }
+    
+    if (!keyBuffer) {
       return null;
     }
+    
+    // Detect key format and convert to PEM if needed
+    // The converter handles all logging internally
+    const format = detectSSHKeyFormat(keyBuffer);
+    if (format === 'OpenSSH' || (format !== 'Raw/Binary format' && format.includes('PEM') === false)) {
+      const convertedKey = convertSSHKeyToPEM(keyBuffer);
+      if (convertedKey) {
+        return convertedKey;
+      }
+      // Conversion failed - return null (converter already logged guidance)
+      return null;
+    }
+    
+    return keyBuffer;
+  } catch (err: any) {
+    console.error(`[SSH Key Converter] Error processing SSH key: ${err.message}`);
+    return null;
   }
-  
-  return null;
 }
 
 export function hasSSHKey(): boolean {

@@ -95,8 +95,10 @@ const agentColors: Record<string, string> = {
 const AVAILABLE_MODELS = [
   "gpt-4o",
   "gpt-4o-mini",
-  "gpt-4-turbo",
-  "gpt-3.5-turbo",
+  "gpt-4.1",
+  "gpt-4.1-mini",
+  "gpt-5",
+  "gpt-5-mini",
   "ollama:llama3.2",
   "ollama:codellama",
   "ollama:mistral",

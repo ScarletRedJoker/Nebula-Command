@@ -304,17 +304,30 @@ class AIOrchestrator {
       throw new Error("OpenAI not configured - add OPENAI_API_KEY to environment");
     }
 
+    // Detect if using Replit modelfarm (uses gpt-image-1 instead of dall-e-3)
+    const baseURL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
+    const isReplitModelfarm = baseURL && baseURL.includes('modelfarm');
+    const modelName = isReplitModelfarm ? "gpt-image-1" : "dall-e-3";
+
     console.log(`[DALL-E] Generating image with prompt: "${request.prompt.substring(0, 50)}..."`);
+    console.log(`[DALL-E] Using model: ${modelName}${isReplitModelfarm ? ' (via Replit modelfarm)' : ''}`);
     
     try {
-      const response = await this.openaiClient.images.generate({
-        model: "dall-e-3",
+      // gpt-image-1 has different options (no style/quality parameters)
+      const generateParams: any = {
+        model: modelName,
         prompt: request.prompt,
         size: request.size || "1024x1024",
-        style: request.style || "vivid",
-        quality: "hd",
         n: 1,
-      });
+      };
+      
+      // Only add style/quality for dall-e-3
+      if (!isReplitModelfarm) {
+        generateParams.style = request.style || "vivid";
+        generateParams.quality = "hd";
+      }
+      
+      const response = await this.openaiClient.images.generate(generateParams);
 
       console.log("[DALL-E] Successfully generated image");
       

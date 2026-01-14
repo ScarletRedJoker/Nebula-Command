@@ -37,11 +37,22 @@ async function checkOpenAI(): Promise<AIProviderStatus> {
     return { name: "OpenAI", status: "not_configured", error: "API key must start with 'sk-'" };
   }
 
+  // For Replit modelfarm, skip API call as it's not needed
+  // Assume OpenAI is available if the integration is configured
+  if (isReplitIntegration) {
+    return {
+      name: "OpenAI",
+      status: "connected",
+      model: "gpt-4o (via Replit)",
+    };
+  }
+
   try {
     const openai = new OpenAI({
       baseURL: baseURL || undefined,
       apiKey: apiKey?.trim() || '',
       ...(projectId && { project: projectId.trim() }),
+      timeout: 10000, // 10 second timeout to prevent hanging
     });
 
     const start = Date.now();
@@ -59,10 +70,13 @@ async function checkOpenAI(): Promise<AIProviderStatus> {
       latency,
     };
   } catch (error: any) {
+    const errorMsg = error.message || "Connection failed";
+    // Provide more specific error messages
+    const isTimeoutError = error.name === "AbortError" || errorMsg.includes("timeout") || errorMsg.includes("ETIMEDOUT");
     return {
       name: "OpenAI",
       status: "error",
-      error: error.message || "Connection failed",
+      error: isTimeoutError ? `Connection timeout (${errorMsg})` : errorMsg,
     };
   }
 }
