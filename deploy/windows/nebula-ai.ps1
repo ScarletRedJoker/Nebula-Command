@@ -316,18 +316,42 @@ function Invoke-Repair {
         }
     }
     
-    if ($repairActions.Count -eq 0) {
+    # Always check for incompatible packages regardless of other repair needs
+    Write-Log "Checking for incompatible packages..." "INFO"
+    $needsCleanup = $false
+    
+    # Check for comfy_kitchen - uses torch.library.custom_op which requires PyTorch 2.4+
+    $comfyKitchenVersion = Get-InstalledPackageVersion -PackageName "comfy-kitchen"
+    if (-not $comfyKitchenVersion) {
+        $comfyKitchenVersion = Get-InstalledPackageVersion -PackageName "comfy_kitchen"
+    }
+    if ($comfyKitchenVersion) {
+        Write-Log "Found comfy_kitchen $comfyKitchenVersion (incompatible with PyTorch < 2.4)" "WARN"
+        $needsCleanup = $true
+    }
+    
+    # Check for wrong xformers version
+    $xformersVersion = Get-InstalledPackageVersion -PackageName "xformers"
+    $targetXformers = $deps.diffusion.packages.xformers.version
+    if ($xformersVersion -and $xformersVersion -ne $targetXformers) {
+        Write-Log "Found xformers $xformersVersion (need $targetXformers for PyTorch 2.3.x)" "WARN"
+        $needsCleanup = $true
+    }
+    
+    if ($repairActions.Count -eq 0 -and -not $needsCleanup) {
         Write-Log "No dependency issues detected" "OK"
         return $true
     }
     
-    Write-Log "Found $($repairActions.Count) issue(s) to repair" "WARN"
-    
-    foreach ($action in $repairActions) {
-        Write-Log "Repairing $($action.Package)..." "INFO"
-        Write-Log "  Current: $($action.CurrentVersion)" "INFO"
-        Write-Log "  Target:  $($action.TargetVersion)" "INFO"
-        Write-Log "  Reason:  $($action.Reason)" "INFO"
+    if ($repairActions.Count -gt 0) {
+        Write-Log "Found $($repairActions.Count) issue(s) to repair" "WARN"
+        
+        foreach ($action in $repairActions) {
+            Write-Log "Repairing $($action.Package)..." "INFO"
+            Write-Log "  Current: $($action.CurrentVersion)" "INFO"
+            Write-Log "  Target:  $($action.TargetVersion)" "INFO"
+            Write-Log "  Reason:  $($action.Reason)" "INFO"
+        }
     }
     
     if (-not $Force -and -not $Unattended) {
@@ -341,23 +365,15 @@ function Invoke-Repair {
     Write-Log "Clearing pip cache..." "INFO"
     & python -m pip cache purge 2>&1 | Out-Null
     
-    Write-Log "Removing incompatible packages before repair..." "INFO"
-    
-    # Remove comfy_kitchen - uses torch.library.custom_op which requires PyTorch 2.4+
-    # Try both naming conventions (underscores and hyphens)
-    $comfyKitchenVersion = Get-InstalledPackageVersion -PackageName "comfy-kitchen"
-    if (-not $comfyKitchenVersion) {
-        $comfyKitchenVersion = Get-InstalledPackageVersion -PackageName "comfy_kitchen"
-    }
+    # Remove incompatible packages
     if ($comfyKitchenVersion) {
-        Write-Log "Uninstalling comfy-kitchen/comfy_kitchen $comfyKitchenVersion (incompatible with PyTorch < 2.4)..." "INFO"
+        Write-Log "Uninstalling comfy-kitchen/comfy_kitchen $comfyKitchenVersion..." "INFO"
         & python -m pip uninstall comfy-kitchen -y 2>&1 | Out-Null
         & python -m pip uninstall comfy_kitchen -y 2>&1 | Out-Null
     }
     
-    $xformersVersion = Get-InstalledPackageVersion -PackageName "xformers"
-    if ($xformersVersion) {
-        Write-Log "Uninstalling xformers $xformersVersion (will reinstall compatible version)..." "INFO"
+    if ($xformersVersion -and $xformersVersion -ne $targetXformers) {
+        Write-Log "Uninstalling xformers $xformersVersion (will reinstall $targetXformers)..." "INFO"
         & python -m pip uninstall xformers -y 2>&1 | Out-Null
     }
     
