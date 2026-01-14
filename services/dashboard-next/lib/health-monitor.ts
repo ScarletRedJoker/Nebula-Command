@@ -690,7 +690,8 @@ class HealthMonitor {
     }
 
     const activeIssueIds = new Set(detectedIssues.map(i => i.id));
-    for (const [id] of this.issues) {
+    const issueIds = Array.from(this.issues.keys());
+    for (const id of issueIds) {
       if (!activeIssueIds.has(id)) {
         this.issues.delete(id);
       }

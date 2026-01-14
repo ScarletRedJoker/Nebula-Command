@@ -95,7 +95,8 @@ class NotificationService {
   private cleanupOldEntries(): void {
     const now = Date.now();
     
-    for (const [key, entry] of this.deduplicationCache) {
+    const cacheEntries = Array.from(this.deduplicationCache.entries());
+    for (const [key, entry] of cacheEntries) {
       if (now - entry.lastSeen.getTime() > DEDUP_WINDOW_MS) {
         this.deduplicationCache.delete(key);
       }
@@ -111,7 +112,8 @@ class NotificationService {
       }
     }
 
-    for (const [id, notif] of this.notifications) {
+    const notificationEntries = Array.from(this.notifications.entries());
+    for (const [id, notif] of notificationEntries) {
       if (notif.expiresAt && now > notif.expiresAt.getTime()) {
         this.notifications.delete(id);
       }
@@ -373,7 +375,8 @@ class NotificationService {
   }
 
   markAllAsRead(): void {
-    for (const notification of this.notifications.values()) {
+    const allNotifications = Array.from(this.notifications.values());
+    for (const notification of allNotifications) {
       notification.read = true;
     }
   }
