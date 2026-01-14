@@ -188,6 +188,9 @@ Comprehensive settings at `/settings`:
 - **Port Conflict Handling:** Terminal server now gracefully handles EADDRINUSE instead of crashing
 - **Vite HMR:** Disabled in production builds; only enabled in development mode to prevent port conflicts
 - **OpenAI Integration:** Fixed AI status checks to support both Replit modelfarm integration and direct API keys
+- **Stream-bot Domain Config:** Now uses `APP_URL` env variable for CORS and `COOKIE_DOMAIN` for session cookies instead of hardcoded domain
+- **SD WebUI Venv Repair:** Added `Repair-SDWebUIVenv` function to nebula-ai.ps1 that fixes protobuf/numpy in SD WebUI's separate venv
+- **ComfyUI Nodes Installer:** Updated to install ALL required nodes (Manager, AnimateDiff-Evolved, VideoHelperSuite) with per-node requirements
 
 ## External Dependencies
 *   **PostgreSQL:** Primary relational database (Neon for development, self-hosted for production).
