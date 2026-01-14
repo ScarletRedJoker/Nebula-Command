@@ -103,8 +103,13 @@ export function getYouTubeConfig(): YouTubeConfig {
   // YOUTUBE_REDIRECT_URI is for platform connection (direct OAuth at /auth/youtube/callback)
   // YOUTUBE_SIGNIN_CALLBACK_URL is for passport signin (at /api/auth/youtube/callback)
   // For platform connection, default to /auth/youtube/callback
-  const appUrl = process.env.APP_URL || "https://stream.evindrake.net";
-  let redirectUri = process.env.YOUTUBE_REDIRECT_URI || `${appUrl}/auth/youtube/callback`;
+  // APP_URL should be set in production (e.g., https://stream.rig-city.com)
+  const appUrl = process.env.APP_URL;
+  if (!appUrl) {
+    console.warn("[OAuth Config] APP_URL not set, defaulting to stream.evindrake.net");
+  }
+  const effectiveAppUrl = appUrl || "https://stream.evindrake.net";
+  let redirectUri = process.env.YOUTUBE_REDIRECT_URI || `${effectiveAppUrl}/auth/youtube/callback`;
   
   // Auto-correct common misconfigurations
   redirectUri = correctRedirectUri(redirectUri);

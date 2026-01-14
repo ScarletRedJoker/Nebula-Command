@@ -374,7 +374,61 @@ function Invoke-Repair {
     }
     
     Write-Log "Dependency repair complete" "OK"
+    
+    # Also repair SD WebUI venv if it exists
+    Repair-SDWebUIVenv
+    
     return $true
+}
+
+function Repair-SDWebUIVenv {
+    Write-Log "Checking Stable Diffusion WebUI venv..." "INFO"
+    
+    $sdVenvPython = "C:\AI\stable-diffusion-webui-forge\venv\Scripts\python.exe"
+    if (-not (Test-Path $sdVenvPython)) {
+        $sdVenvPython = "C:\AI\stable-diffusion-webui\venv\Scripts\python.exe"
+    }
+    
+    if (-not (Test-Path $sdVenvPython)) {
+        Write-Log "SD WebUI venv not found, skipping" "INFO"
+        return
+    }
+    
+    Write-Log "Found SD WebUI venv at: $sdVenvPython" "INFO"
+    
+    # Check protobuf version in SD venv
+    $protobufCheck = & $sdVenvPython -c "import pkg_resources; print(pkg_resources.get_distribution('protobuf').version)" 2>&1
+    if ($protobufCheck -match "^\d+\.\d+") {
+        $protobufVersion = $protobufCheck.Trim()
+        Write-Log "SD venv protobuf: $protobufVersion" "INFO"
+        
+        if ($protobufVersion -match "^3\." -or $protobufVersion -match "^[012]\.") {
+            Write-Log "SD venv has old protobuf $protobufVersion - upgrading to 5.28.3..." "WARN"
+            & $sdVenvPython -m pip install protobuf==5.28.3 --upgrade 2>&1 | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Log "SD venv protobuf upgraded successfully" "OK"
+            } else {
+                Write-Log "Failed to upgrade SD venv protobuf" "ERROR"
+            }
+        }
+    }
+    
+    # Check numpy version in SD venv
+    $numpyCheck = & $sdVenvPython -c "import pkg_resources; print(pkg_resources.get_distribution('numpy').version)" 2>&1
+    if ($numpyCheck -match "^\d+\.\d+") {
+        $numpyVersion = $numpyCheck.Trim()
+        Write-Log "SD venv numpy: $numpyVersion" "INFO"
+        
+        if ($numpyVersion -match "^2\.") {
+            Write-Log "SD venv has NumPy 2.x - downgrading to 1.26.4..." "WARN"
+            & $sdVenvPython -m pip install numpy==1.26.4 --upgrade 2>&1 | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Log "SD venv numpy downgraded successfully" "OK"
+            } else {
+                Write-Log "Failed to downgrade SD venv numpy" "ERROR"
+            }
+        }
+    }
 }
 
 function Invoke-Install {
@@ -586,21 +640,46 @@ function Invoke-Models {
     }
     
     if ($Service -eq "all" -or $Service -eq "comfyui") {
-        Write-Log "Checking AnimateDiff motion models..." "INFO"
+        Write-Log "Checking ComfyUI custom nodes and motion models..." "INFO"
         
         $comfyPath = $Script:Paths.ComfyUI
         if (-not (Test-Path $comfyPath)) {
             Write-Log "ComfyUI not installed at: $comfyPath" "WARN"
         } else {
-            $animateDiffPath = Join-Path $comfyPath "custom_nodes\ComfyUI-AnimateDiff-Evolved"
-            
-            if (-not (Test-Path $animateDiffPath)) {
-                Write-Log "Installing ComfyUI-AnimateDiff-Evolved..." "INFO"
-                $customNodesPath = Join-Path $comfyPath "custom_nodes"
-                Push-Location $customNodesPath
-                & git clone $deps.comfyui_nodes.nodes.'ComfyUI-AnimateDiff-Evolved'.repo
-                Pop-Location
+            $customNodesPath = Join-Path $comfyPath "custom_nodes"
+            if (-not (Test-Path $customNodesPath)) {
+                New-Item -ItemType Directory -Path $customNodesPath -Force | Out-Null
             }
+            
+            # Install all required custom nodes
+            foreach ($nodeKey in $deps.comfyui_nodes.nodes.PSObject.Properties.Name) {
+                $node = $deps.comfyui_nodes.nodes.$nodeKey
+                $nodePath = Join-Path $customNodesPath $nodeKey
+                
+                if (Test-Path $nodePath) {
+                    Write-Log "$nodeKey: Already installed" "OK"
+                } else {
+                    if ($node.required -or $Force) {
+                        Write-Log "Installing $nodeKey..." "INFO"
+                        Push-Location $customNodesPath
+                        & git clone $node.repo
+                        Pop-Location
+                        
+                        # Install node requirements if they exist
+                        $reqFile = Join-Path $nodePath "requirements.txt"
+                        if (Test-Path $reqFile) {
+                            Write-Log "Installing $nodeKey requirements..." "INFO"
+                            & python -m pip install -r $reqFile 2>&1 | Out-Null
+                        }
+                        
+                        Write-Log "$nodeKey: Installed" "OK"
+                    } else {
+                        Write-Log "$nodeKey: Skipped (optional, use -Force to install)" "INFO"
+                    }
+                }
+            }
+            
+            $animateDiffPath = Join-Path $customNodesPath "ComfyUI-AnimateDiff-Evolved"
             
             $modelsPath = Join-Path $animateDiffPath "models"
             if (-not (Test-Path $modelsPath)) {

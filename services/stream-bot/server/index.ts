@@ -31,9 +31,10 @@ const SESSION_SECRET = getEnv('SESSION_SECRET');
 process.env.NODE_ENV = NODE_ENV;
 app.set('env', NODE_ENV);
 
-// CORS Configuration
+// CORS Configuration - Use APP_URL env variable
+const APP_URL = getEnv('APP_URL', 'https://stream.evindrake.net');
 const allowedOrigins = [
-  'https://stream.evindrake.net',
+  APP_URL,
   NODE_ENV === 'development' ? 'http://localhost:5173' : null,
   NODE_ENV === 'development' ? 'http://localhost:5000' : null,
 ].filter(Boolean) as string[];
@@ -111,7 +112,7 @@ export const sessionMiddleware = session({
     httpOnly: true,
     maxAge: 1000 * 60 * 60 * 24 * 7,
     sameSite: NODE_ENV === "production" ? "none" : "lax",
-    domain: NODE_ENV === "production" ? ".evindrake.net" : undefined,
+    domain: NODE_ENV === "production" ? (process.env.COOKIE_DOMAIN || ".evindrake.net") : undefined,
   },
 });
 
