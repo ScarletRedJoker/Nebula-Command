@@ -17,17 +17,17 @@
         "conflicts_with": ["protobuf<4.0.0", "protobuf>=6.0.0"]
       },
       "torch": {
-        "version": "2.2.2",
+        "version": "2.2.1",
         "cuda_version": "cu121",
-        "reason": "Stable PyTorch with CUDA 12.1 support",
-        "install_command": "pip install torch==2.2.2+cu121 torchvision==0.17.2+cu121 torchaudio==2.2.2+cu121 --index-url https://download.pytorch.org/whl/cu121"
+        "reason": "PyTorch 2.2.1 with CUDA 12.1 - required by xformers 0.0.28",
+        "install_command": "pip install torch==2.2.1+cu121 torchvision==0.17.1+cu121 torchaudio==2.2.1+cu121 --index-url https://download.pytorch.org/whl/cu121"
       },
       "torchvision": {
-        "version": "0.17.2",
+        "version": "0.17.1",
         "cuda_version": "cu121"
       },
       "torchaudio": {
-        "version": "2.2.2",
+        "version": "2.2.1",
         "cuda_version": "cu121"
       }
     }
@@ -76,8 +76,8 @@
         "reason": "OpenAI CLIP for text-image understanding"
       },
       "xformers": {
-        "version": "0.0.25",
-        "reason": "Memory-efficient attention for diffusion models"
+        "version": "0.0.28",
+        "reason": "Memory-efficient attention for diffusion models, requires torch==2.2.1"
       }
     }
   },
