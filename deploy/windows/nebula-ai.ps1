@@ -297,7 +297,14 @@ function Invoke-Repair {
             if ($cudaCheck -eq "True") {
                 Write-Log "PyTorch CUDA: Available" "OK"
             } else {
-                Write-Log "PyTorch CUDA: Not available - may need reinstall with CUDA" "WARN"
+                Write-Log "PyTorch CUDA: Not available - reinstalling with CUDA support" "WARN"
+                $repairActions += @{
+                    Package = "torch"
+                    Action = "reinstall"
+                    CurrentVersion = $torchVersion
+                    TargetVersion = $deps.core.packages.torch.version
+                    Reason = "PyTorch not compiled with CUDA - reinstalling CUDA version"
+                }
             }
         } catch {
             Write-Log "PyTorch import failed - may be broken" "ERROR"
@@ -674,10 +681,10 @@ function Invoke-Models {
                 $nodePath = Join-Path $customNodesPath $nodeKey
                 
                 if (Test-Path $nodePath) {
-                    Write-Log "$nodeKey: Already installed" "OK"
+                    Write-Log "$($nodeKey) - Already installed" "OK"
                 } else {
                     if ($node.required -or $Force) {
-                        Write-Log "Installing $nodeKey..." "INFO"
+                        Write-Log "Installing $($nodeKey)..." "INFO"
                         Push-Location $customNodesPath
                         & git clone $node.repo
                         Pop-Location
@@ -685,13 +692,13 @@ function Invoke-Models {
                         # Install node requirements if they exist
                         $reqFile = Join-Path $nodePath "requirements.txt"
                         if (Test-Path $reqFile) {
-                            Write-Log "Installing $nodeKey requirements..." "INFO"
+                            Write-Log "Installing $($nodeKey) requirements..." "INFO"
                             & python -m pip install -r $reqFile 2>&1 | Out-Null
                         }
                         
-                        Write-Log "$nodeKey: Installed" "OK"
+                        Write-Log "$($nodeKey) - Installed" "OK"
                     } else {
-                        Write-Log "$nodeKey: Skipped (optional, use -Force to install)" "INFO"
+                        Write-Log "$($nodeKey) - Skipped (optional, use -Force to install)" "INFO"
                     }
                 }
             }
