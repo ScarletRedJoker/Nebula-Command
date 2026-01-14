@@ -100,9 +100,18 @@ function Test-PythonVersion {
 
 function Test-ServiceRunning {
     param([int]$Port)
+    # Use TCP socket check instead of HTTP - more reliable for AI services
+    # that may return non-200 during loading or block user agents
     try {
-        $null = Invoke-WebRequest -Uri "http://localhost:$Port" -TimeoutSec 2 -UseBasicParsing -ErrorAction Stop
-        return $true
+        $tcp = New-Object System.Net.Sockets.TcpClient
+        $result = $tcp.BeginConnect("127.0.0.1", $Port, $null, $null)
+        $wait = $result.AsyncWaitHandle.WaitOne(5000, $false)  # 5 second timeout
+        if ($wait -and $tcp.Connected) {
+            $tcp.Close()
+            return $true
+        }
+        $tcp.Close()
+        return $false
     } catch {
         return $false
     }
