@@ -47,7 +47,7 @@ The dashboard automatically detects development (Replit) or production (Linode) 
 A Windows VM hosts GPU-accelerated AI services: Ollama (LLM inference), Stable Diffusion WebUI (image generation), and ComfyUI (node-based video/image workflows). An Auto-Deployment System provides unified management, dependency handling, and a Windows AI Supervisor for service management.
 
 ### AI Node Management System
-A comprehensive dashboard page (`/ai-nodes`) provides:
+A comprehensive dashboard page (`/ai-nodes`) provides (Agent Port: 9765 via Tailscale):
 - **Service Health Monitoring:** Real-time status for Ollama (11434), Stable Diffusion (7860), ComfyUI (8188), and Whisper (8765)
 - **GPU Statistics:** Memory usage, utilization, and temperature from nvidia-smi
 - **Issue Detection:** Automatic detection of known problems including NumPy 2.x incompatibility, torch.library custom_op errors, xformers mismatches, triton missing, protobuf conflicts, and comfy_kitchen issues
