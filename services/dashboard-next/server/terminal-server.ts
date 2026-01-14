@@ -216,6 +216,15 @@ class TerminalServer {
   }
 
   start() {
+    this.server.on("error", (err: NodeJS.ErrnoException) => {
+      if (err.code === "EADDRINUSE") {
+        console.warn(`Port ${TERMINAL_PORT} is already in use. Terminal server will not start.`);
+        console.warn("Another instance may be running. Set TERMINAL_PORT to use a different port.");
+      } else {
+        console.error("Terminal server error:", err);
+      }
+    });
+    
     this.server.listen(TERMINAL_PORT, "0.0.0.0", () => {
       console.log(`Terminal WebSocket server running on port ${TERMINAL_PORT}`);
     });

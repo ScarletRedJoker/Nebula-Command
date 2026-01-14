@@ -22,7 +22,7 @@ export function log(message: string, source = "express") {
 export async function setupVite(app: Express, server: Server) {
   const serverOptions = {
     middlewareMode: true,
-    hmr: { server },
+    hmr: process.env.NODE_ENV === 'development' ? { server } : false,
     allowedHosts: true as const,
   };
 
