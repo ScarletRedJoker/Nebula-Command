@@ -294,6 +294,268 @@ app.post("/api/git/pull", async (req, res) => {
   }
 });
 
+const SD_WEBUI_URL = "http://127.0.0.1:7860";
+const SD_MODELS_PATH = "C:\\AI\\stable-diffusion-webui\\models\\Stable-diffusion";
+const SD_LORA_PATH = "C:\\AI\\stable-diffusion-webui\\models\\Lora";
+
+function detectModelType(filename: string, folder: string): "checkpoint" | "motion" | "lora" {
+  const lower = filename.toLowerCase();
+  
+  if (folder.toLowerCase().includes("lora")) {
+    return "lora";
+  }
+  
+  if (lower.startsWith("mm_") || 
+      lower.startsWith("mm-") || 
+      lower.includes("motion") ||
+      lower.includes("animatediff") ||
+      lower.includes("_motion_") ||
+      lower.includes("-motion-")) {
+    return "motion";
+  }
+  
+  return "checkpoint";
+}
+
+app.get("/api/sd/status", async (req, res) => {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    
+    const optionsRes = await fetch(`${SD_WEBUI_URL}/sdapi/v1/options`, {
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    
+    if (!optionsRes.ok) {
+      return res.json({
+        success: true,
+        available: false,
+        error: `SD WebUI returned ${optionsRes.status}`,
+      });
+    }
+    
+    const options = await optionsRes.json();
+    
+    let progress = null;
+    try {
+      const progressRes = await fetch(`${SD_WEBUI_URL}/sdapi/v1/progress`);
+      if (progressRes.ok) {
+        progress = await progressRes.json();
+      }
+    } catch {}
+    
+    let memory = null;
+    try {
+      const memRes = await fetch(`${SD_WEBUI_URL}/sdapi/v1/memory`);
+      if (memRes.ok) {
+        const memData = await memRes.json();
+        if (memData.cuda) {
+          memory = {
+            total: memData.cuda.system?.total || 0,
+            used: memData.cuda.system?.used || 0,
+            free: memData.cuda.system?.free || 0,
+          };
+        }
+      }
+    } catch {}
+    
+    res.json({
+      success: true,
+      available: true,
+      currentModel: options.sd_model_checkpoint || null,
+      sampler: options.sampler_name || null,
+      clipSkip: options.CLIP_stop_at_last_layers || 1,
+      isGenerating: progress?.state?.job_count > 0,
+      progress: progress?.progress || 0,
+      memory,
+    });
+  } catch (error: any) {
+    res.json({
+      success: true,
+      available: false,
+      error: error.message,
+    });
+  }
+});
+
+app.get("/api/sd/models", async (req, res) => {
+  try {
+    const models: {
+      title: string;
+      model_name: string;
+      filename: string;
+      type: "checkpoint" | "motion" | "lora";
+      hash?: string;
+      isLoaded?: boolean;
+    }[] = [];
+    
+    let currentModel: string | null = null;
+    let sdApiModels: any[] = [];
+    
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      
+      const [optionsRes, modelsRes] = await Promise.all([
+        fetch(`${SD_WEBUI_URL}/sdapi/v1/options`, { signal: controller.signal }),
+        fetch(`${SD_WEBUI_URL}/sdapi/v1/sd-models`, { signal: controller.signal }),
+      ]);
+      clearTimeout(timeout);
+      
+      if (optionsRes.ok) {
+        const options = await optionsRes.json();
+        currentModel = options.sd_model_checkpoint || null;
+      }
+      
+      if (modelsRes.ok) {
+        sdApiModels = await modelsRes.json();
+      }
+    } catch {}
+    
+    if (sdApiModels.length > 0) {
+      for (const model of sdApiModels) {
+        const filename = model.filename ? path.basename(model.filename) : model.title;
+        models.push({
+          title: model.title,
+          model_name: model.model_name,
+          filename,
+          type: detectModelType(filename, model.filename || ""),
+          hash: model.hash,
+          isLoaded: currentModel === model.title,
+        });
+      }
+    } else {
+      try {
+        if (fs.existsSync(SD_MODELS_PATH)) {
+          const files = fs.readdirSync(SD_MODELS_PATH);
+          for (const file of files) {
+            if (file.endsWith(".safetensors") || file.endsWith(".ckpt")) {
+              const name = file.replace(/\.(safetensors|ckpt)$/, "");
+              models.push({
+                title: name,
+                model_name: name,
+                filename: file,
+                type: detectModelType(file, SD_MODELS_PATH),
+                isLoaded: currentModel?.includes(name) || false,
+              });
+            }
+          }
+        }
+      } catch {}
+    }
+    
+    let loras: { name: string; filename: string }[] = [];
+    try {
+      if (fs.existsSync(SD_LORA_PATH)) {
+        const files = fs.readdirSync(SD_LORA_PATH);
+        loras = files
+          .filter(f => f.endsWith(".safetensors") || f.endsWith(".ckpt"))
+          .map(f => ({
+            name: f.replace(/\.(safetensors|ckpt)$/, ""),
+            filename: f,
+          }));
+      }
+    } catch {}
+    
+    const checkpoints = models.filter(m => m.type === "checkpoint");
+    const motionModules = models.filter(m => m.type === "motion");
+    
+    res.json({
+      success: true,
+      currentModel,
+      models,
+      checkpoints,
+      motionModules,
+      loras,
+      counts: {
+        checkpoints: checkpoints.length,
+        motionModules: motionModules.length,
+        loras: loras.length,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/api/sd/switch-model", async (req, res) => {
+  const { model } = req.body;
+  
+  if (!model) {
+    return res.status(400).json({ success: false, error: "Model name is required" });
+  }
+  
+  console.log(`[SD] Switching model to: ${model}`);
+  
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    
+    const checkRes = await fetch(`${SD_WEBUI_URL}/sdapi/v1/options`, {
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    
+    if (!checkRes.ok) {
+      return res.status(503).json({
+        success: false,
+        error: "SD WebUI is not available",
+      });
+    }
+    
+    const switchController = new AbortController();
+    const switchTimeout = setTimeout(() => switchController.abort(), 120000);
+    
+    const switchRes = await fetch(`${SD_WEBUI_URL}/sdapi/v1/options`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sd_model_checkpoint: model,
+      }),
+      signal: switchController.signal,
+    });
+    clearTimeout(switchTimeout);
+    
+    if (!switchRes.ok) {
+      const errorText = await switchRes.text();
+      return res.status(500).json({
+        success: false,
+        error: `Failed to switch model: ${errorText}`,
+      });
+    }
+    
+    const verifyRes = await fetch(`${SD_WEBUI_URL}/sdapi/v1/options`);
+    let verifiedModel = null;
+    if (verifyRes.ok) {
+      const options = await verifyRes.json();
+      verifiedModel = options.sd_model_checkpoint;
+    }
+    
+    console.log(`[SD] Model switched successfully to: ${verifiedModel || model}`);
+    
+    res.json({
+      success: true,
+      message: `Model switched to ${model}`,
+      currentModel: verifiedModel || model,
+    });
+  } catch (error: any) {
+    console.error(`[SD] Error switching model:`, error);
+    
+    if (error.name === "AbortError") {
+      return res.status(504).json({
+        success: false,
+        error: "Model switch timed out. The model may still be loading.",
+      });
+    }
+    
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
 app.get("/", (req, res) => {
   res.json({
     name: "Nebula Agent",
@@ -306,6 +568,9 @@ app.get("/", (req, res) => {
       "GET  /api/services",
       "POST /api/services/:name/restart",
       "POST /api/git/pull",
+      "GET  /api/sd/status",
+      "GET  /api/sd/models",
+      "POST /api/sd/switch-model",
     ],
   });
 });

@@ -86,6 +86,19 @@ export default function CreativeStudioPage() {
     vram?: { total: number; used: number; free: number };
     url?: string;
   } | null>(null);
+  const [sdModels, setSdModels] = useState<{
+    title: string;
+    model_name: string;
+    filename?: string;
+    type?: string;
+    isLoaded?: boolean;
+  }[]>([]);
+  const [sdMotionModules, setSdMotionModules] = useState<{
+    title: string;
+    model_name: string;
+    filename?: string;
+  }[]>([]);
+  const [switchingModel, setSwitchingModel] = useState(false);
   const [saveLocally, setSaveLocally] = useState(true);
   const [generatingImage, setGeneratingImage] = useState(false);
   const [generatedImage, setGeneratedImage] = useState<GeneratedImage | null>(null);
@@ -106,7 +119,64 @@ export default function CreativeStudioPage() {
   useEffect(() => {
     fetchAIStatus();
     fetchImageProviders();
+    fetchSDModels();
   }, []);
+
+  async function fetchSDModels() {
+    try {
+      const res = await fetch("/api/production/sd-models");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.models) {
+          setSdModels(data.models);
+        }
+        if (data.motionModules) {
+          setSdMotionModules(data.motionModules);
+        }
+        if (data.currentModel && sdStatus) {
+          setSdStatus(prev => prev ? { ...prev, currentModel: data.currentModel } : prev);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch SD models:", error);
+    }
+  }
+
+  async function switchSDModel(modelTitle: string) {
+    if (switchingModel) return;
+    
+    setSwitchingModel(true);
+    try {
+      const res = await fetch("/api/production/sd-models", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: modelTitle }),
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setSdStatus(prev => prev ? { 
+            ...prev, 
+            currentModel: data.currentModel || modelTitle,
+            modelLoaded: true,
+            modelLoading: false,
+          } : prev);
+          await fetchImageProviders();
+          await fetchSDModels();
+        } else {
+          alert(`Failed to switch model: ${data.error || "Unknown error"}`);
+        }
+      } else {
+        const error = await res.json();
+        alert(`Failed to switch model: ${error.error || "Unknown error"}`);
+      }
+    } catch (error: any) {
+      alert(`Failed to switch model: ${error.message}`);
+    } finally {
+      setSwitchingModel(false);
+    }
+  }
 
   async function fetchImageProviders() {
     try {
@@ -389,15 +459,25 @@ export default function CreativeStudioPage() {
               <Cpu className="h-5 w-5 text-purple-500" />
               <h3 className="font-medium">Stable Diffusion Status</h3>
             </div>
-            <Button variant="ghost" size="sm" onClick={fetchImageProviders}>
-              <RefreshCw className="h-4 w-4" />
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => { fetchImageProviders(); fetchSDModels(); }}
+              disabled={switchingModel}
+            >
+              <RefreshCw className={`h-4 w-4 ${switchingModel ? "animate-spin" : ""}`} />
             </Button>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             <div>
               <p className="text-muted-foreground">Status</p>
-              <p className={`font-medium ${sdStatus.available && sdStatus.modelLoaded ? "text-green-500" : sdStatus.modelLoading ? "text-yellow-500" : "text-red-500"}`}>
-                {sdStatus.modelLoading ? (
+              <p className={`font-medium ${sdStatus.available && sdStatus.modelLoaded ? "text-green-500" : sdStatus.modelLoading || switchingModel ? "text-yellow-500" : "text-red-500"}`}>
+                {switchingModel ? (
+                  <span className="flex items-center gap-1">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Switching Model...
+                  </span>
+                ) : sdStatus.modelLoading ? (
                   <span className="flex items-center gap-1">
                     <Loader2 className="h-3 w-3 animate-spin" />
                     Loading Model...
@@ -427,9 +507,15 @@ export default function CreativeStudioPage() {
               </p>
             </div>
             <div>
-              <p className="text-muted-foreground">Available Models</p>
-              <p className="font-medium">{sdStatus.availableModels.length}</p>
+              <p className="text-muted-foreground">Checkpoints</p>
+              <p className="font-medium">{sdModels.length || sdStatus.availableModels.length}</p>
             </div>
+            {sdMotionModules.length > 0 && (
+              <div>
+                <p className="text-muted-foreground">Motion Modules</p>
+                <p className="font-medium text-yellow-500">{sdMotionModules.length}</p>
+              </div>
+            )}
             {sdStatus.vram && (
               <div>
                 <p className="text-muted-foreground">VRAM Free</p>
@@ -437,12 +523,50 @@ export default function CreativeStudioPage() {
               </div>
             )}
           </div>
+          
+          {sdStatus.available && sdModels.length > 0 && (
+            <div className="mt-4 pt-4 border-t">
+              <div className="flex items-center gap-4">
+                <div className="flex-1">
+                  <Label className="text-sm text-muted-foreground mb-2 block">Switch Model</Label>
+                  <Select 
+                    value={sdStatus.currentModel || ""} 
+                    onValueChange={switchSDModel}
+                    disabled={switchingModel || !sdStatus.available}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select a model..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sdModels.map((model) => (
+                        <SelectItem 
+                          key={model.title} 
+                          value={model.title}
+                        >
+                          <span className="flex items-center gap-2">
+                            {model.isLoaded && <CheckCircle2 className="h-3 w-3 text-green-500" />}
+                            {model.title}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              {sdMotionModules.length > 0 && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  {sdMotionModules.length} motion module(s) detected and filtered (use SD WebUI for AnimateDiff)
+                </p>
+              )}
+            </div>
+          )}
+          
           {sdStatus.error && (
             <div className="mt-3 p-2 rounded bg-red-500/10 text-red-500 text-sm">
               {sdStatus.error}
             </div>
           )}
-          {sdStatus.availableModels.length > 0 && !sdStatus.modelLoaded && (
+          {sdStatus.available && sdModels.length === 0 && sdStatus.availableModels.length > 0 && !sdStatus.modelLoaded && (
             <div className="mt-3 p-2 rounded bg-yellow-500/10 text-yellow-600 text-sm">
               Load a model in SD WebUI to start generating. Available: {sdStatus.availableModels.slice(0, 3).join(", ")}{sdStatus.availableModels.length > 3 ? "..." : ""}
             </div>

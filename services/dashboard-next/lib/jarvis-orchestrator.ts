@@ -2,14 +2,141 @@
  * Jarvis Orchestrator - Multi-agent orchestration and task management
  * Handles job queuing, subagent spawning, task prioritization, and resource management
  * Integrates with OpenCode for autonomous development capabilities
+ * 
+ * Extended with multi-node control:
+ * - Linode: Docker, PM2, web hosting, databases
+ * - Ubuntu Home: KVM/libvirt, Plex, NAS, WoL relay
+ * - Windows VM: Ollama, SD WebUI, ComfyUI, GPU compute
  */
 
 import { localAIRuntime, RuntimeHealth } from "./local-ai-runtime";
 import { openCodeIntegration, CodeTask, OpenCodeConfig } from "./opencode-integration";
+import { getAllServers, getServerById, getSSHPrivateKey, ServerConfig } from "./server-config-store";
+import { checkServerOnline, wakeAndWaitForOnline } from "./wol-relay";
+import { Client } from "ssh2";
 
 export type JobPriority = "low" | "normal" | "high" | "critical";
 export type JobStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
 export type SubagentStatus = "idle" | "busy" | "stopped" | "error";
+export type NodeStatus = "online" | "offline" | "degraded" | "sleeping" | "unknown";
+export type NodeType = "linux" | "windows";
+
+export interface NodeCapability {
+  id: string;
+  name: string;
+  category: "ai" | "docker" | "virtualization" | "media" | "storage" | "network" | "compute" | "deployment";
+  description: string;
+  priority: number;
+}
+
+export interface ClusterNode {
+  id: string;
+  name: string;
+  type: NodeType;
+  status: NodeStatus;
+  host: string;
+  port: number;
+  capabilities: NodeCapability[];
+  lastSeen?: Date;
+  latencyMs?: number;
+  supportsWol: boolean;
+  config: ServerConfig;
+}
+
+export interface ClusterStatus {
+  nodes: ClusterNode[];
+  totalNodes: number;
+  onlineNodes: number;
+  offlineNodes: number;
+  capabilities: Record<string, string[]>;
+  lastRefresh: Date;
+}
+
+export interface NodeExecutionResult {
+  success: boolean;
+  nodeId: string;
+  action: string;
+  output?: string;
+  error?: string;
+  executionTimeMs: number;
+  timestamp: Date;
+}
+
+export type NodeAction = 
+  | "execute_command"
+  | "docker_action"
+  | "deploy_service"
+  | "restart_service"
+  | "git_pull"
+  | "check_status"
+  | "ai_generate"
+  | "vm_control"
+  | "wake"
+  | "custom";
+
+const NODE_CAPABILITIES: Record<string, NodeCapability[]> = {
+  linode: [
+    { id: "docker", name: "Docker", category: "docker", description: "Container orchestration", priority: 100 },
+    { id: "pm2", name: "PM2", category: "deployment", description: "Node.js process manager", priority: 90 },
+    { id: "web-hosting", name: "Web Hosting", category: "network", description: "Public web services", priority: 100 },
+    { id: "postgres", name: "PostgreSQL", category: "storage", description: "Database services", priority: 90 },
+    { id: "redis", name: "Redis", category: "storage", description: "Cache and message broker", priority: 85 },
+    { id: "caddy", name: "Caddy", category: "network", description: "Reverse proxy and TLS", priority: 95 },
+    { id: "discord-bot", name: "Discord Bot", category: "deployment", description: "Discord bot hosting", priority: 80 },
+    { id: "stream-bot", name: "Stream Bot", category: "deployment", description: "Stream bot hosting", priority: 80 },
+    { id: "dashboard", name: "Dashboard", category: "deployment", description: "Dashboard hosting", priority: 85 },
+  ],
+  home: [
+    { id: "kvm", name: "KVM/libvirt", category: "virtualization", description: "Virtual machine hypervisor", priority: 100 },
+    { id: "plex", name: "Plex", category: "media", description: "Media server", priority: 90 },
+    { id: "jellyfin", name: "Jellyfin", category: "media", description: "Media server alternative", priority: 85 },
+    { id: "nas", name: "NAS", category: "storage", description: "Network attached storage", priority: 95 },
+    { id: "wol-relay", name: "WoL Relay", category: "network", description: "Wake-on-LAN relay server", priority: 100 },
+    { id: "docker", name: "Docker", category: "docker", description: "Container orchestration", priority: 90 },
+    { id: "vnc", name: "VNC Server", category: "virtualization", description: "Remote desktop access", priority: 80 },
+    { id: "xrdp", name: "XRDP", category: "virtualization", description: "RDP server for Linux", priority: 75 },
+    { id: "home-assistant", name: "Home Assistant", category: "compute", description: "Home automation", priority: 85 },
+    { id: "vm-management", name: "VM Management", category: "virtualization", description: "Virtual machine control", priority: 100 },
+  ],
+  windows: [
+    { id: "ollama", name: "Ollama", category: "ai", description: "Local LLM inference", priority: 100 },
+    { id: "stable-diffusion", name: "Stable Diffusion WebUI", category: "ai", description: "Image generation", priority: 100 },
+    { id: "comfyui", name: "ComfyUI", category: "ai", description: "Advanced image/video generation", priority: 95 },
+    { id: "gpu-compute", name: "GPU Compute", category: "compute", description: "CUDA/GPU acceleration", priority: 100 },
+    { id: "text-generation", name: "Text Generation", category: "ai", description: "LLM text generation", priority: 100 },
+    { id: "image-generation", name: "Image Generation", category: "ai", description: "AI image synthesis", priority: 100 },
+    { id: "video-generation", name: "Video Generation", category: "ai", description: "AI video synthesis", priority: 90 },
+    { id: "embedding", name: "Embeddings", category: "ai", description: "Vector embeddings", priority: 85 },
+    { id: "code-completion", name: "Code Completion", category: "ai", description: "AI code assistance", priority: 95 },
+    { id: "sunshine", name: "Sunshine", category: "virtualization", description: "Game streaming server", priority: 80 },
+  ],
+};
+
+const CAPABILITY_TO_NODE: Record<string, string[]> = {
+  "ai-image": ["windows"],
+  "ai-video": ["windows"],
+  "ai-text": ["windows"],
+  "ai-code": ["windows"],
+  "ai-embedding": ["windows"],
+  "ollama": ["windows"],
+  "stable-diffusion": ["windows"],
+  "comfyui": ["windows"],
+  "gpu": ["windows"],
+  "docker-linode": ["linode"],
+  "docker-home": ["home"],
+  "docker": ["linode", "home"],
+  "kvm": ["home"],
+  "vm": ["home"],
+  "plex": ["home"],
+  "media": ["home"],
+  "nas": ["home"],
+  "wol": ["home"],
+  "web-hosting": ["linode"],
+  "database": ["linode"],
+  "discord-bot": ["linode"],
+  "stream-bot": ["linode"],
+  "dashboard": ["linode"],
+};
 
 export interface JarvisJob {
   id: string;
@@ -92,14 +219,495 @@ class JarvisOrchestrator {
   private jobs: Map<string, JarvisJob> = new Map();
   private subagents: Map<string, Subagent> = new Map();
   private aiResources: AIResource[] = [];
+  private clusterNodes: Map<string, ClusterNode> = new Map();
   private options: JobQueueOptions;
   private processing: boolean = false;
   private listeners: Map<string, ((job: JarvisJob) => void)[]> = new Map();
   private resourceCheckInterval?: NodeJS.Timeout;
+  private nodesInitialized: boolean = false;
 
   constructor(options: Partial<JobQueueOptions> = {}) {
     this.options = { ...DEFAULT_OPTIONS, ...options };
     this.initializeResources();
+    this.registerNodes();
+  }
+
+  async registerNodes(): Promise<ClusterNode[]> {
+    try {
+      const servers = await getAllServers();
+      
+      for (const server of servers) {
+        const nodeType: NodeType = server.serverType === "windows" ? "windows" : "linux";
+        const capabilities = NODE_CAPABILITIES[server.id] || [];
+        const port = server.serverType === "windows" 
+          ? (server.agentPort || 9765)
+          : (server.port || 22);
+
+        const node: ClusterNode = {
+          id: server.id,
+          name: server.name,
+          type: nodeType,
+          status: "unknown",
+          host: server.tailscaleIp || server.host,
+          port,
+          capabilities,
+          supportsWol: server.supportsWol || false,
+          config: server,
+        };
+
+        this.clusterNodes.set(server.id, node);
+      }
+
+      this.nodesInitialized = true;
+      console.log(`[Orchestrator] Registered ${this.clusterNodes.size} cluster nodes`);
+      
+      await this.refreshNodeStatus();
+      return Array.from(this.clusterNodes.values());
+    } catch (error) {
+      console.error("[Orchestrator] Failed to register nodes:", error);
+      return [];
+    }
+  }
+
+  async refreshNodeStatus(): Promise<ClusterNode[]> {
+    const nodes = Array.from(this.clusterNodes.values());
+    
+    const statusChecks = nodes.map(async (node) => {
+      const startTime = Date.now();
+      try {
+        const online = await checkServerOnline(node.host, node.port, 5000);
+        node.status = online ? "online" : node.supportsWol ? "sleeping" : "offline";
+        node.latencyMs = Date.now() - startTime;
+        node.lastSeen = online ? new Date() : node.lastSeen;
+      } catch {
+        node.status = "offline";
+      }
+      return node;
+    });
+
+    await Promise.all(statusChecks);
+    return nodes;
+  }
+
+  getNode(nodeId: string): ClusterNode | undefined {
+    return this.clusterNodes.get(nodeId);
+  }
+
+  getAllNodes(): ClusterNode[] {
+    return Array.from(this.clusterNodes.values());
+  }
+
+  getOnlineNodes(): ClusterNode[] {
+    return Array.from(this.clusterNodes.values()).filter(n => n.status === "online");
+  }
+
+  getNodeCapabilities(nodeId: string): NodeCapability[] {
+    const node = this.clusterNodes.get(nodeId);
+    return node?.capabilities || [];
+  }
+
+  getNodesByCapability(capabilityId: string): ClusterNode[] {
+    const nodeIds = CAPABILITY_TO_NODE[capabilityId] || [];
+    return nodeIds
+      .map(id => this.clusterNodes.get(id))
+      .filter((n): n is ClusterNode => n !== undefined);
+  }
+
+  async getClusterStatus(): Promise<ClusterStatus> {
+    if (!this.nodesInitialized) {
+      await this.registerNodes();
+    }
+    
+    await this.refreshNodeStatus();
+    
+    const nodes = Array.from(this.clusterNodes.values());
+    const onlineNodes = nodes.filter(n => n.status === "online");
+    const offlineNodes = nodes.filter(n => n.status === "offline" || n.status === "sleeping");
+    
+    const capabilities: Record<string, string[]> = {};
+    for (const node of nodes) {
+      for (const cap of node.capabilities) {
+        if (!capabilities[cap.category]) {
+          capabilities[cap.category] = [];
+        }
+        if (node.status === "online") {
+          capabilities[cap.category].push(`${node.id}:${cap.id}`);
+        }
+      }
+    }
+
+    return {
+      nodes,
+      totalNodes: nodes.length,
+      onlineNodes: onlineNodes.length,
+      offlineNodes: offlineNodes.length,
+      capabilities,
+      lastRefresh: new Date(),
+    };
+  }
+
+  async executeOnNode(
+    nodeId: string,
+    action: NodeAction,
+    params: Record<string, any> = {}
+  ): Promise<NodeExecutionResult> {
+    const startTime = Date.now();
+    const node = this.clusterNodes.get(nodeId);
+
+    if (!node) {
+      return {
+        success: false,
+        nodeId,
+        action,
+        error: `Node '${nodeId}' not found`,
+        executionTimeMs: Date.now() - startTime,
+        timestamp: new Date(),
+      };
+    }
+
+    if (node.status !== "online") {
+      if (action === "wake" && node.supportsWol && node.config.macAddress) {
+        return this.wakeNode(nodeId);
+      }
+      return {
+        success: false,
+        nodeId,
+        action,
+        error: `Node '${nodeId}' is ${node.status}`,
+        executionTimeMs: Date.now() - startTime,
+        timestamp: new Date(),
+      };
+    }
+
+    try {
+      let result: { success: boolean; output?: string; error?: string };
+
+      if (node.type === "windows") {
+        result = await this.executeOnWindowsNode(node, action, params);
+      } else {
+        result = await this.executeOnLinuxNode(node, action, params);
+      }
+
+      return {
+        success: result.success,
+        nodeId,
+        action,
+        output: result.output,
+        error: result.error,
+        executionTimeMs: Date.now() - startTime,
+        timestamp: new Date(),
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        nodeId,
+        action,
+        error: error.message,
+        executionTimeMs: Date.now() - startTime,
+        timestamp: new Date(),
+      };
+    }
+  }
+
+  private async executeOnLinuxNode(
+    node: ClusterNode,
+    action: NodeAction,
+    params: Record<string, any>
+  ): Promise<{ success: boolean; output?: string; error?: string }> {
+    const command = this.buildSSHCommand(action, params, node);
+    return this.executeSSHCommand(node.host, node.config.user, command, node.port);
+  }
+
+  private async executeOnWindowsNode(
+    node: ClusterNode,
+    action: NodeAction,
+    params: Record<string, any>
+  ): Promise<{ success: boolean; output?: string; error?: string }> {
+    const agentHost = node.host;
+    const agentPort = node.port;
+    const agentToken = node.config.agentToken || process.env.NEBULA_AGENT_TOKEN;
+
+    switch (action) {
+      case "execute_command":
+        return this.callWindowsAgent(agentHost, agentPort, "/api/execute", "POST", { command: params.command }, agentToken);
+      
+      case "check_status":
+        return this.callWindowsAgent(agentHost, agentPort, "/api/health", "GET", undefined, agentToken);
+      
+      case "ai_generate":
+        return this.callWindowsAgent(agentHost, agentPort, "/api/ai/generate", "POST", params, agentToken);
+      
+      case "restart_service":
+        const service = params.service;
+        const serviceCommands: Record<string, string> = {
+          ollama: "net stop ollama && net start ollama",
+          comfyui: "taskkill /F /IM python.exe /FI \"WINDOWTITLE eq ComfyUI\" & cd C:\\AI\\ComfyUI && start python main.py",
+          "stable-diffusion": "taskkill /F /IM python.exe /FI \"WINDOWTITLE eq Stable*\" & cd C:\\AI\\stable-diffusion-webui && start webui.bat",
+          sunshine: "net stop sunshine && net start sunshine",
+        };
+        const cmd = serviceCommands[service] || `net stop ${service} & net start ${service}`;
+        return this.callWindowsAgent(agentHost, agentPort, "/api/execute", "POST", { command: cmd }, agentToken);
+      
+      case "git_pull":
+        return this.callWindowsAgent(
+          agentHost, agentPort, "/api/execute", "POST",
+          { command: `cd ${node.config.deployPath || "C:\\HomeLabHub"} && git pull` },
+          agentToken
+        );
+      
+      default:
+        return this.callWindowsAgent(agentHost, agentPort, "/api/execute", "POST", { command: params.command || "echo ok" }, agentToken);
+    }
+  }
+
+  private buildSSHCommand(action: NodeAction, params: Record<string, any>, node: ClusterNode): string {
+    const deployPath = node.config.deployPath || "/opt/homelab";
+    
+    switch (action) {
+      case "execute_command":
+        return params.command;
+      
+      case "docker_action":
+        const container = params.container;
+        const dockerAction = params.action;
+        if (dockerAction === "logs") {
+          return `docker logs --tail ${params.lines || 50} ${container}`;
+        }
+        return `docker ${dockerAction} ${container}`;
+      
+      case "deploy_service":
+        return `cd ${deployPath} && docker-compose up -d ${params.service || ""}`.trim();
+      
+      case "restart_service":
+        if (params.useSystemd) {
+          return `sudo systemctl restart ${params.service}`;
+        }
+        return `docker restart ${params.service}`;
+      
+      case "git_pull":
+        return `cd ${deployPath} && git pull`;
+      
+      case "check_status":
+        return "docker ps --format '{{.Names}}: {{.Status}}'";
+      
+      case "vm_control":
+        const vm = params.vm;
+        const vmAction = params.action;
+        switch (vmAction) {
+          case "start": return `virsh start ${vm}`;
+          case "stop": return `virsh shutdown ${vm}`;
+          case "force-stop": return `virsh destroy ${vm}`;
+          case "status": return `virsh domstate ${vm}`;
+          case "list": return "virsh list --all";
+          default: return `virsh ${vmAction} ${vm}`;
+        }
+      
+      default:
+        return params.command || "echo ok";
+    }
+  }
+
+  private async executeSSHCommand(
+    host: string,
+    user: string,
+    command: string,
+    port: number = 22
+  ): Promise<{ success: boolean; output?: string; error?: string }> {
+    return new Promise((resolve) => {
+      const privateKey = getSSHPrivateKey();
+      if (!privateKey) {
+        resolve({ success: false, error: "SSH key not found" });
+        return;
+      }
+
+      const conn = new Client();
+      const timeout = setTimeout(() => {
+        conn.end();
+        resolve({ success: false, error: "Connection timeout" });
+      }, 30000);
+
+      conn.on("ready", () => {
+        conn.exec(command, (err, stream) => {
+          if (err) {
+            clearTimeout(timeout);
+            conn.end();
+            resolve({ success: false, error: err.message });
+            return;
+          }
+
+          let output = "";
+          let errorOutput = "";
+
+          stream.on("data", (data: Buffer) => {
+            output += data.toString();
+          });
+
+          stream.stderr.on("data", (data: Buffer) => {
+            errorOutput += data.toString();
+          });
+
+          stream.on("close", (code: number) => {
+            clearTimeout(timeout);
+            conn.end();
+            if (code === 0) {
+              resolve({ success: true, output: output.trim() });
+            } else {
+              resolve({ success: false, error: errorOutput.trim() || output.trim() || `Exit code ${code}` });
+            }
+          });
+        });
+      });
+
+      conn.on("error", (err) => {
+        clearTimeout(timeout);
+        resolve({ success: false, error: err.message });
+      });
+
+      try {
+        conn.connect({ host, port, username: user, privateKey, readyTimeout: 30000 });
+      } catch (err: any) {
+        clearTimeout(timeout);
+        resolve({ success: false, error: err.message });
+      }
+    });
+  }
+
+  private async callWindowsAgent(
+    host: string,
+    port: number,
+    endpoint: string,
+    method: "GET" | "POST" = "GET",
+    body?: any,
+    token?: string
+  ): Promise<{ success: boolean; output?: string; error?: string }> {
+    const url = `http://${host}:${port}${endpoint}`;
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    try {
+      const response = await fetch(url, {
+        method,
+        headers,
+        body: body ? JSON.stringify(body) : undefined,
+        signal: AbortSignal.timeout(60000),
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        return { success: false, error: `Agent returned ${response.status}: ${text}` };
+      }
+
+      const result = await response.json();
+      return { success: true, output: result.output || JSON.stringify(result) };
+    } catch (err: any) {
+      if (err.name === "TimeoutError" || err.name === "AbortError") {
+        return { success: false, error: "Request timed out" };
+      }
+      return { success: false, error: `Failed to reach agent: ${err.message}` };
+    }
+  }
+
+  async wakeNode(nodeId: string): Promise<NodeExecutionResult> {
+    const startTime = Date.now();
+    const node = this.clusterNodes.get(nodeId);
+
+    if (!node) {
+      return { success: false, nodeId, action: "wake", error: `Node '${nodeId}' not found`, executionTimeMs: 0, timestamp: new Date() };
+    }
+
+    if (!node.supportsWol || !node.config.macAddress) {
+      return { success: false, nodeId, action: "wake", error: "WoL not configured", executionTimeMs: 0, timestamp: new Date() };
+    }
+
+    try {
+      const result = await wakeAndWaitForOnline({
+        macAddress: node.config.macAddress,
+        broadcastAddress: node.config.broadcastAddress,
+        relayServerId: node.config.wolRelayServer,
+        targetHost: node.host,
+        checkPort: node.port,
+        waitTimeoutMs: 180000,
+      });
+
+      if (result.online) {
+        node.status = "online";
+        node.lastSeen = new Date();
+      }
+
+      return {
+        success: result.success,
+        nodeId,
+        action: "wake",
+        output: result.message,
+        error: result.error,
+        executionTimeMs: Date.now() - startTime,
+        timestamp: new Date(),
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        nodeId,
+        action: "wake",
+        error: error.message,
+        executionTimeMs: Date.now() - startTime,
+        timestamp: new Date(),
+      };
+    }
+  }
+
+  routeJobToNode(capability: string): ClusterNode | null {
+    const nodeIds = CAPABILITY_TO_NODE[capability] || [];
+    const candidates = nodeIds
+      .map(id => this.clusterNodes.get(id))
+      .filter((n): n is ClusterNode => n !== undefined && n.status === "online");
+
+    if (candidates.length === 0) {
+      const sleepingCandidates = nodeIds
+        .map(id => this.clusterNodes.get(id))
+        .filter((n): n is ClusterNode => n !== undefined && n.status === "sleeping" && n.supportsWol);
+      if (sleepingCandidates.length > 0) {
+        return sleepingCandidates[0];
+      }
+      return null;
+    }
+
+    candidates.sort((a, b) => {
+      const aPriority = a.capabilities.find(c => c.id === capability)?.priority || 0;
+      const bPriority = b.capabilities.find(c => c.id === capability)?.priority || 0;
+      return bPriority - aPriority;
+    });
+
+    return candidates[0];
+  }
+
+  async routeAndExecute(
+    capability: string,
+    action: NodeAction,
+    params: Record<string, any> = {},
+    wakeIfSleeping: boolean = true
+  ): Promise<NodeExecutionResult> {
+    const node = this.routeJobToNode(capability);
+
+    if (!node) {
+      return {
+        success: false,
+        nodeId: "none",
+        action,
+        error: `No node available with capability '${capability}'`,
+        executionTimeMs: 0,
+        timestamp: new Date(),
+      };
+    }
+
+    if (node.status === "sleeping" && wakeIfSleeping) {
+      console.log(`[Orchestrator] Waking node ${node.id} for capability ${capability}`);
+      const wakeResult = await this.wakeNode(node.id);
+      if (!wakeResult.success) {
+        return wakeResult;
+      }
+    }
+
+    return this.executeOnNode(node.id, action, params);
   }
 
   private async initializeResources(): Promise<void> {

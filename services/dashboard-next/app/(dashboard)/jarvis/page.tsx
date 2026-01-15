@@ -17,6 +17,14 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Bot,
   Cpu,
   Server,
@@ -36,6 +44,15 @@ import {
   Zap,
   ArrowLeft,
   Terminal,
+  FileCode,
+  Check,
+  X,
+  RotateCcw,
+  Eye,
+  Bug,
+  Sparkles,
+  Search,
+  Wrench,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -100,6 +117,46 @@ interface AutonomousJob {
   error?: string;
 }
 
+type JobType = 'feature-request' | 'bug-fix' | 'code-review' | 'refactor';
+
+interface CodeWorkflow {
+  id: string;
+  jobType: JobType;
+  description: string;
+  status: 'analyzing' | 'planning' | 'implementing' | 'validating' | 'completed' | 'failed';
+  progress: number;
+  steps: {
+    analyze: { status: string; output?: string };
+    plan: { status: string; output?: string };
+    implement: { status: string; output?: string };
+    validate: { status: string; output?: string };
+  };
+  error?: string;
+  hasChanges?: boolean;
+  changeId?: string;
+}
+
+interface StagedChange {
+  id: string;
+  type: JobType;
+  description: string;
+  fileCount: number;
+  status: 'staged' | 'approved' | 'rejected' | 'applied';
+  createdAt: string;
+  validationPassed?: boolean;
+}
+
+interface CodeApiStatus {
+  activeWorkflows: CodeWorkflow[];
+  stagedChanges: StagedChange[];
+  aiStatus: {
+    provider: string;
+    model: string;
+    usingLocalAI: boolean;
+  };
+  capabilities: { id: string; name: string; description: string }[];
+}
+
 export default function JarvisPage() {
   const [pipelineStatus, setPipelineStatus] = useState<PipelineStatus | null>(null);
   const [autonomousJobs, setAutonomousJobs] = useState<AutonomousJob[]>([]);
@@ -116,17 +173,29 @@ export default function JarvisPage() {
   const [deployService, setDeployService] = useState("all");
   const [deploying, setDeploying] = useState(false);
 
+  const [codeApiStatus, setCodeApiStatus] = useState<CodeApiStatus | null>(null);
+  const [jobType, setJobType] = useState<JobType>('feature-request');
+  const [codeDescription, setCodeDescription] = useState("");
+  const [targetFiles, setTargetFiles] = useState("");
+  const [codeSubmitting, setCodeSubmitting] = useState(false);
+  
+  const [diffDialogOpen, setDiffDialogOpen] = useState(false);
+  const [selectedChangeId, setSelectedChangeId] = useState<string | null>(null);
+  const [diffContent, setDiffContent] = useState<string[]>([]);
+  const [applyingChange, setApplyingChange] = useState(false);
+
   useEffect(() => {
     fetchStatus();
-    const interval = setInterval(fetchStatus, 30000);
+    const interval = setInterval(fetchStatus, 10000);
     return () => clearInterval(interval);
   }, []);
 
   async function fetchStatus() {
     try {
-      const [pipelineRes, autonomousRes] = await Promise.all([
+      const [pipelineRes, autonomousRes, codeRes] = await Promise.all([
         fetch("/api/dev/pipeline"),
         fetch("/api/dev/autonomous"),
+        fetch("/api/ai/code"),
       ]);
 
       if (pipelineRes.ok) {
@@ -136,6 +205,10 @@ export default function JarvisPage() {
       if (autonomousRes.ok) {
         const data = await autonomousRes.json();
         setAutonomousJobs(data.jobs || []);
+      }
+
+      if (codeRes.ok) {
+        setCodeApiStatus(await codeRes.json());
       }
     } catch (error) {
       console.error("Failed to fetch status:", error);
@@ -148,6 +221,115 @@ export default function JarvisPage() {
   async function handleRefresh() {
     setRefreshing(true);
     await fetchStatus();
+  }
+
+  async function handleStartCodeGeneration() {
+    if (!codeDescription.trim()) return;
+
+    setCodeSubmitting(true);
+    try {
+      const res = await fetch("/api/ai/code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "generate",
+          jobType,
+          description: codeDescription,
+          targetService,
+          targetFiles: targetFiles.trim() ? targetFiles.split(',').map(f => f.trim()) : undefined,
+        }),
+      });
+
+      if (res.ok) {
+        setCodeDescription("");
+        setTargetFiles("");
+        await fetchStatus();
+      }
+    } catch (error) {
+      console.error("Failed to start code generation:", error);
+    } finally {
+      setCodeSubmitting(false);
+    }
+  }
+
+  async function handleViewDiff(changeId: string) {
+    try {
+      const res = await fetch("/api/ai/code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "status",
+          changeId,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setDiffContent(data.change?.diff || []);
+        setSelectedChangeId(changeId);
+        setDiffDialogOpen(true);
+      }
+    } catch (error) {
+      console.error("Failed to fetch diff:", error);
+    }
+  }
+
+  async function handleApplyChange() {
+    if (!selectedChangeId) return;
+
+    setApplyingChange(true);
+    try {
+      const res = await fetch("/api/ai/code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "apply",
+          changeId: selectedChangeId,
+        }),
+      });
+
+      if (res.ok) {
+        setDiffDialogOpen(false);
+        setSelectedChangeId(null);
+        await fetchStatus();
+      }
+    } catch (error) {
+      console.error("Failed to apply change:", error);
+    } finally {
+      setApplyingChange(false);
+    }
+  }
+
+  async function handleRejectChange() {
+    if (!selectedChangeId) return;
+
+    try {
+      const res = await fetch("/api/ai/code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "reject",
+          changeId: selectedChangeId,
+        }),
+      });
+
+      if (res.ok) {
+        setDiffDialogOpen(false);
+        setSelectedChangeId(null);
+        await fetchStatus();
+      }
+    } catch (error) {
+      console.error("Failed to reject change:", error);
+    }
+  }
+
+  function getJobTypeIcon(type: JobType) {
+    switch (type) {
+      case 'feature-request': return <Sparkles className="h-4 w-4" />;
+      case 'bug-fix': return <Bug className="h-4 w-4" />;
+      case 'code-review': return <Search className="h-4 w-4" />;
+      case 'refactor': return <Wrench className="h-4 w-4" />;
+    }
   }
 
   async function handleStartAutonomous() {
@@ -389,11 +571,207 @@ export default function JarvisPage() {
         </Card>
       </div>
 
+      <Card className="p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <FileCode className="h-5 w-5 text-indigo-400" />
+            <h2 className="font-semibold">AI Code Generation</h2>
+          </div>
+          <div className="flex items-center gap-2 text-xs">
+            <div className={cn(
+              "w-2 h-2 rounded-full",
+              codeApiStatus?.aiStatus.usingLocalAI ? "bg-green-500" : "bg-yellow-500"
+            )} />
+            <span className="text-muted-foreground">
+              {codeApiStatus?.aiStatus.provider || 'N/A'}: {codeApiStatus?.aiStatus.model || 'N/A'}
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-2 space-y-4">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Label>Job Type</Label>
+                <div className="flex gap-1">
+                  {(['feature-request', 'bug-fix', 'code-review', 'refactor'] as JobType[]).map((type) => (
+                    <Button
+                      key={type}
+                      variant={jobType === type ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setJobType(type)}
+                      className="h-7 text-xs"
+                    >
+                      {getJobTypeIcon(type)}
+                      <span className="ml-1 hidden sm:inline">
+                        {type.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+                      </span>
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Textarea
+                placeholder={
+                  jobType === 'feature-request' ? "Describe the feature you want to build..." :
+                  jobType === 'bug-fix' ? "Describe the bug and error messages..." :
+                  jobType === 'code-review' ? "Describe what aspects to review..." :
+                  "Describe what code to refactor and why..."
+                }
+                value={codeDescription}
+                onChange={(e) => setCodeDescription(e.target.value)}
+                className="min-h-[80px]"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Target Service</Label>
+                <Select value={targetService} onValueChange={setTargetService}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="dashboard-next">Dashboard Next</SelectItem>
+                    <SelectItem value="discord-bot">Discord Bot</SelectItem>
+                    <SelectItem value="stream-bot">Stream Bot</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Target Files (optional)</Label>
+                <Input
+                  placeholder="path/to/file.ts, path/to/other.ts"
+                  value={targetFiles}
+                  onChange={(e) => setTargetFiles(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <Button
+              className="w-full"
+              onClick={handleStartCodeGeneration}
+              disabled={codeSubmitting || !codeDescription.trim()}
+            >
+              {codeSubmitting ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <>
+                  {getJobTypeIcon(jobType)}
+                  <span className="ml-2">Start {jobType.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}</span>
+                </>
+              )}
+            </Button>
+          </div>
+
+          <div className="space-y-3">
+            <div className="text-xs font-medium text-muted-foreground">Staged Changes</div>
+            {(!codeApiStatus?.stagedChanges || codeApiStatus.stagedChanges.length === 0) ? (
+              <div className="text-center py-4 text-xs text-muted-foreground">
+                No staged changes
+              </div>
+            ) : (
+              <ScrollArea className="h-[200px]">
+                <div className="space-y-2">
+                  {codeApiStatus.stagedChanges.map((change) => (
+                    <div key={change.id} className="p-2 rounded-lg bg-muted/50 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1">
+                          {getJobTypeIcon(change.type)}
+                          <span className="text-xs font-medium truncate max-w-[120px]">
+                            {change.description}
+                          </span>
+                        </div>
+                        <span className={cn(
+                          "text-xs px-1.5 py-0.5 rounded",
+                          change.validationPassed ? "bg-green-500/20 text-green-400" : "bg-yellow-500/20 text-yellow-400"
+                        )}>
+                          {change.fileCount} files
+                        </span>
+                      </div>
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 text-xs flex-1"
+                          onClick={() => handleViewDiff(change.id)}
+                        >
+                          <Eye className="h-3 w-3 mr-1" />
+                          View
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            )}
+          </div>
+        </div>
+
+        {(codeApiStatus?.activeWorkflows?.length || 0) > 0 && (
+          <div className="pt-3 border-t">
+            <div className="text-xs font-medium text-muted-foreground mb-2">Active Workflows</div>
+            <div className="space-y-2">
+              {codeApiStatus?.activeWorkflows.map((workflow) => (
+                <div key={workflow.id} className="p-3 rounded-lg bg-muted/50 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {getJobTypeIcon(workflow.jobType)}
+                      <span className="text-sm font-medium truncate max-w-[300px]">
+                        {workflow.description}
+                      </span>
+                    </div>
+                    <span className={cn(
+                      "text-xs px-2 py-0.5 rounded",
+                      workflow.status === "completed" && "bg-green-500/20 text-green-400",
+                      workflow.status === "failed" && "bg-red-500/20 text-red-400",
+                      !["completed", "failed"].includes(workflow.status) && "bg-blue-500/20 text-blue-400"
+                    )}>
+                      {workflow.status}
+                    </span>
+                  </div>
+                  <Progress value={workflow.progress} className="h-1" />
+                  <div className="grid grid-cols-4 gap-1">
+                    {(['analyze', 'plan', 'implement', 'validate'] as const).map((step) => (
+                      <div
+                        key={step}
+                        className={cn(
+                          "text-xs text-center px-1.5 py-0.5 rounded",
+                          workflow.steps[step]?.status === "completed" && "bg-green-500/20 text-green-400",
+                          workflow.steps[step]?.status === "running" && "bg-blue-500/20 text-blue-400 animate-pulse",
+                          workflow.steps[step]?.status === "failed" && "bg-red-500/20 text-red-400",
+                          workflow.steps[step]?.status === "pending" && "bg-muted text-muted-foreground"
+                        )}
+                      >
+                        {step}
+                      </div>
+                    ))}
+                  </div>
+                  {workflow.hasChanges && workflow.changeId && (
+                    <Button
+                      size="sm"
+                      className="w-full h-7 text-xs"
+                      onClick={() => handleViewDiff(workflow.changeId!)}
+                    >
+                      <Eye className="h-3 w-3 mr-1" />
+                      Review & Apply Changes
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </Card>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="p-4 space-y-4">
           <div className="flex items-center gap-2">
             <Code2 className="h-5 w-5 text-purple-400" />
-            <h2 className="font-semibold">Autonomous Development</h2>
+            <h2 className="font-semibold">Legacy Autonomous Development</h2>
           </div>
 
           <div className="space-y-4">
@@ -533,6 +911,78 @@ export default function JarvisPage() {
           </ScrollArea>
         </Card>
       </div>
+
+      <Dialog open={diffDialogOpen} onOpenChange={setDiffDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileCode className="h-5 w-5" />
+              Code Diff Preview
+            </DialogTitle>
+            <DialogDescription>
+              Review the generated changes before applying them to the codebase.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <ScrollArea className="flex-1 max-h-[50vh] border rounded-lg">
+            <div className="p-4 font-mono text-xs whitespace-pre-wrap">
+              {diffContent.length === 0 ? (
+                <div className="text-muted-foreground text-center py-8">
+                  No changes to display
+                </div>
+              ) : (
+                diffContent.map((diff, i) => (
+                  <div key={i} className="mb-4">
+                    {diff.split('\n').map((line, j) => (
+                      <div
+                        key={j}
+                        className={cn(
+                          "py-0.5 px-2 -mx-2",
+                          line.startsWith('+++ NEW FILE') && "bg-green-500/20 text-green-400 font-bold",
+                          line.startsWith('---') && "bg-muted text-muted-foreground font-bold",
+                          line.startsWith('+++') && !line.startsWith('+++ NEW FILE') && "bg-muted text-muted-foreground font-bold",
+                          line.startsWith('@@') && "bg-blue-500/20 text-blue-400",
+                          line.startsWith('+') && !line.startsWith('+++') && "bg-green-500/10 text-green-400",
+                          line.startsWith('-') && !line.startsWith('---') && "bg-red-500/10 text-red-400",
+                        )}
+                      >
+                        {line}
+                      </div>
+                    ))}
+                  </div>
+                ))
+              )}
+            </div>
+          </ScrollArea>
+
+          <DialogFooter className="flex gap-2 sm:justify-between">
+            <div className="text-xs text-muted-foreground">
+              {diffContent.length} file(s) will be modified
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="destructive"
+                onClick={handleRejectChange}
+                disabled={applyingChange}
+              >
+                <X className="h-4 w-4 mr-2" />
+                Reject
+              </Button>
+              <Button
+                onClick={handleApplyChange}
+                disabled={applyingChange}
+              >
+                {applyingChange ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Check className="h-4 w-4 mr-2" />
+                )}
+                Approve & Apply
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -448,6 +448,131 @@ export const jarvisTools: JarvisTool[] = [
       required: [],
     },
   },
+  {
+    name: "get_cluster_status",
+    description: "Get the status of all nodes in the cluster (Linode, Ubuntu Home, Windows VM). Shows which servers are online, offline, or sleeping.",
+    parameters: {
+      type: "object",
+      properties: {
+        refresh: {
+          type: "string",
+          description: "Force refresh node status (default: true)",
+          enum: ["true", "false"],
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "execute_on_node",
+    description: "Execute a command or action on a specific node in the cluster. Use this for direct server control.",
+    parameters: {
+      type: "object",
+      properties: {
+        node: {
+          type: "string",
+          description: "Target node ID",
+          enum: ["linode", "home", "windows"],
+        },
+        action: {
+          type: "string",
+          description: "Action to perform",
+          enum: ["execute_command", "docker_action", "deploy_service", "restart_service", "git_pull", "check_status", "vm_control", "wake"],
+        },
+        command: {
+          type: "string",
+          description: "Command to execute (for execute_command action)",
+        },
+        service: {
+          type: "string",
+          description: "Service name (for restart_service, deploy_service actions)",
+        },
+        vm: {
+          type: "string",
+          description: "VM name (for vm_control action on home server)",
+        },
+        vm_action: {
+          type: "string",
+          description: "VM action (for vm_control)",
+          enum: ["start", "stop", "force-stop", "status", "list"],
+        },
+      },
+      required: ["node", "action"],
+    },
+  },
+  {
+    name: "wake_node",
+    description: "Wake up a sleeping node using Wake-on-LAN. Use this when a server is offline but supports WoL.",
+    parameters: {
+      type: "object",
+      properties: {
+        node: {
+          type: "string",
+          description: "Node to wake up",
+          enum: ["home", "windows"],
+        },
+      },
+      required: ["node"],
+    },
+  },
+  {
+    name: "route_ai_task",
+    description: "Automatically route an AI task to the best available node. Routes image generation to Windows VM, text generation to Ollama, etc.",
+    parameters: {
+      type: "object",
+      properties: {
+        capability: {
+          type: "string",
+          description: "Required capability for the task",
+          enum: ["ai-image", "ai-video", "ai-text", "ai-code", "ai-embedding", "ollama", "stable-diffusion", "comfyui", "gpu"],
+        },
+        prompt: {
+          type: "string",
+          description: "Prompt or task description",
+        },
+        wake_if_sleeping: {
+          type: "string",
+          description: "Wake the target node if it's sleeping (default: true)",
+          enum: ["true", "false"],
+        },
+      },
+      required: ["capability"],
+    },
+  },
+  {
+    name: "get_node_capabilities",
+    description: "Get the capabilities of a specific node. Shows what services and features are available on each server.",
+    parameters: {
+      type: "object",
+      properties: {
+        node: {
+          type: "string",
+          description: "Node to check",
+          enum: ["linode", "home", "windows", "all"],
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "manage_vm",
+    description: "Manage virtual machines on the Ubuntu home server (KVM/libvirt). Use for starting, stopping, or checking VMs.",
+    parameters: {
+      type: "object",
+      properties: {
+        action: {
+          type: "string",
+          description: "Action to perform on the VM",
+          enum: ["start", "stop", "force-stop", "status", "list"],
+        },
+        vm_name: {
+          type: "string",
+          description: "Name of the VM (not required for list action)",
+        },
+      },
+      required: ["action"],
+    },
+  },
 ];
 
 export function getOpenAITools() {
@@ -1454,6 +1579,265 @@ export async function executeJarvisTool(
           return {
             success: false,
             result: `Failed to check OpenCode status: ${error.message}`,
+          };
+        }
+      }
+
+      case "get_cluster_status": {
+        try {
+          const clusterStatus = await jarvisOrchestrator.getClusterStatus();
+          
+          let result = `## 🌐 Cluster Status\n\n`;
+          result += `**Total Nodes:** ${clusterStatus.totalNodes}\n`;
+          result += `**Online:** ${clusterStatus.onlineNodes} | **Offline:** ${clusterStatus.offlineNodes}\n\n`;
+
+          result += `### Nodes\n`;
+          for (const node of clusterStatus.nodes) {
+            const statusIcon = node.status === "online" ? "🟢" : node.status === "sleeping" ? "😴" : "🔴";
+            result += `${statusIcon} **${node.name}** (${node.id})\n`;
+            result += `   - Type: ${node.type} | Status: ${node.status}\n`;
+            result += `   - Host: ${node.host}:${node.port}\n`;
+            if (node.latencyMs) result += `   - Latency: ${node.latencyMs}ms\n`;
+            if (node.supportsWol) result += `   - WoL: Available\n`;
+            result += `   - Capabilities: ${node.capabilities.map(c => c.id).join(", ")}\n\n`;
+          }
+
+          return {
+            success: true,
+            result,
+            data: clusterStatus,
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            result: `Failed to get cluster status: ${error.message}`,
+          };
+        }
+      }
+
+      case "execute_on_node": {
+        const nodeId = args.node;
+        const action = args.action as any;
+        const params: Record<string, any> = {};
+
+        if (args.command) params.command = args.command;
+        if (args.service) params.service = args.service;
+        if (args.vm) params.vm = args.vm;
+        if (args.vm_action) params.action = args.vm_action;
+        if (args.container) params.container = args.container;
+        if (args.lines) params.lines = args.lines;
+
+        try {
+          const executionResult = await jarvisOrchestrator.executeOnNode(nodeId, action, params);
+
+          let result = `## Execution Result\n\n`;
+          result += `**Node:** ${nodeId}\n`;
+          result += `**Action:** ${action}\n`;
+          result += `**Status:** ${executionResult.success ? "✅ Success" : "❌ Failed"}\n`;
+          result += `**Duration:** ${executionResult.executionTimeMs}ms\n\n`;
+
+          if (executionResult.output) {
+            result += `**Output:**\n\`\`\`\n${executionResult.output.slice(0, 3000)}\n\`\`\`\n`;
+          }
+          if (executionResult.error) {
+            result += `**Error:** ${executionResult.error}\n`;
+          }
+
+          return {
+            success: executionResult.success,
+            result,
+            data: executionResult,
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            result: `Failed to execute on node: ${error.message}`,
+          };
+        }
+      }
+
+      case "wake_node": {
+        const nodeId = args.node;
+
+        try {
+          const wakeResult = await jarvisOrchestrator.wakeNode(nodeId);
+
+          let result = `## Wake Node Result\n\n`;
+          result += `**Node:** ${nodeId}\n`;
+          result += `**Status:** ${wakeResult.success ? "✅ Node is now online" : "❌ Wake failed"}\n`;
+          result += `**Duration:** ${wakeResult.executionTimeMs}ms\n`;
+
+          if (wakeResult.output) {
+            result += `\n**Message:** ${wakeResult.output}\n`;
+          }
+          if (wakeResult.error) {
+            result += `\n**Error:** ${wakeResult.error}\n`;
+          }
+
+          return {
+            success: wakeResult.success,
+            result,
+            data: wakeResult,
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            result: `Failed to wake node: ${error.message}`,
+          };
+        }
+      }
+
+      case "route_ai_task": {
+        const capability = args.capability;
+        const prompt = args.prompt || "";
+        const wakeIfSleeping = args.wake_if_sleeping !== "false";
+
+        try {
+          const targetNode = jarvisOrchestrator.routeJobToNode(capability);
+
+          if (!targetNode) {
+            return {
+              success: false,
+              result: `No node available with capability "${capability}". All nodes with this capability may be offline.`,
+            };
+          }
+
+          let result = `## 🎯 AI Task Routing\n\n`;
+          result += `**Required Capability:** ${capability}\n`;
+          result += `**Routed to:** ${targetNode.name} (${targetNode.id})\n`;
+          result += `**Node Status:** ${targetNode.status}\n`;
+
+          if (targetNode.status === "sleeping" && wakeIfSleeping) {
+            result += `\n⏳ Node is sleeping, attempting to wake...\n`;
+            const wakeResult = await jarvisOrchestrator.wakeNode(targetNode.id);
+            if (wakeResult.success) {
+              result += `✅ Node is now online!\n`;
+            } else {
+              result += `❌ Failed to wake node: ${wakeResult.error}\n`;
+              return { success: false, result, data: { targetNode, wakeResult } };
+            }
+          }
+
+          if (prompt) {
+            result += `\n**Task:** ${prompt.slice(0, 200)}${prompt.length > 200 ? "..." : ""}\n`;
+            result += `\nReady to execute AI task on ${targetNode.name}.`;
+          }
+
+          return {
+            success: true,
+            result,
+            data: { targetNode, capability },
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            result: `Failed to route AI task: ${error.message}`,
+          };
+        }
+      }
+
+      case "get_node_capabilities": {
+        const nodeId = args.node || "all";
+
+        try {
+          let result = `## 🔧 Node Capabilities\n\n`;
+
+          if (nodeId === "all") {
+            const nodes = jarvisOrchestrator.getAllNodes();
+            for (const node of nodes) {
+              result += `### ${node.name} (${node.id})\n`;
+              result += `**Type:** ${node.type} | **Status:** ${node.status}\n\n`;
+              
+              const grouped: Record<string, typeof node.capabilities> = {};
+              for (const cap of node.capabilities) {
+                if (!grouped[cap.category]) grouped[cap.category] = [];
+                grouped[cap.category].push(cap);
+              }
+
+              for (const [category, caps] of Object.entries(grouped)) {
+                result += `**${category}:**\n`;
+                for (const cap of caps) {
+                  result += `  - ${cap.name}: ${cap.description}\n`;
+                }
+              }
+              result += "\n";
+            }
+          } else {
+            const capabilities = jarvisOrchestrator.getNodeCapabilities(nodeId);
+            const node = jarvisOrchestrator.getNode(nodeId);
+
+            if (!node) {
+              return { success: false, result: `Node "${nodeId}" not found` };
+            }
+
+            result += `### ${node.name} (${nodeId})\n`;
+            result += `**Type:** ${node.type} | **Status:** ${node.status}\n\n`;
+
+            const grouped: Record<string, typeof capabilities> = {};
+            for (const cap of capabilities) {
+              if (!grouped[cap.category]) grouped[cap.category] = [];
+              grouped[cap.category].push(cap);
+            }
+
+            for (const [category, caps] of Object.entries(grouped)) {
+              result += `**${category}:**\n`;
+              for (const cap of caps) {
+                result += `  - ${cap.name}: ${cap.description}\n`;
+              }
+            }
+          }
+
+          return {
+            success: true,
+            result,
+            data: nodeId === "all" ? jarvisOrchestrator.getAllNodes() : jarvisOrchestrator.getNodeCapabilities(nodeId),
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            result: `Failed to get capabilities: ${error.message}`,
+          };
+        }
+      }
+
+      case "manage_vm": {
+        const action = args.action;
+        const vmName = args.vm_name;
+
+        if (action !== "list" && !vmName) {
+          return {
+            success: false,
+            result: "VM name is required for this action. Use action 'list' to see available VMs.",
+          };
+        }
+
+        try {
+          const executionResult = await jarvisOrchestrator.executeOnNode("home", "vm_control", {
+            vm: vmName,
+            action: action,
+          });
+
+          let result = `## 🖥️ VM Management\n\n`;
+          result += `**Action:** ${action}\n`;
+          if (vmName) result += `**VM:** ${vmName}\n`;
+          result += `**Status:** ${executionResult.success ? "✅ Success" : "❌ Failed"}\n\n`;
+
+          if (executionResult.output) {
+            result += `**Output:**\n\`\`\`\n${executionResult.output}\n\`\`\`\n`;
+          }
+          if (executionResult.error) {
+            result += `**Error:** ${executionResult.error}\n`;
+          }
+
+          return {
+            success: executionResult.success,
+            result,
+            data: executionResult,
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            result: `Failed to manage VM: ${error.message}`,
           };
         }
       }
