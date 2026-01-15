@@ -63,9 +63,10 @@ if ($AgentToken -eq "") {
     Write-Host "  Generated new agent token" -ForegroundColor Yellow
 }
 
-[System.Environment]::SetEnvironmentVariable("NEBULA_AGENT_TOKEN", $AgentToken, "Machine")
-[System.Environment]::SetEnvironmentVariable("AGENT_PORT", $AgentPort.ToString(), "Machine")
-Write-Host "  Environment variables set (system-wide)" -ForegroundColor Green
+$envScope = [System.EnvironmentVariableTarget]::Machine
+[System.Environment]::SetEnvironmentVariable("NEBULA_AGENT_TOKEN", $AgentToken, $envScope)
+[System.Environment]::SetEnvironmentVariable("AGENT_PORT", $AgentPort.ToString(), $envScope)
+Write-Host "  Environment variables set" -ForegroundColor Green
 
 # Configure firewall
 Write-Host "`n[6/6] Configuring firewall..." -ForegroundColor Yellow
@@ -77,11 +78,30 @@ New-NetFirewallRule -DisplayName "Nebula Agent" -Direction Inbound -LocalPort $A
 Write-Host "  Firewall rule created for port $AgentPort" -ForegroundColor Green
 
 # Start with PM2
-Write-Host "`n Starting Nebula Agent..." -ForegroundColor Cyan
+Write-Host "`nStarting Nebula Agent..." -ForegroundColor Cyan
 $env:NEBULA_AGENT_TOKEN = $AgentToken
 $env:AGENT_PORT = $AgentPort
+
+# Stop existing if running
 pm2 delete nebula-agent 2>$null
-pm2 start dist/index.js --name nebula-agent
+
+# Create ecosystem file for PM2 with env vars
+$ecosystemContent = @"
+module.exports = {
+  apps: [{
+    name: 'nebula-agent',
+    script: 'dist/index.js',
+    cwd: '$($PWD.Path.Replace('\','/'))',
+    env: {
+      NEBULA_AGENT_TOKEN: '$AgentToken',
+      AGENT_PORT: '$AgentPort'
+    }
+  }]
+}
+"@
+$ecosystemContent | Out-File -FilePath "ecosystem.config.js" -Encoding UTF8
+
+pm2 start ecosystem.config.js
 pm2 save
 
 Write-Host "`n╔════════════════════════════════════════════════╗" -ForegroundColor Green
