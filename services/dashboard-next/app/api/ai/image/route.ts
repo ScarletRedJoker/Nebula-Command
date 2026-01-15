@@ -3,6 +3,16 @@ import { aiOrchestrator } from "@/lib/ai-orchestrator";
 import { verifySession } from "@/lib/session";
 import { cookies } from "next/headers";
 
+function isMotionModule(modelName: string): boolean {
+  if (!modelName) return false;
+  const lower = modelName.toLowerCase();
+  return lower.startsWith("mm_") || 
+         lower.startsWith("mm-") || 
+         lower.includes("motion") ||
+         lower.includes("animatediff") ||
+         lower.includes("_motion_");
+}
+
 async function checkAuth() {
   const cookieStore = await cookies();
   const session = cookieStore.get("session");
@@ -36,11 +46,23 @@ export async function POST(request: NextRequest) {
     let selectedProvider = provider || "auto";
     
     // If a specific provider was requested, validate it's available and fallback if needed
+    const sdStatus = await aiOrchestrator.getSDStatus();
+    const hasMotionModule = sdStatus.currentModel && isMotionModule(sdStatus.currentModel);
+    const sdAvailable = sdStatus.available && sdStatus.modelLoaded && !hasMotionModule;
+    const hasOpenAI = aiOrchestrator.hasOpenAI();
+    
+    if (selectedProvider === "stable-diffusion" && hasMotionModule) {
+      console.log(`[Image API] Motion module detected: ${sdStatus.currentModel}`);
+      return NextResponse.json(
+        { 
+          error: `"${sdStatus.currentModel}" is a motion/video module, not an image checkpoint`,
+          details: "Load a standard SD model instead. Download a checkpoint model like Dreamshaper, RealisticVision, or SD 1.5/SDXL."
+        },
+        { status: 400 }
+      );
+    }
+    
     if (selectedProvider !== "auto") {
-      const sdStatus = await aiOrchestrator.getSDStatus();
-      const sdAvailable = sdStatus.available && sdStatus.modelLoaded;
-      const hasOpenAI = aiOrchestrator.hasOpenAI();
-      
       if (selectedProvider === "openai" && !hasOpenAI) {
         console.log(`[Image API] OpenAI requested but not configured. Checking for fallback...`);
         if (sdAvailable) {
@@ -58,12 +80,29 @@ export async function POST(request: NextRequest) {
           console.log(`[Image API] Falling back to OpenAI`);
           selectedProvider = "openai";
         } else {
+          const reason = hasMotionModule 
+            ? "Current model is a motion module - load a checkpoint like Dreamshaper or RealisticVision."
+            : "Stable Diffusion is not running and OpenAI is not configured.";
           return NextResponse.json(
-            { error: "Stable Diffusion not available", details: "Stable Diffusion is not running and OpenAI is not configured. Please start Stable Diffusion or configure OpenAI." },
+            { error: "Stable Diffusion not available", details: reason },
             { status: 503 }
           );
         }
       }
+    }
+    
+    // For auto mode, if SD has motion module loaded, skip to OpenAI
+    if (selectedProvider === "auto" && hasMotionModule && hasOpenAI) {
+      console.log(`[Image API] Auto mode: Motion module detected, using OpenAI instead`);
+      selectedProvider = "openai";
+    } else if (selectedProvider === "auto" && hasMotionModule && !hasOpenAI) {
+      return NextResponse.json(
+        { 
+          error: "No valid image provider available",
+          details: `Current SD model "${sdStatus.currentModel}" is a motion module (for video). Load a checkpoint model or configure OpenAI.`
+        },
+        { status: 503 }
+      );
     }
     
     console.log(`[Image API] Generating with provider: ${selectedProvider}, size: ${size || "1024x1024"}`);
@@ -145,15 +184,20 @@ export async function POST(request: NextRequest) {
 
 export async function GET() {
   const sdStatus = await aiOrchestrator.getSDStatus();
-  const sdAvailable = sdStatus.available && sdStatus.modelLoaded;
+  const hasMotionModule = sdStatus.currentModel && isMotionModule(sdStatus.currentModel);
+  const sdAvailable = sdStatus.available && sdStatus.modelLoaded && !hasMotionModule;
 
   let sdDescription = "";
+  let motionModuleWarning = "";
   if (!sdStatus.available) {
     sdDescription = sdStatus.error || "Not reachable - start Stable Diffusion WebUI on Windows VM";
   } else if (sdStatus.modelLoading) {
     sdDescription = "Model is currently loading... Please wait.";
   } else if (!sdStatus.modelLoaded) {
     sdDescription = `No model loaded. Available: ${sdStatus.availableModels.slice(0, 3).join(", ") || "none"}`;
+  } else if (hasMotionModule) {
+    sdDescription = `⚠️ Motion module loaded: ${sdStatus.currentModel} - Cannot generate images`;
+    motionModuleWarning = "Load a checkpoint model (Dreamshaper, RealisticVision, SDXL) to generate images";
   } else {
     sdDescription = `Using ${sdStatus.currentModel} on RTX 3060 - No content restrictions`;
   }
@@ -196,13 +240,15 @@ export async function GET() {
     sdAvailable,
     sdStatus: {
       available: sdStatus.available,
-      modelLoaded: sdStatus.modelLoaded,
+      modelLoaded: sdStatus.modelLoaded && !hasMotionModule,
       currentModel: sdStatus.currentModel,
       modelLoading: sdStatus.modelLoading,
       availableModels: sdStatus.availableModels,
       error: sdStatus.error,
       vram: sdStatus.vram,
       url: sdStatus.url,
+      hasMotionModule,
+      motionModuleWarning: motionModuleWarning || undefined,
     }
   });
 }
