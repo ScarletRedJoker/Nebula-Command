@@ -38,9 +38,21 @@ APIs are provided for Speech Services (TTS/STT), Job Scheduling, Training, and E
 ### Jarvis AI Orchestrator and Autonomous Development
 The Jarvis Orchestrator (`lib/jarvis-orchestrator.ts`) provides multi-agent AI capabilities with a job queue, subagent management, local-first resource selection, and progress tracking. It includes tools for image/video generation, Docker actions, deployment, code management, and AI service checks. The OpenCode Integration (`lib/opencode-integration.ts`) enables autonomous code development using local AI, prioritizing models like qwen2.5-coder and deepseek-coder for feature development, bug fixing, code review, and refactoring.
 
-### Multi-Node Cluster Management (NEW - January 2026)
+### Multi-Environment Bootstrap System (January 2026)
+The system auto-configures based on deployment target with zero manual configuration:
+*   **Environment Detection** (`lib/env-bootstrap.ts`): Auto-detects Linode, Ubuntu Home, Windows VM, or Replit
+*   **Service Registry** (`lib/service-registry.ts`): PostgreSQL-backed registry with heartbeat (30s), capability metadata, and discovery
+*   **Peer Discovery** (`lib/peer-discovery.ts`): Multi-layer fallback: registry → cache → environment config → env vars
+*   **Secrets Manager** (`lib/secrets-manager.ts`): Per-node token generation, rotation, and environment-aware secret loading
+*   **Bootstrap Scripts**: Idempotent deployment scripts for each environment:
+    - `deploy/linode/bootstrap.sh` - Dashboard, Discord Bot, Stream Bot
+    - `deploy/ubuntu-home/bootstrap.sh` - WoL Relay, KVM management
+    - `deploy/windows/startup.ps1` - AI services, Nebula Agent
+*   **Environment Configs** (`config/environments/`): Per-target configuration (ports, paths, peers, capabilities)
+
+### Multi-Node Cluster Management (January 2026)
 Jarvis now includes full multi-node orchestration capabilities:
-*   **Node Registration**: Auto-discovers Linode, Ubuntu Home, and Windows VM from server-config-store
+*   **Node Registration**: Auto-discovers Linode, Ubuntu Home, and Windows VM from service registry
 *   **Capability Tracking**: 150+ capabilities mapped across nodes (AI, Docker, VM management, etc.)
 *   **Unified Execution**: `executeOnNode()` uses SSH for Linux servers, HTTP Agent API for Windows VM
 *   **Job Routing**: Automatically routes tasks to the best node based on capability requirements
