@@ -65,6 +65,16 @@ A Node.js/Express agent (`services/nebula-agent`) runs on the Windows VM to rece
 *   **Endpoints**: `/api/health`, `/api/execute`, `/api/models`, `/api/services`, `/api/git`
 *   **SD Model Management**: `/api/sd/status`, `/api/sd/models`, `/api/sd/switch-model`
 *   **PM2 Managed**: Auto-starts on boot via PM2
+*   **Setup**: Run `setup.ps1` as Administrator, or manually: `npm install && npm run build && npm run pm2:start`
+
+### Command Center (January 2026)
+A unified dashboard page (`/command-center`) provides centralized control of all deployment environments:
+*   **API Endpoint**: `/api/command-center` aggregates data from registry, health, and peer discovery
+*   **Environment Cards**: Real-time status of Linode, Ubuntu Home, Windows VM, and Replit
+*   **Topology View**: Visual representation of infrastructure with Tailscale mesh connections
+*   **Quick Actions**: Wake VM, restart services (Ollama, ComfyUI), sync registry, health checks
+*   **Metrics**: Service counts, online status, issue tracking with severity levels
+*   **Sidebar Location**: Infrastructure → Command Center (first item)
 
 ### Autonomous Code Generation Pipeline (NEW - January 2026)
 The system can now generate code autonomously using local Ollama models:

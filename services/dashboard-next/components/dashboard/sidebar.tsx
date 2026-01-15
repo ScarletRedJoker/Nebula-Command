@@ -35,6 +35,7 @@ import {
   Play,
   Cog,
   Zap,
+  Network,
   type LucideIcon,
 } from "lucide-react";
 import { useState } from "react";
@@ -84,6 +85,7 @@ const navGroups: NavGroup[] = [
     icon: Server,
     defaultOpen: true,
     items: [
+      { href: "/command-center", label: "Command Center", icon: Network },
       { href: "/production-control", label: "Production Control", icon: Rocket },
       { href: "/infrastructure", label: "Infrastructure", icon: Server },
       { href: "/servers", label: "Servers", icon: HardDrive },
