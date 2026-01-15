@@ -11,6 +11,36 @@ import { getEnv } from "./env";
 import { validateEnvironment } from "./utils/env-validator";
 
 /**
+ * Bootstrap secrets from environment-appropriate sources
+ * Loads from: env vars → .env file → secrets directory
+ */
+async function bootstrapSecrets(): Promise<void> {
+  try {
+    const { bootstrapSecrets: loadSecrets } = await import("../../../lib/shared/load-secrets");
+    const result = await loadSecrets([
+      "DATABASE_URL",
+      "SESSION_SECRET",
+      "TWITCH_CLIENT_ID",
+      "TWITCH_CLIENT_SECRET",
+      "YOUTUBE_CLIENT_ID",
+      "YOUTUBE_CLIENT_SECRET",
+      "SPOTIFY_CLIENT_ID",
+      "SPOTIFY_CLIENT_SECRET",
+    ]);
+    
+    if (result.missing.length > 0) {
+      console.warn(`[Secrets] Missing: ${result.missing.join(", ")}`);
+    } else {
+      console.log(`[Secrets] Loaded from ${result.source} for ${result.environment}`);
+    }
+  } catch (error) {
+    console.warn("[Secrets] Bootstrap skipped (using env vars only):", error);
+  }
+}
+
+bootstrapSecrets();
+
+/**
  * Validate all required environment variables early in startup
  * In production, exits if required secrets are missing
  * In development, warns but continues

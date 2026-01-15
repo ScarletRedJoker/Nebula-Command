@@ -1,8 +1,13 @@
 /**
  * Peer Discovery - High-level service discovery with caching and fallback
  * Enables auto-discovery of services across environments with graceful degradation
+ * 
+ * Discovery chain: local registry → remote registry API → cache → environment config → static fallback
  */
 
+import { readFile } from "fs/promises";
+import { existsSync } from "fs";
+import { join } from "path";
 import { type Environment, detectEnvironment } from "./env-bootstrap";
 
 export interface PeerService {
@@ -26,30 +31,213 @@ interface EndpointConfig {
   protocol?: "http" | "https";
 }
 
+interface PeerConfig {
+  discovery?: string;
+  endpoint?: string;
+  capabilities?: string[];
+  vmName?: string;
+  macAddress?: string;
+  requiresVpn?: boolean;
+}
+
+interface EnvironmentConfig {
+  environment: string;
+  description?: string;
+  isProduction?: boolean;
+  registryApiUrl?: string;
+  services?: string[];
+  ports?: Record<string, number>;
+  paths?: Record<string, string | Record<string, string>>;
+  peers?: Record<string, PeerConfig>;
+  capabilities?: string[];
+  networking?: Record<string, unknown>;
+}
+
 type ServiceChangeCallback = (service: PeerService, event: "added" | "updated" | "removed") => void;
 
 const CACHE_TTL = 60000;
 const HEALTH_CHECK_TIMEOUT = 5000;
-const FALLBACK_ENDPOINTS: Record<string, EndpointConfig[]> = {
+const REMOTE_REGISTRY_TIMEOUT = 10000;
+const DEFAULT_REGISTRY_API_URL = "https://dash.evindrake.net/api/registry";
+
+let environmentConfigCache: { config: EnvironmentConfig | null; loadedAt: number } | null = null;
+const ENV_CONFIG_CACHE_TTL = 300000;
+
+function resolveEnvVariables(value: string): string {
+  return value.replace(/\$\{([^}]+)\}/g, (_, varName) => {
+    return process.env[varName] || "";
+  });
+}
+
+async function loadEnvironmentConfig(): Promise<EnvironmentConfig | null> {
+  if (environmentConfigCache && Date.now() - environmentConfigCache.loadedAt < ENV_CONFIG_CACHE_TTL) {
+    return environmentConfigCache.config;
+  }
+
+  const env = detectEnvironment();
+  const configPaths = [
+    join(process.cwd(), `config/environments/${env}.json`),
+    join(process.cwd(), `../../config/environments/${env}.json`),
+    `/opt/homelab/NebulaCommand/config/environments/${env}.json`,
+    `/opt/nebula/config/environments/${env}.json`,
+  ];
+
+  for (const configPath of configPaths) {
+    try {
+      if (existsSync(configPath)) {
+        const content = await readFile(configPath, "utf-8");
+        const config = JSON.parse(content) as EnvironmentConfig;
+        console.log(`[PeerDiscovery] Loaded environment config from ${configPath}`);
+        environmentConfigCache = { config, loadedAt: Date.now() };
+        return config;
+      }
+    } catch (error) {
+      console.warn(`[PeerDiscovery] Failed to load config from ${configPath}:`, error);
+    }
+  }
+
+  console.warn(`[PeerDiscovery] No environment config found for ${env}`);
+  environmentConfigCache = { config: null, loadedAt: Date.now() };
+  return null;
+}
+
+function parseEndpointFromConfig(endpoint: string): EndpointConfig | null {
+  const resolved = resolveEnvVariables(endpoint);
+  if (!resolved) return null;
+
+  const match = resolved.match(/^(?:(https?):\/\/)?([^:\/]+)(?::(\d+))?/);
+  if (!match) return null;
+
+  return {
+    protocol: (match[1] as "http" | "https") || "http",
+    host: match[2],
+    port: match[3] ? parseInt(match[3], 10) : 80,
+  };
+}
+
+async function getEndpointsFromEnvironmentConfig(capability: string): Promise<EndpointConfig[]> {
+  const config = await loadEnvironmentConfig();
+  if (!config?.peers) return [];
+
+  const endpoints: EndpointConfig[] = [];
+
+  for (const [peerName, peerConfig] of Object.entries(config.peers)) {
+    if (peerConfig.capabilities?.includes(capability) && peerConfig.endpoint) {
+      const parsed = parseEndpointFromConfig(peerConfig.endpoint);
+      if (parsed) {
+        endpoints.push(parsed);
+      }
+    }
+  }
+
+  return endpoints;
+}
+
+function getRegistryApiUrl(): string {
+  return process.env.NEBULA_REGISTRY_API_URL || 
+         process.env.REGISTRY_API_URL || 
+         DEFAULT_REGISTRY_API_URL;
+}
+
+function getAgentToken(): string | null {
+  return process.env.NEBULA_AGENT_TOKEN || null;
+}
+
+async function fetchRemoteRegistryDirect(
+  path: string,
+  options: RequestInit = {}
+): Promise<Response> {
+  const baseUrl = getRegistryApiUrl();
+  const url = path ? `${baseUrl}${path}` : baseUrl;
+  const token = getAgentToken();
+  
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(options.headers as Record<string, string> || {}),
+  };
+  
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REMOTE_REGISTRY_TIMEOUT);
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers,
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    return response;
+  } catch (error) {
+    clearTimeout(timeout);
+    throw error;
+  }
+}
+
+function parseRemoteServiceToPeer(data: any): PeerService {
+  const lastSeen = new Date(data.lastHeartbeat || data.lastSeen || Date.now());
+  const HEALTH_TIMEOUT = 90000;
+  
+  return {
+    name: data.serviceName || data.name,
+    environment: data.environment || "unknown",
+    endpoint: data.endpoint,
+    capabilities: data.capabilities || [],
+    lastSeen,
+    healthy: data.isHealthy !== undefined ? data.isHealthy : (Date.now() - lastSeen.getTime() < HEALTH_TIMEOUT),
+    metadata: data.metadata || {},
+  };
+}
+
+const STATIC_FALLBACK_ENDPOINTS: Record<string, EndpointConfig[]> = {
   ai: [
-    { host: process.env.WINDOWS_VM_TAILSCALE_IP || "100.118.44.102", port: 9765 },
+    { host: "localhost", port: 9765 },
   ],
   ollama: [
-    { host: process.env.WINDOWS_VM_TAILSCALE_IP || "100.118.44.102", port: 11434 },
+    { host: "localhost", port: 11434 },
   ],
   "stable-diffusion": [
-    { host: process.env.WINDOWS_VM_TAILSCALE_IP || "100.118.44.102", port: 7860 },
+    { host: "localhost", port: 7860 },
   ],
   comfyui: [
-    { host: process.env.WINDOWS_VM_TAILSCALE_IP || "100.118.44.102", port: 8188 },
+    { host: "localhost", port: 8188 },
   ],
   wol: [
-    { host: process.env.HOME_SSH_HOST || "host.evindrake.net", port: 22 },
+    { host: "localhost", port: 22 },
   ],
   dashboard: [
-    { host: process.env.DASHBOARD_HOST || "localhost", port: 5000 },
+    { host: "localhost", port: 5000 },
   ],
 };
+
+function getEnvFallbackEndpoints(capability: string): EndpointConfig[] {
+  const envHost = process.env.WINDOWS_VM_TAILSCALE_IP;
+  const homeHost = process.env.HOME_SSH_HOST;
+  const dashHost = process.env.DASHBOARD_HOST;
+
+  switch (capability) {
+    case "ai":
+      return envHost ? [{ host: envHost, port: 9765 }] : [];
+    case "ollama":
+      return envHost ? [{ host: envHost, port: 11434 }] : [];
+    case "stable-diffusion":
+      return envHost ? [{ host: envHost, port: 7860 }] : [];
+    case "comfyui":
+      return envHost ? [{ host: envHost, port: 8188 }] : [];
+    case "wol":
+    case "ssh":
+    case "ssh-gateway":
+      return homeHost ? [{ host: homeHost, port: 22 }] : [];
+    case "dashboard":
+    case "registry":
+      return dashHost ? [{ host: dashHost, port: 5000 }] : [];
+    default:
+      return [];
+  }
+}
 
 class PeerDiscovery {
   private cache: Map<string, CacheEntry> = new Map();
@@ -84,8 +272,14 @@ class PeerDiscovery {
         return peerService;
       }
     } catch (error) {
-      console.warn(`[PeerDiscovery] Registry unavailable for ${serviceName}:`, error);
+      console.warn(`[PeerDiscovery] Local registry unavailable for ${serviceName}:`, error);
       this.registryAvailable = false;
+    }
+
+    const remoteService = await this.discoverViaRemoteRegistryApi(serviceName);
+    if (remoteService) {
+      this.cache.set(serviceName, { service: remoteService, cachedAt: Date.now() });
+      return remoteService;
     }
 
     if (cached) {
@@ -94,6 +288,30 @@ class PeerDiscovery {
     }
 
     return null;
+  }
+
+  private async discoverViaRemoteRegistryApi(serviceName: string): Promise<PeerService | null> {
+    try {
+      console.log(`[PeerDiscovery] Trying remote registry API for ${serviceName}`);
+      const response = await fetchRemoteRegistryDirect(`?name=${encodeURIComponent(serviceName)}`, {
+        method: "GET",
+      });
+
+      if (!response.ok) {
+        console.warn(`[PeerDiscovery] Remote registry API returned ${response.status}`);
+        return null;
+      }
+
+      const result = await response.json();
+      if (result.success && result.service) {
+        console.log(`[PeerDiscovery] Found ${serviceName} via remote registry API`);
+        return parseRemoteServiceToPeer(result.service);
+      }
+      return null;
+    } catch (error) {
+      console.warn(`[PeerDiscovery] Remote registry API error for ${serviceName}:`, error);
+      return null;
+    }
   }
 
   async discoverByCapability(capability: string): Promise<PeerService[]> {
@@ -106,27 +324,38 @@ class PeerDiscovery {
       const { discoverByCapability } = await import("./service-registry");
       const services = await discoverByCapability(capability);
       
-      const peerServices: PeerService[] = services.map(s => ({
-        name: s.name,
-        environment: s.environment,
-        endpoint: s.endpoint,
-        capabilities: s.capabilities,
-        healthy: s.isHealthy,
-        lastSeen: s.lastSeen,
-        metadata: s.metadata,
-      }));
-      
-      this.capabilityCache.set(capability, { services: peerServices, cachedAt: Date.now() });
-      this.registryAvailable = true;
-      
-      for (const service of peerServices) {
+      if (services.length > 0) {
+        const peerServices: PeerService[] = services.map(s => ({
+          name: s.name,
+          environment: s.environment,
+          endpoint: s.endpoint,
+          capabilities: s.capabilities,
+          healthy: s.isHealthy,
+          lastSeen: s.lastSeen,
+          metadata: s.metadata,
+        }));
+        
+        this.capabilityCache.set(capability, { services: peerServices, cachedAt: Date.now() });
+        this.registryAvailable = true;
+        
+        for (const service of peerServices) {
+          this.cache.set(service.name, { service, cachedAt: Date.now() });
+        }
+        
+        return peerServices;
+      }
+    } catch (error) {
+      console.warn(`[PeerDiscovery] Local registry unavailable for capability ${capability}:`, error);
+      this.registryAvailable = false;
+    }
+
+    const remoteServices = await this.discoverByCapabilityViaRemoteApi(capability);
+    if (remoteServices.length > 0) {
+      this.capabilityCache.set(capability, { services: remoteServices, cachedAt: Date.now() });
+      for (const service of remoteServices) {
         this.cache.set(service.name, { service, cachedAt: Date.now() });
       }
-      
-      return peerServices;
-    } catch (error) {
-      console.warn(`[PeerDiscovery] Registry unavailable for capability ${capability}:`, error);
-      this.registryAvailable = false;
+      return remoteServices;
     }
 
     if (cached) {
@@ -135,6 +364,30 @@ class PeerDiscovery {
     }
 
     return [];
+  }
+
+  private async discoverByCapabilityViaRemoteApi(capability: string): Promise<PeerService[]> {
+    try {
+      console.log(`[PeerDiscovery] Trying remote registry API for capability ${capability}`);
+      const response = await fetchRemoteRegistryDirect(`?capability=${encodeURIComponent(capability)}`, {
+        method: "GET",
+      });
+
+      if (!response.ok) {
+        console.warn(`[PeerDiscovery] Remote registry API returned ${response.status}`);
+        return [];
+      }
+
+      const result = await response.json();
+      if (result.success && Array.isArray(result.services)) {
+        console.log(`[PeerDiscovery] Found ${result.services.length} services for ${capability} via remote API`);
+        return result.services.map(parseRemoteServiceToPeer);
+      }
+      return [];
+    } catch (error) {
+      console.warn(`[PeerDiscovery] Remote registry API error for capability ${capability}:`, error);
+      return [];
+    }
   }
 
   async getBestEndpoint(capability: string): Promise<string | null> {
@@ -211,9 +464,9 @@ class PeerDiscovery {
       }
     }
 
-    const fallbackEndpoints = FALLBACK_ENDPOINTS[capability];
-    if (fallbackEndpoints) {
-      for (const config of fallbackEndpoints) {
+    const configEndpoints = await getEndpointsFromEnvironmentConfig(capability);
+    if (configEndpoints.length > 0) {
+      for (const config of configEndpoints) {
         const endpoint = `${config.protocol || "http"}://${config.host}:${config.port}`;
         if (!options?.healthCheck) {
           return { endpoint, source: "config" };
@@ -225,9 +478,26 @@ class PeerDiscovery {
       }
     }
 
-    const envEndpoint = this.getEnvEndpoint(capability);
-    if (envEndpoint) {
-      return { endpoint: envEndpoint, source: "env" };
+    const envEndpoints = getEnvFallbackEndpoints(capability);
+    if (envEndpoints.length > 0) {
+      for (const config of envEndpoints) {
+        const endpoint = `${config.protocol || "http"}://${config.host}:${config.port}`;
+        if (!options?.healthCheck) {
+          return { endpoint, source: "env" };
+        }
+        const isHealthy = await this.checkEndpointHealth(endpoint);
+        if (isHealthy) {
+          return { endpoint, source: "env" };
+        }
+      }
+    }
+
+    const staticEndpoints = STATIC_FALLBACK_ENDPOINTS[capability];
+    if (staticEndpoints) {
+      for (const config of staticEndpoints) {
+        const endpoint = `${config.protocol || "http"}://${config.host}:${config.port}`;
+        return { endpoint, source: "config" };
+      }
     }
 
     return null;
@@ -257,8 +527,22 @@ class PeerDiscovery {
       return healthy.length > 0 ? healthy[0] : wolServices[0];
     }
 
-    const fallback = FALLBACK_ENDPOINTS["wol"]?.[0];
-    if (fallback) {
+    const configEndpoints = await getEndpointsFromEnvironmentConfig("wol");
+    if (configEndpoints.length > 0) {
+      const fallback = configEndpoints[0];
+      return {
+        name: "home",
+        environment: "ubuntu-home",
+        endpoint: `ssh://${fallback.host}:${fallback.port}`,
+        capabilities: ["wol", "ssh", "relay"],
+        healthy: true,
+        lastSeen: new Date(),
+      };
+    }
+
+    const envEndpoints = getEnvFallbackEndpoints("wol");
+    if (envEndpoints.length > 0) {
+      const fallback = envEndpoints[0];
       return {
         name: "home",
         environment: "ubuntu-home",
@@ -283,10 +567,20 @@ class PeerDiscovery {
       return { host, port: portStr ? parseInt(portStr, 10) : 9765 };
     }
 
-    return {
-      host: process.env.WINDOWS_VM_TAILSCALE_IP || "100.118.44.102",
-      port: parseInt(process.env.WINDOWS_AGENT_PORT || "9765", 10),
-    };
+    const configEndpoints = await getEndpointsFromEnvironmentConfig("ai");
+    if (configEndpoints.length > 0) {
+      return { host: configEndpoints[0].host, port: configEndpoints[0].port };
+    }
+
+    const envHost = process.env.WINDOWS_VM_TAILSCALE_IP;
+    if (envHost) {
+      return {
+        host: envHost,
+        port: parseInt(process.env.WINDOWS_AGENT_PORT || "9765", 10),
+      };
+    }
+
+    return null;
   }
 
   onServiceChange(callback: ServiceChangeCallback): () => void {
@@ -341,11 +635,25 @@ class PeerDiscovery {
   }
 
   private async getFallbackEndpoint(capability: string): Promise<string | null> {
-    const configs = FALLBACK_ENDPOINTS[capability];
-    if (!configs?.length) return null;
+    const configEndpoints = await getEndpointsFromEnvironmentConfig(capability);
+    if (configEndpoints.length > 0) {
+      const config = configEndpoints[0];
+      return `${config.protocol || "http"}://${config.host}:${config.port}`;
+    }
 
-    const config = configs[0];
-    return `${config.protocol || "http"}://${config.host}:${config.port}`;
+    const envEndpoints = getEnvFallbackEndpoints(capability);
+    if (envEndpoints.length > 0) {
+      const config = envEndpoints[0];
+      return `${config.protocol || "http"}://${config.host}:${config.port}`;
+    }
+
+    const staticConfigs = STATIC_FALLBACK_ENDPOINTS[capability];
+    if (staticConfigs?.length) {
+      const config = staticConfigs[0];
+      return `${config.protocol || "http"}://${config.host}:${config.port}`;
+    }
+
+    return null;
   }
 
   private getEnvEndpoint(capability: string): string | null {

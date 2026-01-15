@@ -2,6 +2,7 @@
   "environment": "replit",
   "description": "Development environment - Limited capabilities, remote AI access",
   "isProduction": false,
+  "registryApiUrl": "https://dash.evindrake.net/api/registry",
   "services": ["dashboard", "discord-bot", "stream-bot"],
   "ports": {
     "dashboard": 5000,

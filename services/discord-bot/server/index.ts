@@ -53,6 +53,33 @@ function log(message: string, source = "express") {
  */
 dotenv.config();
 
+/**
+ * Bootstrap secrets from environment-appropriate sources
+ * Loads from: env vars → .env file → secrets directory
+ */
+async function bootstrapSecrets(): Promise<void> {
+  try {
+    const { bootstrapSecrets: loadSecrets } = await import("../../../lib/shared/load-secrets");
+    const result = await loadSecrets([
+      "DATABASE_URL",
+      "DISCORD_TOKEN",
+      "DISCORD_CLIENT_ID",
+      "DISCORD_CLIENT_SECRET",
+      "SESSION_SECRET",
+    ]);
+    
+    if (result.missing.length > 0) {
+      console.warn(`[Secrets] Missing: ${result.missing.join(", ")}`);
+    } else {
+      console.log(`[Secrets] Loaded from ${result.source} for ${result.environment}`);
+    }
+  } catch (error) {
+    console.warn("[Secrets] Bootstrap skipped (using env vars only):", error);
+  }
+}
+
+bootstrapSecrets();
+
 import { validateEnvironment } from "./utils/env-validator";
 
 /**

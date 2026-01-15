@@ -6,12 +6,80 @@ import { promisify } from "util";
 import * as os from "os";
 import * as fs from "fs";
 import * as path from "path";
+import * as crypto from "crypto";
 
 const execAsync = promisify(exec);
 
 const app = express();
 const PORT = parseInt(process.env.AGENT_PORT || "9765", 10);
-const AUTH_TOKEN = process.env.NEBULA_AGENT_TOKEN;
+
+/**
+ * Per-node token system
+ * Token file location on Windows: C:\AI\nebula-agent\agent-token.txt
+ */
+const TOKEN_FILE_PATH = process.platform === "win32" 
+  ? "C:\\AI\\nebula-agent\\agent-token.txt"
+  : path.join(os.homedir(), ".nebula-agent", "agent-token.txt");
+
+interface TokenInfo {
+  token: string;
+  nodeId: string;
+  createdAt: string;
+  expiresAt: string | null;
+}
+
+function generateNodeToken(nodeId: string): TokenInfo {
+  const tokenBytes = crypto.randomBytes(32);
+  const token = tokenBytes.toString("base64url");
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+
+  return {
+    token,
+    nodeId,
+    createdAt: now.toISOString(),
+    expiresAt: expiresAt.toISOString(),
+  };
+}
+
+function loadTokenFromFile(filePath: string): TokenInfo | null {
+  try {
+    if (!fs.existsSync(filePath)) {
+      return null;
+    }
+    const content = fs.readFileSync(filePath, "utf-8");
+    return JSON.parse(content) as TokenInfo;
+  } catch {
+    return null;
+  }
+}
+
+function saveTokenToFile(tokenInfo: TokenInfo, outputPath: string): void {
+  const dir = path.dirname(outputPath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  fs.writeFileSync(outputPath, JSON.stringify(tokenInfo, null, 2));
+  console.log(`[TokenManager] Token saved to: ${outputPath}`);
+}
+
+function loadOrGenerateToken(): TokenInfo {
+  let tokenInfo = loadTokenFromFile(TOKEN_FILE_PATH);
+  
+  if (!tokenInfo) {
+    const nodeId = `${os.hostname()}-${os.platform()}`;
+    console.log(`[TokenManager] No token found, generating new one for node: ${nodeId}`);
+    tokenInfo = generateNodeToken(nodeId);
+    saveTokenToFile(tokenInfo, TOKEN_FILE_PATH);
+  } else {
+    console.log(`[TokenManager] Loaded existing token for node: ${tokenInfo.nodeId}`);
+  }
+
+  return tokenInfo;
+}
+
+const tokenInfo = loadOrGenerateToken();
+const AUTH_TOKEN = tokenInfo.token;
 
 app.use(helmet());
 app.use(cors());
@@ -668,13 +736,25 @@ app.post("/api/sd/switch-model", async (req, res) => {
   }
 });
 
+app.get("/api/token-info", (req, res) => {
+  res.json({
+    success: true,
+    nodeId: tokenInfo.nodeId,
+    createdAt: tokenInfo.createdAt,
+    expiresAt: tokenInfo.expiresAt,
+    tokenFile: TOKEN_FILE_PATH,
+  });
+});
+
 app.get("/", (req, res) => {
   res.json({
     name: "Nebula Agent",
     version: "1.0.0",
     status: "running",
+    nodeId: tokenInfo.nodeId,
     endpoints: [
       "GET  /api/health",
+      "GET  /api/token-info",
       "POST /api/execute",
       "GET  /api/models",
       "GET  /api/services",
@@ -694,7 +774,9 @@ const server = app.listen(PORT, "0.0.0.0", async () => {
 ║   Windows VM Management Service                ║
 ╠════════════════════════════════════════════════╣
 ║   Listening on: http://0.0.0.0:${PORT}            ║
-║   Auth: ${AUTH_TOKEN ? "Enabled" : "Disabled (set NEBULA_AGENT_TOKEN)"}                 ║
+║   Node ID: ${tokenInfo.nodeId.substring(0, 30).padEnd(30)}     ║
+║   Token: Per-node (loaded from file)           ║
+║   Token File: ${TOKEN_FILE_PATH.substring(0, 29).padEnd(29)}  ║
 ╚════════════════════════════════════════════════╝
   `);
 

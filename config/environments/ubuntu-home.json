@@ -2,6 +2,7 @@
   "environment": "ubuntu-home",
   "description": "Home server - KVM hypervisor, WoL relay, Plex, NAS",
   "isProduction": true,
+  "registryApiUrl": "https://dash.evindrake.net/api/registry",
   "services": ["relay", "kvm-manager", "plex"],
   "ports": {
     "ssh": 22,

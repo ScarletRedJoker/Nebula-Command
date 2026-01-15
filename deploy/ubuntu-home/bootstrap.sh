@@ -4,14 +4,25 @@
 # Services: WoL Relay, KVM management, Plex, SSH Gateway
 #
 # This script is idempotent - safe to run multiple times
+# Handles first-run provisioning on fresh nodes
 #
 
 set -e
 
+cleanup() {
+    local exit_code=$?
+    if [[ $exit_code -ne 0 ]]; then
+        log ERROR "Bootstrap failed with exit code $exit_code"
+        log ERROR "Check $LOG_FILE for details"
+    fi
+}
+trap cleanup EXIT
+
 export NEBULA_ENV=ubuntu-home
 export NEBULA_ROLE=relay
 export NEBULA_DIR="${NEBULA_DIR:-/opt/nebula}"
-export LOG_FILE="${LOG_FILE:-/var/log/nebula/bootstrap.log}"
+export LOG_DIR="${LOG_DIR:-/var/log/nebula}"
+export LOG_FILE="${LOG_FILE:-$LOG_DIR/bootstrap.log}"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -32,7 +43,22 @@ log() {
         *)     color=$NC ;;
     esac
     
-    echo -e "${color}[$timestamp] [$level] $msg${NC}" | tee -a "$LOG_FILE"
+    mkdir -p "$LOG_DIR" 2>/dev/null || true
+    echo -e "${color}[$timestamp] [$level] $msg${NC}" | tee -a "$LOG_FILE" 2>/dev/null || echo "[$timestamp] [$level] $msg"
+}
+
+create_directories() {
+    log INFO "Creating required directories..."
+    
+    mkdir -p /opt/nebula
+    mkdir -p /opt/nebula/data
+    mkdir -p /opt/nebula/secrets
+    mkdir -p /opt/nebula/docker
+    mkdir -p "$LOG_DIR"
+    
+    chmod 700 /opt/nebula/secrets 2>/dev/null || true
+    
+    log INFO "  Directories created"
 }
 
 detect_environment() {
@@ -49,6 +75,65 @@ detect_environment() {
     export NEBULA_ENV=ubuntu-home
 }
 
+check_and_install_tools() {
+    log INFO "Checking required tools..."
+    
+    local missing_tools=()
+    
+    if ! command -v git &> /dev/null; then
+        missing_tools+=("git")
+    fi
+    
+    if ! command -v curl &> /dev/null; then
+        missing_tools+=("curl")
+    fi
+    
+    if [[ ${#missing_tools[@]} -gt 0 ]]; then
+        log INFO "  Installing missing tools: ${missing_tools[*]}"
+        
+        if command -v apt-get &> /dev/null; then
+            sudo apt-get update -qq 2>/dev/null || true
+            sudo apt-get install -y "${missing_tools[@]}" 2>/dev/null || log WARN "  Failed to install some tools"
+        fi
+    else
+        log INFO "  All required tools present"
+    fi
+}
+
+generate_secrets() {
+    log INFO "Checking secrets..."
+    
+    local secrets_dir="$NEBULA_DIR/secrets"
+    local env_file="$NEBULA_DIR/.env"
+    
+    mkdir -p "$secrets_dir" 2>/dev/null || true
+    
+    if [[ ! -f "$secrets_dir/agent-token" ]]; then
+        log INFO "  Generating agent token..."
+        openssl rand -base64 32 2>/dev/null | tr '+/' '-_' | tr -d '=' > "$secrets_dir/agent-token" || \
+            head -c 32 /dev/urandom | base64 | tr '+/' '-_' | tr -d '=' > "$secrets_dir/agent-token"
+        chmod 600 "$secrets_dir/agent-token" 2>/dev/null || true
+    fi
+    
+    if [[ ! -f "$env_file" ]]; then
+        log INFO "  Creating .env template..."
+        cat > "$env_file" << 'EOF'
+# Nebula Command - Ubuntu Home Environment Configuration
+
+# Windows VM settings
+WINDOWS_VM_NAME=windows11
+WINDOWS_VM_MAC=
+
+# Plex settings
+PLEX_TOKEN=
+
+# Transmission settings
+TRANSMISSION_PASSWORD=
+EOF
+        chmod 600 "$env_file" 2>/dev/null || true
+    fi
+}
+
 load_secrets() {
     log INFO "Loading secrets..."
     
@@ -58,16 +143,18 @@ load_secrets() {
     if [[ -f "$env_file" ]]; then
         log INFO "  Loading from $env_file"
         set -a
-        source "$env_file"
+        source "$env_file" 2>/dev/null || true
         set +a
+    else
+        log WARN "  No .env file found at $env_file"
     fi
     
     if [[ -d "$secrets_dir" ]]; then
         for secret_file in "$secrets_dir"/*; do
             if [[ -f "$secret_file" ]]; then
                 local key=$(basename "$secret_file")
-                local value=$(cat "$secret_file")
-                export "$key"="$value"
+                local value=$(cat "$secret_file" 2>/dev/null)
+                export "$key"="$value" 2>/dev/null || true
             fi
         done
     fi
@@ -78,12 +165,12 @@ load_secrets() {
 start_libvirtd() {
     log INFO "Starting libvirtd..."
     
-    if systemctl list-unit-files | grep -q libvirtd; then
-        sudo systemctl start libvirtd
+    if systemctl list-unit-files 2>/dev/null | grep -q libvirtd; then
+        sudo systemctl start libvirtd 2>/dev/null || log WARN "  Failed to start libvirtd"
         sleep 2
-        log INFO "  libvirtd: $(systemctl is-active libvirtd)"
+        log INFO "  libvirtd: $(systemctl is-active libvirtd 2>/dev/null || echo 'not installed')"
     else
-        log WARN "  libvirtd not installed"
+        log WARN "  libvirtd not installed (run: sudo apt install qemu-kvm libvirt-daemon-system)"
     fi
 }
 
@@ -92,7 +179,7 @@ mount_nas_shares() {
     
     sudo mount -a 2>/dev/null || log WARN "  Some mounts may have failed"
     
-    local mount_count=$(mount | grep -cE '(nas|nfs|cifs)' || echo 0)
+    local mount_count=$(mount 2>/dev/null | grep -cE '(nas|nfs|cifs)' || echo 0)
     log INFO "  NAS mounts: $mount_count active"
 }
 
@@ -124,7 +211,7 @@ start_windows_vm() {
                 break
             fi
             sleep 2
-            ((attempts++))
+            ((attempts++)) || true
         done
     else
         log WARN "  $vm_name: $vm_state"
@@ -135,11 +222,11 @@ start_docker_services() {
     log INFO "Starting Docker services..."
     
     if ! command -v docker &> /dev/null; then
-        log WARN "  Docker not installed"
+        log WARN "  Docker not installed (run: curl -fsSL https://get.docker.com | sh)"
         return
     fi
     
-    sudo systemctl start docker
+    sudo systemctl start docker 2>/dev/null || log WARN "  Failed to start Docker"
     
     local compose_files=(
         "$NEBULA_DIR/docker/plex/docker-compose.yml"
@@ -159,7 +246,7 @@ start_vnc_server() {
     log INFO "Starting VNC server..."
     
     if ! command -v vncserver &> /dev/null; then
-        log WARN "  VNC server not installed"
+        log WARN "  VNC server not installed (run: sudo apt install tigervnc-standalone-server)"
         return
     fi
     
@@ -171,11 +258,11 @@ start_vnc_server() {
 start_xrdp() {
     log INFO "Starting xrdp..."
     
-    if systemctl list-unit-files | grep -q xrdp; then
-        sudo systemctl start xrdp
-        log INFO "  xrdp: $(systemctl is-active xrdp)"
+    if systemctl list-unit-files 2>/dev/null | grep -q xrdp; then
+        sudo systemctl start xrdp 2>/dev/null || log WARN "  Failed to start xrdp"
+        log INFO "  xrdp: $(systemctl is-active xrdp 2>/dev/null || echo 'not installed')"
     else
-        log WARN "  xrdp not installed"
+        log WARN "  xrdp not installed (run: sudo apt install xrdp)"
     fi
 }
 
@@ -187,7 +274,7 @@ verify_tailscale() {
         log INFO "  Tailscale IP: $ts_ip"
         export TAILSCALE_IP="$ts_ip"
     else
-        log WARN "  Tailscale not installed"
+        log WARN "  Tailscale not installed (run: curl -fsSL https://tailscale.com/install.sh | sh)"
     fi
 }
 
@@ -199,6 +286,7 @@ setup_wol_relay() {
         log INFO "  WoL relay ready for Windows VM wake requests"
     else
         log WARN "  WINDOWS_VM_MAC not set, WoL relay disabled"
+        log WARN "  Set WINDOWS_VM_MAC in $NEBULA_DIR/.env"
     fi
 }
 
@@ -209,11 +297,11 @@ print_summary() {
     log INFO "=========================================="
     echo ""
     log INFO "Services Status:"
-    log INFO "  libvirtd:    $(systemctl is-active libvirtd 2>/dev/null || echo 'unknown')"
-    log INFO "  Windows VM:  $(sudo virsh domstate ${WINDOWS_VM_NAME:-windows11} 2>/dev/null || echo 'unknown')"
-    log INFO "  Docker:      $(systemctl is-active docker 2>/dev/null || echo 'unknown')"
+    log INFO "  libvirtd:    $(systemctl is-active libvirtd 2>/dev/null || echo 'not installed')"
+    log INFO "  Windows VM:  $(sudo virsh domstate ${WINDOWS_VM_NAME:-windows11} 2>/dev/null || echo 'not configured')"
+    log INFO "  Docker:      $(systemctl is-active docker 2>/dev/null || echo 'not installed')"
     log INFO "  VNC (:5901): $(vncserver -list 2>/dev/null | grep -c ':1' || echo '0') sessions"
-    log INFO "  xrdp:        $(systemctl is-active xrdp 2>/dev/null || echo 'unknown')"
+    log INFO "  xrdp:        $(systemctl is-active xrdp 2>/dev/null || echo 'not installed')"
     echo ""
     log INFO "Remote Access:"
     log INFO "  VNC:  vnc://${TAILSCALE_IP:-localhost}:5901"
@@ -227,11 +315,11 @@ print_summary() {
     log INFO "  - Plex media server"
     log INFO "  - NAS connectivity"
     echo ""
+    log INFO "Logs: $LOG_FILE"
+    echo ""
 }
 
 main() {
-    mkdir -p /var/log/nebula
-    
     echo ""
     log INFO "=========================================="
     log INFO "Nebula Command - Ubuntu Home Bootstrap"
@@ -239,7 +327,10 @@ main() {
     log INFO "=========================================="
     echo ""
     
+    create_directories
     detect_environment
+    check_and_install_tools
+    generate_secrets
     load_secrets
     start_libvirtd
     mount_nas_shares

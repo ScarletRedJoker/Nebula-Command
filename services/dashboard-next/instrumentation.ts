@@ -1,6 +1,19 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
     try {
+      const { bootstrapSecrets } = await import("./lib/secrets-manager");
+      const secretsResult = await bootstrapSecrets();
+      
+      if (secretsResult.missing.length > 0) {
+        console.warn(`[Instrumentation] Missing secrets: ${secretsResult.missing.join(", ")}`);
+      } else {
+        console.log(`[Instrumentation] Secrets loaded from ${secretsResult.source} for ${secretsResult.environment}`);
+      }
+    } catch (error) {
+      console.warn("[Instrumentation] Secrets bootstrap skipped:", error);
+    }
+
+    try {
       const { registerSelfWithCapabilities } = await import("./lib/peer-discovery");
       
       const port = parseInt(process.env.PORT || "5000", 10);

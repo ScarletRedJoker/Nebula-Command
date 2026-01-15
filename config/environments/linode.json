@@ -2,6 +2,7 @@
   "environment": "linode",
   "description": "Public cloud server - Dashboard, Discord Bot, Stream Bot",
   "isProduction": true,
+  "registryApiUrl": "https://dash.evindrake.net/api/registry",
   "services": ["dashboard", "discord-bot", "stream-bot"],
   "ports": {
     "dashboard": 5000,

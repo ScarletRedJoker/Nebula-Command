@@ -2,6 +2,7 @@
   "environment": "windows-vm",
   "description": "Windows 11 VM - AI workstation with GPU passthrough",
   "isProduction": true,
+  "registryApiUrl": "https://dash.evindrake.net/api/registry",
   "services": ["nebula-agent", "ollama", "comfyui", "stable-diffusion"],
   "ports": {
     "agent": 9765,
