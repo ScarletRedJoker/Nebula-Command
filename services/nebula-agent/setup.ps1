@@ -79,29 +79,16 @@ Write-Host "  Firewall rule created for port $AgentPort" -ForegroundColor Green
 
 # Start with PM2
 Write-Host "`nStarting Nebula Agent..." -ForegroundColor Cyan
+
+# Set environment variables for current session
 $env:NEBULA_AGENT_TOKEN = $AgentToken
 $env:AGENT_PORT = $AgentPort
 
 # Stop existing if running
 pm2 delete nebula-agent 2>$null
 
-# Create ecosystem file for PM2 with env vars
-$ecosystemContent = @"
-module.exports = {
-  apps: [{
-    name: 'nebula-agent',
-    script: 'dist/index.js',
-    cwd: '$($PWD.Path.Replace('\','/'))',
-    env: {
-      NEBULA_AGENT_TOKEN: '$AgentToken',
-      AGENT_PORT: '$AgentPort'
-    }
-  }]
-}
-"@
-$ecosystemContent | Out-File -FilePath "ecosystem.config.js" -Encoding UTF8
-
-pm2 start ecosystem.config.js
+# Start with PM2 using current environment
+pm2 start dist/index.js --name nebula-agent --update-env
 pm2 save
 
 Write-Host "`n╔════════════════════════════════════════════════╗" -ForegroundColor Green
