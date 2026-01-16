@@ -84,6 +84,17 @@ The system can now generate code autonomously using local Ollama models:
 *   **Safety Features**: Code staging system, automatic backups, diff preview before apply
 *   **UI**: Jarvis page includes code generation panel with job type selector and workflow tracking
 
+### Remote Deployment Center (January 2026)
+Dashboard-based remote deployment and verification system (`/deploy`):
+*   **API Endpoint**: `/api/deploy` with actions: trigger_deploy, verify_all, get_status, sync_code, rollback
+*   **Environment Support**: Linode, Ubuntu Home, Windows VM (individual or all)
+*   **Dashboard Page**: `/deploy` with environment cards, live logs, verification panel, deployment history
+*   **SSH Deployment**: Git pull, npm ci, npm build, PM2 restart via SSH for Linux servers
+*   **Nebula Agent Integration**: Deploy to Windows VM via Nebula Agent API
+*   **Verification**: Run 19 probes across all environments with auto-remediation option
+*   **Rollback**: Track git commits and rollback to previous deployment
+*   **Live Logs**: Real-time streaming deployment logs with color-coded output
+
 ### Nebula Deployer CLI (January 2026)
 A comprehensive CLI tool (`deploy/nebula-deployer/`) for automated deployment with self-healing:
 *   **5 Commands**: `nebula deploy`, `nebula setup`, `nebula verify`, `nebula secrets`, `nebula status`
