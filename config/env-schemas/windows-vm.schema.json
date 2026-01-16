@@ -1,0 +1,235 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "nebula-command/windows-vm.schema.json",
+  "title": "Nebula Command Windows VM/Agent Environment Variables",
+  "description": "Environment variable schema for the Windows VM running Nebula Agent and AI services",
+  "type": "object",
+  "properties": {
+    "NEBULA_AGENT_TOKEN": {
+      "type": "string",
+      "description": "Authentication token for the Nebula Agent API",
+      "required": true,
+      "minLength": 32,
+      "validation": "^[a-zA-Z0-9_-]{32,}$",
+      "example": "your_secure_agent_token_64chars_hex",
+      "instructions": "Generate a secure token: openssl rand -hex 32 (or use PowerShell: -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 64 | ForEach-Object {[char]$_})). This token must match NEBULA_AGENT_TOKEN on the dashboard."
+    },
+    "AGENT_PORT": {
+      "type": "integer",
+      "description": "Port for the Nebula Agent HTTP API",
+      "required": false,
+      "default": 9765,
+      "example": "9765",
+      "instructions": "Port on which the Nebula Agent listens. Default is 9765."
+    },
+    "OLLAMA_HOST": {
+      "type": "string",
+      "description": "Ollama server bind address",
+      "required": false,
+      "default": "0.0.0.0:11434",
+      "example": "0.0.0.0:11434",
+      "instructions": "Set to 0.0.0.0:11434 to allow network access. For local-only: 127.0.0.1:11434"
+    },
+    "OLLAMA_PORT": {
+      "type": "integer",
+      "description": "Ollama server port",
+      "required": false,
+      "default": 11434,
+      "example": "11434",
+      "instructions": "Default Ollama port. Only change if you have conflicts."
+    },
+    "OLLAMA_MODELS": {
+      "type": "string",
+      "description": "Comma-separated list of Ollama models to auto-download",
+      "required": false,
+      "example": "llama3.2,mistral,codellama",
+      "instructions": "List models to download on startup. Find models at https://ollama.ai/library"
+    },
+    "OLLAMA_KEEP_ALIVE": {
+      "type": "string",
+      "description": "How long to keep models loaded in memory after last request",
+      "required": false,
+      "default": "5m",
+      "example": "5m",
+      "instructions": "Duration string (e.g., 5m, 1h, 30s). Set to '0' to unload immediately."
+    },
+    "OLLAMA_NUM_PARALLEL": {
+      "type": "integer",
+      "description": "Number of parallel requests Ollama can handle",
+      "required": false,
+      "default": 1,
+      "example": "2",
+      "instructions": "Increase for concurrent requests. Requires more VRAM."
+    },
+    "OLLAMA_MAX_LOADED_MODELS": {
+      "type": "integer",
+      "description": "Maximum number of models to keep loaded simultaneously",
+      "required": false,
+      "default": 1,
+      "example": "2",
+      "instructions": "Increase if you have sufficient VRAM for multiple models."
+    },
+    "COMFYUI_PORT": {
+      "type": "integer",
+      "description": "ComfyUI server port",
+      "required": false,
+      "default": 8188,
+      "example": "8188",
+      "instructions": "Default ComfyUI port. Access web UI at http://localhost:8188"
+    },
+    "COMFYUI_LISTEN": {
+      "type": "string",
+      "description": "ComfyUI bind address for network access",
+      "required": false,
+      "default": "0.0.0.0",
+      "example": "0.0.0.0",
+      "instructions": "Set to 0.0.0.0 for network access, 127.0.0.1 for local only."
+    },
+    "STABLE_DIFFUSION_PORT": {
+      "type": "integer",
+      "description": "Stable Diffusion WebUI (Automatic1111) port",
+      "required": false,
+      "default": 7860,
+      "example": "7860",
+      "instructions": "Default Automatic1111 WebUI port."
+    },
+    "STABLE_DIFFUSION_LISTEN": {
+      "type": "string",
+      "description": "Stable Diffusion WebUI bind address",
+      "required": false,
+      "default": "0.0.0.0",
+      "example": "0.0.0.0",
+      "instructions": "Set to 0.0.0.0 for network access. Use --listen flag when starting."
+    },
+    "SD_WEBUI_FLAGS": {
+      "type": "string",
+      "description": "Additional command-line flags for Stable Diffusion WebUI",
+      "required": false,
+      "example": "--xformers --medvram --api",
+      "instructions": "Common flags: --xformers (faster), --medvram (lower VRAM), --api (enable API)"
+    },
+    "CUDA_VISIBLE_DEVICES": {
+      "type": "string",
+      "description": "GPU devices to use (for multi-GPU systems)",
+      "required": false,
+      "default": "0",
+      "example": "0",
+      "instructions": "Comma-separated GPU indices. Use 0 for single GPU, 0,1 for two GPUs."
+    },
+    "PYTORCH_CUDA_ALLOC_CONF": {
+      "type": "string",
+      "description": "PyTorch CUDA memory allocation configuration",
+      "required": false,
+      "example": "max_split_size_mb:512",
+      "instructions": "Helps with CUDA out of memory errors. Try: max_split_size_mb:512"
+    },
+    "HF_HOME": {
+      "type": "string",
+      "description": "Hugging Face cache directory",
+      "required": false,
+      "default": "C:\\AI\\HuggingFace",
+      "example": "C:\\AI\\HuggingFace",
+      "instructions": "Directory for caching Hugging Face models. Use SSD for better performance."
+    },
+    "TRANSFORMERS_CACHE": {
+      "type": "string",
+      "description": "Transformers library model cache (legacy)",
+      "required": false,
+      "example": "C:\\AI\\HuggingFace\\transformers",
+      "instructions": "Legacy cache path. HF_HOME is preferred."
+    },
+    "WHISPER_MODEL": {
+      "type": "string",
+      "description": "Default Whisper model for speech-to-text",
+      "required": false,
+      "default": "base",
+      "enum": ["tiny", "base", "small", "medium", "large", "large-v2", "large-v3"],
+      "example": "base",
+      "instructions": "Model sizes: tiny (39M), base (74M), small (244M), medium (769M), large (1.5B)"
+    },
+    "WHISPER_DEVICE": {
+      "type": "string",
+      "description": "Device for Whisper inference",
+      "required": false,
+      "default": "cuda",
+      "enum": ["cuda", "cpu"],
+      "example": "cuda",
+      "instructions": "Use 'cuda' for GPU, 'cpu' if no GPU available."
+    },
+    "KVM_AGENT_TOKEN": {
+      "type": "string",
+      "description": "Token for KVM/VM control communication",
+      "required": false,
+      "minLength": 32,
+      "example": "your_kvm_agent_token",
+      "instructions": "Generate: openssl rand -hex 32. Used for VM control from Ubuntu host."
+    },
+    "WINDOWS_VM_TAILSCALE_IP": {
+      "type": "string",
+      "description": "Tailscale IP address of this Windows VM",
+      "required": false,
+      "validation": "^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}$",
+      "example": "100.118.44.102",
+      "instructions": "Get your Tailscale IP: tailscale ip -4 (in PowerShell or CMD)"
+    },
+    "DASHBOARD_URL": {
+      "type": "string",
+      "description": "URL to the Nebula Command dashboard for registration",
+      "required": false,
+      "example": "https://dashboard.evindrake.net",
+      "instructions": "URL of the main dashboard. Used for service registration and health reporting."
+    },
+    "NODE_ENV": {
+      "type": "string",
+      "description": "Node.js environment for the agent",
+      "required": false,
+      "default": "production",
+      "enum": ["development", "production"],
+      "example": "production",
+      "instructions": "Set to 'production' for production use."
+    },
+    "LOG_LEVEL": {
+      "type": "string",
+      "description": "Logging verbosity level",
+      "required": false,
+      "default": "info",
+      "enum": ["debug", "info", "warn", "error"],
+      "example": "info",
+      "instructions": "Set to 'debug' for troubleshooting."
+    },
+    "STARTUP_DELAY": {
+      "type": "integer",
+      "description": "Delay in seconds before starting services on Windows boot",
+      "required": false,
+      "default": 30,
+      "example": "30",
+      "instructions": "Delay to wait for network/GPU drivers to initialize."
+    },
+    "AUTO_START_OLLAMA": {
+      "type": "boolean",
+      "description": "Automatically start Ollama on system boot",
+      "required": false,
+      "default": true,
+      "example": "true",
+      "instructions": "Set to 'true' to auto-start Ollama with Windows."
+    },
+    "AUTO_START_COMFYUI": {
+      "type": "boolean",
+      "description": "Automatically start ComfyUI on system boot",
+      "required": false,
+      "default": false,
+      "example": "false",
+      "instructions": "Set to 'true' to auto-start ComfyUI with Windows."
+    },
+    "AUTO_START_SD_WEBUI": {
+      "type": "boolean",
+      "description": "Automatically start Stable Diffusion WebUI on system boot",
+      "required": false,
+      "default": false,
+      "example": "false",
+      "instructions": "Set to 'true' to auto-start Automatic1111 WebUI with Windows."
+    }
+  },
+  "required": ["NEBULA_AGENT_TOKEN"],
+  "additionalProperties": true
+}

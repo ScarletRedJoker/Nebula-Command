@@ -1,0 +1,41 @@
+{
+  "name": "nebula-deployer",
+  "version": "1.0.0",
+  "description": "Nebula Command deployment orchestration CLI",
+  "main": "dist/index.js",
+  "bin": {
+    "nebula": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "ts-node src/index.ts",
+    "start": "node dist/index.js",
+    "watch": "tsc -w"
+  },
+  "keywords": [
+    "deployment",
+    "cli",
+    "orchestration",
+    "nebula"
+  ],
+  "author": "Nebula Command",
+  "license": "MIT",
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "commander": "^11.1.0",
+    "inquirer": "^8.2.6",
+    "ora": "^5.4.1",
+    "ssh2": "^1.15.0",
+    "yaml": "^2.3.4"
+  },
+  "devDependencies": {
+    "@types/inquirer": "^9.0.7",
+    "@types/node": "^20.10.0",
+    "@types/ssh2": "^1.11.19",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

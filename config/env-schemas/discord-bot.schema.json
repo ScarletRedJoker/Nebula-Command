@@ -1,0 +1,207 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "nebula-command/discord-bot.schema.json",
+  "title": "Nebula Command Discord Bot Environment Variables",
+  "description": "Environment variable schema for the Discord bot service",
+  "type": "object",
+  "properties": {
+    "DISCORD_BOT_TOKEN": {
+      "type": "string",
+      "description": "Discord bot token for authentication with Discord API",
+      "required": true,
+      "minLength": 50,
+      "validation": "^[A-Za-z0-9_-]{24}\\.[A-Za-z0-9_-]{6}\\.[A-Za-z0-9_-]{27}$|^[A-Za-z0-9_-]{59,}$",
+      "example": "YOUR_DISCORD_BOT_TOKEN_HERE",
+      "instructions": "1. Go to https://discord.com/developers/applications\n2. Create or select your application\n3. Go to 'Bot' section\n4. Click 'Reset Token' and copy the token\n5. NEVER share this token publicly"
+    },
+    "DISCORD_CLIENT_ID": {
+      "type": "string",
+      "description": "Discord application client ID for OAuth2",
+      "required": true,
+      "validation": "^\\d{17,20}$",
+      "example": "123456789012345678",
+      "instructions": "1. Go to https://discord.com/developers/applications\n2. Select your application\n3. Copy 'Application ID' from the General Information page"
+    },
+    "DISCORD_CLIENT_SECRET": {
+      "type": "string",
+      "description": "Discord application client secret for OAuth2",
+      "required": true,
+      "minLength": 32,
+      "example": "your_client_secret_here",
+      "instructions": "1. Go to https://discord.com/developers/applications\n2. Select your application > OAuth2\n3. Click 'Reset Secret' to get a new client secret"
+    },
+    "DISCORD_APP_ID": {
+      "type": "string",
+      "description": "Discord application ID (same as CLIENT_ID, used for slash commands)",
+      "required": true,
+      "validation": "^\\d{17,20}$",
+      "example": "123456789012345678",
+      "instructions": "Same as DISCORD_CLIENT_ID. Used for registering slash commands."
+    },
+    "DATABASE_URL": {
+      "type": "string",
+      "description": "PostgreSQL connection string for the Discord bot database",
+      "required": true,
+      "validation": "^postgres(ql)?:\\/\\/[^:]+:[^@]+@[^:]+:\\d+\\/\\w+",
+      "example": "postgresql://ticketbot:password@localhost:5432/ticketbot",
+      "instructions": "Create a PostgreSQL database for the Discord bot. Format: postgresql://USER:PASSWORD@HOST:PORT/DATABASE"
+    },
+    "DISCORD_DATABASE_URL": {
+      "type": "string",
+      "description": "Alternative database URL specifically for Discord bot (takes precedence over DATABASE_URL)",
+      "required": false,
+      "validation": "^postgres(ql)?:\\/\\/[^:]+:[^@]+@[^:]+:\\d+\\/\\w+",
+      "example": "postgresql://ticketbot:password@localhost:5432/ticketbot",
+      "instructions": "Optional separate database URL. If set, overrides DATABASE_URL for the Discord bot."
+    },
+    "SESSION_SECRET": {
+      "type": "string",
+      "description": "Secret key for signing web dashboard session cookies",
+      "required": true,
+      "minLength": 32,
+      "example": "your_secure_session_secret_32chars",
+      "instructions": "Generate a secure random string: openssl rand -hex 32"
+    },
+    "DISCORD_SESSION_SECRET": {
+      "type": "string",
+      "description": "Separate session secret for Discord OAuth (optional)",
+      "required": false,
+      "minLength": 32,
+      "example": "your_discord_specific_session_secret",
+      "instructions": "Optional. If not set, SESSION_SECRET is used."
+    },
+    "DISCORD_CALLBACK_URL": {
+      "type": "string",
+      "description": "OAuth2 callback URL for Discord authentication",
+      "required": false,
+      "validation": "^https?:\\/\\/.+\\/auth\\/discord\\/callback$",
+      "example": "https://bot.rig-city.com/auth/discord/callback",
+      "instructions": "Set to your bot's public URL + /auth/discord/callback. Add this URL in Discord Developer Portal > OAuth2 > Redirects."
+    },
+    "APP_URL": {
+      "type": "string",
+      "description": "Public base URL of the Discord bot web interface",
+      "required": false,
+      "example": "https://bot.rig-city.com",
+      "instructions": "Public URL where the bot's web dashboard is accessible. Used for OAuth callbacks and webhooks."
+    },
+    "DISCORD_PRIMARY_GUILD_ID": {
+      "type": "string",
+      "description": "Primary Discord server/guild ID for the bot",
+      "required": false,
+      "validation": "^\\d{17,20}$",
+      "example": "123456789012345678",
+      "instructions": "Right-click your server > Copy Server ID (Enable Developer Mode in Discord settings first)."
+    },
+    "VITE_DISCORD_CLIENT_ID": {
+      "type": "string",
+      "description": "Discord client ID exposed to frontend (Vite)",
+      "required": false,
+      "validation": "^\\d{17,20}$",
+      "example": "123456789012345678",
+      "instructions": "Same as DISCORD_CLIENT_ID. Used by the React frontend."
+    },
+    "VITE_CUSTOM_WS_URL": {
+      "type": "string",
+      "description": "Custom WebSocket URL for real-time updates",
+      "required": false,
+      "example": "wss://bot.rig-city.com/ws",
+      "instructions": "Optional custom WebSocket URL. Leave empty to use default."
+    },
+    "DASHBOARD_URL": {
+      "type": "string",
+      "description": "URL to the main Nebula Command dashboard",
+      "required": false,
+      "example": "https://dashboard.evindrake.net",
+      "instructions": "URL of the main dashboard for cross-service communication."
+    },
+    "DASHBOARD_REGISTRY_URL": {
+      "type": "string",
+      "description": "URL to the dashboard's service registry API",
+      "required": false,
+      "default": "https://dashboard.evindrake.net/api/registry",
+      "example": "https://dashboard.evindrake.net/api/registry",
+      "instructions": "URL for registering this service with the central registry."
+    },
+    "SERVICE_AUTH_TOKEN": {
+      "type": "string",
+      "description": "Token for authenticating with other Nebula services",
+      "required": false,
+      "minLength": 32,
+      "example": "your_service_auth_token",
+      "instructions": "Generate: openssl rand -hex 32. Must match token on dashboard."
+    },
+    "HOMELABHUB_API_KEY": {
+      "type": "string",
+      "description": "API key for HomeLabHub integration",
+      "required": false,
+      "example": "your_homelabhub_api_key",
+      "instructions": "API key for communicating with HomeLabHub dashboard."
+    },
+    "GITHUB_WEBHOOK_SECRET": {
+      "type": "string",
+      "description": "Secret for validating GitHub webhook payloads",
+      "required": false,
+      "example": "your_github_webhook_secret",
+      "instructions": "Generate a secret: openssl rand -hex 20. Set the same secret in your GitHub repository webhook settings."
+    },
+    "STREAM_BOT_WEBHOOK_SECRET": {
+      "type": "string",
+      "description": "Shared secret for receiving webhooks from Stream Bot",
+      "required": false,
+      "minLength": 32,
+      "example": "your_stream_bot_webhook_secret",
+      "instructions": "Generate: openssl rand -hex 32. Must match STREAM_BOT_WEBHOOK_SECRET on Stream Bot."
+    },
+    "PLEX_URL": {
+      "type": "string",
+      "description": "URL to Plex Media Server for media commands",
+      "required": false,
+      "example": "http://100.66.61.51:32400",
+      "instructions": "URL to your Plex server for /plex commands."
+    },
+    "PLEX_TOKEN": {
+      "type": "string",
+      "description": "Plex authentication token",
+      "required": false,
+      "example": "your_plex_token",
+      "instructions": "Get from Plex Web App: View XML > find X-Plex-Token parameter."
+    },
+    "LOCAL_TAILSCALE_IP": {
+      "type": "string",
+      "description": "Tailscale IP of the local server for Plex access",
+      "required": false,
+      "default": "100.66.61.51",
+      "validation": "^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}$",
+      "example": "100.66.61.51",
+      "instructions": "Tailscale IP of the server running Plex."
+    },
+    "PORT": {
+      "type": "integer",
+      "description": "HTTP port for the Discord bot web server",
+      "required": false,
+      "default": 5000,
+      "example": "5000",
+      "instructions": "Port for the web dashboard. Must be 5000 on Replit."
+    },
+    "NODE_ENV": {
+      "type": "string",
+      "description": "Node.js environment mode",
+      "required": false,
+      "default": "development",
+      "enum": ["development", "production", "test"],
+      "example": "production",
+      "instructions": "Set to 'production' for production deployments."
+    },
+    "RESET_DB": {
+      "type": "boolean",
+      "description": "Flag to reset database on startup (DANGEROUS)",
+      "required": false,
+      "default": false,
+      "example": "false",
+      "instructions": "Set to 'true' to drop and recreate all tables. USE WITH CAUTION - DATA WILL BE LOST."
+    }
+  },
+  "required": ["DISCORD_BOT_TOKEN", "DISCORD_CLIENT_ID", "DISCORD_CLIENT_SECRET", "DISCORD_APP_ID", "DATABASE_URL", "SESSION_SECRET"],
+  "additionalProperties": true
+}

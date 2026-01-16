@@ -1,0 +1,283 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "nebula-command/stream-bot.schema.json",
+  "title": "Nebula Command Stream Bot Environment Variables",
+  "description": "Environment variable schema for the Twitch/YouTube streaming bot service",
+  "type": "object",
+  "properties": {
+    "DATABASE_URL": {
+      "type": "string",
+      "description": "PostgreSQL connection string for the Stream Bot database",
+      "required": true,
+      "validation": "^postgres(ql)?:\\/\\/[^:]+:[^@]+@[^:]+:\\d+\\/\\w+",
+      "example": "postgresql://streambot:password@localhost:5432/streambot",
+      "instructions": "Create a PostgreSQL database for the Stream Bot. Format: postgresql://USER:PASSWORD@HOST:PORT/DATABASE"
+    },
+    "STREAMBOT_DATABASE_URL": {
+      "type": "string",
+      "description": "Alternative database URL specifically for Stream Bot",
+      "required": false,
+      "validation": "^postgres(ql)?:\\/\\/[^:]+:[^@]+@[^:]+:\\d+\\/\\w+",
+      "example": "postgresql://streambot:password@localhost:5432/streambot",
+      "instructions": "Optional separate database URL. If set, takes precedence over DATABASE_URL."
+    },
+    "SESSION_SECRET": {
+      "type": "string",
+      "description": "Secret key for signing session cookies",
+      "required": true,
+      "minLength": 32,
+      "example": "your_secure_session_secret_32chars",
+      "instructions": "Generate a secure random string: openssl rand -hex 32"
+    },
+    "STREAMBOT_SESSION_SECRET": {
+      "type": "string",
+      "description": "Separate session secret for Stream Bot (optional)",
+      "required": false,
+      "minLength": 32,
+      "example": "your_streambot_specific_session_secret",
+      "instructions": "Optional. If not set, SESSION_SECRET is used."
+    },
+    "TWITCH_CLIENT_ID": {
+      "type": "string",
+      "description": "Twitch application client ID",
+      "required": false,
+      "validation": "^[a-z0-9]{30}$",
+      "example": "abc123def456ghi789jkl012mno345",
+      "instructions": "1. Go to https://dev.twitch.tv/console/apps\n2. Register a new application or select existing\n3. Copy the Client ID"
+    },
+    "TWITCH_CLIENT_SECRET": {
+      "type": "string",
+      "description": "Twitch application client secret",
+      "required": false,
+      "minLength": 30,
+      "example": "your_twitch_client_secret",
+      "instructions": "1. Go to https://dev.twitch.tv/console/apps\n2. Select your application\n3. Click 'New Secret' and copy it"
+    },
+    "TWITCH_CHANNEL": {
+      "type": "string",
+      "description": "Default Twitch channel name to monitor/interact with",
+      "required": false,
+      "validation": "^[a-zA-Z0-9_]{4,25}$",
+      "example": "yourchannelname",
+      "instructions": "Your Twitch username/channel name (without the # symbol)."
+    },
+    "TWITCH_REDIRECT_URI": {
+      "type": "string",
+      "description": "OAuth redirect URI for Twitch authentication",
+      "required": false,
+      "validation": "^https?:\\/\\/.+\\/api\\/auth\\/twitch\\/callback$",
+      "example": "https://stream.rig-city.com/api/auth/twitch/callback",
+      "instructions": "Set to your Stream Bot URL + /api/auth/twitch/callback. Add this URL in Twitch Developer Console > OAuth Redirect URLs."
+    },
+    "YOUTUBE_CLIENT_ID": {
+      "type": "string",
+      "description": "Google OAuth client ID for YouTube integration",
+      "required": false,
+      "validation": "^[0-9]+-[a-zA-Z0-9]+\\.apps\\.googleusercontent\\.com$",
+      "example": "123456789-abcdefg.apps.googleusercontent.com",
+      "instructions": "1. Go to https://console.cloud.google.com/apis/credentials\n2. Create OAuth 2.0 Client ID (Web application type)\n3. Copy the Client ID"
+    },
+    "YOUTUBE_CLIENT_SECRET": {
+      "type": "string",
+      "description": "Google OAuth client secret for YouTube integration",
+      "required": false,
+      "example": "GOCSPX-xxxxxxxxxxxxx",
+      "instructions": "From the same OAuth credentials page, copy the Client Secret."
+    },
+    "YOUTUBE_REDIRECT_URI": {
+      "type": "string",
+      "description": "OAuth redirect URI for YouTube authentication",
+      "required": false,
+      "validation": "^https?:\\/\\/.+\\/auth\\/youtube\\/callback$",
+      "example": "https://stream.rig-city.com/auth/youtube/callback",
+      "instructions": "Set to your Stream Bot URL + /auth/youtube/callback. Add this as Authorized redirect URI in Google Cloud Console."
+    },
+    "YOUTUBE_REFRESH_TOKEN": {
+      "type": "string",
+      "description": "YouTube OAuth refresh token for persistent authentication",
+      "required": false,
+      "example": "1//0xxxxxxxxxxxxxxxxxxxxx",
+      "instructions": "Generated after first OAuth login. Stored in database after initial authentication."
+    },
+    "SPOTIFY_CLIENT_ID": {
+      "type": "string",
+      "description": "Spotify application client ID for music integration",
+      "required": false,
+      "validation": "^[a-f0-9]{32}$",
+      "example": "abc123def456ghi789jkl012mno34567",
+      "instructions": "1. Go to https://developer.spotify.com/dashboard\n2. Create a new app\n3. Copy the Client ID"
+    },
+    "SPOTIFY_CLIENT_SECRET": {
+      "type": "string",
+      "description": "Spotify application client secret",
+      "required": false,
+      "minLength": 32,
+      "example": "your_spotify_client_secret",
+      "instructions": "From Spotify Developer Dashboard, click 'Show Client Secret' and copy it."
+    },
+    "SPOTIFY_REFRESH_TOKEN": {
+      "type": "string",
+      "description": "Spotify OAuth refresh token for persistent authentication",
+      "required": false,
+      "example": "AQDxxxxxxxxxxxxx",
+      "instructions": "Generated after first OAuth login. Use the Spotify OAuth flow to obtain."
+    },
+    "SPOTIFY_REDIRECT_URI": {
+      "type": "string",
+      "description": "OAuth redirect URI for Spotify authentication",
+      "required": false,
+      "validation": "^https?:\\/\\/.+\\/api\\/auth\\/spotify\\/callback$",
+      "example": "https://stream.rig-city.com/api/auth/spotify/callback",
+      "instructions": "Add this as Redirect URI in Spotify Developer Dashboard > Edit Settings."
+    },
+    "KICK_CLIENT_ID": {
+      "type": "string",
+      "description": "Kick streaming platform client ID",
+      "required": false,
+      "example": "your_kick_client_id",
+      "instructions": "Obtain from Kick Developer Portal (when available)."
+    },
+    "KICK_CLIENT_SECRET": {
+      "type": "string",
+      "description": "Kick streaming platform client secret",
+      "required": false,
+      "example": "your_kick_client_secret",
+      "instructions": "Obtain from Kick Developer Portal."
+    },
+    "KICK_REDIRECT_URI": {
+      "type": "string",
+      "description": "OAuth redirect URI for Kick authentication",
+      "required": false,
+      "example": "https://stream.rig-city.com/api/auth/kick/callback",
+      "instructions": "Set to your Stream Bot URL + /api/auth/kick/callback."
+    },
+    "OPENAI_API_KEY": {
+      "type": "string",
+      "description": "OpenAI API key for AI-powered chat and content features",
+      "required": false,
+      "validation": "^sk-(proj-)?[a-zA-Z0-9_-]+$",
+      "example": "sk-proj-your_openai_key",
+      "instructions": "Get from https://platform.openai.com/api-keys. Used for chatbot, fact-checking, and content generation."
+    },
+    "STREAMBOT_OPENAI_API_KEY": {
+      "type": "string",
+      "description": "Separate OpenAI API key for Stream Bot (optional)",
+      "required": false,
+      "validation": "^sk-(proj-)?[a-zA-Z0-9_-]+$",
+      "example": "sk-proj-your_openai_key",
+      "instructions": "Optional separate key. If not set, OPENAI_API_KEY or AI_INTEGRATIONS_OPENAI_API_KEY is used."
+    },
+    "STREAMBOT_OPENAI_BASE_URL": {
+      "type": "string",
+      "description": "Custom OpenAI-compatible API base URL",
+      "required": false,
+      "default": "https://api.openai.com/v1",
+      "example": "https://api.openai.com/v1",
+      "instructions": "Default is OpenAI. Can be set to use compatible services like Azure OpenAI."
+    },
+    "STREAMBOT_FACT_MODEL": {
+      "type": "string",
+      "description": "AI model to use for fact-checking and content analysis",
+      "required": false,
+      "default": "gpt-4o",
+      "example": "gpt-4o",
+      "instructions": "OpenAI model name. Options: gpt-4o, gpt-4o-mini, gpt-4-turbo, gpt-3.5-turbo"
+    },
+    "AI_INTEGRATIONS_OPENAI_API_KEY": {
+      "type": "string",
+      "description": "Replit-managed OpenAI API key (auto-populated on Replit)",
+      "required": false,
+      "example": "sk-...",
+      "instructions": "Automatically populated by Replit AI integrations."
+    },
+    "AI_INTEGRATIONS_OPENAI_BASE_URL": {
+      "type": "string",
+      "description": "Replit-managed OpenAI base URL (auto-populated on Replit)",
+      "required": false,
+      "example": "https://ai.replit.dev/v1",
+      "instructions": "Automatically populated by Replit AI integrations."
+    },
+    "OBS_ENCRYPTION_KEY": {
+      "type": "string",
+      "description": "Encryption key for OBS WebSocket password storage",
+      "required": false,
+      "minLength": 32,
+      "example": "your_obs_encryption_key_32chars",
+      "instructions": "Generate: openssl rand -hex 32. Used to encrypt stored OBS passwords."
+    },
+    "STREAM_BOT_WEBHOOK_SECRET": {
+      "type": "string",
+      "description": "Shared secret for sending webhooks to Discord Bot",
+      "required": false,
+      "minLength": 32,
+      "example": "your_webhook_secret",
+      "instructions": "Generate: openssl rand -hex 32. Must match STREAM_BOT_WEBHOOK_SECRET on Discord Bot."
+    },
+    "DISCORD_BOT_URL": {
+      "type": "string",
+      "description": "URL to Discord Bot for sending stream notifications",
+      "required": false,
+      "default": "http://localhost:5000",
+      "example": "https://bot.rig-city.com",
+      "instructions": "URL of the Discord Bot service for stream go-live notifications."
+    },
+    "DASHBOARD_REGISTRY_URL": {
+      "type": "string",
+      "description": "URL to the dashboard's service registry API",
+      "required": false,
+      "default": "https://dashboard.evindrake.net/api/registry",
+      "example": "https://dashboard.evindrake.net/api/registry",
+      "instructions": "URL for registering this service with the central registry."
+    },
+    "APP_URL": {
+      "type": "string",
+      "description": "Public base URL of the Stream Bot",
+      "required": false,
+      "example": "https://stream.rig-city.com",
+      "instructions": "Public URL where Stream Bot is accessible. Used for OAuth callbacks."
+    },
+    "COOKIE_DOMAIN": {
+      "type": "string",
+      "description": "Domain for session cookies (production only)",
+      "required": false,
+      "default": ".evindrake.net",
+      "example": ".evindrake.net",
+      "instructions": "Set to your domain with leading dot for subdomain sharing."
+    },
+    "PORT": {
+      "type": "integer",
+      "description": "HTTP port for the Stream Bot server",
+      "required": false,
+      "default": 3000,
+      "example": "3000",
+      "instructions": "Port for the Stream Bot. Can be set via STREAMBOT_PORT as well."
+    },
+    "STREAMBOT_PORT": {
+      "type": "integer",
+      "description": "Alternative port configuration for Stream Bot",
+      "required": false,
+      "default": 5000,
+      "example": "5000",
+      "instructions": "Alternative to PORT for Stream Bot specific configuration."
+    },
+    "NODE_ENV": {
+      "type": "string",
+      "description": "Node.js environment mode",
+      "required": false,
+      "default": "development",
+      "enum": ["development", "production", "test"],
+      "example": "production",
+      "instructions": "Set to 'production' for production deployments."
+    },
+    "STREAMBOT_NODE_ENV": {
+      "type": "string",
+      "description": "Alternative NODE_ENV for Stream Bot",
+      "required": false,
+      "enum": ["development", "production", "test"],
+      "example": "production",
+      "instructions": "Set to 'production' for production deployments."
+    }
+  },
+  "required": ["DATABASE_URL", "SESSION_SECRET"],
+  "additionalProperties": true
+}
