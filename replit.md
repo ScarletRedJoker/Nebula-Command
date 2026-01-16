@@ -107,6 +107,19 @@ A Notification Service provides multi-channel alerts with severity levels, dedup
 ### Development vs. Production and Replit Modelfarm
 The system dynamically adjusts behavior based on environment detection (Replit vs. Linode). In Replit, the dashboard integrates with Replit Modelfarm for AI services, specifically supporting models like gpt-4o and gpt-image-1, with immediate "connected" status. SSH key handling requires PEM format private keys, with dashboard attempts at automatic conversion.
 
+### AI Studio - Real-Time Video Generation (January 2026)
+Unified AI video generation and streaming control interface (`/ai-studio`):
+*   **AI Video Pipeline** (`lib/ai-video-pipeline.ts`): Orchestrates motion control, face swap, style transfer, and video generation workflows
+*   **OBS Controller** (`lib/obs-controller.ts`): WebSocket control for OBS Studio - scene switching, source management, AI overlays, streaming/recording
+*   **Motion Capture Bridge** (`lib/motion-capture.ts`): Real-time pose/gesture detection with ControlNet/OpenPose export for motion-driven generation
+*   **Face Swap Service** (`lib/face-swap.ts`): Face swap with InsightFace, GFPGAN/CodeFormer enhancement, ethical guardrails (consent, watermarks, audit logging)
+*   **Video Generation Hub** (`lib/video-generation.ts`): AnimateDiff, ControlNet Video, SVD, real-time rendering, job queue, RTMP streaming output
+*   **API Routes**: `/api/ai-video`, `/api/obs`, `/api/motion` for pipeline control
+*   **Dashboard Page**: `/ai-studio` with video generation, face swap, lip sync, motion capture, and OBS control panels
+*   **Windows VM Integration**: GPU inference via Nebula Agent (Ollama, ComfyUI endpoints)
+*   **Deployment Probes**: 6 new probes for AI video services (pipeline, OBS, motion, AnimateDiff, LivePortrait, RTMP)
+*   **Note**: Requires Windows VM with GPU, installed AI models, and OBS Studio for full functionality
+
 ### Docker Marketplace and Settings
 A Docker marketplace offers over 24 pre-built packages for one-click deployment. A comprehensive settings interface manages configurations for AI, servers, and integrations, including connection testing.
 
