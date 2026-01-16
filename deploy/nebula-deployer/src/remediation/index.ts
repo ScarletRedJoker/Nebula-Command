@@ -1086,6 +1086,207 @@ export function suggestManualSteps(issue: string): ManualSteps {
   return issuePatterns.default;
 }
 
+export async function restartAIVideoPipeline(): Promise<RemediationResult> {
+  const actions: string[] = [];
+  const log = logger.child('restart-ai-video-pipeline');
+
+  try {
+    log.info('Attempting to restart AI Video Pipeline service');
+    actions.push('Checking dashboard service status');
+
+    const pm2Exists = await commandExists('pm2');
+    
+    if (pm2Exists) {
+      actions.push('Restarting via PM2');
+      const result = await restartPm2Process('dashboard-next');
+      if (result.success) {
+        return result;
+      }
+      actions.push(...result.actions);
+    }
+
+    log.info('Attempting systemd restart as fallback');
+    actions.push('Attempting systemd restart');
+    const systemdResult = await restartSystemdService('dashboard-next');
+    
+    return {
+      success: systemdResult.success,
+      message: systemdResult.message,
+      actions: [...actions, ...systemdResult.actions],
+      needsManualIntervention: systemdResult.needsManualIntervention,
+      manualInstructions: systemdResult.manualInstructions,
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    log.error(`Failed to restart AI Video Pipeline: ${errorMessage}`);
+    return {
+      success: false,
+      message: `Failed to restart AI Video Pipeline: ${errorMessage}`,
+      actions,
+      needsManualIntervention: true,
+      manualInstructions: 'Manually restart: pm2 restart dashboard-next or systemctl restart dashboard-next',
+    };
+  }
+}
+
+export async function reinstallOBSWebSocket(): Promise<RemediationResult> {
+  const actions: string[] = [];
+  const log = logger.child('reinstall-obs-websocket');
+
+  try {
+    log.info('Attempting to reinstall OBS WebSocket handler');
+    actions.push('Checking for OBS WebSocket dependencies');
+
+    const dashboardDir = path.join(process.cwd(), 'services', 'dashboard-next');
+    if (!fs.existsSync(dashboardDir)) {
+      return {
+        success: false,
+        message: 'Dashboard directory not found',
+        actions,
+        needsManualIntervention: true,
+        manualInstructions: `Dashboard directory not found at ${dashboardDir}`,
+      };
+    }
+
+    const packageJsonPath = path.join(dashboardDir, 'package.json');
+    if (!fs.existsSync(packageJsonPath)) {
+      return {
+        success: false,
+        message: 'package.json not found in dashboard',
+        actions,
+        needsManualIntervention: true,
+        manualInstructions: 'Dashboard package.json not found',
+      };
+    }
+
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+    const obsPackages = [
+      'obs-websocket-js',
+      'obs-websocket',
+      'websocket',
+      'ws',
+    ];
+
+    const missingPackages = obsPackages.filter(
+      (pkg) => !packageJson.dependencies?.[pkg] && !packageJson.devDependencies?.[pkg]
+    );
+
+    if (missingPackages.length > 0) {
+      actions.push(`Installing missing packages: ${missingPackages.join(', ')}`);
+      log.info(`Installing: ${missingPackages.join(', ')}`);
+      
+      const installCmd = `npm install ${missingPackages.join(' ')}`;
+      const result = await execAsync(installCmd, { cwd: dashboardDir, timeout: 300000 });
+      actions.push('OBS WebSocket packages installed');
+    } else {
+      actions.push('All OBS WebSocket packages already installed');
+    }
+
+    actions.push('Rebuilding dashboard service');
+    log.info('Rebuilding dashboard');
+    await execAsync('npm run build', { cwd: dashboardDir, timeout: 300000 });
+    actions.push('Dashboard rebuilt successfully');
+
+    actions.push('Restarting dashboard service');
+    const restartResult = await restartAIVideoPipeline();
+    actions.push(...restartResult.actions);
+
+    log.success('Successfully reinstalled OBS WebSocket handler');
+    return {
+      success: restartResult.success,
+      message: 'OBS WebSocket handler reinstalled successfully',
+      actions,
+      needsManualIntervention: restartResult.needsManualIntervention,
+      manualInstructions: restartResult.manualInstructions,
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    log.error(`Failed to reinstall OBS WebSocket: ${errorMessage}`);
+    return {
+      success: false,
+      message: `Failed to reinstall OBS WebSocket handler: ${errorMessage}`,
+      actions,
+      needsManualIntervention: true,
+      manualInstructions: `Manually reinstall:\ncd services/dashboard-next\nnpm install obs-websocket-js\nnpm run build\npm2 restart dashboard-next`,
+    };
+  }
+}
+
+export async function downloadMissingAIModels(models?: string[]): Promise<RemediationResult> {
+  const actions: string[] = [];
+  const log = logger.child('download-ai-models');
+  const windowsVmHost = process.env.WINDOWS_VM_TAILSCALE_IP || '100.118.44.102';
+  const nebulaAgentPort = parseInt(process.env.NEBULA_AGENT_PORT || '9765', 10);
+
+  try {
+    log.info('Attempting to download missing AI models to Windows VM');
+    actions.push(`Connecting to Windows VM at ${windowsVmHost}:${nebulaAgentPort}`);
+
+    const modelsToDownload = models || [
+      'animatediff',
+      'liveportrait',
+      'sadtalker',
+      'wav2lip',
+    ];
+
+    const downloadUrl = `http://${windowsVmHost}:${nebulaAgentPort}/api/models/download`;
+    
+    for (const model of modelsToDownload) {
+      actions.push(`Downloading model: ${model}`);
+      log.info(`Requesting download of model: ${model}`);
+
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+        const response = await fetch(downloadUrl, {
+          method: 'POST',
+          signal: controller.signal,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model, force: false }),
+        });
+
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+          const result = await response.json();
+          actions.push(`Successfully requested download of ${model}: ${result.message || 'downloading'}`);
+          log.info(`Model ${model} download initiated`);
+        } else {
+          const error = await response.text();
+          actions.push(`Failed to download ${model}: ${response.statusText} - ${error}`);
+          log.warn(`Failed to download ${model}: ${error}`);
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        actions.push(`Error downloading ${model}: ${errorMessage}`);
+        log.warn(`Error downloading ${model}: ${errorMessage}`);
+      }
+    }
+
+    actions.push('Model download requests completed');
+    log.success('AI model downloads initiated');
+
+    return {
+      success: true,
+      message: `AI model downloads initiated for ${modelsToDownload.length} models`,
+      actions,
+      needsManualIntervention: true,
+      manualInstructions: `Models are being downloaded on the Windows VM. Check Windows VM logs for download progress. This may take several minutes depending on model sizes and network speed.`,
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    log.error(`Failed to download AI models: ${errorMessage}`);
+    return {
+      success: false,
+      message: `Failed to initiate AI model downloads: ${errorMessage}`,
+      actions,
+      needsManualIntervention: true,
+      manualInstructions: `Manually download models on Windows VM:\nConnect to Windows VM and run:\ncurl -X POST http://localhost:9765/api/models/download -H "Content-Type: application/json" -d '{"model":"animatediff"}'\nOr check Windows VM Nebula Agent logs for download status.`,
+    };
+  }
+}
+
 export function createRemediation(
   name: string,
   description: string,
@@ -1107,6 +1308,9 @@ export const ServiceRemediations = {
   restartSystemdService,
   restartWindowsService,
   rebuildService,
+  restartAIVideoPipeline,
+  reinstallOBSWebSocket,
+  downloadMissingAIModels,
 };
 
 export const DependencyRemediations = {

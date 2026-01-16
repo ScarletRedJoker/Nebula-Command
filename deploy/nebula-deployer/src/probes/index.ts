@@ -58,6 +58,16 @@ const PROBE_DEFAULTS = {
   POSTGRES_PORT: parseInt(process.env.PGPORT || '5432', 10),
   REDIS_HOST: process.env.REDIS_HOST || 'localhost',
   REDIS_PORT: parseInt(process.env.REDIS_PORT || '6379', 10),
+  OBS_HOST: process.env.OBS_HOST || 'localhost',
+  OBS_PORT: parseInt(process.env.OBS_PORT || '4444', 10),
+  MOTION_CAPTURE_HOST: process.env.MOTION_CAPTURE_HOST || 'localhost',
+  MOTION_CAPTURE_PORT: parseInt(process.env.MOTION_CAPTURE_PORT || '5555', 10),
+  ANIMATEDIFF_HOST: process.env.ANIMATEDIFF_HOST || process.env.WINDOWS_VM_TAILSCALE_IP || '100.118.44.102',
+  ANIMATEDIFF_PORT: parseInt(process.env.ANIMATEDIFF_PORT || '8889', 10),
+  LIVEPORTRAIT_HOST: process.env.LIVEPORTRAIT_HOST || process.env.WINDOWS_VM_TAILSCALE_IP || '100.118.44.102',
+  LIVEPORTRAIT_PORT: parseInt(process.env.LIVEPORTRAIT_PORT || '8890', 10),
+  RTMP_HOST: process.env.RTMP_HOST || 'localhost',
+  RTMP_PORT: parseInt(process.env.RTMP_PORT || '1935', 10),
   PROBE_TIMEOUT: parseInt(process.env.PROBE_TIMEOUT || '5000', 10),
 };
 
@@ -703,12 +713,233 @@ export const stableDiffusionProbe: Probe = {
   },
 };
 
+export const aiVideoPipelineProbe: Probe = {
+  name: 'ai-video-pipeline',
+  description: 'Check AI Video Pipeline health at /api/ai-video',
+  
+  async check(): Promise<ProbeResult> {
+    const host = PROBE_DEFAULTS.DASHBOARD_HOST;
+    const port = PROBE_DEFAULTS.DASHBOARD_PORT;
+    const url = `http://${host}:${port}/api/ai-video`;
+    
+    const result = await checkHttpEndpoint(url, 200, PROBE_DEFAULTS.PROBE_TIMEOUT);
+    
+    if (result.success) {
+      const pipelines = result.body?.pipelines || {};
+      return {
+        success: true,
+        message: `AI Video Pipeline healthy (${pipelines.running || 0} running)`,
+        details: { 
+          host, 
+          port, 
+          latencyMs: result.latencyMs,
+          pipelinesTotal: pipelines.total,
+          pipelinesRunning: pipelines.running,
+          availableModels: result.body?.availableModels,
+        },
+      };
+    }
+
+    return {
+      success: false,
+      message: `AI Video Pipeline not responding: ${result.error}`,
+      details: { host, port, url, error: result.error },
+      canRemediate: true,
+    };
+  },
+
+  async remediate(): Promise<boolean> {
+    logger.info('Attempting to restart AI Video Pipeline...');
+    const result = await executeCommand('pm2 restart dashboard-next || systemctl restart dashboard-next');
+    return result.success;
+  },
+};
+
+export const obsConnectionProbe: Probe = {
+  name: 'obs-connection',
+  description: 'Check OBS WebSocket connection via /api/obs',
+  
+  async check(): Promise<ProbeResult> {
+    const host = PROBE_DEFAULTS.DASHBOARD_HOST;
+    const port = PROBE_DEFAULTS.DASHBOARD_PORT;
+    const url = `http://${host}:${port}/api/obs`;
+    
+    const result = await checkHttpEndpoint(url, 200, PROBE_DEFAULTS.PROBE_TIMEOUT);
+    
+    if (result.success) {
+      return {
+        success: true,
+        message: `OBS connection healthy`,
+        details: { 
+          host, 
+          port, 
+          latencyMs: result.latencyMs,
+          status: result.body?.status,
+        },
+      };
+    }
+
+    return {
+      success: false,
+      message: `OBS connection check failed: ${result.error}`,
+      details: { host, port, url, error: result.error },
+      canRemediate: true,
+    };
+  },
+
+  async remediate(): Promise<boolean> {
+    logger.info('Attempting to restart OBS WebSocket handler...');
+    const result = await executeCommand('pm2 restart dashboard-next || systemctl restart dashboard-next');
+    return result.success;
+  },
+};
+
+export const motionCaptureProbe: Probe = {
+  name: 'motion-capture',
+  description: 'Check motion capture API at /api/motion',
+  
+  async check(): Promise<ProbeResult> {
+    const host = PROBE_DEFAULTS.DASHBOARD_HOST;
+    const port = PROBE_DEFAULTS.DASHBOARD_PORT;
+    const url = `http://${host}:${port}/api/motion`;
+    
+    const result = await checkHttpEndpoint(url, 200, PROBE_DEFAULTS.PROBE_TIMEOUT);
+    
+    if (result.success) {
+      return {
+        success: true,
+        message: `Motion capture API healthy`,
+        details: { 
+          host, 
+          port, 
+          latencyMs: result.latencyMs,
+          status: result.body?.status,
+        },
+      };
+    }
+
+    return {
+      success: false,
+      message: `Motion capture API not responding: ${result.error}`,
+      details: { host, port, url, error: result.error },
+      canRemediate: true,
+    };
+  },
+
+  async remediate(): Promise<boolean> {
+    logger.info('Attempting to restart motion capture service...');
+    const result = await executeCommand('pm2 restart dashboard-next || systemctl restart dashboard-next');
+    return result.success;
+  },
+};
+
+export const animateDiffProbe: Probe = {
+  name: 'animatediff',
+  description: 'Check AnimateDiff model on Windows VM port 8889',
+  
+  async check(): Promise<ProbeResult> {
+    const host = PROBE_DEFAULTS.ANIMATEDIFF_HOST;
+    const port = PROBE_DEFAULTS.ANIMATEDIFF_PORT;
+    const url = `http://${host}:${port}/health`;
+    
+    const result = await checkHttpEndpoint(url, 200, PROBE_DEFAULTS.PROBE_TIMEOUT);
+    
+    if (result.success) {
+      return {
+        success: true,
+        message: `AnimateDiff available (${result.latencyMs}ms)`,
+        details: { 
+          host, 
+          port, 
+          latencyMs: result.latencyMs,
+          status: result.body?.status,
+        },
+      };
+    }
+
+    return {
+      success: false,
+      message: `AnimateDiff not responding: ${result.error}`,
+      details: { host, port, url, error: result.error },
+      canRemediate: false,
+    };
+  },
+};
+
+export const livePortraitProbe: Probe = {
+  name: 'liveportrait',
+  description: 'Check LivePortrait/SadTalker availability on Windows VM port 8890',
+  
+  async check(): Promise<ProbeResult> {
+    const host = PROBE_DEFAULTS.LIVEPORTRAIT_HOST;
+    const port = PROBE_DEFAULTS.LIVEPORTRAIT_PORT;
+    const url = `http://${host}:${port}/health`;
+    
+    const result = await checkHttpEndpoint(url, 200, PROBE_DEFAULTS.PROBE_TIMEOUT);
+    
+    if (result.success) {
+      return {
+        success: true,
+        message: `LivePortrait available (${result.latencyMs}ms)`,
+        details: { 
+          host, 
+          port, 
+          latencyMs: result.latencyMs,
+          status: result.body?.status,
+        },
+      };
+    }
+
+    return {
+      success: false,
+      message: `LivePortrait not responding: ${result.error}`,
+      details: { host, port, url, error: result.error },
+      canRemediate: false,
+    };
+  },
+};
+
+export const rtmpServerProbe: Probe = {
+  name: 'rtmp-server',
+  description: 'Check RTMP server for streaming output on port 1935',
+  
+  async check(): Promise<ProbeResult> {
+    const host = PROBE_DEFAULTS.RTMP_HOST;
+    const port = PROBE_DEFAULTS.RTMP_PORT;
+    
+    const portResult = await checkPort(host, port, PROBE_DEFAULTS.PROBE_TIMEOUT);
+    
+    if (portResult.open) {
+      return {
+        success: true,
+        message: `RTMP server port is open (${portResult.latencyMs}ms)`,
+        details: { host, port, latencyMs: portResult.latencyMs },
+      };
+    }
+
+    return {
+      success: false,
+      message: `RTMP server not responding: ${portResult.error}`,
+      details: { host, port, error: portResult.error },
+      canRemediate: true,
+    };
+  },
+
+  async remediate(): Promise<boolean> {
+    logger.info('Attempting to restart RTMP server...');
+    const result = await executeCommand('systemctl restart rtmp-server || docker restart rtmp-server');
+    return result.success;
+  },
+};
+
 export const serviceProbes: Probe[] = [
   dashboardProbe,
   discordBotProbe,
   streamBotProbe,
   terminalServerProbe,
   nebulaAgentProbe,
+  obsConnectionProbe,
+  motionCaptureProbe,
 ];
 
 export const infrastructureProbes: Probe[] = [
@@ -717,12 +948,16 @@ export const infrastructureProbes: Probe[] = [
   tailscaleProbe,
   dockerProbe,
   pm2Probe,
+  rtmpServerProbe,
 ];
 
 export const aiServiceProbes: Probe[] = [
   ollamaProbe,
   comfyuiProbe,
   stableDiffusionProbe,
+  aiVideoPipelineProbe,
+  animateDiffProbe,
+  livePortraitProbe,
 ];
 
 export const allProbes: Probe[] = [
