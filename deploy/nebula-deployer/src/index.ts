@@ -109,6 +109,15 @@ program
     }
   });
 
+interface SetupAnswers {
+  correctEnv: boolean;
+  environment?: string;
+  services: string[];
+  configureSsh: boolean;
+  sshKeyPath?: string;
+  configureSecrets: boolean;
+}
+
 program
   .command('setup')
   .description('Interactive setup wizard for Nebula Command')
@@ -126,7 +135,7 @@ program
 
     logger.blank();
 
-    const answers = await inquirer.prompt([
+    const answers = await inquirer.prompt<SetupAnswers>([
       {
         type: 'confirm',
         name: 'correctEnv',
