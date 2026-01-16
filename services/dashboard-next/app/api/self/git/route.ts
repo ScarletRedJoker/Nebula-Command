@@ -5,6 +5,59 @@ import simpleGit, { SimpleGit, ResetMode } from "simple-git";
 
 const NEBULA_ROOT = process.env.NEBULA_ROOT || process.cwd();
 
+let connectionSettings: any;
+
+async function getGitHubAccessToken(): Promise<string | null> {
+  try {
+    if (connectionSettings && connectionSettings.settings?.expires_at && new Date(connectionSettings.settings.expires_at).getTime() > Date.now()) {
+      return connectionSettings.settings.access_token || connectionSettings.settings?.oauth?.credentials?.access_token;
+    }
+    
+    const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
+    if (!hostname) {
+      console.log("[Git] No REPLIT_CONNECTORS_HOSTNAME, GitHub token not available");
+      return null;
+    }
+    
+    const xReplitToken = process.env.REPL_IDENTITY 
+      ? 'repl ' + process.env.REPL_IDENTITY 
+      : process.env.WEB_REPL_RENEWAL 
+      ? 'depl ' + process.env.WEB_REPL_RENEWAL 
+      : null;
+
+    if (!xReplitToken) {
+      console.log("[Git] No X_REPLIT_TOKEN available");
+      return null;
+    }
+
+    const response = await fetch(
+      'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=github',
+      {
+        headers: {
+          'Accept': 'application/json',
+          'X_REPLIT_TOKEN': xReplitToken
+        }
+      }
+    );
+    
+    const data = await response.json();
+    connectionSettings = data.items?.[0];
+
+    const accessToken = connectionSettings?.settings?.access_token || connectionSettings?.settings?.oauth?.credentials?.access_token;
+
+    if (!connectionSettings || !accessToken) {
+      console.log("[Git] GitHub not connected or no access token available");
+      return null;
+    }
+    
+    console.log("[Git] GitHub access token retrieved successfully");
+    return accessToken;
+  } catch (error) {
+    console.error("[Git] Failed to get GitHub access token:", error);
+    return null;
+  }
+}
+
 async function checkAuth() {
   const cookieStore = await cookies();
   const session = cookieStore.get("session");
@@ -44,8 +97,50 @@ async function handleCommit(git: SimpleGit, message: string, files?: string[]) {
   };
 }
 
+async function getAuthenticatedRemoteUrl(git: SimpleGit, token: string | null): Promise<{ originalUrl: string; authenticatedUrl: string } | null> {
+  try {
+    const remotes = await git.getRemotes(true);
+    const origin = remotes.find(r => r.name === "origin");
+    
+    if (!origin?.refs?.push) {
+      console.log("[Git] No origin remote found");
+      return null;
+    }
+    
+    const originalUrl = origin.refs.push;
+    
+    if (!token) {
+      return { originalUrl, authenticatedUrl: originalUrl };
+    }
+    
+    const githubMatch = originalUrl.match(/https:\/\/github\.com\/(.+)/);
+    if (githubMatch) {
+      const authenticatedUrl = `https://x-access-token:${token}@github.com/${githubMatch[1]}`;
+      return { originalUrl, authenticatedUrl };
+    }
+    
+    return { originalUrl, authenticatedUrl: originalUrl };
+  } catch (error) {
+    console.error("[Git] Failed to get remote URL:", error);
+    return null;
+  }
+}
+
 async function handlePull(git: SimpleGit) {
-  const result = await git.pull();
+  const token = await getGitHubAccessToken();
+  const remoteInfo = await getAuthenticatedRemoteUrl(git, token);
+  
+  let result;
+  if (remoteInfo && token && remoteInfo.authenticatedUrl !== remoteInfo.originalUrl) {
+    await git.remote(["set-url", "origin", remoteInfo.authenticatedUrl]);
+    try {
+      result = await git.pull();
+    } finally {
+      await git.remote(["set-url", "origin", remoteInfo.originalUrl]);
+    }
+  } else {
+    result = await git.pull();
+  }
   
   return {
     success: true,
@@ -58,7 +153,31 @@ async function handlePull(git: SimpleGit) {
 }
 
 async function handlePush(git: SimpleGit) {
-  const result = await git.push();
+  const token = await getGitHubAccessToken();
+  
+  if (!token) {
+    throw new Error("GitHub authentication required. Please ensure the GitHub integration is connected.");
+  }
+  
+  const remoteInfo = await getAuthenticatedRemoteUrl(git, token);
+  
+  if (!remoteInfo) {
+    throw new Error("No origin remote configured");
+  }
+  
+  console.log("[Git] Pushing with GitHub token authentication");
+  
+  let result;
+  if (remoteInfo.authenticatedUrl !== remoteInfo.originalUrl) {
+    await git.remote(["set-url", "origin", remoteInfo.authenticatedUrl]);
+    try {
+      result = await git.push();
+    } finally {
+      await git.remote(["set-url", "origin", remoteInfo.originalUrl]);
+    }
+  } else {
+    result = await git.push();
+  }
   
   return {
     success: true,
