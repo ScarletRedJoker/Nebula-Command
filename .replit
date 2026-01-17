@@ -119,6 +119,6 @@ KICK_REDIRECT_URI = "https://3acc42cf-91e9-40f1-90e8-761e2c391cdf-00-17v3bbf5unh
 NEXT_PUBLIC_DEV_MODE = "true"
 
 [deployment]
-deploymentTarget = "autoscale"
-run = ["bash", "-c", "cd services/dashboard-next && npm start"]
-build = ["bash", "-c", "cd services/dashboard-next && npm run build"]
+deploymentTarget = "vm"
+run = ["bash", "-c", "cd services/discord-bot && NODE_ENV=production node dist/index.js & cd services/stream-bot && NODE_ENV=production PORT=3000 node dist/index.js & cd services/dashboard-next && NODE_ENV=production npm start & npm run terminal-server & wait"]
+build = ["bash", "-c", "cd services/dashboard-next && npm run build && cd ../discord-bot && npm run build && cd ../stream-bot && npm run build"]
