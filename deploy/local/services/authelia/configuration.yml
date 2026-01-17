@@ -2,7 +2,11 @@
 # Provides SSO and 2FA for protected homelab services
 #
 # Environment variables are expanded via X_AUTHELIA_CONFIG_FILTERS=expand-env
-# Required env vars: AUTHELIA_JWT_SECRET, AUTHELIA_SESSION_SECRET, DOMAIN
+# Secrets are mapped from AUTHELIA_* (host-side, in .env) to NC_* (container-side)
+# to avoid Authelia's built-in blocking of AUTHELIA_*_SECRET patterns.
+# Mapping: AUTHELIA_JWT_SECRET -> NC_JWT_SECRET
+#          AUTHELIA_SESSION_SECRET -> NC_SESSION_SECRET
+#          AUTHELIA_STORAGE_KEY -> NC_STORAGE_KEY
 
 theme: dark
 
@@ -15,7 +19,7 @@ log:
 
 identity_validation:
   reset_password:
-    jwt_secret: '$AUTHELIA_JWT_SECRET'
+    jwt_secret: '$NC_JWT_SECRET'
 
 totp:
   issuer: NebulaCommand
@@ -61,7 +65,7 @@ access_control:
 
 session:
   name: authelia_session
-  secret: '$AUTHELIA_SESSION_SECRET'
+  secret: '$NC_SESSION_SECRET'
   cookies:
     - domain: '$DOMAIN'
       authelia_url: 'https://auth.$DOMAIN'
@@ -80,7 +84,7 @@ regulation:
   ban_time: 5m
 
 storage:
-  encryption_key: '$AUTHELIA_STORAGE_ENCRYPTION_KEY'
+  encryption_key: '$NC_STORAGE_KEY'
   local:
     path: /data/db.sqlite3
 

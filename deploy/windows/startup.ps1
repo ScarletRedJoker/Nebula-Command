@@ -429,24 +429,48 @@ function Verify-Services {
     Start-Sleep -Seconds 5
     
     $services = @(
-        @{ name = "Agent"; url = "http://localhost:9765/api/health" },
-        @{ name = "Ollama"; url = "http://localhost:11434/api/tags" },
-        @{ name = "ComfyUI"; url = "http://localhost:8188/system_stats" },
-        @{ name = "SD WebUI"; url = "http://localhost:7860/sdapi/v1/sd-models" }
+        @{ name = "Agent"; url = "http://localhost:9765/api/health"; critical = $true },
+        @{ name = "Ollama"; url = "http://localhost:11434/api/tags"; critical = $true },
+        @{ name = "ComfyUI"; url = "http://localhost:8188/system_stats"; critical = $false },
+        @{ name = "SD WebUI"; url = "http://localhost:7860/sdapi/v1/sd-models"; critical = $false }
     )
+    
+    $criticalFailures = @()
+    $optionalFailures = @()
+    $healthyServices = @()
     
     foreach ($service in $services) {
         try {
             $response = Invoke-RestMethod -Uri $service.url -TimeoutSec 3 -ErrorAction SilentlyContinue
             Write-Log "INFO" "  $($service.name): healthy"
+            $healthyServices += $service.name
         }
         catch {
-            Write-Log "WARN" "  $($service.name): not responding"
+            if ($service.critical) {
+                Write-Log "ERROR" "  $($service.name): not responding (CRITICAL)"
+                $criticalFailures += $service.name
+            }
+            else {
+                Write-Log "WARN" "  $($service.name): not responding"
+                $optionalFailures += $service.name
+            }
         }
     }
+    
+    if ($criticalFailures.Count -gt 0) {
+        Write-Log "ERROR" "Critical services failed: $($criticalFailures -join ', ')"
+        Write-Log "WARN" "Deployment will continue but critical functionality is unavailable"
+        return $false
+    }
+    
+    return $true
 }
 
 function Print-Summary {
+    param(
+        [bool]$ServicesHealthy = $true
+    )
+    
     Write-Host ""
     Write-Log "INFO" "=========================================="
     Write-Log "INFO" "Windows VM Bootstrap Complete"
@@ -471,6 +495,18 @@ function Print-Summary {
     Write-Host "  - Image generation (ComfyUI, SD WebUI)" -ForegroundColor White
     Write-Host "  - Speech-to-text (Whisper)" -ForegroundColor White
     Write-Host "  - GPU-accelerated AI tasks" -ForegroundColor White
+    Write-Host ""
+    
+    Write-Host "Deployment Status:" -ForegroundColor Yellow
+    if ($ServicesHealthy) {
+        Write-Host "  Status: SUCCESS - All critical services are healthy" -ForegroundColor Green
+        Write-Host "  Exit Code: 0" -ForegroundColor Green
+    }
+    else {
+        Write-Host "  Status: WARNING - Some critical services failed to start" -ForegroundColor Red
+        Write-Host "  Exit Code: 2 (partial success)" -ForegroundColor Yellow
+        Write-Host "  See logs above for which services are unavailable" -ForegroundColor Yellow
+    }
     Write-Host ""
 }
 
@@ -497,8 +533,19 @@ function Main {
     Install-Dependencies
     Start-AIServices
     Register-WithRegistry
-    Verify-Services
-    Print-Summary
+    
+    $servicesHealthy = Verify-Services
+    
+    Print-Summary $servicesHealthy
+    
+    if (-not $servicesHealthy) {
+        Write-Log "ERROR" "Bootstrap completed with critical service failures"
+        Write-Log "INFO" "Exit code: 2 (partial success - critical services unavailable)"
+        exit 2
+    }
+    
+    Write-Log "INFO" "Bootstrap completed successfully"
+    exit 0
 }
 
 Main

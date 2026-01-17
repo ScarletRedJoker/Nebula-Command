@@ -358,25 +358,27 @@ ensure_ssh_keys() {
 
 ensure_authelia_secrets() {
     echo -e "${CYAN}━━━ Authelia Secrets ━━━${NC}"
+    echo -e "  ${CYAN}Note:${NC} Secrets stored as AUTHELIA_* on host, mapped to NC_* in container"
+    echo ""
     
     local env_file="$SCRIPT_DIR/.env"
     
     if ! grep -q "AUTHELIA_JWT_SECRET=" "$env_file" 2>/dev/null || grep -q "AUTHELIA_JWT_SECRET=$" "$env_file" 2>/dev/null; then
         local jwt_secret=$(openssl rand -hex 32)
         echo "AUTHELIA_JWT_SECRET=$jwt_secret" >> "$env_file"
-        echo -e "${GREEN}[OK]${NC} Generated AUTHELIA_JWT_SECRET"
+        echo -e "${GREEN}[OK]${NC} Generated AUTHELIA_JWT_SECRET (mapped to NC_JWT_SECRET)"
     fi
     
     if ! grep -q "AUTHELIA_SESSION_SECRET=" "$env_file" 2>/dev/null || grep -q "AUTHELIA_SESSION_SECRET=$" "$env_file" 2>/dev/null; then
         local session_secret=$(openssl rand -hex 32)
         echo "AUTHELIA_SESSION_SECRET=$session_secret" >> "$env_file"
-        echo -e "${GREEN}[OK]${NC} Generated AUTHELIA_SESSION_SECRET"
+        echo -e "${GREEN}[OK]${NC} Generated AUTHELIA_SESSION_SECRET (mapped to NC_SESSION_SECRET)"
     fi
     
     if ! grep -q "AUTHELIA_STORAGE_KEY=" "$env_file" 2>/dev/null || grep -q "AUTHELIA_STORAGE_KEY=$" "$env_file" 2>/dev/null; then
         local storage_key=$(openssl rand -hex 32)
         echo "AUTHELIA_STORAGE_KEY=$storage_key" >> "$env_file"
-        echo -e "${GREEN}[OK]${NC} Generated AUTHELIA_STORAGE_KEY"
+        echo -e "${GREEN}[OK]${NC} Generated AUTHELIA_STORAGE_KEY (mapped to NC_STORAGE_KEY)"
     fi
     
     local users_db="$SCRIPT_DIR/services/authelia/users_database.yml"
