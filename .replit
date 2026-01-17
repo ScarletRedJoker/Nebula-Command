@@ -120,5 +120,5 @@ NEXT_PUBLIC_DEV_MODE = "true"
 
 [deployment]
 deploymentTarget = "vm"
-run = ["bash", "-c", "cd services/discord-bot && NODE_ENV=production node dist/index.js & cd services/stream-bot && NODE_ENV=production PORT=3000 node dist/index.js & cd services/dashboard-next && NODE_ENV=production npm start & npm run terminal-server & wait"]
+run = ["bash", "-c", "(cd services/discord-bot && NODE_ENV=production node dist/index.js) & (cd services/stream-bot && NODE_ENV=production PORT=3000 node dist/index.js) & (cd services/dashboard-next && NODE_ENV=production npm start) & (cd services/dashboard-next && npm run terminal-server) & wait"]
 build = ["bash", "-c", "cd services/dashboard-next && npm run build && cd ../discord-bot && npm run build && cd ../stream-bot && npm run build"]
