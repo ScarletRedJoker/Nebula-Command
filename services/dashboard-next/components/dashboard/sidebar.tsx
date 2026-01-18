@@ -36,6 +36,7 @@ import {
   Cog,
   Zap,
   Network,
+  Megaphone,
   type LucideIcon,
 } from "lucide-react";
 import { useState } from "react";
@@ -144,6 +145,7 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/websites", label: "Websites", icon: Globe },
       { href: "/designer", label: "Designer", icon: Palette },
+      { href: "/marketing", label: "Marketing", icon: Megaphone },
     ],
   },
   {

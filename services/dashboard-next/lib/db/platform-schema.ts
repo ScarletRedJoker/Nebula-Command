@@ -663,3 +663,31 @@ export type EnvironmentStatus = typeof environmentStatus.$inferSelect;
 export type NewEnvironmentStatus = typeof environmentStatus.$inferInsert;
 export type ConfigSnapshot = typeof configSnapshots.$inferSelect;
 export type NewConfigSnapshot = typeof configSnapshots.$inferInsert;
+
+export const shortUrls = pgTable("short_urls", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  shortCode: varchar("short_code", { length: 10 }).notNull().unique(),
+  originalUrl: text("original_url").notNull(),
+  title: varchar("title", { length: 255 }),
+  createdAt: timestamp("created_at").defaultNow(),
+  expiresAt: timestamp("expires_at"),
+  clickCount: integer("click_count").default(0),
+  lastClickedAt: timestamp("last_clicked_at"),
+  creatorIp: varchar("creator_ip", { length: 45 }),
+  isActive: boolean("is_active").default(true),
+});
+
+export const urlClicks = pgTable("url_clicks", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  shortUrlId: uuid("short_url_id").references(() => shortUrls.id).notNull(),
+  clickedAt: timestamp("clicked_at").defaultNow(),
+  referrer: text("referrer"),
+  userAgent: text("user_agent"),
+  ipAddress: varchar("ip_address", { length: 45 }),
+  country: varchar("country", { length: 2 }),
+});
+
+export type ShortUrl = typeof shortUrls.$inferSelect;
+export type NewShortUrl = typeof shortUrls.$inferInsert;
+export type UrlClick = typeof urlClicks.$inferSelect;
+export type NewUrlClick = typeof urlClicks.$inferInsert;
