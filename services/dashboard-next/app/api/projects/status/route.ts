@@ -105,7 +105,7 @@ export async function GET(request: NextRequest) {
       const projectUrl = (metadata.projectUrl as string) || 
         service.endpoint.replace("/api/health", "");
 
-      let healthStatus: ProjectStatus["healthStatus"] = service.isHealthy ? "healthy" : "unknown";
+      let healthStatus: ProjectStatus["healthStatus"] = ("isHealthy" in service && service.isHealthy) ? "healthy" : "unknown";
       let lastCheck: string | null = service.lastSeen ? service.lastSeen.toISOString() : null;
 
       if (checkHealth) {
