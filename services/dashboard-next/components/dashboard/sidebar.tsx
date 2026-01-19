@@ -120,7 +120,6 @@ const navGroups: NavGroup[] = [
       { href: "/ai-knowledge", label: "Knowledge Base", icon: Layers },
       { href: "/ai-sandbox", label: "AI Sandbox", icon: Wand2 },
       { href: "/creative", label: "Creative Studio", icon: Sparkles },
-      { href: "/models", label: "Model Catalog", icon: Box },
     ],
   },
   {
@@ -129,12 +128,11 @@ const navGroups: NavGroup[] = [
     icon: Code2,
     items: [
       { href: "/quick-start", label: "Quick Start", icon: Rocket },
+      { href: "/content-hub", label: "Content Hub", icon: Package },
       { href: "/factory", label: "App Factory", icon: Factory },
       { href: "/builder", label: "Builder", icon: Wrench },
       { href: "/code-assist", label: "Code Assist", icon: Wand2 },
       { href: "/projects", label: "Projects", icon: Layers },
-      { href: "/templates", label: "Templates", icon: Package },
-      { href: "/marketplace", label: "Marketplace", icon: Package },
       { href: "/editor", label: "Code Editor", icon: Code2 },
     ],
   },
