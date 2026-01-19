@@ -158,7 +158,7 @@ export async function POST(request: NextRequest) {
     const healthEndpoint = `${projectUrl}/api/health`;
 
     const environment = serverId === "linode" ? "linode" : serverId === "home" ? "ubuntu-home" : "windows-vm";
-    const serviceCapabilities = [...new Set([...capabilities, template, category, "project"])];
+    const serviceCapabilities = Array.from(new Set([...capabilities, template, category, "project"]));
     
     const metadata = {
       environment,

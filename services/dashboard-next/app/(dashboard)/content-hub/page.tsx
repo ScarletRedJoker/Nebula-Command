@@ -758,7 +758,7 @@ export default function ContentHubPage() {
   }, [categories]);
 
   const modelCategories = ["all", "ollama", "sd"];
-  const templateCategories = ["all", ...new Set(templates.map(t => t.category))];
+  const templateCategories = ["all", ...Array.from(new Set(templates.map(t => t.category)))];
   const resourceCategories = ["all", "models", "containers", "templates", "resources"];
 
   const filteredPackages = useMemo(() => {
