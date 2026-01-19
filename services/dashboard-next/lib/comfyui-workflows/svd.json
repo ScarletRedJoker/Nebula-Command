@@ -1,0 +1,141 @@
+{
+  "name": "SVD Image-to-Video",
+  "description": "Image-to-video generation using Stable Video Diffusion",
+  "version": "1.0.0",
+  "parameters": {
+    "input_image": {
+      "type": "string",
+      "required": true,
+      "description": "Uploaded image filename"
+    },
+    "frames": {
+      "type": "integer",
+      "default": 25,
+      "min": 14,
+      "max": 50,
+      "description": "Number of frames to generate"
+    },
+    "fps": {
+      "type": "integer",
+      "default": 8,
+      "min": 4,
+      "max": 24,
+      "description": "Frames per second in output video"
+    },
+    "width": {
+      "type": "integer",
+      "default": 1024,
+      "description": "Width of generated video"
+    },
+    "height": {
+      "type": "integer",
+      "default": 576,
+      "description": "Height of generated video"
+    },
+    "steps": {
+      "type": "integer",
+      "default": 20,
+      "min": 10,
+      "max": 40,
+      "description": "Number of sampling steps"
+    },
+    "cfg": {
+      "type": "number",
+      "default": 2.5,
+      "min": 1.0,
+      "max": 10.0,
+      "description": "CFG scale"
+    },
+    "motion_bucket_id": {
+      "type": "integer",
+      "default": 127,
+      "min": 1,
+      "max": 255,
+      "description": "Motion intensity (higher = more motion)"
+    },
+    "augmentation_level": {
+      "type": "number",
+      "default": 0,
+      "min": 0,
+      "max": 1,
+      "description": "Image augmentation level"
+    },
+    "seed": {
+      "type": "integer",
+      "default": -1,
+      "description": "Random seed (-1 for random)"
+    }
+  },
+  "workflow": {
+    "1": {
+      "class_type": "LoadImage",
+      "inputs": {
+        "image": "{{input_image}}"
+      }
+    },
+    "2": {
+      "class_type": "ImageOnlyCheckpointLoader",
+      "inputs": {
+        "ckpt_name": "svd_xt_1_1.safetensors"
+      }
+    },
+    "3": {
+      "class_type": "SVD_img2vid_Conditioning",
+      "inputs": {
+        "augmentation_level": "{{augmentation_level}}",
+        "fps": "{{fps}}",
+        "init_image": ["1", 0],
+        "motion_bucket_id": "{{motion_bucket_id}}",
+        "video_frames": "{{frames}}",
+        "width": "{{width}}",
+        "height": "{{height}}"
+      }
+    },
+    "4": {
+      "class_type": "KSampler",
+      "inputs": {
+        "cfg": "{{cfg}}",
+        "denoise": 1,
+        "latent_image": ["3", 2],
+        "model": ["2", 0],
+        "negative": ["3", 1],
+        "positive": ["3", 0],
+        "sampler_name": "euler",
+        "scheduler": "karras",
+        "seed": "{{seed}}",
+        "steps": "{{steps}}"
+      }
+    },
+    "5": {
+      "class_type": "VAEDecode",
+      "inputs": {
+        "samples": ["4", 0],
+        "vae": ["2", 2]
+      }
+    },
+    "6": {
+      "class_type": "VHS_VideoCombine",
+      "inputs": {
+        "images": ["5", 0],
+        "frame_rate": "{{fps}}",
+        "loop_count": 0,
+        "filename_prefix": "SVD",
+        "format": "video/h264-mp4",
+        "save_output": true,
+        "pingpong": false,
+        "crf": 19
+      }
+    }
+  },
+  "required_nodes": [
+    "LoadImage",
+    "ImageOnlyCheckpointLoader",
+    "SVD_img2vid_Conditioning",
+    "KSampler",
+    "VAEDecode",
+    "VHS_VideoCombine"
+  ],
+  "required_models": {
+    "checkpoints": ["svd_xt_1_1.safetensors"]
+  }
+}

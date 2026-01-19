@@ -1,0 +1,22 @@
+Demo Image Samples Directory
+=============================
+
+This directory should contain pre-generated sample images for demo mode.
+
+Recommended images to add:
+1. landscape-sunset.jpg - Beautiful sunset landscape
+2. cyberpunk-city.jpg - Futuristic cyberpunk cityscape
+3. abstract-ai.jpg - Abstract AI/tech themed artwork
+4. robot-assistant.jpg - Friendly robot/AI assistant
+5. space-nebula.jpg - Deep space nebula scene
+
+Image specifications:
+- Resolution: 1024x1024 or 1920x1080
+- Format: JPG or PNG
+- Size: Under 500KB each for fast loading
+
+To add demo images:
+1. Generate images using Stable Diffusion or DALL-E
+2. Or use royalty-free images from Unsplash, Pexels, etc.
+3. Place them in this directory
+4. Update the demo-mode.ts file with the correct filenames

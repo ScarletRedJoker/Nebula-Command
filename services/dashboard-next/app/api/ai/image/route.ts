@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { aiOrchestrator } from "@/lib/ai-orchestrator";
 import { verifySession } from "@/lib/session";
 import { cookies } from "next/headers";
+import { demoMode } from "@/lib/demo-mode";
 
 function isMotionModule(modelName: string): boolean {
   if (!modelName) return false;
@@ -32,6 +33,22 @@ export async function POST(request: NextRequest) {
 
     prompt = (prompt || "").trim();
     negativePrompt = (negativePrompt || "").trim();
+
+    if (demoMode.isEnabled()) {
+      console.log("[Image API] Demo mode active, returning sample image");
+      const demoImage = await demoMode.getImageByPrompt(prompt || "");
+      if (demoImage) {
+        return NextResponse.json({
+          url: demoImage.url,
+          provider: "demo",
+          model: "demo-sdxl",
+          isDemo: true,
+          style: demoImage.style,
+          originalPrompt: demoImage.prompt,
+          message: "Demo mode: Showing pre-generated sample image",
+        });
+      }
+    }
 
     if (!prompt || prompt.length === 0) {
       console.error("[Image API] Empty prompt received");

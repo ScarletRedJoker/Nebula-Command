@@ -4,6 +4,8 @@ import { verifySession } from "@/lib/session";
 import { cookies } from "next/headers";
 import { localAIRuntime } from "@/lib/local-ai-runtime";
 import { getOpenAITools, executeJarvisTool } from "@/lib/jarvis-tools";
+import { aiFallbackManager, type FallbackDecision } from "@/lib/ai-fallback";
+import { demoMode } from "@/lib/demo-mode";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -122,9 +124,8 @@ async function checkAuth() {
 
 async function isOllamaAvailable(): Promise<boolean> {
   try {
-    const runtimes = await localAIRuntime.checkAllRuntimes();
-    const ollama = runtimes.find(r => r.provider === "ollama");
-    return ollama?.status === "online";
+    const result = await localAIRuntime.isOllamaOnline();
+    return result.online;
   } catch {
     return false;
   }
@@ -227,24 +228,33 @@ function detectToolIntent(message: string): boolean {
   return toolPatterns.some(pattern => pattern.test(message));
 }
 
-async function selectProvider(requestedProvider: AIProvider): Promise<{ provider: "openai" | "ollama"; fallback: boolean }> {
-  if (requestedProvider === "openai") {
-    return { provider: "openai", fallback: false };
-  }
-
-  if (requestedProvider === "ollama") {
-    const available = await isOllamaAvailable();
-    if (available) {
-      return { provider: "ollama", fallback: false };
+async function selectProvider(requestedProvider: AIProvider): Promise<{ provider: "openai" | "ollama"; fallback: boolean; reason: string }> {
+  try {
+    const decision = await aiFallbackManager.selectProvider(
+      requestedProvider === "custom" ? "openai" : requestedProvider
+    );
+    
+    console.log(`[AIChat] Provider selection: ${decision.provider} (fallback: ${decision.isFallback}, reason: ${decision.reason})`);
+    
+    return {
+      provider: decision.provider === "custom" ? "openai" : decision.provider,
+      fallback: decision.isFallback,
+      reason: decision.reason,
+    };
+  } catch (error: any) {
+    console.error(`[AIChat] Provider selection failed: ${error.message}`);
+    
+    if (requestedProvider === "openai") {
+      return { provider: "openai", fallback: false, reason: "OpenAI explicitly requested" };
     }
-    return { provider: "openai", fallback: true };
+    
+    const ollamaOnline = await localAIRuntime.isOllamaOnline();
+    if (ollamaOnline.online) {
+      return { provider: "ollama", fallback: false, reason: "Ollama available" };
+    }
+    
+    return { provider: "openai", fallback: true, reason: `Fallback to OpenAI: ${error.message}` };
   }
-
-  const ollamaAvailable = await isOllamaAvailable();
-  if (ollamaAvailable) {
-    return { provider: "ollama", fallback: false };
-  }
-  return { provider: "openai", fallback: false };
 }
 
 const systemPrompt = `You are Jarvis, an advanced AI assistant for Nebula Command - a comprehensive homelab management and development platform.
@@ -654,10 +664,48 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Message is required" }, { status: 400 });
     }
 
+    if (demoMode.isEnabled()) {
+      console.log("[AIChat] Demo mode active, returning cached response");
+      const demoResponse = await demoMode.getChatResponse(message);
+      if (demoResponse) {
+        if (stream) {
+          const encoder = new TextEncoder();
+          const readable = new ReadableStream({
+            async start(controller) {
+              const words = demoResponse.content.split(" ");
+              for (let i = 0; i < words.length; i++) {
+                const chunk = words[i] + (i < words.length - 1 ? " " : "");
+                controller.enqueue(
+                  encoder.encode(`data: ${JSON.stringify({ content: chunk, provider: "demo", model: "jarvis-demo" })}\n\n`)
+                );
+                await new Promise((r) => setTimeout(r, 30 + Math.random() * 20));
+              }
+              controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
+              controller.close();
+            },
+          });
+          return new Response(readable, {
+            headers: {
+              "Content-Type": "text/event-stream",
+              "Cache-Control": "no-cache",
+              Connection: "keep-alive",
+            },
+          });
+        }
+        return NextResponse.json({
+          ...demoResponse,
+          isDemo: true,
+          timestamp: new Date().toISOString(),
+        });
+      }
+    }
+
     const messages = [...history, { role: "user", content: message }];
 
     let result: Response | { content: string; provider: string; model: string; toolResults?: any[] };
     let usedFallback = false;
+    let fallbackReason = "";
+    let actualProvider = "";
 
     const messageRequiresTool = detectToolIntent(message);
     
@@ -675,9 +723,12 @@ export async function POST(request: NextRequest) {
       console.log("[Jarvis] Message requires tool use, forcing OpenAI for function calling");
       const openaiModel = model || "gpt-4o";
       result = await chatWithOpenAI(messages, openaiModel, stream);
+      actualProvider = "openai";
     } else {
-      const { provider: selectedProvider, fallback } = await selectProvider(provider as AIProvider);
+      const { provider: selectedProvider, fallback, reason } = await selectProvider(provider as AIProvider);
       usedFallback = fallback;
+      fallbackReason = reason;
+      actualProvider = selectedProvider;
 
       const defaultModel = selectedProvider === "openai" ? "gpt-4o" : "llama3.2:latest";
       const finalModel = model || defaultModel;
@@ -719,14 +770,24 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       response: result.content,
       provider: result.provider,
       model: result.model,
       fallback: usedFallback,
+      fallbackReason: usedFallback ? fallbackReason : undefined,
+      actualProvider: actualProvider || result.provider,
       codeBlocks: codeBlocks.length > 0 ? codeBlocks : undefined,
       toolResults: result.toolResults,
     });
+    
+    response.headers.set("X-AI-Provider", actualProvider || result.provider);
+    if (usedFallback) {
+      response.headers.set("X-AI-Fallback", "true");
+      response.headers.set("X-AI-Fallback-Reason", fallbackReason);
+    }
+    
+    return response;
   } catch (error: any) {
     console.error("AI Chat error:", error);
     return NextResponse.json(

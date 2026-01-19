@@ -28,7 +28,15 @@ import {
   RefreshCw,
   AlertCircle,
   CheckCircle2,
+  AlertTriangle,
+  Info,
 } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -40,6 +48,8 @@ interface Message {
   provider?: string;
   model?: string;
   codeBlocks?: { language: string; code: string }[];
+  isFallback?: boolean;
+  fallbackReason?: string;
 }
 
 interface Provider {
@@ -164,6 +174,8 @@ export default function AIPage() {
         let fullContent = "";
         let provider = "";
         let model = "";
+        let isFallback = false;
+        let fallbackReason = "";
 
         while (true) {
           const { done, value } = await reader.read();
@@ -185,6 +197,8 @@ export default function AIPage() {
                 }
                 if (parsed.provider) provider = parsed.provider;
                 if (parsed.model) model = parsed.model;
+                if (parsed.fallback !== undefined) isFallback = parsed.fallback;
+                if (parsed.fallbackReason) fallbackReason = parsed.fallbackReason;
               } catch {
               }
             }
@@ -209,6 +223,8 @@ export default function AIPage() {
           provider,
           model,
           codeBlocks: codeBlocks.length > 0 ? codeBlocks : undefined,
+          isFallback,
+          fallbackReason,
         };
 
         setMessages((prev) => [...prev, assistantMessage]);
@@ -224,6 +240,8 @@ export default function AIPage() {
           provider: data.provider,
           model: data.model,
           codeBlocks: data.codeBlocks,
+          isFallback: data.fallback,
+          fallbackReason: data.fallbackReason,
         };
 
         setMessages((prev) => [...prev, assistantMessage]);
@@ -448,14 +466,53 @@ export default function AIPage() {
                       </pre>
                     </div>
                   ))}
-                  <div className="flex items-center gap-2 mt-2">
+                  <div className="flex items-center gap-2 mt-2 flex-wrap">
                     <p className="text-xs opacity-50">
                       {message.timestamp.toLocaleTimeString()}
                     </p>
                     {message.provider && message.provider !== "system" && (
-                      <span className="text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary">
-                        {message.provider} {message.model && `• ${message.model}`}
-                      </span>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className={cn(
+                              "text-xs px-1.5 py-0.5 rounded inline-flex items-center gap-1 cursor-help",
+                              message.isFallback 
+                                ? "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border border-yellow-500/20" 
+                                : message.provider === "ollama" 
+                                  ? "bg-green-500/10 text-green-600 dark:text-green-400"
+                                  : "bg-primary/10 text-primary"
+                            )}>
+                              {message.provider === "ollama" ? (
+                                <HardDrive className="h-3 w-3" />
+                              ) : (
+                                <Cloud className="h-3 w-3" />
+                              )}
+                              {message.provider}
+                              {message.model && <span className="opacity-70">• {message.model}</span>}
+                              {message.isFallback && (
+                                <AlertTriangle className="h-3 w-3 text-yellow-500" />
+                              )}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-xs">
+                            {message.isFallback ? (
+                              <div className="space-y-1">
+                                <p className="font-medium flex items-center gap-1">
+                                  <AlertTriangle className="h-3 w-3 text-yellow-500" />
+                                  Using Cloud Fallback
+                                </p>
+                                <p className="text-xs opacity-80">{message.fallbackReason || "Local AI unavailable, using cloud provider"}</p>
+                              </div>
+                            ) : (
+                              <p>
+                                {message.provider === "ollama" 
+                                  ? "Running on local GPU (Windows VM)" 
+                                  : "Running on OpenAI cloud"}
+                              </p>
+                            )}
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     )}
                   </div>
                 </div>

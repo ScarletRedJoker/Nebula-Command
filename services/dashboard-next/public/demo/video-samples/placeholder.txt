@@ -1,0 +1,21 @@
+Demo Video Samples Directory
+=============================
+
+This directory should contain pre-generated sample videos for demo mode.
+
+Recommended videos to add:
+1. dashboard-pan.mp4 - Smooth camera pan across UI
+2. logo-reveal.mp4 - Animated logo with effects
+3. abstract-flow.mp4 - Abstract flowing geometry
+
+Video specifications:
+- Resolution: 768x512 or 512x512
+- Duration: 2-5 seconds
+- Format: MP4 (H.264)
+- Size: Under 5MB each
+
+To add demo videos:
+1. Generate videos using AnimateDiff or SVD
+2. Or use royalty-free videos from Pexels, Coverr, etc.
+3. Place them in this directory
+4. Update the demo-mode.ts file with the correct filenames

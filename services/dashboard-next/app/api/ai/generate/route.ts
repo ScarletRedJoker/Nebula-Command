@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { aiOrchestrator } from "@/lib/ai-orchestrator";
 import { verifySession } from "@/lib/session";
 import { cookies } from "next/headers";
+import { demoMode } from "@/lib/demo-mode";
 
 async function checkAuth() {
   const cookieStore = await cookies();
@@ -79,6 +80,26 @@ export async function POST(request: NextRequest) {
   try {
     const body: GenerateRequest = await request.json();
     const { description, type, language, framework, additionalContext } = body;
+
+    if (demoMode.isEnabled()) {
+      console.log("[Generate API] Demo mode active, returning sample code");
+      const demoCode = await demoMode.getCodeSample(type, language);
+      if (demoCode) {
+        return NextResponse.json({
+          code: demoCode.code,
+          filePath: demoCode.filePath,
+          explanation: demoCode.explanation,
+          dependencies: [],
+          provider: "demo",
+          model: "demo-codegen",
+          isDemo: true,
+          generationType: demoCode.type,
+          language: demoCode.language,
+          timestamp: new Date().toISOString(),
+          message: "Demo mode: Showing pre-generated sample code",
+        });
+      }
+    }
 
     if (!description || !type || !language) {
       return NextResponse.json(

@@ -1,0 +1,67 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2025-01-19",
+  "responses": [
+    {
+      "id": "greeting",
+      "triggers": ["hello", "hi", "hey", "greetings", "good morning", "good evening"],
+      "response": "Hello! I'm Jarvis, your AI assistant for Nebula Command. I can help you manage your homelab infrastructure, generate code, create images and videos, and much more. What would you like to do today?",
+      "category": "greeting"
+    },
+    {
+      "id": "infrastructure-status",
+      "triggers": ["status", "what's running", "server status", "check status", "health check"],
+      "response": "📊 **Infrastructure Status**\n\n✅ **Linode Server** - All services healthy\n  - Discord Bot: Running (4000)\n  - Stream Bot: Running (3000)\n  - Dashboard: Running (5000)\n  - PostgreSQL: Connected\n  - Redis: Connected\n\n✅ **Home Server** - Online\n  - Plex: Running (32400)\n  - Home Assistant: Running (8123)\n  - MinIO: Running (9000)\n\n✅ **Windows VM (GPU)** - Online\n  - Ollama: Running (11434)\n  - ComfyUI: Running (8188)\n  - Stable Diffusion: Running (7860)\n\n🟢 All 12 services operational",
+      "category": "infrastructure"
+    },
+    {
+      "id": "ai-services-status",
+      "triggers": ["ai status", "ai services", "what ai", "ollama status", "models available", "gpu status"],
+      "response": "🤖 **AI Services Status**\n\n**Local GPU (Windows VM - RTX 3080)**\n✅ Ollama: Online (3 models loaded)\n  - llama3.2:latest (3.2B params)\n  - mistral:latest (7B params)\n  - codellama:latest (7B params)\n\n✅ Stable Diffusion WebUI: Online\n  - Model: SDXL 1.0\n  - VAE: sdxl_vae\n  - VRAM: 8.2GB / 12GB\n\n✅ ComfyUI: Online\n  - Workflows: 15 available\n  - AnimateDiff: Ready\n  - SVD: Ready\n\n**Cloud Providers**\n✅ OpenAI GPT-4: Connected\n✅ Replicate: Connected\n✅ ElevenLabs: Connected",
+      "category": "ai"
+    },
+    {
+      "id": "generate-image",
+      "triggers": ["generate image", "create image", "make image", "picture of", "draw", "artwork"],
+      "response": "🎨 **Image Generated Successfully!**\n\nI've created your image using local Stable Diffusion on the GPU.\n\n**Generation Details:**\n- Model: SDXL 1.0\n- Resolution: 1024x1024\n- Steps: 30\n- CFG Scale: 7.5\n- Sampler: DPM++ 2M Karras\n- Generation Time: 4.2 seconds\n- Seed: 1847392\n\n✨ The image has been saved to your gallery.\n\nWould you like me to:\n- Generate variations\n- Upscale to 4K\n- Try a different style\n- Adjust the composition",
+      "category": "creative"
+    },
+    {
+      "id": "generate-video",
+      "triggers": ["generate video", "create video", "make video", "animate", "video of", "animation"],
+      "response": "🎬 **Video Generation Complete!**\n\nGenerated using AnimateDiff v3 on local GPU.\n\n**Video Details:**\n- Model: AnimateDiff Lightning\n- Resolution: 768x512\n- Frames: 16\n- FPS: 8\n- Duration: 2 seconds\n- Motion Module: mm_sd15_v3\n- Generation Time: 28 seconds\n\n📁 Video saved to: `/outputs/videos/gen_2025-01-19_001.mp4`\n\nWould you like me to:\n- Extend the video length\n- Add motion effects\n- Generate a different scene\n- Export as GIF",
+      "category": "creative"
+    },
+    {
+      "id": "deployment",
+      "triggers": ["deploy", "push to production", "update services", "release", "ship it"],
+      "response": "🚀 **Deployment Completed Successfully!**\n\n**Target:** Linode Production Server\n**Services Updated:** 3\n\n📋 **Deployment Summary:**\n\n| Step | Status | Duration |\n|------|--------|----------|\n| Code Validation | ✅ Passed | 2.3s |\n| Unit Tests | ✅ 47/47 passed | 12.1s |\n| Docker Build | ✅ Completed | 34.2s |\n| Push to Registry | ✅ Completed | 8.7s |\n| Rolling Update | ✅ Completed | 45.3s |\n| Health Checks | ✅ All passing | 5.2s |\n\n**Total Time:** 1m 47s\n\n🟢 All services are live and healthy!\n\nCommit: `a4b2c1d` - \"feat: add demo mode system\"",
+      "category": "infrastructure"
+    },
+    {
+      "id": "code-generation",
+      "triggers": ["write code", "create component", "generate code", "help with code", "scaffold"],
+      "response": "💻 **Code Generation Capabilities**\n\nI can generate production-ready code for:\n\n**Frontend**\n- React/Next.js components\n- Vue.js components\n- Tailwind CSS layouts\n- TypeScript interfaces\n\n**Backend**\n- Express/Fastify APIs\n- Python Flask/FastAPI endpoints\n- Database schemas (Prisma, Drizzle)\n- GraphQL resolvers\n\n**Full Stack**\n- CRUD applications\n- Authentication flows\n- Real-time features\n- Deployment configs\n\n**Example prompts:**\n- \"Create a React card component with hover effects\"\n- \"Generate a REST API for user management\"\n- \"Write a Python script to process CSV files\"\n\nWhat would you like me to create?",
+      "category": "development"
+    },
+    {
+      "id": "docker-restart",
+      "triggers": ["restart", "restart container", "restart service", "reboot"],
+      "response": "🐳 **Service Restarted Successfully**\n\n**Action:** Restart\n**Target:** discord-bot\n**Server:** Linode Production\n\n```bash\n$ docker compose restart discord-bot\n[+] Restarting 1/1\n ✔ Container discord-bot  Restarted  2.4s\n```\n\n**Health Check:**\n```\nStatus: healthy\nUptime: 8 seconds\nMemory: 124MB / 512MB\nCPU: 2.3%\nConnections: Discord API ✓\n```\n\n🟢 Service is running and healthy!",
+      "category": "infrastructure"
+    },
+    {
+      "id": "view-logs",
+      "triggers": ["show logs", "get logs", "view logs", "debug logs", "container logs"],
+      "response": "📜 **Container Logs - discord-bot** (last 50 lines)\n\n```log\n2025-01-19T12:00:01.234Z INFO  [Discord] Bot connected successfully\n2025-01-19T12:00:01.456Z INFO  [Discord] Logged in as NebulaBot#1234\n2025-01-19T12:00:02.123Z INFO  [Commands] Loaded 45 slash commands\n2025-01-19T12:00:02.234Z INFO  [Music] Lavalink connection established\n2025-01-19T12:00:03.567Z INFO  [Database] PostgreSQL connected\n2025-01-19T12:00:15.890Z INFO  [Command] User executed /play in guild 123456\n2025-01-19T12:00:16.012Z INFO  [Music] Added to queue: \"Song Title\"\n2025-01-19T12:01:00.000Z INFO  [Heartbeat] Ping: 45ms\n2025-01-19T12:02:00.000Z INFO  [Heartbeat] Ping: 42ms\n2025-01-19T12:03:00.000Z INFO  [Heartbeat] Ping: 48ms\n```\n\n✅ No errors detected in recent logs.\n\nOptions:\n- View more lines\n- Filter by level (INFO/WARN/ERROR)\n- Search for specific terms\n- Stream live logs",
+      "category": "infrastructure"
+    },
+    {
+      "id": "capabilities",
+      "triggers": ["what can you do", "capabilities", "help", "features", "abilities"],
+      "response": "🌟 **Jarvis AI Capabilities**\n\n**🎨 Creative Generation**\n• Generate images with DALL-E or local Stable Diffusion\n• Create videos with AnimateDiff, SVD, or Replicate\n• Face swap and enhancement\n• Style transfer and upscaling\n\n**🐳 Infrastructure Control**\n• Start/stop/restart Docker containers\n• Deploy to production servers\n• Monitor service health\n• View and search logs\n• Manage DNS and certificates\n\n**💻 Code Development**\n• Generate production-ready code\n• Analyze and review code\n• Fix bugs automatically\n• Create project scaffolds\n• Multi-agent orchestration\n\n**🧠 AI Model Management**\n• Browse Ollama/HuggingFace models\n• Install and manage local models\n• Monitor GPU utilization\n• Smart cloud/local routing\n\n**🔧 Automation**\n• Create scheduled tasks\n• Set up webhooks\n• Build automation pipelines\n• Integrate with Home Assistant\n\nJust describe what you need - I'll take action!",
+      "category": "help"
+    }
+  ],
+  "fallbackResponse": "I understand you're asking about something specific. In demo mode, I'm showing cached responses to demonstrate capabilities.\n\nTry these example commands:\n• \"Check server status\" - View infrastructure health\n• \"Generate an image of a sunset\" - See image generation\n• \"Create a React component\" - Code generation demo\n• \"Restart discord-bot\" - Container management\n• \"What can you do?\" - Full capabilities list"
+}

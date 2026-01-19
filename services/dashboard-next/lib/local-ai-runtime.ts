@@ -58,6 +58,15 @@ interface OllamaRunningModel {
   size_vram?: number;
 }
 
+interface CachedOllamaHealth {
+  status: "online" | "offline" | "degraded";
+  checkedAt: number;
+  latencyMs?: number;
+  error?: string;
+}
+
+const OLLAMA_HEALTH_CACHE_TTL = 60000;
+
 class LocalAIRuntime {
   private ollamaUrl: string;
   private sdUrl: string;
@@ -66,12 +75,80 @@ class LocalAIRuntime {
   private modelsCache: Map<string, LocalModel[]> = new Map();
   private lastHealthCheck: Date | null = null;
   private jobQueue: GenerationJob[] = [];
+  private ollamaHealthCache: CachedOllamaHealth | null = null;
 
   constructor() {
     const WINDOWS_VM_IP = process.env.WINDOWS_VM_TAILSCALE_IP || "100.118.44.102";
     this.ollamaUrl = process.env.OLLAMA_URL || `http://${WINDOWS_VM_IP}:11434`;
     this.sdUrl = process.env.STABLE_DIFFUSION_URL || `http://${WINDOWS_VM_IP}:7860`;
     this.comfyUrl = process.env.COMFYUI_URL || `http://${WINDOWS_VM_IP}:8188`;
+  }
+
+  async isOllamaOnline(forceRefresh = false): Promise<{ online: boolean; latencyMs?: number; error?: string }> {
+    if (!forceRefresh && this.ollamaHealthCache) {
+      const age = Date.now() - this.ollamaHealthCache.checkedAt;
+      if (age < OLLAMA_HEALTH_CACHE_TTL) {
+        console.log(`[LocalAI] Using cached Ollama health: ${this.ollamaHealthCache.status} (cache age: ${Math.round(age / 1000)}s)`);
+        return {
+          online: this.ollamaHealthCache.status === "online" || this.ollamaHealthCache.status === "degraded",
+          latencyMs: this.ollamaHealthCache.latencyMs,
+          error: this.ollamaHealthCache.error,
+        };
+      }
+    }
+
+    const start = Date.now();
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
+
+      const response = await fetch(`${this.ollamaUrl}/api/tags`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+
+      const latencyMs = Date.now() - start;
+
+      if (!response.ok) {
+        this.ollamaHealthCache = {
+          status: "offline",
+          checkedAt: Date.now(),
+          latencyMs,
+          error: `HTTP ${response.status}`,
+        };
+        console.log(`[LocalAI] Ollama health check failed: HTTP ${response.status}`);
+        return { online: false, latencyMs, error: `HTTP ${response.status}` };
+      }
+
+      const status = latencyMs > 2000 ? "degraded" : "online";
+      this.ollamaHealthCache = {
+        status,
+        checkedAt: Date.now(),
+        latencyMs,
+      };
+      console.log(`[LocalAI] Ollama health check passed: ${status} (${latencyMs}ms)`);
+      return { online: true, latencyMs };
+    } catch (error: any) {
+      const latencyMs = Date.now() - start;
+      const errorMsg = error.name === "AbortError" ? "Timeout" : error.message;
+      this.ollamaHealthCache = {
+        status: "offline",
+        checkedAt: Date.now(),
+        latencyMs,
+        error: errorMsg,
+      };
+      console.log(`[LocalAI] Ollama health check error: ${errorMsg}`);
+      return { online: false, latencyMs, error: errorMsg };
+    }
+  }
+
+  getOllamaHealthCache(): CachedOllamaHealth | null {
+    return this.ollamaHealthCache;
+  }
+
+  invalidateOllamaHealthCache(): void {
+    this.ollamaHealthCache = null;
+    console.log(`[LocalAI] Ollama health cache invalidated`);
   }
 
   async checkAllRuntimes(): Promise<RuntimeHealth[]> {

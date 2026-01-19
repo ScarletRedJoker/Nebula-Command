@@ -1,10 +1,17 @@
 /**
  * AI Video Pipeline - Real-time AI video generation with motion control
  * Provides the foundation for video processing pipelines on the Nebula Command platform
- * Integrates with Windows VM AI services via the Nebula Agent API
+ * Integrates with Windows VM AI services via the Nebula Agent API and ComfyUI
  */
 
 import { EventEmitter } from 'events';
+import { 
+  ComfyUIClient, 
+  comfyuiClient, 
+  type QueuedJob, 
+  type VideoGenerationParams,
+  type ComfyUISystemStats 
+} from './comfyui-client';
 
 export type InputSourceType = 'webcam' | 'screen' | 'video_file' | 'motion_capture' | 'audio' | 'image_sequence';
 export type ProcessingStepType = 'motion_control' | 'face_swap' | 'lip_sync' | 'style_transfer' | 'background_replace' | 'pose_estimation' | 'video_generation';
@@ -413,17 +420,231 @@ function generateFrameId(): string {
   return `frame-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 9)}`;
 }
 
+export interface VideoGenerationJob {
+  id: string;
+  prompt: string;
+  negativePrompt?: string;
+  inputImage?: string;
+  aspectRatio?: '16:9' | '9:16' | '1:1';
+  model: string;
+  status: 'pending' | 'queued' | 'running' | 'completed' | 'failed';
+  progress: number;
+  createdAt: Date;
+  startedAt?: Date;
+  completedAt?: Date;
+  outputUrl?: string;
+  error?: string;
+  comfyJobId?: string;
+}
+
 export class VideoPipelineManager extends EventEmitter {
   private pipelines: Map<string, PipelineState> = new Map();
   private modelRegistry: VideoModelRegistry;
   private agentConfig: NebulaAgentConfig;
   private metricsInterval?: NodeJS.Timeout;
   private processingLoops: Map<string, boolean> = new Map();
+  private comfyClient: ComfyUIClient;
+  private videoJobs: Map<string, VideoGenerationJob> = new Map();
 
   constructor(agentConfig: Partial<NebulaAgentConfig> = {}) {
     super();
     this.modelRegistry = new VideoModelRegistry();
     this.agentConfig = { ...DEFAULT_AGENT_CONFIG, ...agentConfig };
+    this.comfyClient = comfyuiClient;
+    
+    this.comfyClient.on('job_progress', (job: QueuedJob) => {
+      this.updateVideoJobFromComfy(job);
+    });
+    this.comfyClient.on('job_completed', (job: QueuedJob) => {
+      this.updateVideoJobFromComfy(job);
+    });
+    this.comfyClient.on('job_failed', (job: QueuedJob) => {
+      this.updateVideoJobFromComfy(job);
+    });
+  }
+
+  private updateVideoJobFromComfy(comfyJob: QueuedJob): void {
+    const entries = Array.from(this.videoJobs.entries());
+    for (const [id, job] of entries) {
+      if (job.comfyJobId === comfyJob.id) {
+        job.progress = comfyJob.progress;
+        if (comfyJob.status === 'completed') {
+          job.status = 'completed';
+          job.completedAt = new Date();
+          job.outputUrl = comfyJob.outputUrl;
+        } else if (comfyJob.status === 'failed') {
+          job.status = 'failed';
+          job.completedAt = new Date();
+          job.error = comfyJob.error;
+        } else if (comfyJob.status === 'running') {
+          job.status = 'running';
+          if (!job.startedAt) job.startedAt = new Date();
+        }
+        this.emit('video_job_updated', job);
+        break;
+      }
+    }
+  }
+
+  async checkComfyUIOnline(): Promise<boolean> {
+    return this.comfyClient.isOnline();
+  }
+
+  async getComfyUIStats(): Promise<ComfyUISystemStats | null> {
+    return this.comfyClient.getSystemStats();
+  }
+
+  async queueVideoGeneration(params: {
+    prompt: string;
+    negativePrompt?: string;
+    inputImage?: string;
+    aspectRatio?: '16:9' | '9:16' | '1:1';
+    model?: 'animatediff' | 'svd' | 'animatediff-lightning';
+    frames?: number;
+    fps?: number;
+    steps?: number;
+    seed?: number;
+  }): Promise<VideoGenerationJob> {
+    const isOnline = await this.checkComfyUIOnline();
+    if (!isOnline) {
+      throw new Error('ComfyUI is offline. Start ComfyUI on Windows VM to generate videos.');
+    }
+
+    const jobId = `video-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    const model = params.model || (params.inputImage ? 'svd' : 'animatediff');
+    
+    const job: VideoGenerationJob = {
+      id: jobId,
+      prompt: params.prompt,
+      negativePrompt: params.negativePrompt,
+      inputImage: params.inputImage,
+      aspectRatio: params.aspectRatio || '16:9',
+      model,
+      status: 'pending',
+      progress: 0,
+      createdAt: new Date(),
+    };
+    
+    this.videoJobs.set(jobId, job);
+    this.emit('video_job_created', job);
+
+    try {
+      const comfyParams: VideoGenerationParams = {
+        prompt: params.prompt,
+        negativePrompt: params.negativePrompt,
+        inputImage: params.inputImage,
+        aspectRatio: params.aspectRatio,
+        model,
+        frames: params.frames,
+        fps: params.fps,
+        steps: params.steps,
+        seed: params.seed,
+      };
+
+      const comfyJob = await this.comfyClient.generateVideo(comfyParams);
+      job.comfyJobId = comfyJob.id;
+      job.status = 'queued';
+      this.emit('video_job_updated', job);
+
+      return job;
+    } catch (error: any) {
+      job.status = 'failed';
+      job.error = error.message;
+      job.completedAt = new Date();
+      this.emit('video_job_updated', job);
+      throw error;
+    }
+  }
+
+  async waitForVideoCompletion(jobId: string, timeoutMs: number = 300000): Promise<VideoGenerationJob> {
+    const job = this.videoJobs.get(jobId);
+    if (!job) {
+      throw new Error(`Video job not found: ${jobId}`);
+    }
+
+    if (!job.comfyJobId) {
+      throw new Error('Job has no associated ComfyUI job');
+    }
+
+    try {
+      await this.comfyClient.waitForCompletion(job.comfyJobId, timeoutMs);
+      return this.videoJobs.get(jobId)!;
+    } catch (error: any) {
+      job.status = 'failed';
+      job.error = error.message;
+      job.completedAt = new Date();
+      this.emit('video_job_updated', job);
+      throw error;
+    }
+  }
+
+  async generateVideoSync(params: {
+    prompt: string;
+    negativePrompt?: string;
+    inputImage?: string;
+    aspectRatio?: '16:9' | '9:16' | '1:1';
+    model?: 'animatediff' | 'svd' | 'animatediff-lightning';
+    frames?: number;
+    fps?: number;
+    steps?: number;
+    seed?: number;
+  }): Promise<{ url: string; job: VideoGenerationJob }> {
+    const job = await this.queueVideoGeneration(params);
+    const completedJob = await this.waitForVideoCompletion(job.id);
+    
+    if (!completedJob.outputUrl) {
+      throw new Error('Video generation completed but no output URL');
+    }
+    
+    return { url: completedJob.outputUrl, job: completedJob };
+  }
+
+  getVideoJob(jobId: string): VideoGenerationJob | undefined {
+    return this.videoJobs.get(jobId);
+  }
+
+  getAllVideoJobs(): VideoGenerationJob[] {
+    return Array.from(this.videoJobs.values());
+  }
+
+  getActiveVideoJobs(): VideoGenerationJob[] {
+    return Array.from(this.videoJobs.values()).filter(
+      j => j.status === 'pending' || j.status === 'queued' || j.status === 'running'
+    );
+  }
+
+  async cancelVideoJob(jobId: string): Promise<boolean> {
+    const job = this.videoJobs.get(jobId);
+    if (!job || !job.comfyJobId) return false;
+    
+    const cancelled = await this.comfyClient.cancelJob(job.comfyJobId);
+    if (cancelled) {
+      job.status = 'failed';
+      job.error = 'Cancelled by user';
+      job.completedAt = new Date();
+      this.emit('video_job_updated', job);
+    }
+    return cancelled;
+  }
+
+  cleanupOldVideoJobs(maxAgeMs: number = 3600000): number {
+    const now = Date.now();
+    let cleaned = 0;
+    const entries = Array.from(this.videoJobs.entries());
+    
+    for (const [id, job] of entries) {
+      const completedAt = job.completedAt?.getTime() || 0;
+      const createdAt = job.createdAt.getTime();
+      const age = now - (completedAt || createdAt);
+      
+      if (age > maxAgeMs && (job.status === 'completed' || job.status === 'failed')) {
+        this.videoJobs.delete(id);
+        cleaned++;
+      }
+    }
+    
+    this.comfyClient.cleanupOldJobs(maxAgeMs);
+    return cleaned;
   }
 
   async createPipeline(config: VideoPipelineConfig): Promise<PipelineState> {
@@ -884,4 +1105,55 @@ export function getVideoModels(category?: VideoModelCategory): VideoModel[] {
     return videoModelRegistry.getModelsByCategory(category);
   }
   return videoModelRegistry.getAllModels();
+}
+
+export async function queueVideoGeneration(params: {
+  prompt: string;
+  negativePrompt?: string;
+  inputImage?: string;
+  aspectRatio?: '16:9' | '9:16' | '1:1';
+  model?: 'animatediff' | 'svd' | 'animatediff-lightning';
+  frames?: number;
+  fps?: number;
+  steps?: number;
+  seed?: number;
+}): Promise<VideoGenerationJob> {
+  return videoPipelineManager.queueVideoGeneration(params);
+}
+
+export async function generateVideoSync(params: {
+  prompt: string;
+  negativePrompt?: string;
+  inputImage?: string;
+  aspectRatio?: '16:9' | '9:16' | '1:1';
+  model?: 'animatediff' | 'svd' | 'animatediff-lightning';
+  frames?: number;
+  fps?: number;
+  steps?: number;
+  seed?: number;
+}): Promise<{ url: string; job: VideoGenerationJob }> {
+  return videoPipelineManager.generateVideoSync(params);
+}
+
+export function getVideoJob(jobId: string): VideoGenerationJob | undefined {
+  return videoPipelineManager.getVideoJob(jobId);
+}
+
+export function getAllVideoJobs(): VideoGenerationJob[] {
+  return videoPipelineManager.getAllVideoJobs();
+}
+
+export function getActiveVideoJobs(): VideoGenerationJob[] {
+  return videoPipelineManager.getActiveVideoJobs();
+}
+
+export async function cancelVideoJob(jobId: string): Promise<boolean> {
+  return videoPipelineManager.cancelVideoJob(jobId);
+}
+
+export async function checkComfyUIStatus(): Promise<{ online: boolean; stats?: any }> {
+  const online = await videoPipelineManager.checkComfyUIOnline();
+  if (!online) return { online: false };
+  const stats = await videoPipelineManager.getComfyUIStats();
+  return { online: true, stats };
 }
