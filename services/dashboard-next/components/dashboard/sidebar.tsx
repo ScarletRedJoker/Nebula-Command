@@ -88,6 +88,7 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/command-center", label: "Command Center", icon: Network },
       { href: "/production-control", label: "Production Control", icon: Rocket },
+      { href: "/inventory", label: "Inventory", icon: Box },
       { href: "/infrastructure", label: "Infrastructure", icon: Server },
       { href: "/servers", label: "Servers", icon: HardDrive },
       { href: "/services", label: "Services", icon: Server },
