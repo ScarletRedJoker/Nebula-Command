@@ -40,7 +40,10 @@ export interface MarketplacePackage {
   minMemory?: number;
   minCpu?: number;
   requiresGpu?: boolean;
+  requiresAgent?: "windows-vm" | "linode" | "ubuntu-homelab";
   featured?: boolean;
+  isNew?: boolean;
+  isPopular?: boolean;
 }
 
 export type PackageCategory = 

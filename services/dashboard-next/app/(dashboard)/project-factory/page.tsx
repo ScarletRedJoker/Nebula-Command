@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,23 +32,35 @@ import {
   CheckCircle2,
   Globe,
   Code2,
-  ShoppingCart,
   Bot,
   BarChart3,
   Layers,
   Zap,
   Database,
   Shield,
-  GitBranch,
   ExternalLink,
   Activity,
   Link as LinkIcon,
   Sparkles,
   Check,
   ArrowRight,
+  ArrowLeft,
   Copy,
-  Plus,
   RefreshCw,
+  Cpu,
+  Image,
+  MessageSquare,
+  Send,
+  Hash,
+  FileCode,
+  Workflow,
+  Brain,
+  MonitorSmartphone,
+  AlertCircle,
+  Clock,
+  Wifi,
+  WifiOff,
+  Settings,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -61,6 +73,8 @@ interface Template {
   features: string[];
   icon: React.ReactNode;
   color: string;
+  recommendedServer: "linode" | "windows" | "home";
+  requiresGPU?: boolean;
 }
 
 interface ServerInfo {
@@ -87,78 +101,241 @@ interface CreateProgress {
   message: string;
 }
 
+interface ProjectHealthStatus {
+  status: "healthy" | "pending-deploy" | "unreachable" | "checking";
+  lastCheck: string | null;
+  message?: string;
+  responseTime?: number;
+}
+
 const templates: Template[] = [
+  // Web category
   {
-    id: "saas-starter",
-    name: "SaaS Starter Kit",
-    description: "Complete SaaS boilerplate with authentication, billing integration, and admin dashboard",
-    category: "saas",
-    techStack: ["Next.js 14", "TypeScript", "Tailwind CSS", "Prisma", "Stripe"],
-    features: ["User authentication", "Stripe billing", "Admin dashboard", "API keys management", "Team workspaces"],
-    icon: <Rocket className="h-6 w-6" />,
+    id: "nextjs-app",
+    name: "Next.js App",
+    description: "Full-featured Next.js 14 application with App Router, server components, and optimized performance",
+    category: "web",
+    techStack: ["Next.js 14", "TypeScript", "Tailwind CSS", "shadcn/ui"],
+    features: ["App Router", "Server Components", "API Routes", "Dark Mode", "SEO Optimized"],
+    icon: <Globe className="h-6 w-6" />,
     color: "bg-blue-500/10 text-blue-500 border-blue-500/20",
+    recommendedServer: "linode",
   },
   {
-    id: "ecommerce-pro",
-    name: "E-commerce Pro",
-    description: "Full-featured online store with cart, checkout, inventory management, and order tracking",
-    category: "ecommerce",
-    techStack: ["Next.js 14", "TypeScript", "Drizzle ORM", "Stripe", "Redis"],
-    features: ["Product catalog", "Shopping cart", "Stripe checkout", "Order management", "Inventory tracking"],
-    icon: <ShoppingCart className="h-6 w-6" />,
-    color: "bg-green-500/10 text-green-500 border-green-500/20",
+    id: "react-spa",
+    name: "React SPA",
+    description: "Modern React single-page application with Vite, routing, and state management",
+    category: "web",
+    techStack: ["React 18", "Vite", "TypeScript", "React Router", "Zustand"],
+    features: ["Fast HMR", "Client-side Routing", "State Management", "Lazy Loading", "PWA Ready"],
+    icon: <MonitorSmartphone className="h-6 w-6" />,
+    color: "bg-cyan-500/10 text-cyan-500 border-cyan-500/20",
+    recommendedServer: "linode",
   },
   {
-    id: "rest-api",
-    name: "REST API Boilerplate",
-    description: "Production-ready REST API with authentication, validation, rate limiting, and OpenAPI docs",
-    category: "api",
-    techStack: ["Node.js", "Express", "TypeScript", "Swagger", "JWT"],
-    features: ["JWT authentication", "Request validation", "Rate limiting", "OpenAPI documentation", "CORS configured"],
-    icon: <Code2 className="h-6 w-6" />,
-    color: "bg-purple-500/10 text-purple-500 border-purple-500/20",
-  },
-  {
-    id: "admin-dashboard",
-    name: "Admin Dashboard Pro",
-    description: "Modern admin panel with charts, data tables, user management, and analytics",
-    category: "dashboard",
-    techStack: ["Next.js 14", "TypeScript", "Recharts", "shadcn/ui", "Drizzle"],
-    features: ["Analytics dashboard", "Data tables", "User roles", "Real-time notifications", "Dark mode"],
-    icon: <BarChart3 className="h-6 w-6" />,
-    color: "bg-orange-500/10 text-orange-500 border-orange-500/20",
-  },
-  {
-    id: "discord-bot",
-    name: "Discord Bot Starter",
-    description: "Feature-rich Discord bot with slash commands, events, database integration, and moderation",
-    category: "bot",
-    techStack: ["Node.js", "Discord.js", "TypeScript", "SQLite", "PM2"],
-    features: ["Slash commands", "Event handlers", "Database storage", "Moderation tools", "Auto-deployment"],
-    icon: <Bot className="h-6 w-6" />,
-    color: "bg-indigo-500/10 text-indigo-500 border-indigo-500/20",
+    id: "static-site",
+    name: "Static Site",
+    description: "Lightning-fast static site with Astro for blogs, docs, and marketing pages",
+    category: "web",
+    techStack: ["Astro", "TypeScript", "Tailwind CSS", "MDX"],
+    features: ["Zero JS by default", "Partial Hydration", "MDX Support", "SEO Built-in", "RSS Feed"],
+    icon: <FileCode className="h-6 w-6" />,
+    color: "bg-violet-500/10 text-violet-500 border-violet-500/20",
+    recommendedServer: "linode",
   },
   {
     id: "landing-page",
-    name: "Landing Page Starter",
+    name: "Landing Page",
     description: "Stunning marketing landing page with animations, CTA sections, and lead capture",
-    category: "landing",
+    category: "web",
     techStack: ["Next.js 14", "TypeScript", "Framer Motion", "Tailwind CSS"],
-    features: ["Hero section", "Feature showcase", "Pricing tables", "Contact form", "SEO optimized"],
-    icon: <Globe className="h-6 w-6" />,
+    features: ["Hero Section", "Animations", "Pricing Tables", "Contact Form", "SEO Optimized"],
+    icon: <Rocket className="h-6 w-6" />,
     color: "bg-pink-500/10 text-pink-500 border-pink-500/20",
+    recommendedServer: "linode",
+  },
+
+  // API category
+  {
+    id: "express-rest",
+    name: "Express REST API",
+    description: "Production-ready REST API with authentication, validation, rate limiting, and OpenAPI docs",
+    category: "api",
+    techStack: ["Node.js", "Express", "TypeScript", "Swagger", "JWT"],
+    features: ["JWT Auth", "Request Validation", "Rate Limiting", "OpenAPI Docs", "CORS"],
+    icon: <Code2 className="h-6 w-6" />,
+    color: "bg-green-500/10 text-green-500 border-green-500/20",
+    recommendedServer: "linode",
+  },
+  {
+    id: "fastapi",
+    name: "FastAPI",
+    description: "High-performance Python API with automatic validation, OpenAPI, and async support",
+    category: "api",
+    techStack: ["Python", "FastAPI", "Pydantic", "SQLAlchemy", "Alembic"],
+    features: ["Auto OpenAPI", "Async Support", "Type Hints", "ORM Integration", "Migrations"],
+    icon: <Zap className="h-6 w-6" />,
+    color: "bg-teal-500/10 text-teal-500 border-teal-500/20",
+    recommendedServer: "linode",
+  },
+  {
+    id: "graphql-api",
+    name: "GraphQL API",
+    description: "Type-safe GraphQL API with Apollo Server, code generation, and subscriptions",
+    category: "api",
+    techStack: ["Node.js", "Apollo Server", "TypeScript", "GraphQL Codegen", "Prisma"],
+    features: ["Type Safety", "Subscriptions", "DataLoader", "Playground", "Schema Stitching"],
+    icon: <Hash className="h-6 w-6" />,
+    color: "bg-fuchsia-500/10 text-fuchsia-500 border-fuchsia-500/20",
+    recommendedServer: "linode",
+  },
+  {
+    id: "microservice",
+    name: "Microservice",
+    description: "Lightweight microservice with message queue integration and health monitoring",
+    category: "api",
+    techStack: ["Node.js", "TypeScript", "Redis", "Bull", "Docker"],
+    features: ["Message Queue", "Job Processing", "Health Checks", "Containerized", "Auto-scaling"],
+    icon: <Layers className="h-6 w-6" />,
+    color: "bg-amber-500/10 text-amber-500 border-amber-500/20",
+    recommendedServer: "linode",
+  },
+
+  // AI/ML category
+  {
+    id: "ollama-chat",
+    name: "Ollama Chat",
+    description: "Local LLM chat interface with Ollama integration and streaming responses",
+    category: "ai",
+    techStack: ["Next.js", "Ollama", "TypeScript", "Vercel AI SDK"],
+    features: ["Local LLMs", "Streaming", "Model Selection", "Chat History", "GPU Accelerated"],
+    icon: <MessageSquare className="h-6 w-6" />,
+    color: "bg-purple-500/10 text-purple-500 border-purple-500/20",
+    recommendedServer: "windows",
+    requiresGPU: true,
+  },
+  {
+    id: "sd-image-gen",
+    name: "SD Image Generator",
+    description: "Stable Diffusion image generation with A1111 or ComfyUI backend integration",
+    category: "ai",
+    techStack: ["Python", "Stable Diffusion", "A1111/ComfyUI", "FastAPI"],
+    features: ["Text to Image", "Inpainting", "ControlNet", "LoRA Support", "Batch Processing"],
+    icon: <Image className="h-6 w-6" />,
+    color: "bg-rose-500/10 text-rose-500 border-rose-500/20",
+    recommendedServer: "windows",
+    requiresGPU: true,
+  },
+  {
+    id: "comfyui-workflow",
+    name: "ComfyUI Workflow",
+    description: "Automated ComfyUI workflow runner with API integration and queue management",
+    category: "ai",
+    techStack: ["Python", "ComfyUI", "FastAPI", "WebSocket"],
+    features: ["Workflow Automation", "Queue Management", "Progress Tracking", "Custom Nodes", "API Access"],
+    icon: <Workflow className="h-6 w-6" />,
+    color: "bg-orange-500/10 text-orange-500 border-orange-500/20",
+    recommendedServer: "windows",
+    requiresGPU: true,
+  },
+  {
+    id: "ai-agent",
+    name: "AI Agent",
+    description: "Autonomous AI agent with tool use, memory, and multi-step reasoning",
+    category: "ai",
+    techStack: ["Python", "LangChain", "OpenAI", "Chroma", "FastAPI"],
+    features: ["Tool Use", "RAG", "Memory", "Multi-Agent", "Streaming"],
+    icon: <Brain className="h-6 w-6" />,
+    color: "bg-indigo-500/10 text-indigo-500 border-indigo-500/20",
+    recommendedServer: "windows",
+    requiresGPU: true,
+  },
+
+  // Bot category
+  {
+    id: "discord-bot",
+    name: "Discord Bot",
+    description: "Feature-rich Discord bot with slash commands, events, and database integration",
+    category: "bot",
+    techStack: ["Node.js", "Discord.js", "TypeScript", "SQLite", "PM2"],
+    features: ["Slash Commands", "Event Handlers", "Database", "Moderation", "Auto-deployment"],
+    icon: <Bot className="h-6 w-6" />,
+    color: "bg-indigo-500/10 text-indigo-500 border-indigo-500/20",
+    recommendedServer: "linode",
+  },
+  {
+    id: "telegram-bot",
+    name: "Telegram Bot",
+    description: "Telegram bot with inline keyboards, commands, and webhook support",
+    category: "bot",
+    techStack: ["Node.js", "Telegraf", "TypeScript", "Redis"],
+    features: ["Inline Keyboards", "Webhooks", "Session Management", "Media Handling", "Localization"],
+    icon: <Send className="h-6 w-6" />,
+    color: "bg-sky-500/10 text-sky-500 border-sky-500/20",
+    recommendedServer: "linode",
+  },
+  {
+    id: "slack-bot",
+    name: "Slack Bot",
+    description: "Slack app with slash commands, interactive components, and event subscriptions",
+    category: "bot",
+    techStack: ["Node.js", "Bolt.js", "TypeScript", "PostgreSQL"],
+    features: ["Slash Commands", "Block Kit", "Event API", "Modals", "OAuth Flow"],
+    icon: <MessageSquare className="h-6 w-6" />,
+    color: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
+    recommendedServer: "linode",
+  },
+
+  // Full-Stack category
+  {
+    id: "nextjs-postgres",
+    name: "Next.js + Postgres",
+    description: "Full-stack Next.js app with PostgreSQL database, auth, and admin dashboard",
+    category: "fullstack",
+    techStack: ["Next.js 14", "TypeScript", "Drizzle ORM", "PostgreSQL", "NextAuth"],
+    features: ["Authentication", "Database ORM", "Admin Dashboard", "API Routes", "Server Actions"],
+    icon: <Database className="h-6 w-6" />,
+    color: "bg-blue-500/10 text-blue-500 border-blue-500/20",
+    recommendedServer: "linode",
+  },
+  {
+    id: "mern-stack",
+    name: "MERN Stack",
+    description: "MongoDB, Express, React, Node.js full-stack application with REST API",
+    category: "fullstack",
+    techStack: ["MongoDB", "Express", "React", "Node.js", "TypeScript"],
+    features: ["REST API", "JWT Auth", "Redux", "File Uploads", "Real-time"],
+    icon: <Layers className="h-6 w-6" />,
+    color: "bg-green-500/10 text-green-500 border-green-500/20",
+    recommendedServer: "linode",
+  },
+  {
+    id: "t3-stack",
+    name: "T3 Stack",
+    description: "Type-safe full-stack app with tRPC, Next.js, Prisma, and NextAuth",
+    category: "fullstack",
+    techStack: ["Next.js", "tRPC", "Prisma", "NextAuth", "Tailwind CSS"],
+    features: ["End-to-end Types", "tRPC API", "OAuth", "Prisma ORM", "Type Safety"],
+    icon: <Shield className="h-6 w-6" />,
+    color: "bg-violet-500/10 text-violet-500 border-violet-500/20",
+    recommendedServer: "linode",
   },
 ];
 
-const categoryFilters = [
-  { id: "all", name: "All Templates", icon: <Layers className="h-4 w-4" /> },
-  { id: "saas", name: "SaaS", icon: <Rocket className="h-4 w-4" /> },
-  { id: "ecommerce", name: "E-commerce", icon: <ShoppingCart className="h-4 w-4" /> },
+const categoryTabs = [
+  { id: "all", name: "All", icon: <Layers className="h-4 w-4" /> },
+  { id: "web", name: "Web", icon: <Globe className="h-4 w-4" /> },
   { id: "api", name: "API", icon: <Code2 className="h-4 w-4" /> },
-  { id: "dashboard", name: "Dashboard", icon: <BarChart3 className="h-4 w-4" /> },
+  { id: "ai", name: "AI/ML", icon: <Cpu className="h-4 w-4" /> },
   { id: "bot", name: "Bot", icon: <Bot className="h-4 w-4" /> },
-  { id: "landing", name: "Landing Page", icon: <Globe className="h-4 w-4" /> },
+  { id: "fullstack", name: "Full-Stack", icon: <Database className="h-4 w-4" /> },
 ];
+
+const serverRecommendations: Record<string, { name: string; description: string; icon: React.ReactNode }> = {
+  linode: { name: "Linode Server", description: "Public cloud - best for web apps & APIs", icon: <Globe className="h-4 w-4" /> },
+  windows: { name: "Windows VM", description: "GPU-powered - best for AI/ML workloads", icon: <Cpu className="h-4 w-4" /> },
+  home: { name: "Home Server", description: "Private homelab - best for internal services", icon: <Shield className="h-4 w-4" /> },
+};
 
 export default function ProjectFactoryPage() {
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -168,13 +345,78 @@ export default function ProjectFactoryPage() {
   const [servers, setServers] = useState<ServerInfo[]>([]);
   const [loadingServers, setLoadingServers] = useState(true);
   const [creating, setCreating] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
   const [progress, setProgress] = useState<CreateProgress | null>(null);
   const [createdProject, setCreatedProject] = useState<any>(null);
+  
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [wizardStep, setWizardStep] = useState(1);
+  const [wizardTemplate, setWizardTemplate] = useState<Template | null>(null);
+  
+  const [projectHealth, setProjectHealth] = useState<ProjectHealthStatus | null>(null);
+  const [healthPolling, setHealthPolling] = useState(false);
 
   useEffect(() => {
     fetchServers();
   }, []);
+
+  useEffect(() => {
+    if (!createdProject?.slug) {
+      setHealthPolling(false);
+      setProjectHealth(null);
+      return;
+    }
+
+    setHealthPolling(true);
+    setProjectHealth({ status: "checking", lastCheck: null });
+
+    const checkHealth = async () => {
+      try {
+        const response = await fetch("/api/projects/status", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ projectSlug: createdProject.slug }),
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setProjectHealth({
+            status: data.healthStatus || "pending-deploy",
+            lastCheck: data.lastCheck,
+            responseTime: data.responseTime,
+            message: data.message,
+          });
+          
+          if (data.healthStatus === "healthy") {
+            setHealthPolling(false);
+          }
+        }
+      } catch (error) {
+        console.error("Health check failed:", error);
+        setProjectHealth({
+          status: "unreachable",
+          lastCheck: new Date().toISOString(),
+          message: "Failed to check health",
+        });
+      }
+    };
+
+    checkHealth();
+
+    const pollInterval = setInterval(() => {
+      if (healthPolling) {
+        checkHealth();
+      }
+    }, 5000);
+
+    const maxPollTimeout = setTimeout(() => {
+      setHealthPolling(false);
+    }, 60000);
+
+    return () => {
+      clearInterval(pollInterval);
+      clearTimeout(maxPollTimeout);
+    };
+  }, [createdProject?.slug, healthPolling]);
 
   const fetchServers = async () => {
     setLoadingServers(true);
@@ -204,36 +446,79 @@ export default function ProjectFactoryPage() {
     }
   };
 
-  const filteredTemplates = selectedCategory === "all"
-    ? templates
-    : templates.filter(t => t.category === selectedCategory);
+  const filteredTemplates = useMemo(() => {
+    return selectedCategory === "all"
+      ? templates
+      : templates.filter(t => t.category === selectedCategory);
+  }, [selectedCategory]);
 
   const generateProjectSlug = (name: string) => {
     return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   };
 
-  const getProjectUrl = () => {
-    const slug = generateProjectSlug(projectName);
-    const server = servers.find(s => s.id === selectedServer);
-    if (!slug || !server) return null;
-    return `https://${slug}.${server.id === "linode" ? "evindrake.net" : "local.nebula"}`;
+  const generateSuggestedName = (template: Template) => {
+    const baseName = template.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    const suffix = Math.floor(Math.random() * 1000);
+    return `${baseName}-${suffix}`;
   };
 
-  const getHealthEndpoint = () => {
-    const url = getProjectUrl();
+  const getProjectUrl = (name: string, serverId: string) => {
+    const slug = generateProjectSlug(name);
+    if (!slug || !serverId) return null;
+    if (serverId === "linode") return `https://${slug}.evindrake.net`;
+    if (serverId === "windows") return `https://ai.nebula.local/${slug}`;
+    return `http://${slug}.home.nebula`;
+  };
+
+  const getHealthEndpoint = (name: string, serverId: string) => {
+    const url = getProjectUrl(name, serverId);
     return url ? `${url}/api/health` : null;
   };
 
+  const getOptimalServer = (template: Template): string => {
+    if (template.requiresGPU) {
+      const windowsServer = servers.find(s => s.id === "windows" && s.status === "online");
+      if (windowsServer) return "windows";
+    }
+    const recommendedId = template.recommendedServer;
+    const recommended = servers.find(s => s.id === recommendedId && s.status === "online");
+    if (recommended) return recommendedId;
+    const linode = servers.find(s => s.id === "linode" && s.status === "online");
+    if (linode) return "linode";
+    const anyOnline = servers.find(s => s.status === "online");
+    return anyOnline?.id || "";
+  };
+
+  const handleQuickCreate = (template: Template) => {
+    setWizardTemplate(template);
+    setProjectName(generateSuggestedName(template));
+    setSelectedServer(getOptimalServer(template));
+    setWizardStep(1);
+    setWizardOpen(true);
+  };
+
+  const handleSelectTemplate = (template: Template) => {
+    setSelectedTemplate(template);
+    if (!projectName) {
+      setProjectName(generateSuggestedName(template));
+    }
+    setSelectedServer(getOptimalServer(template));
+  };
+
   const handleCreateProject = async () => {
-    if (!projectName.trim()) {
+    const template = wizardTemplate || selectedTemplate;
+    const name = projectName;
+    const server = selectedServer;
+
+    if (!name.trim()) {
       toast.error("Please enter a project name");
       return;
     }
-    if (!selectedTemplate) {
+    if (!template) {
       toast.error("Please select a template");
       return;
     }
-    if (!selectedServer) {
+    if (!server) {
       toast.error("Please select a target server");
       return;
     }
@@ -255,13 +540,13 @@ export default function ProjectFactoryPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: projectName,
-          template: selectedTemplate.id,
-          templateName: selectedTemplate.name,
-          serverId: selectedServer,
-          techStack: selectedTemplate.techStack,
-          features: selectedTemplate.features,
-          category: selectedTemplate.category,
+          name,
+          template: template.id,
+          templateName: template.name,
+          serverId: server,
+          techStack: template.techStack,
+          features: template.features,
+          category: template.category,
         }),
       });
 
@@ -279,7 +564,8 @@ export default function ProjectFactoryPage() {
       await new Promise(r => setTimeout(r, 300));
 
       setCreatedProject(result.project);
-      toast.success(`Project "${projectName}" created successfully!`);
+      setWizardOpen(false);
+      toast.success(`Project "${name}" created successfully!`);
     } catch (error: any) {
       console.error("Failed to create project:", error);
       toast.error(error.message || "Failed to create project");
@@ -289,24 +575,250 @@ export default function ProjectFactoryPage() {
     }
   };
 
-  const handleSelectTemplate = (template: Template) => {
-    setSelectedTemplate(template);
-    if (!projectName) {
-      setProjectName(template.name.toLowerCase().replace(/\s+/g, "-"));
-    }
-  };
-
   const resetForm = () => {
     setProjectName("");
     setSelectedTemplate(null);
     setCreatedProject(null);
     setProgress(null);
-    setShowPreview(false);
+    setWizardTemplate(null);
+    setWizardStep(1);
   };
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast.success("Copied to clipboard");
+  };
+
+  const isServerRecommended = (serverId: string, template: Template | null) => {
+    if (!template) return false;
+    return template.recommendedServer === serverId;
+  };
+
+  const renderWizardContent = () => {
+    const template = wizardTemplate;
+    if (!template) return null;
+
+    if (wizardStep === 1) {
+      return (
+        <div className="space-y-6 py-4">
+          <div className="flex items-center gap-3 p-4 rounded-lg bg-muted/50">
+            <div className={`p-3 rounded-lg border ${template.color}`}>
+              {template.icon}
+            </div>
+            <div>
+              <h3 className="font-semibold">{template.name}</h3>
+              <p className="text-sm text-muted-foreground">{template.description}</p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <Label htmlFor="wizard-project-name">Project Name</Label>
+            <Input
+              id="wizard-project-name"
+              placeholder="my-awesome-project"
+              value={projectName}
+              onChange={(e) => setProjectName(e.target.value)}
+            />
+            <div className="text-xs text-muted-foreground flex items-center gap-2">
+              <span>Slug:</span>
+              <code className="bg-muted px-2 py-0.5 rounded">{generateProjectSlug(projectName)}</code>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-5 px-2"
+                onClick={() => setProjectName(generateSuggestedName(template))}
+              >
+                <RefreshCw className="h-3 w-3 mr-1" />
+                Regenerate
+              </Button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (wizardStep === 2) {
+      return (
+        <div className="space-y-4 py-4">
+          <div className="space-y-3">
+            <Label>Select Deployment Server</Label>
+            <div className="grid gap-3">
+              {servers.map(server => {
+                const isRecommended = isServerRecommended(server.id, template);
+                const isOnline = server.status === "online";
+                return (
+                  <div
+                    key={server.id}
+                    className={`p-4 rounded-lg border cursor-pointer transition-all ${
+                      selectedServer === server.id 
+                        ? "border-primary ring-2 ring-primary/20" 
+                        : "hover:border-primary/50"
+                    } ${!isOnline ? "opacity-50 cursor-not-allowed" : ""}`}
+                    onClick={() => isOnline && setSelectedServer(server.id)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-lg ${isRecommended ? "bg-green-500/10" : "bg-muted"}`}>
+                          {serverRecommendations[server.id]?.icon || <Server className="h-4 w-4" />}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{server.name}</span>
+                            <Badge variant={isOnline ? "default" : "secondary"} className="text-xs">
+                              {server.status}
+                            </Badge>
+                            {isRecommended && (
+                              <Badge variant="outline" className="text-xs text-green-600 border-green-600">
+                                Recommended
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {serverRecommendations[server.id]?.description || server.description}
+                          </p>
+                        </div>
+                      </div>
+                      {selectedServer === server.id && (
+                        <Check className="h-5 w-5 text-primary" />
+                      )}
+                    </div>
+                    {server.capabilities && server.capabilities.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2 pl-11">
+                        {server.capabilities.slice(0, 5).map(cap => (
+                          <Badge key={cap} variant="secondary" className="text-xs">
+                            {cap}
+                          </Badge>
+                        ))}
+                        {server.capabilities.length > 5 && (
+                          <Badge variant="secondary" className="text-xs">+{server.capabilities.length - 5}</Badge>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            {template.requiresGPU && selectedServer !== "windows" && (
+              <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-sm flex items-start gap-2">
+                <Cpu className="h-4 w-4 text-yellow-500 mt-0.5" />
+                <div>
+                  <span className="font-medium text-yellow-600">GPU Recommended</span>
+                  <p className="text-xs text-muted-foreground">
+                    This template works best on a GPU-enabled server for optimal performance.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    if (wizardStep === 3) {
+      const projectUrl = getProjectUrl(projectName, selectedServer);
+      const healthUrl = getHealthEndpoint(projectName, selectedServer);
+      const server = servers.find(s => s.id === selectedServer);
+
+      return (
+        <div className="space-y-4 py-4">
+          {progress ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-center py-6">
+                <div className="text-center space-y-2">
+                  <Loader2 className="h-10 w-10 animate-spin mx-auto text-primary" />
+                  <p className="font-medium">{progress.message}</p>
+                </div>
+              </div>
+              <Progress value={progress.percent} />
+            </div>
+          ) : (
+            <>
+              <div className="text-center pb-4">
+                <div className={`inline-flex p-4 rounded-xl ${template.color} mb-3`}>
+                  {template.icon}
+                </div>
+                <h3 className="font-semibold text-lg">{projectName}</h3>
+                <p className="text-sm text-muted-foreground">{template.name}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="space-y-1">
+                  <span className="text-muted-foreground">Template</span>
+                  <p className="font-medium">{template.name}</p>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-muted-foreground">Server</span>
+                  <p className="font-medium flex items-center gap-1">
+                    <Server className="h-3 w-3" />
+                    {server?.name}
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-muted-foreground">Category</span>
+                  <Badge variant="secondary">{template.category}</Badge>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-muted-foreground">Tech Stack</span>
+                  <div className="flex flex-wrap gap-1">
+                    {template.techStack.slice(0, 2).map(tech => (
+                      <Badge key={tech} variant="outline" className="text-xs">{tech}</Badge>
+                    ))}
+                    {template.techStack.length > 2 && (
+                      <Badge variant="outline" className="text-xs">+{template.techStack.length - 2}</Badge>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-lg bg-muted/50 space-y-3">
+                <div className="text-sm font-medium flex items-center gap-2">
+                  <LinkIcon className="h-4 w-4" />
+                  Deployment Preview
+                </div>
+                <div className="space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Project URL</span>
+                    <div className="flex items-center gap-1">
+                      <code className="bg-background px-2 py-1 rounded text-xs max-w-[200px] truncate">
+                        {projectUrl}
+                      </code>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => copyToClipboard(projectUrl || "")}
+                      >
+                        <Copy className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Health Endpoint</span>
+                    <code className="bg-background px-2 py-1 rounded text-xs">
+                      /api/health
+                    </code>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-lg border border-primary/20 bg-primary/5">
+                <div className="text-sm flex items-start gap-2">
+                  <Sparkles className="h-4 w-4 text-primary mt-0.5" />
+                  <div>
+                    <span className="font-medium">Ready to Deploy</span>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Your project will be registered in the service registry and configured for deployment.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      );
+    }
+
+    return null;
   };
 
   return (
@@ -329,258 +841,366 @@ export default function ProjectFactoryPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5" />
-                Template Gallery
-              </CardTitle>
-              <CardDescription>
-                Choose from curated production-ready templates
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex flex-wrap gap-2">
-                {categoryFilters.map(category => (
+      <Tabs value={selectedCategory} onValueChange={setSelectedCategory} className="w-full">
+        <TabsList className="w-full justify-start h-auto flex-wrap gap-1 bg-transparent p-0 mb-4">
+          {categoryTabs.map(tab => (
+            <TabsTrigger
+              key={tab.id}
+              value={tab.id}
+              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground px-4 py-2 rounded-lg border data-[state=active]:border-primary"
+            >
+              {tab.icon}
+              <span className="ml-2">{tab.name}</span>
+              <Badge variant="secondary" className="ml-2 text-xs">
+                {tab.id === "all" ? templates.length : templates.filter(t => t.category === tab.id).length}
+              </Badge>
+            </TabsTrigger>
+          ))}
+        </TabsList>
+
+        <TabsContent value={selectedCategory} className="mt-0">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {filteredTemplates.map(template => (
+              <Card
+                key={template.id}
+                className={`cursor-pointer transition-all hover:shadow-lg hover:border-primary/50 ${
+                  selectedTemplate?.id === template.id ? "ring-2 ring-primary border-primary" : ""
+                }`}
+                onClick={() => handleSelectTemplate(template)}
+              >
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between">
+                    <div className={`p-2.5 rounded-lg border ${template.color}`}>
+                      {template.icon}
+                    </div>
+                    <div className="flex gap-1">
+                      {template.requiresGPU && (
+                        <Badge variant="outline" className="text-xs bg-yellow-500/10 text-yellow-600 border-yellow-500/30">
+                          <Cpu className="h-3 w-3 mr-1" />
+                          GPU
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <CardTitle className="text-lg mt-3">{template.name}</CardTitle>
+                  <CardDescription className="line-clamp-2 text-xs">
+                    {template.description}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="pt-0 space-y-4">
+                  <div className="flex flex-wrap gap-1">
+                    {template.techStack.slice(0, 3).map(tech => (
+                      <Badge key={tech} variant="secondary" className="text-xs">
+                        {tech}
+                      </Badge>
+                    ))}
+                    {template.techStack.length > 3 && (
+                      <Badge variant="secondary" className="text-xs">
+                        +{template.techStack.length - 3}
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <div className="flex items-center gap-1">
+                      {serverRecommendations[template.recommendedServer]?.icon}
+                      <span>{serverRecommendations[template.recommendedServer]?.name}</span>
+                    </div>
+                    <Badge variant="outline" className="text-xs">
+                      {template.features.length} features
+                    </Badge>
+                  </div>
+
                   <Button
-                    key={category.id}
-                    variant={selectedCategory === category.id ? "default" : "outline"}
+                    className="w-full"
                     size="sm"
-                    onClick={() => setSelectedCategory(category.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleQuickCreate(template);
+                    }}
                   >
-                    {category.icon}
-                    <span className="ml-2">{category.name}</span>
+                    <Zap className="h-4 w-4 mr-2" />
+                    Quick Create
                   </Button>
-                ))}
-              </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </TabsContent>
+      </Tabs>
 
-              <ScrollArea className="h-[400px]">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pr-4">
-                  {filteredTemplates.map(template => (
-                    <Card
-                      key={template.id}
-                      className={`cursor-pointer transition-all hover:shadow-md ${
-                        selectedTemplate?.id === template.id
-                          ? "ring-2 ring-primary"
-                          : ""
-                      }`}
-                      onClick={() => handleSelectTemplate(template)}
-                    >
-                      <CardHeader className="pb-2">
-                        <div className="flex items-start justify-between">
-                          <div className={`p-2 rounded-lg border ${template.color}`}>
-                            {template.icon}
-                          </div>
-                          {selectedTemplate?.id === template.id && (
-                            <Badge variant="default" className="gap-1">
-                              <Check className="h-3 w-3" />
-                              Selected
-                            </Badge>
-                          )}
-                        </div>
-                        <CardTitle className="text-lg">{template.name}</CardTitle>
-                        <CardDescription className="line-clamp-2">
-                          {template.description}
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent className="pt-0 space-y-3">
-                        <div className="flex flex-wrap gap-1">
-                          {template.techStack.slice(0, 3).map(tech => (
-                            <Badge key={tech} variant="secondary" className="text-xs">
-                              {tech}
-                            </Badge>
-                          ))}
-                          {template.techStack.length > 3 && (
-                            <Badge variant="secondary" className="text-xs">
-                              +{template.techStack.length - 3}
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          <span className="font-medium">{template.features.length} features:</span>{" "}
-                          {template.features.slice(0, 2).join(", ")}
-                          {template.features.length > 2 && "..."}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-
-          {selectedTemplate && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Layers className="h-5 w-5" />
-                  Template Details
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
+      {selectedTemplate && !wizardOpen && (
+        <Card className="mt-6">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Layers className="h-5 w-5" />
+                Template Details: {selectedTemplate.name}
+              </CardTitle>
+              <Button onClick={() => handleQuickCreate(selectedTemplate)}>
+                <Rocket className="h-4 w-4 mr-2" />
+                Create Project
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="space-y-3">
                 <div className="flex items-center gap-3">
                   <div className={`p-3 rounded-lg border ${selectedTemplate.color}`}>
                     {selectedTemplate.icon}
                   </div>
                   <div>
-                    <h3 className="font-semibold text-lg">{selectedTemplate.name}</h3>
-                    <p className="text-sm text-muted-foreground">{selectedTemplate.description}</p>
+                    <h3 className="font-semibold">{selectedTemplate.name}</h3>
+                    <Badge variant="secondary">{selectedTemplate.category}</Badge>
                   </div>
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
-                      <Code2 className="h-4 w-4" />
-                      Tech Stack
-                    </h4>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedTemplate.techStack.map(tech => (
-                        <Badge key={tech} variant="outline">
-                          {tech}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
-                      <Zap className="h-4 w-4" />
-                      Features
-                    </h4>
-                    <ul className="text-sm text-muted-foreground space-y-1">
-                      {selectedTemplate.features.map(feature => (
-                        <li key={feature} className="flex items-center gap-2">
-                          <CheckCircle2 className="h-3 w-3 text-green-500" />
-                          {feature}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Plus className="h-5 w-5" />
-                Create Project
-              </CardTitle>
-              <CardDescription>
-                Configure and deploy your new project
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="project-name">Project Name</Label>
-                <Input
-                  id="project-name"
-                  placeholder="my-awesome-project"
-                  value={projectName}
-                  onChange={(e) => setProjectName(e.target.value)}
-                  disabled={creating}
-                />
+                <p className="text-sm text-muted-foreground">{selectedTemplate.description}</p>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="server">Target Server (Smart Selection)</Label>
-                <Select
-                  value={selectedServer}
-                  onValueChange={setSelectedServer}
-                  disabled={creating || loadingServers}
+              <div className="space-y-3">
+                <h4 className="text-sm font-medium flex items-center gap-2">
+                  <Code2 className="h-4 w-4" />
+                  Tech Stack
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {selectedTemplate.techStack.map(tech => (
+                    <Badge key={tech} variant="outline">{tech}</Badge>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <h4 className="text-sm font-medium flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4" />
+                  Features
+                </h4>
+                <ul className="text-sm text-muted-foreground space-y-1">
+                  {selectedTemplate.features.map(feature => (
+                    <li key={feature} className="flex items-center gap-2">
+                      <Check className="h-3 w-3 text-green-500" />
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {createdProject && (
+        <Card className="border-green-500/50 bg-green-500/5">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-green-600">
+              <CheckCircle2 className="h-5 w-5" />
+              Project Created Successfully!
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div>
+                <span className="text-muted-foreground">Project</span>
+                <p className="font-medium">{createdProject.name}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Template</span>
+                <p className="font-medium">{createdProject.templateName}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Server</span>
+                <p className="font-medium">{createdProject.serverName}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Status</span>
+                <Badge variant="default" className="bg-green-500">{createdProject.status}</Badge>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-lg bg-background border space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium text-sm">Service Discovery Status</span>
+                </div>
+                {healthPolling && (
+                  <Badge variant="outline" className="text-xs">
+                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                    Polling
+                  </Badge>
+                )}
+              </div>
+              
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div className="space-y-1">
+                  <span className="text-xs text-muted-foreground">Health Status</span>
+                  <div className="flex items-center gap-1">
+                    {projectHealth?.status === "healthy" ? (
+                      <>
+                        <Wifi className="h-4 w-4 text-green-500" />
+                        <Badge className="bg-green-500 text-white">Healthy</Badge>
+                      </>
+                    ) : projectHealth?.status === "checking" ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                        <Badge variant="outline" className="border-blue-500 text-blue-500">Checking</Badge>
+                      </>
+                    ) : projectHealth?.status === "pending-deploy" ? (
+                      <>
+                        <Clock className="h-4 w-4 text-yellow-500" />
+                        <Badge variant="outline" className="border-yellow-500 text-yellow-500">Pending Deploy</Badge>
+                      </>
+                    ) : (
+                      <>
+                        <WifiOff className="h-4 w-4 text-red-500" />
+                        <Badge variant="outline" className="border-red-500 text-red-500">Unreachable</Badge>
+                      </>
+                    )}
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-xs text-muted-foreground">Service Registry</span>
+                  <div className="flex items-center gap-1">
+                    {createdProject.registration?.serviceRegistry ? (
+                      <Badge className="bg-green-500 text-white">Registered</Badge>
+                    ) : (
+                      <Badge variant="outline" className="border-yellow-500 text-yellow-500">Pending</Badge>
+                    )}
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-xs text-muted-foreground">Peer Discovery</span>
+                  <div className="flex items-center gap-1">
+                    {createdProject.registration?.peerDiscovery ? (
+                      <Badge className="bg-green-500 text-white">Broadcast</Badge>
+                    ) : (
+                      <Badge variant="outline" className="border-yellow-500 text-yellow-500">Pending</Badge>
+                    )}
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-xs text-muted-foreground">Last Check</span>
+                  <p className="text-xs font-mono">
+                    {projectHealth?.lastCheck 
+                      ? new Date(projectHealth.lastCheck).toLocaleTimeString() 
+                      : "—"}
+                  </p>
+                  {projectHealth?.responseTime && (
+                    <p className="text-xs text-muted-foreground">{projectHealth.responseTime}ms</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-2 border-t text-xs text-muted-foreground">
+                <Globe className="h-3 w-3" />
+                <span>Health Endpoint:</span>
+                <code className="bg-muted px-2 py-0.5 rounded text-xs">{createdProject.healthEndpoint}</code>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-5 w-5"
+                  onClick={() => copyToClipboard(createdProject.healthEndpoint)}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder={loadingServers ? "Loading servers..." : "Select a server"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {servers.map(server => (
-                      <SelectItem key={server.id} value={server.id}>
-                        <div className="flex items-center gap-2">
-                          <Server className="h-4 w-4" />
-                          <span>{server.name}</span>
-                          <Badge
-                            variant={server.status === "online" ? "default" : "secondary"}
-                            className="text-xs ml-2"
-                          >
-                            {server.status}
-                          </Badge>
-                          {server.capabilities && server.capabilities.length > 0 && (
-                            <span className="text-xs text-muted-foreground ml-2">
-                              ({server.capabilities.slice(0, 3).join(", ")})
-                            </span>
-                          )}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {selectedServer && servers.find(s => s.id === selectedServer) && (
-                  <div className="text-xs text-muted-foreground mt-1 space-y-1">
-                    <div className="flex flex-wrap gap-1">
-                      {servers.find(s => s.id === selectedServer)?.deploymentTypes?.slice(0, 5).map(type => (
-                        <Badge key={type} variant="outline" className="text-xs">
-                          {type}
-                        </Badge>
-                      ))}
-                    </div>
-                    {selectedServer === "windows" && (
-                      <div className="text-yellow-500 flex items-center gap-1">
-                        <Zap className="h-3 w-3" />
-                        GPU-accelerated server for AI workloads
-                      </div>
-                    )}
-                    {selectedServer === "linode" && (
-                      <div className="text-green-500 flex items-center gap-1">
-                        <Globe className="h-3 w-3" />
-                        Public cloud server for web apps and APIs
-                      </div>
-                    )}
-                    {selectedServer === "home" && (
-                      <div className="text-blue-500 flex items-center gap-1">
-                        <Shield className="h-3 w-3" />
-                        Private homelab for internal services
-                      </div>
-                    )}
-                  </div>
-                )}
+                  <Copy className="h-3 w-3" />
+                </Button>
               </div>
+            </div>
 
+            {createdProject.capabilities && createdProject.capabilities.length > 0 && (
               <div className="space-y-2">
-                <Label>Selected Template</Label>
-                {selectedTemplate ? (
-                  <div className={`p-3 rounded-lg border ${selectedTemplate.color}`}>
-                    <div className="flex items-center gap-2">
-                      {selectedTemplate.icon}
-                      <span className="font-medium">{selectedTemplate.name}</span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-3 rounded-lg border border-dashed text-muted-foreground text-sm">
-                    Select a template from the gallery
-                  </div>
+                <span className="text-sm text-muted-foreground">Capabilities</span>
+                <div className="flex flex-wrap gap-1">
+                  {createdProject.capabilities.map((cap: string) => (
+                    <Badge key={cap} variant="secondary" className="text-xs">{cap}</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" onClick={resetForm}>
+                Create Another Project
+              </Button>
+              <Button variant="outline" asChild>
+                <a href="/projects" className="flex items-center gap-2">
+                  <Settings className="h-4 w-4" />
+                  Manage Projects
+                </a>
+              </Button>
+              <Button asChild>
+                <a href={createdProject.url || "#"} target="_blank" rel="noopener noreferrer">
+                  Open Project
+                  <ExternalLink className="h-4 w-4 ml-2" />
+                </a>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Dialog open={wizardOpen} onOpenChange={(open) => {
+        if (!creating) {
+          setWizardOpen(open);
+          if (!open) {
+            setWizardStep(1);
+            setProgress(null);
+          }
+        }
+      }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5" />
+              Quick Create Wizard
+            </DialogTitle>
+            <DialogDescription>
+              Step {wizardStep} of 3: {wizardStep === 1 ? "Name your project" : wizardStep === 2 ? "Choose server" : "Review and create"}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex items-center justify-center gap-2 py-2">
+            {[1, 2, 3].map(step => (
+              <div
+                key={step}
+                className={`flex items-center ${step < 3 ? "flex-1" : ""}`}
+              >
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
+                    step === wizardStep
+                      ? "bg-primary text-primary-foreground"
+                      : step < wizardStep
+                        ? "bg-green-500 text-white"
+                        : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {step < wizardStep ? <Check className="h-4 w-4" /> : step}
+                </div>
+                {step < 3 && (
+                  <div className={`flex-1 h-1 mx-2 rounded ${step < wizardStep ? "bg-green-500" : "bg-muted"}`} />
                 )}
               </div>
+            ))}
+          </div>
 
-              {progress && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span>{progress.message}</span>
-                    <span>{progress.percent}%</span>
-                  </div>
-                  <Progress value={progress.percent} />
-                </div>
-              )}
+          {renderWizardContent()}
 
+          <DialogFooter className="gap-2">
+            {wizardStep > 1 && !creating && (
+              <Button variant="outline" onClick={() => setWizardStep(s => s - 1)}>
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back
+              </Button>
+            )}
+            {wizardStep < 3 ? (
               <Button
-                className="w-full"
-                onClick={() => setShowPreview(true)}
-                disabled={!projectName || !selectedTemplate || !selectedServer || creating}
+                onClick={() => setWizardStep(s => s + 1)}
+                disabled={wizardStep === 1 && !projectName.trim()}
               >
+                Next
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </Button>
+            ) : (
+              <Button onClick={handleCreateProject} disabled={creating}>
                 {creating ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -588,186 +1208,12 @@ export default function ProjectFactoryPage() {
                   </>
                 ) : (
                   <>
-                    <ArrowRight className="h-4 w-4 mr-2" />
-                    Preview & Create
+                    <Rocket className="h-4 w-4 mr-2" />
+                    Create Project
                   </>
                 )}
               </Button>
-            </CardContent>
-          </Card>
-
-          {projectName && selectedTemplate && selectedServer && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Activity className="h-5 w-5" />
-                  Auto-Registration Preview
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Service Name</span>
-                    <code className="bg-muted px-2 py-1 rounded text-xs">
-                      {generateProjectSlug(projectName)}
-                    </code>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Project URL</span>
-                    <div className="flex items-center gap-1">
-                      <code className="bg-muted px-2 py-1 rounded text-xs max-w-[150px] truncate">
-                        {getProjectUrl()}
-                      </code>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={() => copyToClipboard(getProjectUrl() || "")}
-                      >
-                        <Copy className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Health Check</span>
-                    <code className="bg-muted px-2 py-1 rounded text-xs">
-                      /api/health
-                    </code>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Category</span>
-                    <Badge variant="secondary">{selectedTemplate.category}</Badge>
-                  </div>
-                </div>
-
-                <div className="pt-2 border-t space-y-2">
-                  <div className="text-xs text-muted-foreground">
-                    Capabilities to register:
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    <Badge variant="outline" className="text-xs">web</Badge>
-                    <Badge variant="outline" className="text-xs">{selectedTemplate.category}</Badge>
-                    <Badge variant="outline" className="text-xs">http</Badge>
-                    <Badge variant="outline" className="text-xs">health-check</Badge>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {createdProject && (
-            <Card className="border-green-500/50 bg-green-500/5">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-green-600">
-                  <CheckCircle2 className="h-5 w-5" />
-                  Project Created!
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Project ID</span>
-                    <code className="bg-muted px-2 py-1 rounded text-xs">
-                      {createdProject.id?.slice(0, 8)}...
-                    </code>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Status</span>
-                    <Badge variant="default" className="bg-green-500">
-                      {createdProject.status}
-                    </Badge>
-                  </div>
-                </div>
-
-                <div className="flex gap-2 pt-2">
-                  <Button variant="outline" size="sm" className="flex-1" onClick={resetForm}>
-                    Create Another
-                  </Button>
-                  <Button size="sm" className="flex-1" asChild>
-                    <a href={createdProject.url || "#"} target="_blank" rel="noopener noreferrer">
-                      Open Project
-                      <ExternalLink className="h-3 w-3 ml-1" />
-                    </a>
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      </div>
-
-      <Dialog open={showPreview} onOpenChange={setShowPreview}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Rocket className="h-5 w-5" />
-              Confirm Project Creation
-            </DialogTitle>
-            <DialogDescription>
-              Review the project configuration before creating
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="text-muted-foreground">Project Name</span>
-                <p className="font-medium">{projectName}</p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Template</span>
-                <p className="font-medium">{selectedTemplate?.name}</p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Target Server</span>
-                <p className="font-medium flex items-center gap-1">
-                  <Server className="h-3 w-3" />
-                  {servers.find(s => s.id === selectedServer)?.name}
-                </p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Category</span>
-                <Badge variant="secondary">{selectedTemplate?.category}</Badge>
-              </div>
-            </div>
-
-            <div className="p-3 rounded-lg bg-muted/50 space-y-2">
-              <div className="text-sm font-medium flex items-center gap-2">
-                <LinkIcon className="h-4 w-4" />
-                Service Registry Entry
-              </div>
-              <div className="text-xs space-y-1 text-muted-foreground">
-                <div><span className="font-medium">URL:</span> {getProjectUrl()}</div>
-                <div><span className="font-medium">Health:</span> {getHealthEndpoint()}</div>
-                <div><span className="font-medium">Capabilities:</span> web, {selectedTemplate?.category}, http, health-check</div>
-              </div>
-            </div>
-
-            <div className="p-3 rounded-lg border border-primary/20 bg-primary/5">
-              <div className="text-sm flex items-start gap-2">
-                <Sparkles className="h-4 w-4 text-primary mt-0.5" />
-                <div>
-                  <span className="font-medium">Auto-Registration Enabled</span>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Your project will be automatically registered in the service registry
-                    and appear in the infrastructure dashboard.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowPreview(false)}>
-              Cancel
-            </Button>
-            <Button onClick={() => {
-              setShowPreview(false);
-              handleCreateProject();
-            }}>
-              <Rocket className="h-4 w-4 mr-2" />
-              Create Project
-            </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

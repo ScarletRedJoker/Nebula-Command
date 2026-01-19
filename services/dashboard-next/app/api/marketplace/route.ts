@@ -6,6 +6,7 @@ import {
   getPackagesByCategory, 
   searchPackages,
   getFeaturedPackages,
+  getTopPicks,
 } from "@/lib/marketplace/catalog";
 import { CATEGORIES, type MarketplacePackage } from "@/lib/marketplace/packages";
 import { db } from "@/lib/db";
@@ -47,6 +48,76 @@ interface PackageForAPI {
   featured?: boolean;
   installed?: boolean;
   installationStatus?: string;
+  requiresGpu?: boolean;
+  requiresAgent?: string;
+  isNew?: boolean;
+  isPopular?: boolean;
+}
+
+interface AgentStatusForAPI {
+  "windows-vm": {
+    status: "online" | "offline" | "degraded" | "unknown";
+    gpuAvailable: boolean;
+    services: {
+      name: string;
+      status: "online" | "offline" | "unknown";
+    }[];
+  };
+}
+
+async function fetchAgentStatus(): Promise<AgentStatusForAPI> {
+  try {
+    const host = process.env.WINDOWS_VM_TAILSCALE_IP || "100.118.44.102";
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 2000);
+    
+    const checks = await Promise.allSettled([
+      fetch(`http://${host}:11434/api/tags`, { signal: controller.signal }),
+      fetch(`http://${host}:7860/sdapi/v1/options`, { signal: controller.signal }),
+      fetch(`http://${host}:8188/system_stats`, { signal: controller.signal }),
+    ]);
+    clearTimeout(timeout);
+    
+    const ollamaOnline = checks[0].status === "fulfilled" && checks[0].value.ok;
+    const sdOnline = checks[1].status === "fulfilled" && checks[1].value.ok;
+    const comfyOnline = checks[2].status === "fulfilled" && checks[2].value.ok;
+    
+    const services = [
+      { name: "Ollama", status: ollamaOnline ? "online" as const : "offline" as const },
+      { name: "Stable Diffusion", status: sdOnline ? "online" as const : "offline" as const },
+      { name: "ComfyUI", status: comfyOnline ? "online" as const : "offline" as const },
+    ];
+    
+    const onlineCount = services.filter(s => s.status === "online").length;
+    let status: "online" | "offline" | "degraded" | "unknown";
+    if (onlineCount === services.length) {
+      status = "online";
+    } else if (onlineCount > 0) {
+      status = "degraded";
+    } else {
+      status = "offline";
+    }
+    
+    return {
+      "windows-vm": {
+        status,
+        gpuAvailable: onlineCount > 0,
+        services,
+      },
+    };
+  } catch {
+    return {
+      "windows-vm": {
+        status: "unknown",
+        gpuAvailable: false,
+        services: [
+          { name: "Ollama", status: "unknown" },
+          { name: "Stable Diffusion", status: "unknown" },
+          { name: "ComfyUI", status: "unknown" },
+        ],
+      },
+    };
+  }
 }
 
 function transformPackage(pkg: MarketplacePackage, installedPackages: Set<string>): PackageForAPI {
@@ -80,6 +151,10 @@ function transformPackage(pkg: MarketplacePackage, installedPackages: Set<string
     tags: pkg.tags,
     featured: pkg.featured,
     installed: installedPackages.has(pkg.id),
+    requiresGpu: pkg.requiresGpu,
+    requiresAgent: pkg.requiresAgent,
+    isNew: pkg.isNew,
+    isPopular: pkg.isPopular,
   };
 }
 
@@ -141,11 +216,18 @@ export async function GET(request: NextRequest) {
     })).filter(cat => cat.count > 0),
   ];
 
+  const topPicksPackages = getTopPicks(6);
+  const topPicks = topPicksPackages.map(pkg => transformPackage(pkg, installedPackages));
+  
+  const agentStatus = await fetchAgentStatus();
+
   return NextResponse.json({
     packages: transformedPackages,
     categories,
     total: transformedPackages.length,
     installedCount: installedPackages.size,
+    topPicks,
+    agentStatus,
   });
 }
 

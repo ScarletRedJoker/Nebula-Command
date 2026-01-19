@@ -50,7 +50,18 @@ import {
   Server,
   Info,
   Rocket,
+  Cpu,
+  Monitor,
+  Zap,
+  Star,
+  TrendingUp,
 } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { toast } from "sonner";
 
 interface PackageVariable {
@@ -92,6 +103,23 @@ interface MarketplacePackage {
   featured?: boolean;
   installed?: boolean;
   installationStatus?: string;
+  requiresGpu?: boolean;
+  requiresAgent?: string;
+  isNew?: boolean;
+  isPopular?: boolean;
+}
+
+interface AgentServiceStatus {
+  name: string;
+  status: "online" | "offline" | "unknown";
+}
+
+interface AgentStatus {
+  "windows-vm": {
+    status: "online" | "offline" | "degraded" | "unknown";
+    gpuAvailable: boolean;
+    services: AgentServiceStatus[];
+  };
 }
 
 interface Category {
@@ -142,8 +170,10 @@ const categoryColors: Record<string, string> = {
 
 export default function MarketplacePage() {
   const [packages, setPackages] = useState<MarketplacePackage[]>([]);
+  const [topPicks, setTopPicks] = useState<MarketplacePackage[]>([]);
   const [installedPackages, setInstalledPackages] = useState<InstalledPackage[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [agentStatus, setAgentStatus] = useState<AgentStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
@@ -170,6 +200,8 @@ export default function MarketplacePage() {
       const data = await res.json();
       setPackages(data.packages || []);
       setCategories(data.categories || []);
+      setTopPicks(data.topPicks || []);
+      setAgentStatus(data.agentStatus || null);
     } catch (error) {
       console.error("Failed to fetch packages:", error);
       toast.error("Failed to load marketplace packages");
@@ -277,6 +309,60 @@ export default function MarketplacePage() {
     }
   };
 
+  const isAgentOnline = (agentId: string): boolean => {
+    if (!agentStatus) return false;
+    if (agentId === "windows-vm") {
+      return agentStatus["windows-vm"]?.status === "online" || agentStatus["windows-vm"]?.status === "degraded";
+    }
+    return true;
+  };
+
+  const canDeployPackage = (pkg: MarketplacePackage): { canDeploy: boolean; reason?: string } => {
+    if (pkg.installed) {
+      return { canDeploy: false, reason: "Already deployed" };
+    }
+    if (pkg.requiresAgent && !isAgentOnline(pkg.requiresAgent)) {
+      return { canDeploy: false, reason: `Requires ${pkg.requiresAgent === "windows-vm" ? "Windows AI VM" : pkg.requiresAgent} to be online` };
+    }
+    return { canDeploy: true };
+  };
+
+  const getPackageBadge = (pkg: MarketplacePackage) => {
+    if (pkg.installed) {
+      return (
+        <Badge variant="success" className="gap-1">
+          <CheckCircle2 className="h-3 w-3" />
+          Installed
+        </Badge>
+      );
+    }
+    if (pkg.isNew) {
+      return (
+        <Badge className="gap-1 bg-gradient-to-r from-green-500 to-emerald-500 text-white border-0">
+          <Zap className="h-3 w-3" />
+          New
+        </Badge>
+      );
+    }
+    if (pkg.isPopular) {
+      return (
+        <Badge className="gap-1 bg-gradient-to-r from-orange-500 to-red-500 text-white border-0">
+          <TrendingUp className="h-3 w-3" />
+          Popular
+        </Badge>
+      );
+    }
+    if (pkg.featured) {
+      return (
+        <Badge variant="secondary" className="gap-1 bg-gradient-to-r from-purple-500/20 to-pink-500/20">
+          <Star className="h-3 w-3" />
+          Featured
+        </Badge>
+      );
+    }
+    return null;
+  };
+
   if (loading && packages.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -289,26 +375,185 @@ export default function MarketplacePage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2">
-            <Sparkles className="h-7 w-7 text-purple-500" />
-            Docker Marketplace
-          </h1>
-          <p className="text-sm sm:text-base text-muted-foreground">
-            Deploy Docker packages to your homelab with one click
-          </p>
+    <TooltipProvider>
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2">
+              <Sparkles className="h-7 w-7 text-purple-500" />
+              Docker Marketplace
+            </h1>
+            <p className="text-sm sm:text-base text-muted-foreground">
+              Deploy Docker packages to your homelab with one click
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button onClick={() => { fetchPackages(); fetchInstalled(); }} variant="outline" size="sm">
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Refresh
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button onClick={() => { fetchPackages(); fetchInstalled(); }} variant="outline" size="sm">
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Refresh
-          </Button>
-        </div>
-      </div>
 
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "available" | "installed")}>
+        {agentStatus && (
+          <Card className={`border-l-4 ${
+            agentStatus["windows-vm"]?.status === "online" 
+              ? "border-l-green-500 bg-green-500/5" 
+              : agentStatus["windows-vm"]?.status === "degraded"
+              ? "border-l-yellow-500 bg-yellow-500/5"
+              : "border-l-red-500 bg-red-500/5"
+          }`}>
+            <CardContent className="py-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className={`rounded-full p-2 ${
+                    agentStatus["windows-vm"]?.status === "online"
+                      ? "bg-green-500/20"
+                      : agentStatus["windows-vm"]?.status === "degraded"
+                      ? "bg-yellow-500/20"
+                      : "bg-red-500/20"
+                  }`}>
+                    <Cpu className={`h-5 w-5 ${
+                      agentStatus["windows-vm"]?.status === "online"
+                        ? "text-green-500"
+                        : agentStatus["windows-vm"]?.status === "degraded"
+                        ? "text-yellow-500"
+                        : "text-red-500"
+                    }`} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">GPU Services:</span>
+                      <Badge variant={
+                        agentStatus["windows-vm"]?.status === "online" 
+                          ? "success" 
+                          : agentStatus["windows-vm"]?.status === "degraded"
+                          ? "warning"
+                          : "destructive"
+                      } className="gap-1">
+                        {agentStatus["windows-vm"]?.status === "online" ? (
+                          <><CheckCircle2 className="h-3 w-3" /> Online</>
+                        ) : agentStatus["windows-vm"]?.status === "degraded" ? (
+                          <><AlertCircle className="h-3 w-3" /> Degraded</>
+                        ) : (
+                          <><AlertCircle className="h-3 w-3" /> Offline</>
+                        )}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Windows AI VM • {agentStatus["windows-vm"]?.gpuAvailable ? "GPU Available" : "GPU Unavailable"}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {agentStatus["windows-vm"]?.services?.map((service) => (
+                    <div 
+                      key={service.name}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
+                        service.status === "online"
+                          ? "bg-green-500/10 text-green-600"
+                          : "bg-red-500/10 text-red-500"
+                      }`}
+                    >
+                      <div className={`w-1.5 h-1.5 rounded-full ${
+                        service.status === "online" ? "bg-green-500" : "bg-red-500"
+                      }`} />
+                      {service.name}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {activeTab === "available" && topPicks.length > 0 && !search && activeCategory === "all" && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Star className="h-5 w-5 text-yellow-500" />
+              <h2 className="text-xl font-semibold">Top Picks</h2>
+            </div>
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+              {topPicks.slice(0, 6).map((pkg) => {
+                const { canDeploy, reason } = canDeployPackage(pkg);
+                return (
+                  <Card
+                    key={`top-${pkg.id}`}
+                    className="group relative overflow-hidden hover:shadow-lg transition-all duration-200 hover:border-primary/50 bg-gradient-to-br from-background to-muted/30"
+                  >
+                    <div className="absolute top-2 right-2 z-10 flex gap-1">
+                      {getPackageBadge(pkg)}
+                      {pkg.requiresGpu && (
+                        <Badge variant="outline" className="gap-1 bg-purple-500/10 text-purple-500 border-purple-500/30">
+                          <Monitor className="h-3 w-3" />
+                          GPU
+                        </Badge>
+                      )}
+                    </div>
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start gap-3">
+                        <div className="rounded-lg bg-gradient-to-br from-primary/20 to-primary/5 p-2.5 group-hover:from-primary/30 group-hover:to-primary/10 transition-colors">
+                          {categoryIcons[pkg.category] || <Package className="h-5 w-5 text-primary" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <CardTitle className="text-lg truncate">{pkg.displayName}</CardTitle>
+                          <span className="text-xs text-muted-foreground">v{pkg.version}</span>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <CardDescription className="line-clamp-2 min-h-[2.5rem]">
+                        {pkg.description}
+                      </CardDescription>
+                      <div className="flex gap-2">
+                        <Button
+                          className="flex-1"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openDetailsDialog(pkg)}
+                        >
+                          <Info className="h-4 w-4 mr-1" />
+                          Details
+                        </Button>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="flex-1">
+                              <Button
+                                className="w-full"
+                                size="sm"
+                                onClick={() => openInstallDialog(pkg)}
+                                disabled={!canDeploy}
+                              >
+                                {pkg.installed ? (
+                                  <>
+                                    <CheckCircle2 className="h-4 w-4 mr-1" />
+                                    Deployed
+                                  </>
+                                ) : (
+                                  <>
+                                    <Rocket className="h-4 w-4 mr-1" />
+                                    Deploy
+                                  </>
+                                )}
+                              </Button>
+                            </span>
+                          </TooltipTrigger>
+                          {!canDeploy && reason && (
+                            <TooltipContent>
+                              <p>{reason}</p>
+                            </TooltipContent>
+                          )}
+                        </Tooltip>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "available" | "installed")}>
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
           <TabsList>
             <TabsTrigger value="available" className="gap-2">
@@ -363,111 +608,118 @@ export default function MarketplacePage() {
             </Card>
           ) : (
             <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {packages.map((pkg) => (
-                <Card
-                  key={pkg.id}
-                  className="group relative overflow-hidden hover:shadow-lg transition-all duration-200 hover:border-primary/50"
-                >
-                  {pkg.installed && (
-                    <div className="absolute top-2 right-2 z-10">
-                      <Badge variant="success" className="gap-1">
-                        <CheckCircle2 className="h-3 w-3" />
-                        Installed
-                      </Badge>
+              {packages.map((pkg) => {
+                const { canDeploy, reason } = canDeployPackage(pkg);
+                return (
+                  <Card
+                    key={pkg.id}
+                    className="group relative overflow-hidden hover:shadow-lg transition-all duration-200 hover:border-primary/50"
+                  >
+                    <div className="absolute top-2 right-2 z-10 flex gap-1">
+                      {getPackageBadge(pkg)}
+                      {pkg.requiresAgent === "windows-vm" && (
+                        <Badge variant="outline" className="gap-1 bg-purple-500/10 text-purple-500 border-purple-500/30">
+                          <Monitor className="h-3 w-3" />
+                          VM
+                        </Badge>
+                      )}
                     </div>
-                  )}
-                  {pkg.featured && !pkg.installed && (
-                    <div className="absolute top-2 right-2 z-10">
-                      <Badge variant="secondary" className="gap-1 bg-gradient-to-r from-purple-500/20 to-pink-500/20">
-                        <Sparkles className="h-3 w-3" />
-                        Featured
-                      </Badge>
-                    </div>
-                  )}
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start gap-3">
-                      <div className="rounded-lg bg-gradient-to-br from-primary/20 to-primary/5 p-2.5 group-hover:from-primary/30 group-hover:to-primary/10 transition-colors">
-                        {categoryIcons[pkg.category] || <Package className="h-5 w-5 text-primary" />}
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start gap-3">
+                        <div className="rounded-lg bg-gradient-to-br from-primary/20 to-primary/5 p-2.5 group-hover:from-primary/30 group-hover:to-primary/10 transition-colors">
+                          {categoryIcons[pkg.category] || <Package className="h-5 w-5 text-primary" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <CardTitle className="text-lg truncate">{pkg.displayName}</CardTitle>
+                          <span className="text-xs text-muted-foreground">v{pkg.version}</span>
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <CardTitle className="text-lg truncate">{pkg.displayName}</CardTitle>
-                        <span className="text-xs text-muted-foreground">v{pkg.version}</span>
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${
+                            categoryColors[pkg.category] || "bg-secondary text-secondary-foreground"
+                          }`}
+                        >
+                          {categoryIcons[pkg.category]}
+                          {pkg.categoryInfo?.name || pkg.category}
+                        </span>
+                        {pkg.tags?.slice(0, 2).map((tag) => (
+                          <span key={tag} className="px-2 py-0.5 rounded-full text-xs bg-muted text-muted-foreground">
+                            {tag}
+                          </span>
+                        ))}
                       </div>
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${
-                          categoryColors[pkg.category] || "bg-secondary text-secondary-foreground"
-                        }`}
-                      >
-                        {categoryIcons[pkg.category]}
-                        {pkg.categoryInfo?.name || pkg.category}
-                      </span>
-                      {pkg.tags?.slice(0, 2).map((tag) => (
-                        <span key={tag} className="px-2 py-0.5 rounded-full text-xs bg-muted text-muted-foreground">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <CardDescription className="line-clamp-2 min-h-[2.5rem]">
-                      {pkg.description}
-                    </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <CardDescription className="line-clamp-2 min-h-[2.5rem]">
+                        {pkg.description}
+                      </CardDescription>
 
-                    <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                      {pkg.ports && pkg.ports.length > 0 && (
-                        <span className="flex items-center gap-1">
-                          <Network className="h-3 w-3" />
-                          {pkg.ports.length} port{pkg.ports.length > 1 ? "s" : ""}
-                        </span>
-                      )}
-                      {pkg.volumes && pkg.volumes.length > 0 && (
-                        <span className="flex items-center gap-1">
-                          <HardDrive className="h-3 w-3" />
-                          {pkg.volumes.length} volume{pkg.volumes.length > 1 ? "s" : ""}
-                        </span>
-                      )}
-                      {pkg.variables && pkg.variables.length > 0 && (
-                        <span className="flex items-center gap-1">
-                          <Wrench className="h-3 w-3" />
-                          {pkg.variables.filter((v) => v.required).length} required
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex gap-2">
-                      <Button
-                        className="flex-1"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => openDetailsDialog(pkg)}
-                      >
-                        <Info className="h-4 w-4 mr-1" />
-                        Details
-                      </Button>
-                      <Button
-                        className="flex-1"
-                        size="sm"
-                        onClick={() => openInstallDialog(pkg)}
-                        disabled={pkg.installed}
-                      >
-                        {pkg.installed ? (
-                          <>
-                            <CheckCircle2 className="h-4 w-4 mr-1" />
-                            Deployed
-                          </>
-                        ) : (
-                          <>
-                            <Rocket className="h-4 w-4 mr-1" />
-                            Deploy
-                          </>
+                      <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                        {pkg.ports && pkg.ports.length > 0 && (
+                          <span className="flex items-center gap-1">
+                            <Network className="h-3 w-3" />
+                            {pkg.ports.length} port{pkg.ports.length > 1 ? "s" : ""}
+                          </span>
                         )}
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                        {pkg.volumes && pkg.volumes.length > 0 && (
+                          <span className="flex items-center gap-1">
+                            <HardDrive className="h-3 w-3" />
+                            {pkg.volumes.length} volume{pkg.volumes.length > 1 ? "s" : ""}
+                          </span>
+                        )}
+                        {pkg.variables && pkg.variables.length > 0 && (
+                          <span className="flex items-center gap-1">
+                            <Wrench className="h-3 w-3" />
+                            {pkg.variables.filter((v) => v.required).length} required
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex gap-2">
+                        <Button
+                          className="flex-1"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openDetailsDialog(pkg)}
+                        >
+                          <Info className="h-4 w-4 mr-1" />
+                          Details
+                        </Button>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="flex-1">
+                              <Button
+                                className="w-full"
+                                size="sm"
+                                onClick={() => openInstallDialog(pkg)}
+                                disabled={!canDeploy}
+                              >
+                                {pkg.installed ? (
+                                  <>
+                                    <CheckCircle2 className="h-4 w-4 mr-1" />
+                                    Deployed
+                                  </>
+                                ) : (
+                                  <>
+                                    <Rocket className="h-4 w-4 mr-1" />
+                                    Deploy
+                                  </>
+                                )}
+                              </Button>
+                            </span>
+                          </TooltipTrigger>
+                          {!canDeploy && reason && (
+                            <TooltipContent>
+                              <p>{reason}</p>
+                            </TooltipContent>
+                          )}
+                        </Tooltip>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </TabsContent>
@@ -757,6 +1009,7 @@ export default function MarketplacePage() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </TooltipProvider>
   );
 }

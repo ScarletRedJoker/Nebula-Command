@@ -320,6 +320,9 @@ export const MARKETPLACE_CATALOG: MarketplacePackage[] = [
     ],
     tags: ["ai", "llm", "local"],
     featured: true,
+    requiresGpu: true,
+    requiresAgent: "windows-vm",
+    isPopular: true,
   },
   {
     id: "open-webui",
@@ -340,6 +343,53 @@ export const MARKETPLACE_CATALOG: MarketplacePackage[] = [
       { container: "/app/backend/data", description: "Application data" },
     ],
     tags: ["ai", "llm", "chat"],
+    requiresAgent: "windows-vm",
+    isNew: true,
+  },
+  {
+    id: "stable-diffusion-webui",
+    name: "stable-diffusion-webui",
+    displayName: "Stable Diffusion WebUI",
+    description: "Generate AI images with Stable Diffusion. Web interface for image generation.",
+    longDescription: "AUTOMATIC1111's Stable Diffusion WebUI provides a feature-rich interface for AI image generation with support for txt2img, img2img, inpainting, and more.",
+    category: "ai",
+    image: "ghcr.io/ai-dock/stable-diffusion-webui:latest",
+    version: "latest",
+    envVars: [
+      { name: "WEBUI_AUTH", description: "Enable authentication", default: "false" },
+    ],
+    ports: [
+      { container: 7860, host: 7860, description: "Web UI" },
+    ],
+    volumes: [
+      { container: "/workspace", description: "Models and outputs" },
+    ],
+    tags: ["ai", "image-generation", "stable-diffusion"],
+    featured: true,
+    requiresGpu: true,
+    requiresAgent: "windows-vm",
+    isPopular: true,
+  },
+  {
+    id: "comfyui",
+    name: "comfyui",
+    displayName: "ComfyUI",
+    description: "Node-based AI image generation. Advanced workflows for Stable Diffusion.",
+    longDescription: "ComfyUI is a powerful and modular stable diffusion GUI with a graph/nodes interface. Design and execute advanced AI image generation workflows.",
+    category: "ai",
+    image: "ghcr.io/ai-dock/comfyui:latest",
+    version: "latest",
+    envVars: [],
+    ports: [
+      { container: 8188, host: 8188, description: "Web UI" },
+    ],
+    volumes: [
+      { container: "/workspace", description: "Models, workflows, and outputs" },
+    ],
+    tags: ["ai", "image-generation", "comfyui", "workflows"],
+    featured: true,
+    requiresGpu: true,
+    requiresAgent: "windows-vm",
   },
   {
     id: "code-server",
@@ -529,4 +579,16 @@ export function searchPackages(query: string): MarketplacePackage[] {
 
 export function getFeaturedPackages(): MarketplacePackage[] {
   return MARKETPLACE_CATALOG.filter(pkg => pkg.featured);
+}
+
+export function getTopPicks(limit: number = 6): MarketplacePackage[] {
+  const featured = MARKETPLACE_CATALOG.filter(pkg => pkg.featured);
+  const popular = MARKETPLACE_CATALOG.filter(pkg => pkg.isPopular && !pkg.featured);
+  const newPackages = MARKETPLACE_CATALOG.filter(pkg => pkg.isNew && !pkg.featured && !pkg.isPopular);
+  
+  return [...featured, ...popular, ...newPackages].slice(0, limit);
+}
+
+export function getPackagesRequiringAgent(agentId: string): MarketplacePackage[] {
+  return MARKETPLACE_CATALOG.filter(pkg => pkg.requiresAgent === agentId);
 }

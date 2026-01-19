@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySession } from "@/lib/session";
 import { cookies } from "next/headers";
-import { registerService } from "@/lib/service-registry";
+import { registerService, heartbeat as sendHeartbeat } from "@/lib/service-registry";
+import { peerDiscovery } from "@/lib/peer-discovery";
 
 async function checkAuth() {
   const cookieStore = await cookies();
@@ -20,6 +21,12 @@ interface CreateProjectRequest {
   category: string;
 }
 
+interface ProjectHealthStatus {
+  status: "healthy" | "pending-deploy" | "unreachable" | "checking";
+  lastCheck: string | null;
+  message: string;
+}
+
 const TEMPLATE_CAPABILITIES: Record<string, string[]> = {
   "saas-starter": ["web", "api", "auth", "database", "stripe"],
   "ecommerce-pro": ["web", "api", "database", "payments", "inventory"],
@@ -27,6 +34,22 @@ const TEMPLATE_CAPABILITIES: Record<string, string[]> = {
   "admin-dashboard": ["web", "api", "database", "admin"],
   "discord-bot": ["bot", "discord", "commands"],
   "landing-page": ["web", "static"],
+  "nextjs-app": ["web", "api", "ssr"],
+  "react-spa": ["web", "spa"],
+  "static-site": ["web", "static"],
+  "express-rest": ["api", "rest"],
+  "fastapi": ["api", "python", "rest"],
+  "graphql-api": ["api", "graphql"],
+  "microservice": ["api", "microservice"],
+  "ollama-chat": ["ai", "llm", "chat", "gpu"],
+  "sd-image-gen": ["ai", "stable-diffusion", "image", "gpu"],
+  "comfyui-workflow": ["ai", "comfyui", "workflow", "gpu"],
+  "ai-agent": ["ai", "agent", "llm", "gpu"],
+  "telegram-bot": ["bot", "telegram"],
+  "slack-bot": ["bot", "slack"],
+  "nextjs-postgres": ["web", "api", "database", "fullstack"],
+  "mern-stack": ["web", "api", "database", "fullstack"],
+  "t3-stack": ["web", "api", "database", "trpc", "fullstack"],
 };
 
 const SERVER_RECOMMENDATIONS: Record<string, string[]> = {
@@ -34,6 +57,8 @@ const SERVER_RECOMMENDATIONS: Record<string, string[]> = {
   "home": ["media", "gaming", "plex", "homelab", "internal"],
   "windows": ["gpu", "ai", "ml", "stable-diffusion", "ollama", "comfyui"],
 };
+
+const projectHealthCache = new Map<string, ProjectHealthStatus>();
 
 function getRecommendedServers(capabilities: string[]): string[] {
   const servers: string[] = [];
@@ -53,6 +78,49 @@ function getRecommendedServers(capabilities: string[]): string[] {
   }
   
   return servers;
+}
+
+async function performHealthCheck(
+  projectSlug: string,
+  healthEndpoint: string
+): Promise<ProjectHealthStatus> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+
+    const response = await fetch(healthEndpoint, {
+      method: "GET",
+      signal: controller.signal,
+    });
+    
+    clearTimeout(timeout);
+
+    if (response.ok) {
+      const status: ProjectHealthStatus = {
+        status: "healthy",
+        lastCheck: new Date().toISOString(),
+        message: "Service is responding",
+      };
+      projectHealthCache.set(projectSlug, status);
+      return status;
+    } else {
+      const status: ProjectHealthStatus = {
+        status: "unreachable",
+        lastCheck: new Date().toISOString(),
+        message: `HTTP ${response.status}`,
+      };
+      projectHealthCache.set(projectSlug, status);
+      return status;
+    }
+  } catch (error: any) {
+    const status: ProjectHealthStatus = {
+      status: "pending-deploy",
+      lastCheck: new Date().toISOString(),
+      message: error.name === "AbortError" ? "Health check timed out" : "Service not yet deployed",
+    };
+    projectHealthCache.set(projectSlug, status);
+    return status;
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -89,20 +157,88 @@ export async function POST(request: NextRequest) {
 
     const healthEndpoint = `${projectUrl}/api/health`;
 
+    const environment = serverId === "linode" ? "linode" : serverId === "home" ? "ubuntu-home" : "windows-vm";
+    const serviceCapabilities = [...new Set([...capabilities, template, category, "project"])];
+    
+    const metadata = {
+      environment,
+      version: "1.0.0",
+      port: 5000,
+      template,
+      templateName,
+      category,
+      techStack,
+      features,
+      deploymentTarget: serverId,
+      healthEndpoint,
+      projectUrl,
+      createdAt: new Date().toISOString(),
+      createdBy: user.username || "system",
+      isRecommendedServer: recommendedServers.includes(serverId),
+    };
+
+    let registrationSuccess = false;
+    let peerRegistrationSuccess = false;
+
     try {
-      const serviceCapabilities = [...capabilities, template, category];
-      const serviceEndpoint = healthEndpoint;
-      const metadata = {
-        environment: serverId === "linode" ? "linode" : serverId === "home" ? "ubuntu-home" : "windows-vm",
-        version: "1.0.0",
-        port: 5000,
-        template,
-        category,
-      };
-      await registerService(projectSlug, serviceCapabilities, serviceEndpoint, metadata);
+      registrationSuccess = await registerService(
+        projectSlug, 
+        serviceCapabilities, 
+        healthEndpoint, 
+        metadata
+      );
+      
+      if (registrationSuccess) {
+        console.log(`[Projects/Create] Service registered: ${projectSlug}@${environment}`);
+        
+        await sendHeartbeat();
+      }
     } catch (regError) {
       console.warn("[Projects/Create] Service registration warning:", regError);
     }
+
+    try {
+      peerDiscovery.notifyChange({
+        name: projectSlug,
+        environment,
+        endpoint: healthEndpoint,
+        capabilities: serviceCapabilities,
+        healthy: false,
+        lastSeen: new Date(),
+        metadata,
+      }, "added");
+      peerRegistrationSuccess = true;
+      console.log(`[Projects/Create] Peer notification sent for: ${projectSlug}`);
+    } catch (peerError) {
+      console.warn("[Projects/Create] Peer discovery notification warning:", peerError);
+    }
+
+    projectHealthCache.set(projectSlug, {
+      status: "checking",
+      lastCheck: null,
+      message: "Initial health check scheduled",
+    });
+
+    setTimeout(async () => {
+      try {
+        const healthStatus = await performHealthCheck(projectSlug, healthEndpoint);
+        console.log(`[Projects/Create] Initial health check for ${projectSlug}: ${healthStatus.status}`);
+        
+        if (healthStatus.status === "healthy") {
+          peerDiscovery.notifyChange({
+            name: projectSlug,
+            environment,
+            endpoint: healthEndpoint,
+            capabilities: serviceCapabilities,
+            healthy: true,
+            lastSeen: new Date(),
+            metadata,
+          }, "updated");
+        }
+      } catch (error) {
+        console.error(`[Projects/Create] Health check error for ${projectSlug}:`, error);
+      }
+    }, 2000);
 
     const project = {
       id: `proj-${Date.now()}`,
@@ -115,12 +251,17 @@ export async function POST(request: NextRequest) {
       techStack,
       features,
       category,
-      capabilities,
+      capabilities: serviceCapabilities,
       url: projectUrl,
       healthEndpoint,
       status: "created",
+      healthStatus: "checking",
       recommendedServers,
       isRecommendedServer: recommendedServers.includes(serverId),
+      registration: {
+        serviceRegistry: registrationSuccess,
+        peerDiscovery: peerRegistrationSuccess,
+      },
       createdAt: new Date().toISOString(),
       createdBy: user.username || "system",
     };
@@ -143,3 +284,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export { projectHealthCache };
