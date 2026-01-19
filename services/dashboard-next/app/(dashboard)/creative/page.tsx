@@ -189,15 +189,18 @@ export default function CreativeStudioPage() {
           setSdStatus(data.sdStatus);
         }
         
-        // Auto-select best available provider
+        // Auto-select best available provider - prefer Force Local for unrestricted content
         const providers = data.providers || [];
         if (providers.length > 0) {
-          // Prefer SD if available, then OpenAI, then auto
+          // Prefer Force Local (no restrictions) if available, then SD, then OpenAI, then auto
+          const forceLocalProvider = providers.find((p: any) => p.id === "force-local" && p.available);
           const sdProvider = providers.find((p: any) => p.id === "stable-diffusion" && p.available);
           const openaiProvider = providers.find((p: any) => p.id === "openai" && p.available);
           const autoProvider = providers.find((p: any) => p.id === "auto");
           
-          if (sdProvider) {
+          if (forceLocalProvider) {
+            setImageProvider("force-local");
+          } else if (sdProvider) {
             setImageProvider("stable-diffusion");
           } else if (openaiProvider) {
             setImageProvider("openai");

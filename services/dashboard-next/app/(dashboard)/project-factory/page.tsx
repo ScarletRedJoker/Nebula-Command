@@ -68,6 +68,17 @@ interface ServerInfo {
   name: string;
   status: string;
   description?: string;
+  capabilities?: string[];
+  deploymentTypes?: string[];
+}
+
+interface DeploymentTarget {
+  id: string;
+  name: string;
+  status: string;
+  capabilities: string[];
+  recommended: boolean;
+  deploymentTypes: string[];
 }
 
 interface CreateProgress {
@@ -168,15 +179,22 @@ export default function ProjectFactoryPage() {
   const fetchServers = async () => {
     setLoadingServers(true);
     try {
-      const response = await fetch("/api/servers");
+      const response = await fetch("/api/servers?includeWindows=true");
       if (response.ok) {
         const data = await response.json();
-        setServers(data.servers || []);
-        if (data.servers?.length > 0) {
-          const onlineServer = data.servers.find((s: ServerInfo) => s.status === "online");
-          if (onlineServer) {
-            setSelectedServer(onlineServer.id);
-          }
+        const enrichedServers = (data.servers || []).map((server: ServerInfo) => {
+          const target = data.deploymentTargets?.find((t: DeploymentTarget) => t.id === server.id);
+          return {
+            ...server,
+            capabilities: target?.capabilities || server.capabilities || [],
+            deploymentTypes: target?.deploymentTypes || [],
+          };
+        });
+        setServers(enrichedServers);
+        if (enrichedServers.length > 0) {
+          const linode = enrichedServers.find((s: ServerInfo) => s.id === "linode" && s.status === "online");
+          const onlineServer = enrichedServers.find((s: ServerInfo) => s.status === "online");
+          setSelectedServer((linode || onlineServer)?.id || "");
         }
       }
     } catch (error) {
@@ -470,7 +488,7 @@ export default function ProjectFactoryPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="server">Target Server</Label>
+                <Label htmlFor="server">Target Server (Smart Selection)</Label>
                 <Select
                   value={selectedServer}
                   onValueChange={setSelectedServer}
@@ -491,11 +509,45 @@ export default function ProjectFactoryPage() {
                           >
                             {server.status}
                           </Badge>
+                          {server.capabilities && server.capabilities.length > 0 && (
+                            <span className="text-xs text-muted-foreground ml-2">
+                              ({server.capabilities.slice(0, 3).join(", ")})
+                            </span>
+                          )}
                         </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {selectedServer && servers.find(s => s.id === selectedServer) && (
+                  <div className="text-xs text-muted-foreground mt-1 space-y-1">
+                    <div className="flex flex-wrap gap-1">
+                      {servers.find(s => s.id === selectedServer)?.deploymentTypes?.slice(0, 5).map(type => (
+                        <Badge key={type} variant="outline" className="text-xs">
+                          {type}
+                        </Badge>
+                      ))}
+                    </div>
+                    {selectedServer === "windows" && (
+                      <div className="text-yellow-500 flex items-center gap-1">
+                        <Zap className="h-3 w-3" />
+                        GPU-accelerated server for AI workloads
+                      </div>
+                    )}
+                    {selectedServer === "linode" && (
+                      <div className="text-green-500 flex items-center gap-1">
+                        <Globe className="h-3 w-3" />
+                        Public cloud server for web apps and APIs
+                      </div>
+                    )}
+                    {selectedServer === "home" && (
+                      <div className="text-blue-500 flex items-center gap-1">
+                        <Shield className="h-3 w-3" />
+                        Private homelab for internal services
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">

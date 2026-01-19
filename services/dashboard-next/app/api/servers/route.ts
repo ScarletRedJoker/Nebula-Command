@@ -341,6 +341,8 @@ export async function GET(request: NextRequest) {
 
   const serverId = request.nextUrl.searchParams.get("id");
   const includeWindows = request.nextUrl.searchParams.get("includeWindows") !== "false";
+  const requiredCapability = request.nextUrl.searchParams.get("capability");
+  const requiredCapabilities = request.nextUrl.searchParams.get("capabilities")?.split(",").filter(Boolean);
 
   try {
     const [servers, registryInfoMap] = await Promise.all([
@@ -368,18 +370,41 @@ export async function GET(request: NextRequest) {
       servers.map(server => getServerMetrics(server, registryInfoMap.get(server.slug)))
     );
     
-    const results = [...linuxResults];
+    let results = [...linuxResults];
     
     if (includeWindows) {
       const windowsMetrics = await getWindowsServerMetrics(registryInfoMap.get("windows"));
       results.push(windowsMetrics);
     }
     
+    // Filter by capability if requested
+    if (requiredCapability) {
+      results = results.filter(r => r.capabilities?.includes(requiredCapability));
+    }
+    
+    // Filter by multiple capabilities (all must match)
+    if (requiredCapabilities && requiredCapabilities.length > 0) {
+      results = results.filter(r => 
+        requiredCapabilities.every(cap => r.capabilities?.includes(cap))
+      );
+    }
+    
     const onlineCount = results.filter(r => r.status === "online").length;
     const offlineCount = results.filter(r => r.status === "offline").length;
     
+    // Provide deployment recommendations based on capabilities
+    const deploymentTargets = results.map(server => ({
+      id: server.id,
+      name: server.name,
+      status: server.status,
+      capabilities: server.capabilities || [],
+      recommended: server.status === "online",
+      deploymentTypes: inferDeploymentTypes(server.capabilities || []),
+    }));
+    
     return NextResponse.json({ 
       servers: results,
+      deploymentTargets,
       summary: {
         total: results.length,
         online: onlineCount,
@@ -387,6 +412,10 @@ export async function GET(request: NextRequest) {
         degraded: results.length - onlineCount - offlineCount,
       },
       registryServices: await getAllServices().catch(() => []),
+      availableCapabilities: Object.entries(SERVER_CAPABILITIES).map(([server, caps]) => ({
+        server,
+        capabilities: caps,
+      })),
     });
   } catch (error: any) {
     console.error("Server metrics error:", error);
@@ -395,4 +424,19 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+function inferDeploymentTypes(capabilities: string[]): string[] {
+  const types: string[] = [];
+  
+  if (capabilities.includes("docker")) types.push("docker-compose", "container");
+  if (capabilities.includes("pm2")) types.push("nodejs", "typescript", "express");
+  if (capabilities.includes("systemd")) types.push("service", "daemon");
+  if (capabilities.includes("nginx")) types.push("static", "reverse-proxy");
+  if (capabilities.includes("gpu")) types.push("ai-model", "ml-inference", "stable-diffusion", "ollama");
+  if (capabilities.includes("ai")) types.push("comfyui", "video-generation");
+  if (capabilities.includes("plex")) types.push("media-server");
+  if (capabilities.includes("agent")) types.push("remote-execution");
+  
+  return types;
 }

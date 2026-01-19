@@ -68,6 +68,41 @@ export async function POST(request: NextRequest) {
     const sdAvailable = sdStatus.available && sdStatus.modelLoaded && !hasMotionModule;
     const hasOpenAI = aiOrchestrator.hasOpenAI();
     
+    // Handle force-local provider - NO FALLBACK to OpenAI
+    if (selectedProvider === "force-local") {
+      console.log(`[Image API] Force Local mode - NO fallback to cloud providers`);
+      if (!sdStatus.available) {
+        return NextResponse.json(
+          { 
+            error: "Local Stable Diffusion is offline",
+            details: "Start Stable Diffusion WebUI on Windows VM (port 7860). Force Local mode does not fall back to cloud providers."
+          },
+          { status: 503 }
+        );
+      }
+      if (hasMotionModule) {
+        return NextResponse.json(
+          { 
+            error: `Motion module loaded: ${sdStatus.currentModel}`,
+            details: "Load a checkpoint model (Dreamshaper, RealisticVision, SDXL) in SD WebUI. Motion modules are for video generation only."
+          },
+          { status: 503 }
+        );
+      }
+      if (!sdStatus.modelLoaded) {
+        const availableModels = sdStatus.availableModels?.slice(0, 5).join(", ") || "none found";
+        return NextResponse.json(
+          { 
+            error: "No checkpoint model loaded in Stable Diffusion",
+            details: `SD is running but no model is loaded. Available models: ${availableModels}. Load a model in SD WebUI.`
+          },
+          { status: 503 }
+        );
+      }
+      // Force local mode - use SD directly
+      selectedProvider = "stable-diffusion";
+    }
+
     if (selectedProvider === "stable-diffusion" && hasMotionModule) {
       console.log(`[Image API] Motion module detected: ${sdStatus.currentModel}`);
       return NextResponse.json(
@@ -79,7 +114,7 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    if (selectedProvider !== "auto") {
+    if (selectedProvider !== "auto" && selectedProvider !== "force-local") {
       if (selectedProvider === "openai" && !hasOpenAI) {
         console.log(`[Image API] OpenAI requested but not configured. Checking for fallback...`);
         if (sdAvailable) {
@@ -92,19 +127,16 @@ export async function POST(request: NextRequest) {
           );
         }
       } else if (selectedProvider === "stable-diffusion" && !sdAvailable) {
-        console.log(`[Image API] Stable Diffusion requested but not available. Checking for fallback...`);
-        if (hasOpenAI) {
-          console.log(`[Image API] Falling back to OpenAI`);
-          selectedProvider = "openai";
-        } else {
-          const reason = hasMotionModule 
-            ? "Current model is a motion module - load a checkpoint like Dreamshaper or RealisticVision."
-            : "Stable Diffusion is not running and OpenAI is not configured.";
-          return NextResponse.json(
-            { error: "Stable Diffusion not available", details: reason },
-            { status: 503 }
-          );
-        }
+        console.log(`[Image API] Stable Diffusion requested but not available. NO FALLBACK for unrestricted content`);
+        const reason = hasMotionModule 
+          ? "Current model is a motion module - load a checkpoint like Dreamshaper or RealisticVision."
+          : !sdStatus.available 
+            ? "Stable Diffusion WebUI is offline. Start SD on Windows VM (port 7860)."
+            : "No checkpoint model loaded in SD WebUI. Load a model first.";
+        return NextResponse.json(
+          { error: "Stable Diffusion not available", details: reason },
+          { status: 503 }
+        );
       }
     }
     
@@ -211,7 +243,8 @@ export async function GET() {
   } else if (sdStatus.modelLoading) {
     sdDescription = "Model is currently loading... Please wait.";
   } else if (!sdStatus.modelLoaded) {
-    sdDescription = `No model loaded. Available: ${sdStatus.availableModels.slice(0, 3).join(", ") || "none"}`;
+    const availableList = sdStatus.availableModels?.slice(0, 3).join(", ") || "none";
+    sdDescription = `No model loaded. Available: ${availableList}`;
   } else if (hasMotionModule) {
     sdDescription = `⚠️ Motion module loaded: ${sdStatus.currentModel} - Cannot generate images`;
     motionModuleWarning = "Load a checkpoint model (Dreamshaper, RealisticVision, SDXL) to generate images";
@@ -229,6 +262,25 @@ export async function GET() {
       sizes: ["512x512", "768x768", "1024x1024"],
       styles: ["vivid", "natural"],
       available: true,
+      recommended: false,
+    },
+    {
+      id: "force-local",
+      name: "Force Local (Unrestricted)",
+      description: sdAvailable 
+        ? `NO RESTRICTIONS - Using ${sdStatus.currentModel} on RTX 3060`
+        : hasMotionModule 
+          ? `Load a checkpoint model first (current: ${sdStatus.currentModel} is a motion module)`
+          : sdStatus.available 
+            ? "SD online but no checkpoint loaded - load a model in WebUI"
+            : "SD offline - start Stable Diffusion WebUI on Windows VM",
+      sizes: ["512x512", "768x768", "1024x1024"],
+      styles: [],
+      available: sdAvailable,
+      unrestricted: true,
+      noFallback: true,
+      currentModel: sdStatus.currentModel,
+      modelLoading: sdStatus.modelLoading,
       recommended: true,
     },
     {
