@@ -25,13 +25,29 @@ function getDataDir(): string {
 
 const SETTINGS_FILE = "presence-settings.json";
 
-interface PresenceSettings {
-  [userId: string]: {
-    discordAppId: string;
-    enabled: boolean;
-    updatedAt: string;
-  };
+interface UserSettings {
+  discordAppId: string;
+  enabled: boolean;
+  updatedAt: string;
+  presenceApiKey?: string;
+  plexUsername?: string;
+  jellyfinUsername?: string;
 }
+
+interface PresenceSettings {
+  [userId: string]: UserSettings;
+}
+
+function generateApiKey(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let key = 'npk_';
+  for (let i = 0; i < 32; i++) {
+    key += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return key;
+}
+
+export { loadSettings, saveSettings, generateApiKey, getDataDir };
 
 async function loadSettings(): Promise<PresenceSettings> {
   const dir = getDataDir();
@@ -71,6 +87,10 @@ export async function GET(request: NextRequest) {
         discordAppId: '',
         enabled: true,
         presenceLastSeen: null,
+        presenceApiKey: null,
+        hasApiKey: false,
+        plexUsername: '',
+        jellyfinUsername: '',
       });
     }
     
@@ -78,6 +98,10 @@ export async function GET(request: NextRequest) {
       discordAppId: userSettings.discordAppId || '',
       enabled: userSettings.enabled ?? true,
       presenceLastSeen: null,
+      presenceApiKey: userSettings.presenceApiKey || null,
+      hasApiKey: !!userSettings.presenceApiKey,
+      plexUsername: userSettings.plexUsername || '',
+      jellyfinUsername: userSettings.jellyfinUsername || '',
     });
   } catch (error) {
     console.error('[Presence Settings] Error:', error);
@@ -93,19 +117,32 @@ export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
     const userId = body.userId || 'default';
-    const { discordAppId, enabled } = body;
+    const { discordAppId, enabled, generateNewApiKey, plexUsername, jellyfinUsername } = body;
     
     const settings = await loadSettings();
+    const existingSettings = settings[userId] || {};
+    
+    let presenceApiKey = existingSettings.presenceApiKey;
+    if (generateNewApiKey || (!presenceApiKey && discordAppId)) {
+      presenceApiKey = generateApiKey();
+    }
+    
     settings[userId] = {
-      discordAppId: discordAppId || '',
-      enabled: enabled ?? true,
+      discordAppId: discordAppId ?? existingSettings.discordAppId ?? '',
+      enabled: enabled ?? existingSettings.enabled ?? true,
       updatedAt: new Date().toISOString(),
+      presenceApiKey,
+      plexUsername: plexUsername ?? existingSettings.plexUsername ?? '',
+      jellyfinUsername: jellyfinUsername ?? existingSettings.jellyfinUsername ?? '',
     };
     await saveSettings(settings);
     
     return NextResponse.json({ 
       success: true,
-      message: 'Settings saved successfully'
+      message: 'Settings saved successfully',
+      presenceApiKey,
+      plexUsername: settings[userId].plexUsername,
+      jellyfinUsername: settings[userId].jellyfinUsername,
     });
   } catch (error) {
     console.error('[Presence Settings] Error:', error);

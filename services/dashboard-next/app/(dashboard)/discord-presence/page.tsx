@@ -52,6 +52,10 @@ interface PresenceSettings {
   discordAppId: string;
   enabled: boolean;
   presenceLastSeen: string | null;
+  presenceApiKey: string | null;
+  hasApiKey: boolean;
+  plexUsername: string;
+  jellyfinUsername: string;
 }
 
 interface HeartbeatStatus {
@@ -90,7 +94,13 @@ export default function DiscordPresencePage() {
     discordAppId: '',
     enabled: true,
     presenceLastSeen: null,
+    presenceApiKey: null,
+    hasApiKey: false,
+    plexUsername: '',
+    jellyfinUsername: '',
   });
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [heartbeat, setHeartbeat] = useState<HeartbeatStatus>({
     connected: false,
     lastSeen: null,
@@ -99,6 +109,8 @@ export default function DiscordPresencePage() {
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [discordAppIdInput, setDiscordAppIdInput] = useState('');
+  const [plexUsernameInput, setPlexUsernameInput] = useState('');
+  const [jellyfinUsernameInput, setJellyfinUsernameInput] = useState('');
   const { toast } = useToast();
 
   const fetchPresenceData = useCallback(async () => {
@@ -120,6 +132,8 @@ export default function DiscordPresencePage() {
         const data = await res.json();
         setSettings(data);
         setDiscordAppIdInput(data.discordAppId || '');
+        setPlexUsernameInput(data.plexUsername || '');
+        setJellyfinUsernameInput(data.jellyfinUsername || '');
       }
     } catch (error) {
       console.error('Failed to fetch settings:', error);
@@ -165,15 +179,25 @@ export default function DiscordPresencePage() {
           userId: 'default',
           discordAppId: discordAppIdInput,
           enabled: settings.enabled,
+          plexUsername: plexUsernameInput,
+          jellyfinUsername: jellyfinUsernameInput,
         }),
       });
       
       if (res.ok) {
+        const data = await res.json();
         toast({
           title: 'Settings Saved',
           description: 'Your Discord presence settings have been updated.',
         });
-        setSettings(prev => ({ ...prev, discordAppId: discordAppIdInput }));
+        setSettings(prev => ({ 
+          ...prev, 
+          discordAppId: discordAppIdInput,
+          presenceApiKey: data.presenceApiKey || prev.presenceApiKey,
+          hasApiKey: !!data.presenceApiKey || prev.hasApiKey,
+          plexUsername: plexUsernameInput,
+          jellyfinUsername: jellyfinUsernameInput,
+        }));
       } else {
         throw new Error('Failed to save');
       }
@@ -194,6 +218,93 @@ export default function DiscordPresencePage() {
       title: 'Copied!',
       description: 'Copied to clipboard.',
     });
+  };
+
+  const handleDownload = async () => {
+    if (!settings.discordAppId) {
+      toast({
+        title: 'Error',
+        description: 'Please save your Discord Application ID first.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    setDownloading(true);
+    try {
+      const res = await fetch('/api/presence/download?userId=default');
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'nebula-discord-presence.zip';
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        await fetchSettings();
+        
+        toast({
+          title: 'Download Started',
+          description: 'Your personalized installer is downloading.',
+        });
+      } else {
+        const data = await res.json();
+        throw new Error(data.error || 'Download failed');
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to download installer.',
+        variant: 'destructive',
+      });
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const handleRegenerateApiKey = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch('/api/presence/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: 'default',
+          generateNewApiKey: true,
+        }),
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        setSettings(prev => ({
+          ...prev,
+          presenceApiKey: data.presenceApiKey,
+          hasApiKey: true,
+        }));
+        toast({
+          title: 'API Key Regenerated',
+          description: 'Your API key has been regenerated. Download a new installer to use it.',
+        });
+      } else {
+        throw new Error('Failed to regenerate');
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to regenerate API key.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const maskApiKey = (key: string) => {
+    if (!key) return '';
+    return key.substring(0, 8) + '••••••••••••••••••••' + key.substring(key.length - 4);
   };
 
   if (loading) {
@@ -427,20 +538,57 @@ export default function DiscordPresencePage() {
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-500/20 text-indigo-500 font-bold text-sm shrink-0">
                   3
                 </div>
-                <div className="space-y-2">
-                  <p className="font-medium">Download the Desktop Daemon</p>
+                <div className="space-y-3 flex-1">
+                  <p className="font-medium">Configure Your Media Usernames (Optional)</p>
                   <p className="text-sm text-muted-foreground">
-                    Download and install the desktop daemon that will sync your media status to Discord.
+                    Enter your Plex and/or Jellyfin usernames to filter sessions and only show your own playback.
+                    This is useful in multi-user households where multiple people share the same media servers.
                   </p>
-                  <Button variant="outline" size="sm" asChild>
-                    <a 
-                      href="/api/presence/download?platform=windows" 
-                      download
-                    >
-                      <Download className="h-4 w-4 mr-2" />
-                      Download for Windows
-                    </a>
-                  </Button>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="plex-username" className="text-sm font-medium flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-orange-500" />
+                        Plex Username
+                      </Label>
+                      <Input
+                        id="plex-username"
+                        placeholder="Your Plex username"
+                        value={plexUsernameInput}
+                        onChange={(e) => setPlexUsernameInput(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="jellyfin-username" className="text-sm font-medium flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-purple-500" />
+                        Jellyfin Username
+                      </Label>
+                      <Input
+                        id="jellyfin-username"
+                        placeholder="Your Jellyfin username"
+                        value={jellyfinUsernameInput}
+                        onChange={(e) => setJellyfinUsernameInput(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button onClick={handleSaveSettings} disabled={saving} size="sm">
+                      {saving ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      ) : (
+                        <Save className="h-4 w-4 mr-2" />
+                      )}
+                      Save Usernames
+                    </Button>
+                    {(settings.plexUsername || settings.jellyfinUsername) && (
+                      <div className="flex items-center gap-2 text-sm text-green-500">
+                        <CheckCircle className="h-4 w-4" />
+                        Usernames configured
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Leave blank to show all sessions from the media server. The username is case-insensitive.
+                  </p>
                 </div>
               </div>
 
@@ -449,11 +597,27 @@ export default function DiscordPresencePage() {
                   4
                 </div>
                 <div className="space-y-2">
+                  <p className="font-medium">Download Your Personalized Installer</p>
+                  <p className="text-sm text-muted-foreground">
+                    Download a pre-configured installer package that includes your settings. 
+                    See the "Download Your Installer" section below.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-4 p-4 rounded-lg border">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-500/20 text-indigo-500 font-bold text-sm shrink-0">
+                  5
+                </div>
+                <div className="space-y-2">
                   <p className="font-medium">Run the Installer</p>
                   <p className="text-sm text-muted-foreground">
-                    Run the downloaded installer on your computer. The daemon will start automatically 
-                    and run in the background, updating your Discord status when you watch media.
+                    Extract the ZIP and run the installer on your computer:
                   </p>
+                  <ul className="text-sm text-muted-foreground list-disc list-inside space-y-1">
+                    <li><strong>Windows:</strong> Double-click <code className="bg-muted px-1 rounded">install.bat</code></li>
+                    <li><strong>Mac/Linux:</strong> Run <code className="bg-muted px-1 rounded">./install.sh</code> in terminal</li>
+                  </ul>
                 </div>
               </div>
             </div>
@@ -475,6 +639,133 @@ export default function DiscordPresencePage() {
                 </Button>
               )}
             </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
+        <Card className="border-l-4 border-l-green-500/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Download className="h-5 w-5" />
+              Download Your Installer
+            </CardTitle>
+            <CardDescription>
+              Get your personalized daemon installer with pre-configured settings
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {!settings.discordAppId ? (
+              <div className="flex items-center gap-3 p-4 rounded-lg border border-yellow-500/30 bg-yellow-500/5">
+                <XCircle className="h-5 w-5 text-yellow-500" />
+                <p className="text-sm text-muted-foreground">
+                  Please save your Discord Application ID above before downloading.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <Button 
+                    onClick={handleDownload} 
+                    disabled={downloading}
+                    className="flex-1 h-14 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
+                  >
+                    {downloading ? (
+                      <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                    ) : (
+                      <Download className="h-5 w-5 mr-2" />
+                    )}
+                    <div className="text-left">
+                      <div className="font-semibold">Download Installer Package</div>
+                      <div className="text-xs opacity-80">Works on Windows, Mac, and Linux</div>
+                    </div>
+                  </Button>
+                </div>
+
+                <div className="space-y-3">
+                  <Label className="text-sm font-medium">Your API Key</Label>
+                  {settings.presenceApiKey ? (
+                    <div className="flex gap-2">
+                      <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-md border bg-muted/50 font-mono text-sm">
+                        <span className="flex-1 truncate">
+                          {showApiKey ? settings.presenceApiKey : maskApiKey(settings.presenceApiKey)}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0"
+                          onClick={() => setShowApiKey(!showApiKey)}
+                        >
+                          {showApiKey ? (
+                            <XCircle className="h-4 w-4" />
+                          ) : (
+                            <CheckCircle className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-10"
+                        onClick={() => copyToClipboard(settings.presenceApiKey!)}
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-10"
+                        onClick={handleRegenerateApiKey}
+                        disabled={saving}
+                      >
+                        {saving ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      An API key will be generated when you download the installer.
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    This key authenticates your daemon with the dashboard. Keep it secret!
+                  </p>
+                </div>
+
+                <div className="space-y-3 p-4 rounded-lg border bg-muted/20">
+                  <p className="font-medium text-sm">What's Included:</p>
+                  <ul className="text-sm text-muted-foreground space-y-2">
+                    <li className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      <code className="bg-muted px-1 rounded">.env</code> - Pre-configured with your settings
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      <code className="bg-muted px-1 rounded">nebula-presence.js</code> - The daemon script
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      <code className="bg-muted px-1 rounded">package.json</code> - Node.js dependencies
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      <code className="bg-muted px-1 rounded">install.bat</code> - Windows one-click installer
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      <code className="bg-muted px-1 rounded">install.sh</code> - Mac/Linux installer
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      <code className="bg-muted px-1 rounded">README.txt</code> - Quick start guide
+                    </li>
+                  </ul>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       </motion.div>

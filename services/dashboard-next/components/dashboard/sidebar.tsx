@@ -37,6 +37,8 @@ import {
   Zap,
   Network,
   Megaphone,
+  Link2,
+  Radio,
   type LucideIcon,
 } from "lucide-react";
 import { useState } from "react";
@@ -87,6 +89,7 @@ const navGroups: NavGroup[] = [
     defaultOpen: true,
     items: [
       { href: "/command-center", label: "Command Center", icon: Network },
+      { href: "/connections", label: "Connections", icon: Link2 },
       { href: "/production-control", label: "Production Control", icon: Rocket },
       { href: "/inventory", label: "Inventory", icon: Box },
       { href: "/infrastructure", label: "Infrastructure", icon: Server },
@@ -152,6 +155,7 @@ const navGroups: NavGroup[] = [
     label: "System",
     icon: Cog,
     items: [
+      { href: "/discord-presence", label: "Discord Presence", icon: Radio },
       { href: "/self", label: "Self", icon: Wrench },
       { href: "/settings", label: "Settings", icon: Settings },
     ],

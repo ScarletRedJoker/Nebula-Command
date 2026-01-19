@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import fs from 'fs/promises';
+import path from 'path';
+import { existsSync, accessSync, constants } from 'fs';
 
 const PLEX_URL = process.env.PLEX_URL || 'http://100.66.61.51:32400';
 const PLEX_TOKEN = process.env.PLEX_TOKEN || '';
@@ -164,12 +167,108 @@ async function fetchJellyfinSessions(): Promise<MediaSession[]> {
   }
 }
 
+const FALLBACK_DIR = "/app/data";
+const PRIMARY_DIR = "/opt/homelab/studio-projects";
+
+function getDataDir(): string {
+  if (process.env.STUDIO_PROJECTS_DIR) {
+    return process.env.STUDIO_PROJECTS_DIR;
+  }
+  if (process.env.REPL_ID) {
+    return "./data/studio-projects";
+  }
+  try {
+    if (existsSync(PRIMARY_DIR)) {
+      accessSync(PRIMARY_DIR, constants.W_OK);
+      return PRIMARY_DIR;
+    }
+  } catch {
+  }
+  return FALLBACK_DIR;
+}
+
+interface UserMappings {
+  plexUsername?: string;
+  jellyfinUsername?: string;
+}
+
+interface ValidateResult {
+  valid: boolean;
+  mappings?: UserMappings;
+}
+
+async function validateApiKeyAndGetMappings(apiKey: string): Promise<ValidateResult> {
+  if (!apiKey) return { valid: false };
+  
+  const globalKey = process.env.PRESENCE_API_KEY || process.env.SERVICE_AUTH_TOKEN;
+  if (globalKey && apiKey === globalKey) {
+    return { valid: true };
+  }
+  
+  try {
+    const filePath = path.join(getDataDir(), 'presence-settings.json');
+    const data = await fs.readFile(filePath, 'utf-8');
+    const settings = JSON.parse(data);
+    
+    for (const userId of Object.keys(settings)) {
+      if (settings[userId].presenceApiKey === apiKey) {
+        return {
+          valid: true,
+          mappings: {
+            plexUsername: settings[userId].plexUsername || undefined,
+            jellyfinUsername: settings[userId].jellyfinUsername || undefined,
+          }
+        };
+      }
+    }
+  } catch {
+  }
+  
+  return { valid: false };
+}
+
+function filterSessionsByUser(sessions: MediaSession[], mappings?: UserMappings): MediaSession[] {
+  if (!mappings) return sessions;
+  
+  const hasPlexFilter = !!mappings.plexUsername;
+  const hasJellyfinFilter = !!mappings.jellyfinUsername;
+  
+  if (!hasPlexFilter && !hasJellyfinFilter) {
+    return sessions;
+  }
+  
+  return sessions.filter(session => {
+    if (session.source === 'plex') {
+      if (!hasPlexFilter) return true;
+      return session.user.toLowerCase() === mappings.plexUsername!.toLowerCase();
+    } else if (session.source === 'jellyfin') {
+      if (!hasJellyfinFilter) return true;
+      return session.user.toLowerCase() === mappings.jellyfinUsername!.toLowerCase();
+    }
+    return true;
+  });
+}
+
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('Authorization');
-  const expectedToken = process.env.PRESENCE_API_KEY || process.env.SERVICE_AUTH_TOKEN || '';
+  const token = authHeader?.replace('Bearer ', '') || '';
   
-  if (expectedToken && authHeader !== `Bearer ${expectedToken}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const globalKey = process.env.PRESENCE_API_KEY || process.env.SERVICE_AUTH_TOKEN || '';
+  const requireAuth = !!globalKey;
+  
+  let userMappings: UserMappings | undefined;
+  
+  if (requireAuth) {
+    const result = await validateApiKeyAndGetMappings(token);
+    if (!result.valid) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    userMappings = result.mappings;
+  } else if (token) {
+    const result = await validateApiKeyAndGetMappings(token);
+    if (result.valid) {
+      userMappings = result.mappings;
+    }
   }
   
   const [plexSessions, jellyfinSessions] = await Promise.all([
@@ -177,7 +276,9 @@ export async function GET(request: NextRequest) {
     fetchJellyfinSessions()
   ]);
   
-  const allSessions = [...plexSessions, ...jellyfinSessions];
+  let allSessions = [...plexSessions, ...jellyfinSessions];
+  
+  allSessions = filterSessionsByUser(allSessions, userMappings);
   
   const response: PresenceResponse = {
     active: allSessions.length > 0,
