@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    let jobs = [];
+    let jobs: typeof creativeJobs.$inferSelect[] = [];
     let total = 0;
     
     try {
