@@ -190,9 +190,12 @@ export default function CreativeStudioPage() {
   const sourceInputRef = useRef<HTMLInputElement>(null);
   const targetInputRef = useRef<HTMLInputElement>(null);
 
-  const fetchCapabilities = useCallback(async () => {
+  const fetchCapabilities = useCallback(async (forceRefresh = false) => {
     try {
-      const res = await fetch("/api/creative/capabilities", { cache: "no-store" });
+      const url = forceRefresh 
+        ? "/api/creative/capabilities?refresh=true" 
+        : "/api/creative/capabilities";
+      const res = await fetch(url, { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
         if (data.success) {
@@ -253,7 +256,7 @@ export default function CreativeStudioPage() {
       if (res.ok) {
         toast.success(`Switching to ${modelTitle}...`);
         setTimeout(() => {
-          fetchCapabilities();
+          fetchCapabilities(true);
           fetchModels();
         }, 2000);
       } else {
@@ -269,10 +272,10 @@ export default function CreativeStudioPage() {
   };
 
   useEffect(() => {
-    fetchCapabilities();
+    fetchCapabilities(true);
     fetchJobs();
     fetchModels();
-    const interval = setInterval(fetchCapabilities, 30000);
+    const interval = setInterval(() => fetchCapabilities(false), 30000);
     return () => clearInterval(interval);
   }, [fetchCapabilities, fetchJobs, fetchModels]);
 
