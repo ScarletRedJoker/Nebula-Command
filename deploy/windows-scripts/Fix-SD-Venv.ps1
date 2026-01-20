@@ -7,8 +7,6 @@ param(
     [string]$PythonPath = "C:\Python310\python.exe"
 )
 
-$ErrorActionPreference = "Stop"
-
 Write-Host ""
 Write-Host "======================================================" -ForegroundColor Cyan
 Write-Host "     STABLE DIFFUSION - FIX VENV                      " -ForegroundColor Cyan

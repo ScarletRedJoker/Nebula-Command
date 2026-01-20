@@ -7,7 +7,6 @@ param(
     [switch]$Force
 )
 
-$ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 
 $pythonExe = Join-Path $SDPath "venv\Scripts\python.exe"

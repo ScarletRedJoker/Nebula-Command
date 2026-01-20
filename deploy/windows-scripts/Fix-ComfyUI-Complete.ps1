@@ -8,7 +8,6 @@ param(
     [switch]$Force
 )
 
-$ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 
 $pythonExe = Join-Path $ComfyUIPath "venv\Scripts\python.exe"
