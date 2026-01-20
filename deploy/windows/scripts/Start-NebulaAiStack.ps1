@@ -42,7 +42,11 @@ function Write-Log {
         "STEP"  { "Cyan" }
         default { "White" }
     }
-    Write-Host "[$timestamp] [$Level] $Message" -ForegroundColor $color
+    $logLine = "[$timestamp] [$Level] $Message"
+    Write-Host $logLine -ForegroundColor $color
+    
+    $logFile = Join-Path $Script:Config.LogDir "nebula-ai-stack.log"
+    Add-Content -Path $logFile -Value $logLine -ErrorAction SilentlyContinue
 }
 
 function Initialize-Environment {
@@ -50,6 +54,12 @@ function Initialize-Environment {
         if (-not (Test-Path $_)) {
             New-Item -ItemType Directory -Path $_ -Force | Out-Null
         }
+    }
+    
+    $logFile = Join-Path $Script:Config.LogDir "nebula-ai-stack.log"
+    if ((Test-Path $logFile) -and ((Get-Item $logFile).Length -gt 5MB)) {
+        $backup = Join-Path $Script:Config.LogDir "nebula-ai-stack.log.old"
+        Move-Item $logFile $backup -Force -ErrorAction SilentlyContinue
     }
 }
 
@@ -100,11 +110,10 @@ function Test-PythonVersion {
 
 function Test-ServiceRunning {
     param([int]$Port)
-    # Method 1: Try TCP connection (synchronous with timeout)
     try {
         $tcp = New-Object System.Net.Sockets.TcpClient
         $async = $tcp.BeginConnect("127.0.0.1", $Port, $null, $null)
-        $wait = $async.AsyncWaitHandle.WaitOne(5000, $false)
+        $wait = $async.AsyncWaitHandle.WaitOne(3000, $false)
         if ($wait) {
             try {
                 $tcp.EndConnect($async)
@@ -119,7 +128,6 @@ function Test-ServiceRunning {
         }
     } catch { }
     
-    # Method 2: Fallback - check if process is listening on port
     try {
         $listener = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
         if ($listener) { return $true }
@@ -131,25 +139,34 @@ function Test-ServiceRunning {
 function Start-Ollama {
     Write-Log "Starting Ollama..." "INFO"
     if (Test-ServiceRunning -Port 11434) {
-        Write-Log "Ollama already running" "OK"
-        return
+        Write-Log "Ollama already running on port 11434" "OK"
+        return $true
     }
     $env:OLLAMA_HOST = "0.0.0.0"
     $ollama = (Get-Command ollama -ErrorAction SilentlyContinue).Source
     if (-not $ollama) { $ollama = "$env:LOCALAPPDATA\Programs\Ollama\ollama.exe" }
     if (Test-Path $ollama) {
-        Start-Process -FilePath $ollama -ArgumentList "serve" -WindowStyle Hidden
-        Write-Log "Ollama started" "OK"
+        $logFile = Join-Path $Script:Config.LogDir "ollama.log"
+        Start-Process -FilePath $ollama -ArgumentList "serve" -WindowStyle Hidden -RedirectStandardOutput $logFile -RedirectStandardError "$logFile.err"
+        Start-Sleep -Seconds 3
+        if (Test-ServiceRunning -Port 11434) {
+            Write-Log "Ollama started successfully" "OK"
+            return $true
+        } else {
+            Write-Log "Ollama failed to start - check $logFile" "ERROR"
+            return $false
+        }
     } else {
-        Write-Log "Ollama not found" "WARN"
+        Write-Log "Ollama not found at $ollama" "WARN"
+        return $false
     }
 }
 
 function Start-StableDiffusion {
     Write-Log "Starting Stable Diffusion..." "INFO"
     if (Test-ServiceRunning -Port 7860) {
-        Write-Log "Stable Diffusion already running" "OK"
-        return
+        Write-Log "Stable Diffusion already running on port 7860" "OK"
+        return $true
     }
     $sdPath = if (Test-Path $Script:Config.StableDiffusionForgePath) {
         $Script:Config.StableDiffusionForgePath
@@ -161,11 +178,13 @@ function Start-StableDiffusion {
         $webui = Join-Path $sdPath "webui-user.bat"
         if (-not (Test-Path $webui)) { $webui = Join-Path $sdPath "webui.bat" }
         Push-Location $sdPath
-        Start-Process -FilePath "cmd.exe" -ArgumentList "/c", $webui -WindowStyle Hidden
+        Start-Process -FilePath "cmd.exe" -ArgumentList "/c", $webui -WindowStyle Minimized
         Pop-Location
-        Write-Log "Stable Diffusion starting..." "OK"
+        Write-Log "Stable Diffusion launch initiated (takes 30-60s to load models)" "OK"
+        return $true
     } else {
-        Write-Log "Stable Diffusion not found" "WARN"
+        Write-Log "Stable Diffusion not found at expected paths" "WARN"
+        return $false
     }
 }
 
@@ -173,58 +192,101 @@ function Start-ComfyUI {
     param([string]$PythonPath)
     Write-Log "Starting ComfyUI..." "INFO"
     if (Test-ServiceRunning -Port 8188) {
-        Write-Log "ComfyUI already running" "OK"
-        return
+        Write-Log "ComfyUI already running on port 8188" "OK"
+        return $true
     }
+    
     $comfy = $Script:Config.ComfyUIPath
     if (-not (Test-Path $comfy)) {
-        Write-Log "ComfyUI not found at $comfy" "WARN"
-        return
+        Write-Log "ComfyUI not found at $comfy" "ERROR"
+        return $false
     }
     
-    # Check for ComfyUI's own venv first
     $comfyVenv = Join-Path $comfy "venv\Scripts\python.exe"
-    $pyToUse = if (Test-Path $comfyVenv) { 
-        Write-Log "Using ComfyUI venv" "INFO"
-        $comfyVenv 
-    } else { 
-        Write-Log "ComfyUI has no venv - using provided Python" "WARN"
-        Write-Log "Run: cd C:\AI\ComfyUI && python -m venv venv" "WARN"
-        $PythonPath 
+    $comfyActivate = Join-Path $comfy "venv\Scripts\activate.bat"
+    
+    if (-not (Test-Path $comfyVenv)) {
+        Write-Log "ComfyUI venv not found - creating..." "WARN"
+        Push-Location $comfy
+        & python -m venv venv
+        if (Test-Path $comfyVenv) {
+            Write-Log "Created ComfyUI venv" "OK"
+            & $comfyVenv -m pip install --upgrade pip 2>&1 | Out-Null
+            & $comfyVenv -m pip install -r requirements.txt 2>&1 | Out-Null
+            & $comfyVenv -m pip install torch==2.1.2+cu121 torchvision==0.16.2+cu121 --index-url https://download.pytorch.org/whl/cu121 2>&1 | Out-Null
+        } else {
+            Write-Log "Failed to create ComfyUI venv" "ERROR"
+            Pop-Location
+            return $false
+        }
+        Pop-Location
     }
+    
+    $logFile = Join-Path $Script:Config.LogDir "comfyui.log"
+    $errFile = Join-Path $Script:Config.LogDir "comfyui-error.log"
+    
+    Write-Log "Launching ComfyUI with logging to $logFile" "INFO"
     
     Push-Location $comfy
-    Start-Process -FilePath $pyToUse -ArgumentList "main.py", "--listen", "0.0.0.0", "--port", "8188" -WindowStyle Hidden
+    Start-Process -FilePath $comfyVenv -ArgumentList "main.py", "--listen", "0.0.0.0", "--port", "8188" -WindowStyle Hidden -RedirectStandardOutput $logFile -RedirectStandardError $errFile
     Pop-Location
-    Write-Log "ComfyUI starting..." "OK"
+    
+    Write-Log "ComfyUI launch initiated - waiting for port 8188..." "INFO"
+    
+    for ($i = 1; $i -le 12; $i++) {
+        Start-Sleep -Seconds 5
+        if (Test-ServiceRunning -Port 8188) {
+            Write-Log "ComfyUI started successfully!" "OK"
+            return $true
+        }
+        Write-Host "  Waiting for ComfyUI ($i/12)..." -ForegroundColor Gray
+    }
+    
+    Write-Log "ComfyUI failed to start within 60 seconds" "ERROR"
+    Write-Log "Check error log: $errFile" "ERROR"
+    if (Test-Path $errFile) {
+        $errors = Get-Content $errFile -Tail 20 -ErrorAction SilentlyContinue
+        if ($errors) {
+            Write-Log "Last errors:" "ERROR"
+            $errors | ForEach-Object { Write-Host "  $_" -ForegroundColor Red }
+        }
+    }
+    return $false
 }
 
 function Start-NebulaAgent {
     Write-Log "Starting Nebula Agent..." "INFO"
     if (Test-ServiceRunning -Port 9765) {
-        Write-Log "Agent already running" "OK"
-        return
+        Write-Log "Agent already running on port 9765" "OK"
+        return $true
     }
     $agent = $Script:Config.AgentPath
     $server = Join-Path $agent "server.js"
     if (Test-Path $server) {
         $env:AGENT_PORT = "9765"
+        $logFile = Join-Path $Script:Config.LogDir "nebula-agent.log"
         Push-Location $agent
-        Start-Process -FilePath "node" -ArgumentList "server.js" -WindowStyle Hidden
+        Start-Process -FilePath "node" -ArgumentList "server.js" -WindowStyle Hidden -RedirectStandardOutput $logFile -RedirectStandardError "$logFile.err"
         Pop-Location
-        Write-Log "Agent started on port 9765" "OK"
+        Start-Sleep -Seconds 2
+        if (Test-ServiceRunning -Port 9765) {
+            Write-Log "Agent started on port 9765" "OK"
+            return $true
+        } else {
+            Write-Log "Agent failed to start - check $logFile" "ERROR"
+            return $false
+        }
     } else {
-        Write-Log "Agent not found" "WARN"
+        Write-Log "Agent not found at $server" "WARN"
+        return $false
     }
 }
 
 function Stop-AllServices {
     Write-Log "Stopping all AI services..." "STEP"
     
-    # Kill Ollama
     Get-Process -Name "ollama*" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
     
-    # Kill Python processes related to AI
     Get-CimInstance Win32_Process | Where-Object { 
         $_.Name -eq "python.exe" -and (
             $_.CommandLine -like "*webui*" -or 
@@ -236,14 +298,12 @@ function Stop-AllServices {
         Write-Log "Killed Python process $($_.ProcessId)" "INFO"
     }
     
-    # Kill cmd.exe running webui
     Get-CimInstance Win32_Process | Where-Object { 
         $_.Name -eq "cmd.exe" -and $_.CommandLine -like "*webui*"
     } | ForEach-Object {
         Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
     }
     
-    # Kill node agent
     Get-CimInstance Win32_Process | Where-Object { 
         $_.Name -eq "node.exe" -and $_.CommandLine -like "*server.js*"
     } | ForEach-Object {
@@ -258,90 +318,113 @@ function Stop-AllServices {
 function Get-StackStatus {
     Write-Host ""
     Write-Host "=== Nebula AI Stack Status ===" -ForegroundColor Cyan
+    $results = @{}
     foreach ($svc in $Script:Config.Services) {
         $running = Test-ServiceRunning -Port $svc.Port
         $sym = if ($running) { "[OK]" } else { "[--]" }
         $col = if ($running) { "Green" } else { "Red" }
         Write-Host "  $sym $($svc.Name): http://localhost:$($svc.Port)" -ForegroundColor $col
+        $results[$svc.Key] = $running
     }
     Write-Host ""
+    
+    $state = @{
+        timestamp = (Get-Date).ToString("o")
+        services = $results
+    }
+    $state | ConvertTo-Json | Set-Content -Path $Script:Config.StateFile -Force -ErrorAction SilentlyContinue
+    
+    return $results
 }
 
 function Main {
     Initialize-Environment
     Write-Host ""
     Write-Host "=== Nebula Command AI Stack ===" -ForegroundColor Cyan
+    Write-Log "Action: $Action" "INFO"
     Write-Host ""
     
     switch ($Action) {
         "start" {
-            # Only stop services if -Force is set, otherwise let per-service checks handle it
             if ($Force) {
                 Write-Log "Force flag set - stopping all services first..." "STEP"
                 Stop-AllServices
-            } else {
-                Write-Log "Checking service status (use -Force to restart all)..." "STEP"
             }
             
             $py = Test-PythonVersion
-            if (-not $py -and -not $SkipValidation) { exit 1 }
+            if (-not $py -and -not $SkipValidation) { 
+                Write-Log "No valid Python found. Exiting." "ERROR"
+                exit 1 
+            }
             $pyPath = if ($py) { $py.Path } else { "python" }
             
-            Start-Ollama
+            $ollamaOk = Start-Ollama
+            Start-Sleep -Seconds 2
+            
+            $sdOk = Start-StableDiffusion
             Start-Sleep -Seconds 3
-            Start-StableDiffusion
-            Start-Sleep -Seconds 5
-            Start-ComfyUI -PythonPath $pyPath
-            Start-Sleep -Seconds 5
-            Start-NebulaAgent
             
-            Write-Log "All services launched!" "OK"
-            Write-Log "Waiting 60 seconds for services to initialize..." "INFO"
+            $comfyOk = Start-ComfyUI -PythonPath $pyPath
+            Start-Sleep -Seconds 2
             
-            # Countdown with periodic status checks
-            for ($i = 60; $i -gt 0; $i -= 15) {
-                Write-Host "  Waiting $i seconds... (Ctrl+C to skip)" -ForegroundColor Gray
-                Start-Sleep -Seconds 15
-                
-                # Show which services are up so far
-                $upCount = 0
-                foreach ($svc in $Script:Config.Services) {
-                    if (Test-ServiceRunning -Port $svc.Port) { $upCount++ }
-                }
-                Write-Host "  Services responding: $upCount/4" -ForegroundColor Cyan
+            $agentOk = Start-NebulaAgent
+            
+            Write-Host ""
+            Write-Log "Startup complete!" "OK"
+            
+            $status = Get-StackStatus
+            
+            $upCount = ($status.Values | Where-Object { $_ -eq $true }).Count
+            Write-Log "Services online: $upCount/4" "INFO"
+            
+            if ($upCount -lt 4) {
+                Write-Log "Some services failed - check logs in $($Script:Config.LogDir)" "WARN"
             }
-            
-            Write-Log "Checking final status..." "STEP"
-            Get-StackStatus
         }
-        "stop" { Stop-AllServices }
-        "status" { Get-StackStatus }
+        "stop" { 
+            Stop-AllServices 
+        }
+        "status" { 
+            Get-StackStatus | Out-Null
+        }
         "repair" {
-            $py = Test-PythonVersion
-            if ($py) {
-                Write-Log "Repairing dependencies..." "STEP"
-                # opencv-python 4.10.0.84 works with numpy 1.26.4 (newer versions require numpy>=2)
-                & $py.Path -m pip install numpy==1.26.4 protobuf==5.28.3 opencv-python==4.10.0.84 --quiet 2>&1 | Out-Null
-                Write-Log "Repair complete" "OK"
-            }
+            Write-Log "Running repairs..." "STEP"
             
-            # Also repair ComfyUI venv if it exists
             $comfyVenv = "C:\AI\ComfyUI\venv\Scripts\python.exe"
             if (Test-Path $comfyVenv) {
-                Write-Log "Repairing ComfyUI venv dependencies..." "STEP"
-                & $comfyVenv -m pip uninstall comfy_kitchen -y 2>&1 | Out-Null
-                & $comfyVenv -m pip install numpy==1.26.4 opencv-python==4.10.0.84 --quiet 2>&1 | Out-Null
-                Write-Log "ComfyUI venv repair complete" "OK"
+                Write-Log "Repairing ComfyUI dependencies..." "INFO"
+                & $comfyVenv -m pip install numpy==1.26.4 opencv-python==4.10.0.84 av ffmpeg-python --quiet 2>&1 | Out-Null
+                Write-Log "ComfyUI repair complete" "OK"
             }
+            
+            $sdPaths = @(
+                "C:\AI\stable-diffusion-webui-forge\venv\Scripts\python.exe",
+                "C:\AI\stable-diffusion-webui\venv\Scripts\python.exe"
+            )
+            foreach ($sdVenv in $sdPaths) {
+                if (Test-Path $sdVenv) {
+                    Write-Log "Repairing SD at $sdVenv..." "INFO"
+                    & $sdVenv -m pip install numpy==1.26.4 protobuf==3.20.3 --quiet 2>&1 | Out-Null
+                    Write-Log "SD repair complete" "OK"
+                    break
+                }
+            }
+            
+            Write-Log "All repairs complete" "OK"
         }
-        "validate" { Test-PythonVersion | Out-Null }
+        "validate" { 
+            Test-PythonVersion | Out-Null 
+        }
         "install" {
             Write-Log "Installing scheduled task..." "STEP"
             $sp = $PSCommandPath
-            $act = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -File $sp start -SkipValidation"
+            $act = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -WindowStyle Hidden -File `"$sp`" start -SkipValidation"
             $trg = New-ScheduledTaskTrigger -AtStartup
-            Register-ScheduledTask -TaskName "NebulaAI" -Action $act -Trigger $trg -RunLevel Highest -Force | Out-Null
+            $stg = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
+            $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+            Register-ScheduledTask -TaskName "NebulaAI" -Action $act -Trigger $trg -Settings $stg -Principal $principal -Force | Out-Null
             Write-Log "Task installed - AI stack will auto-start on boot" "OK"
+            Write-Log "Logs will be written to $($Script:Config.LogDir)" "INFO"
         }
     }
 }
