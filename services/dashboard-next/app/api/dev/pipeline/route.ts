@@ -237,7 +237,7 @@ export async function GET(request: NextRequest) {
     const anyLocalAIOnline = ollamaOnline || sdOnline || comfyOnline;
     
     const hasOpenAIKey = !!process.env.OPENAI_API_KEY || !!process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
-    const fallbackAvailable = hasOpenAIKey && providerInfo.provider !== "none";
+    const fallbackAvailable = hasOpenAIKey;
 
     let actionableMessage = "";
     if (!anyLocalAIOnline && !fallbackAvailable) {

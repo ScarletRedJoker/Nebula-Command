@@ -55,6 +55,9 @@ import {
   Copy,
   PanelRightOpen,
   PanelRightClose,
+  Video,
+  Play,
+  Square,
 } from "lucide-react";
 
 interface SDStatus {
@@ -148,7 +151,26 @@ const SAMPLERS = [
   "DPM++ 2S a Karras",
 ];
 
-type GenerationMode = "text-to-image" | "image-to-image" | "inpainting" | "controlnet" | "upscale" | "face-swap" | "sd-webui" | "comfyui";
+type GenerationMode = "text-to-image" | "image-to-image" | "inpainting" | "controlnet" | "upscale" | "face-swap" | "video" | "sd-webui" | "comfyui";
+type VideoMode = "text-to-video" | "image-to-video";
+
+interface VideoJob {
+  id: string;
+  status: string;
+  progress: number;
+  prompt: string;
+  videoUrl?: string;
+  error?: string;
+  createdAt: string;
+}
+
+interface GeneratedVideo {
+  id: string;
+  url: string;
+  prompt: string;
+  timestamp: Date;
+  parameters: Record<string, unknown>;
+}
 
 export default function CreativeStudioPage() {
   const [loading, setLoading] = useState(true);
@@ -187,7 +209,19 @@ export default function CreativeStudioPage() {
   const [availableModels, setAvailableModels] = useState<SDModel[]>([]);
   const [switchingModel, setSwitchingModel] = useState(false);
   
+  const [videoMode, setVideoMode] = useState<VideoMode>("text-to-video");
+  const [videoDuration, setVideoDuration] = useState(16);
+  const [videoFps, setVideoFps] = useState(8);
+  const [videoWidth, setVideoWidth] = useState(512);
+  const [videoHeight, setVideoHeight] = useState(512);
+  const [videoMotionScale, setVideoMotionScale] = useState(1.0);
+  const [videoInputImage, setVideoInputImage] = useState<string | null>(null);
+  const [generatedVideos, setGeneratedVideos] = useState<GeneratedVideo[]>([]);
+  const [videoJobs, setVideoJobs] = useState<VideoJob[]>([]);
+  const [pollingJobIds, setPollingJobIds] = useState<string[]>([]);
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
   const maskInputRef = useRef<HTMLInputElement>(null);
   const sourceInputRef = useRef<HTMLInputElement>(null);
   const targetInputRef = useRef<HTMLInputElement>(null);
@@ -452,13 +486,14 @@ export default function CreativeStudioPage() {
       case "controlnet": return <Layers className="h-4 w-4" />;
       case "upscale": return <Maximize2 className="h-4 w-4" />;
       case "face-swap": return <User className="h-4 w-4" />;
+      case "video": return <Video className="h-4 w-4" />;
       case "sd-webui": return <ImageIcon className="h-4 w-4" />;
       case "comfyui": return <Sparkles className="h-4 w-4" />;
     }
   };
 
   const isModeAvailable = (modeType: GenerationMode) => {
-    if (modeType === "sd-webui" || modeType === "comfyui") return true;
+    if (modeType === "sd-webui" || modeType === "comfyui" || modeType === "video") return true;
     if (!capabilities) return false;
     switch (modeType) {
       case "text-to-image": return capabilities.features.textToImage.available;
@@ -469,6 +504,153 @@ export default function CreativeStudioPage() {
       case "face-swap": return capabilities.features.faceSwap.available;
       default: return false;
     }
+  };
+
+  const pollVideoJob = useCallback(async (jobId: string) => {
+    try {
+      const res = await fetch(`/api/ai/video/jobs/${jobId}`, { cache: "no-store" });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.success ? data.job : null;
+    } catch (error) {
+      console.error("Failed to poll video job:", error);
+      return null;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (pollingJobIds.length === 0) return;
+
+    const interval = setInterval(async () => {
+      const stillPolling: string[] = [];
+      
+      for (const jobId of pollingJobIds) {
+        const job = await pollVideoJob(jobId);
+        if (!job) continue;
+        
+        setVideoJobs(prev => {
+          const existing = prev.findIndex(j => j.id === jobId);
+          if (existing >= 0) {
+            const updated = [...prev];
+            updated[existing] = job;
+            return updated;
+          }
+          return [job, ...prev];
+        });
+        
+        if (job.status === "completed") {
+          if (job.videoUrl) {
+            const newVideo: GeneratedVideo = {
+              id: job.id,
+              url: job.videoUrl,
+              prompt: job.prompt,
+              timestamp: new Date(),
+              parameters: { duration: job.duration, fps: job.fps },
+            };
+            setGeneratedVideos(prev => [newVideo, ...prev]);
+            toast.success("Video generation complete!");
+          }
+        } else if (job.status === "failed") {
+          toast.error(job.error || "Video generation failed");
+        } else {
+          stillPolling.push(jobId);
+        }
+      }
+      
+      setPollingJobIds(stillPolling);
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [pollingJobIds, pollVideoJob]);
+
+  const handleVideoGenerate = async () => {
+    if (!prompt.trim()) {
+      toast.error("Please enter a prompt");
+      return;
+    }
+
+    if (videoMode === "image-to-video" && !videoInputImage) {
+      toast.error("Please upload an input image for image-to-video mode");
+      return;
+    }
+
+    setGenerating(true);
+
+    try {
+      const body: Record<string, unknown> = {
+        mode: videoMode,
+        prompt: prompt.trim(),
+        negativePrompt: negativePrompt || undefined,
+        duration: videoDuration,
+        fps: videoFps,
+        width: videoWidth,
+        height: videoHeight,
+        motionScale: videoMotionScale,
+        cfgScale,
+        steps,
+        seed: seed === -1 ? undefined : seed,
+      };
+
+      if (videoMode === "image-to-video" && videoInputImage) {
+        body.inputImage = videoInputImage;
+      }
+
+      const res = await fetch("/api/ai/video/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        if (data.isDemo && data.videoUrl) {
+          const newVideo: GeneratedVideo = {
+            id: data.jobId,
+            url: data.videoUrl,
+            prompt: prompt.trim(),
+            timestamp: new Date(),
+            parameters: { duration: videoDuration, fps: videoFps, demo: true },
+          };
+          setGeneratedVideos(prev => [newVideo, ...prev]);
+          toast.success("Demo video generated!");
+        } else if (data.jobs && data.jobs.length > 0) {
+          const newJobIds = data.jobs.map((j: { jobId: string }) => j.jobId);
+          setPollingJobIds(prev => [...prev, ...newJobIds]);
+          
+          for (const jobInfo of data.jobs) {
+            setVideoJobs(prev => [{
+              id: jobInfo.jobId,
+              status: jobInfo.status,
+              progress: 0,
+              prompt: prompt.trim(),
+              createdAt: new Date().toISOString(),
+            }, ...prev]);
+          }
+          
+          toast.success(`${data.jobs.length} video job(s) queued!`);
+        }
+      } else {
+        toast.error(data.error || "Video generation failed");
+      }
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Video generation failed";
+      toast.error(errorMessage);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleVideoDownload = (video: GeneratedVideo) => {
+    const link = document.createElement("a");
+    link.download = `video-${video.id}.mp4`;
+    link.href = video.url;
+    link.click();
+  };
+
+  const handleDeleteVideo = (videoId: string) => {
+    setGeneratedVideos(prev => prev.filter(v => v.id !== videoId));
+    toast.success("Video deleted");
   };
 
   if (loading) {
@@ -612,7 +794,7 @@ export default function CreativeStudioPage() {
         )}
 
         <Tabs value={mode} onValueChange={(v) => setMode(v as GenerationMode)}>
-          <TabsList className="grid grid-cols-4 lg:grid-cols-8 h-auto">
+          <TabsList className="grid grid-cols-5 lg:grid-cols-9 h-auto">
             {([
               { id: "text-to-image", label: "Text to Image" },
               { id: "image-to-image", label: "Image to Image" },
@@ -620,6 +802,7 @@ export default function CreativeStudioPage() {
               { id: "controlnet", label: "ControlNet" },
               { id: "upscale", label: "Upscale" },
               { id: "face-swap", label: "Face Swap" },
+              { id: "video", label: "Video" },
               { id: "sd-webui", label: "SD WebUI" },
               { id: "comfyui", label: "ComfyUI" },
             ] as const).map(({ id, label }) => (
@@ -687,7 +870,374 @@ export default function CreativeStudioPage() {
             </div>
           )}
 
-          {mode !== "sd-webui" && mode !== "comfyui" && (
+          {mode === "video" && (
+            <div className="grid lg:grid-cols-2 gap-6 mt-6">
+              <div className="space-y-4">
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <Video className="h-5 w-5 text-purple-500" />
+                        Video Generation
+                      </span>
+                      <Badge variant="outline" className="text-xs">
+                        {pollingJobIds.length > 0 ? `${pollingJobIds.length} processing` : "Ready"}
+                      </Badge>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Mode</Label>
+                      <Select value={videoMode} onValueChange={(v) => setVideoMode(v as VideoMode)}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="text-to-video">Text to Video</SelectItem>
+                          <SelectItem value="image-to-video">Image to Video</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Prompt</Label>
+                      <Textarea
+                        placeholder="Describe the video you want to generate..."
+                        value={prompt}
+                        onChange={(e) => setPrompt(e.target.value)}
+                        rows={3}
+                        className="resize-none"
+                      />
+                    </div>
+
+                    <Collapsible open={showNegativePrompt} onOpenChange={setShowNegativePrompt}>
+                      <CollapsibleTrigger asChild>
+                        <Button variant="ghost" size="sm" className="w-full justify-between">
+                          <span>Negative Prompt</span>
+                          {showNegativePrompt ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </Button>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="pt-2">
+                        <Textarea
+                          placeholder="What to avoid in the video..."
+                          value={negativePrompt}
+                          onChange={(e) => setNegativePrompt(e.target.value)}
+                          rows={2}
+                          className="resize-none text-sm"
+                        />
+                      </CollapsibleContent>
+                    </Collapsible>
+
+                    {videoMode === "image-to-video" && (
+                      <div className="space-y-2">
+                        <Label>Input Image</Label>
+                        <div
+                          className="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:bg-secondary/50 transition relative"
+                          onDrop={(e) => handleDrop(e, setVideoInputImage)}
+                          onDragOver={(e) => e.preventDefault()}
+                          onClick={() => videoInputRef.current?.click()}
+                        >
+                          {videoInputImage ? (
+                            <div className="relative">
+                              <img src={videoInputImage} alt="Input" className="max-h-40 mx-auto rounded" />
+                              <Button
+                                variant="destructive"
+                                size="icon"
+                                className="absolute top-0 right-0 h-6 w-6"
+                                onClick={(e) => { e.stopPropagation(); setVideoInputImage(null); }}
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <>
+                              <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                              <p className="text-sm text-muted-foreground">Drop image here or click to upload</p>
+                            </>
+                          )}
+                          <input
+                            ref={videoInputRef}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) handleFileUpload(file, setVideoInputImage);
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Layers className="h-5 w-5 text-purple-500" />
+                      Video Parameters
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm">Duration (frames)</Label>
+                        <span className="text-xs text-muted-foreground">{videoDuration}</span>
+                      </div>
+                      <Slider
+                        value={[videoDuration]}
+                        onValueChange={([v]) => setVideoDuration(v)}
+                        min={4}
+                        max={32}
+                        step={4}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-sm">FPS</Label>
+                      <Select value={String(videoFps)} onValueChange={(v) => setVideoFps(Number(v))}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="8">8 FPS</SelectItem>
+                          <SelectItem value="12">12 FPS</SelectItem>
+                          <SelectItem value="16">16 FPS</SelectItem>
+                          <SelectItem value="24">24 FPS</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-sm">Width</Label>
+                        <Select value={String(videoWidth)} onValueChange={(v) => setVideoWidth(Number(v))}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="256">256</SelectItem>
+                            <SelectItem value="384">384</SelectItem>
+                            <SelectItem value="512">512</SelectItem>
+                            <SelectItem value="768">768</SelectItem>
+                            <SelectItem value="1024">1024</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm">Height</Label>
+                        <Select value={String(videoHeight)} onValueChange={(v) => setVideoHeight(Number(v))}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="256">256</SelectItem>
+                            <SelectItem value="384">384</SelectItem>
+                            <SelectItem value="512">512</SelectItem>
+                            <SelectItem value="768">768</SelectItem>
+                            <SelectItem value="1024">1024</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm">Motion Scale</Label>
+                        <span className="text-xs text-muted-foreground">{videoMotionScale.toFixed(1)}</span>
+                      </div>
+                      <Slider
+                        value={[videoMotionScale]}
+                        onValueChange={([v]) => setVideoMotionScale(v)}
+                        min={0.5}
+                        max={2.0}
+                        step={0.1}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm">Steps</Label>
+                        <span className="text-xs text-muted-foreground">{steps}</span>
+                      </div>
+                      <Slider
+                        value={[steps]}
+                        onValueChange={([v]) => setSteps(v)}
+                        min={10}
+                        max={50}
+                        step={1}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm">CFG Scale</Label>
+                        <span className="text-xs text-muted-foreground">{cfgScale}</span>
+                      </div>
+                      <Slider
+                        value={[cfgScale]}
+                        onValueChange={([v]) => setCfgScale(v)}
+                        min={1}
+                        max={20}
+                        step={0.5}
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 space-y-2">
+                        <Label className="text-sm">Seed</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            type="number"
+                            value={seed}
+                            onChange={(e) => setSeed(parseInt(e.target.value) || -1)}
+                            className="flex-1"
+                            placeholder="-1 for random"
+                          />
+                          <Button variant="outline" size="icon" onClick={randomizeSeed}>
+                            <Shuffle className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="pt-4 flex gap-2">
+                      <Button
+                        className="flex-1"
+                        size="lg"
+                        onClick={handleVideoGenerate}
+                        disabled={generating || pollingJobIds.length > 0}
+                      >
+                        {generating ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Submitting...
+                          </>
+                        ) : pollingJobIds.length > 0 ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Processing {pollingJobIds.length} job(s)...
+                          </>
+                        ) : (
+                          <>
+                            <Video className="h-4 w-4 mr-2" />
+                            Generate Video
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {videoJobs.length > 0 && (
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <Clock className="h-5 w-5 text-blue-500" />
+                        Video Jobs
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2 max-h-48 overflow-auto">
+                        {videoJobs.slice(0, 5).map((job) => (
+                          <div
+                            key={job.id}
+                            className="flex items-center justify-between p-2 rounded border bg-secondary/30"
+                          >
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs text-muted-foreground truncate">{job.prompt}</p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <Badge
+                                  variant={
+                                    job.status === "completed" ? "default" :
+                                    job.status === "failed" ? "destructive" :
+                                    "secondary"
+                                  }
+                                  className="text-xs"
+                                >
+                                  {job.status}
+                                </Badge>
+                                {job.status === "processing" && (
+                                  <span className="text-xs text-muted-foreground">{job.progress}%</span>
+                                )}
+                              </div>
+                            </div>
+                            {job.status === "processing" && (
+                              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+
+              <Card className="h-fit">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <Video className="h-5 w-5 text-green-500" />
+                      Output Gallery
+                    </span>
+                    {generatedVideos.length > 0 && (
+                      <span className="text-xs text-muted-foreground">
+                        {generatedVideos.length} video{generatedVideos.length !== 1 ? "s" : ""}
+                      </span>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {generatedVideos.length === 0 ? (
+                    <div className="aspect-video flex items-center justify-center border-2 border-dashed rounded-lg">
+                      <div className="text-center text-muted-foreground">
+                        <Video className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                        <p className="text-sm">Generated videos will appear here</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {generatedVideos.map((video) => (
+                        <div
+                          key={video.id}
+                          className="relative group rounded-lg overflow-hidden border bg-secondary/30"
+                        >
+                          <video
+                            src={video.url}
+                            controls
+                            className="w-full aspect-video object-contain bg-black"
+                          />
+                          <div className="p-3 space-y-2">
+                            <p className="text-xs text-muted-foreground line-clamp-2">{video.prompt}</p>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleVideoDownload(video)}
+                              >
+                                <Download className="h-3 w-3 mr-1" />
+                                Download
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => handleDeleteVideo(video.id)}
+                              >
+                                <Trash2 className="h-3 w-3 mr-1" />
+                                Delete
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {mode !== "sd-webui" && mode !== "comfyui" && mode !== "video" && (
           <div className="grid lg:grid-cols-2 gap-6 mt-6">
             <div className="space-y-4">
               <Card>
