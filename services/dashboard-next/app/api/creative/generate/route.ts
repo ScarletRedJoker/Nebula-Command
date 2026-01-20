@@ -174,27 +174,26 @@ export async function POST(request: NextRequest) {
       console.log(`[Creative Generate API] Completed job ${jobId}`);
     }
 
+    const images: Array<{ base64?: string; url?: string; provider: string }> = [];
+    
+    if (result?.base64 || result?.url) {
+      images.push({
+        base64: result.base64,
+        url: result.url,
+        provider: result.provider || "stable-diffusion",
+      });
+    }
+
     const response: Record<string, unknown> = {
       success: true,
       type,
       provider: result?.provider || "stable-diffusion",
+      jobId: jobId ?? undefined,
+      images,
+      base64: result?.base64,
+      url: result?.url,
+      revisedPrompt: result?.revisedPrompt,
     };
-
-    if (jobId) {
-      response.jobId = jobId;
-    }
-
-    if (result?.base64) {
-      response.base64 = result.base64;
-    }
-
-    if (result?.url) {
-      response.url = result.url;
-    }
-
-    if (result?.revisedPrompt) {
-      response.revisedPrompt = result.revisedPrompt;
-    }
 
     return NextResponse.json(response);
   } catch (error) {
@@ -203,6 +202,8 @@ export async function POST(request: NextRequest) {
       {
         success: false,
         error: error instanceof Error ? error.message : "Generation failed",
+        images: [],
+        jobId: null,
       },
       { status: 500 }
     );

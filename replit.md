@@ -35,6 +35,27 @@ A dedicated dashboard page (`/ai-nodes`) monitors service health, GPU statistics
 ### AI Services and Model Management
 APIs are provided for Speech Services (TTS/STT), Job Scheduling, Training, and Embeddings/RAG. A unified model management system via the dashboard and a Windows Model Agent offers model inventory, download management from Civitai/HuggingFace, and VRAM estimates.
 
+### Creative Engine (NEW)
+A powerful content generation system at `/creative-studio` with:
+- **6 Generation Modes:** Text-to-image, Image-to-image, Inpainting, ControlNet, Upscaling, Face Swap
+- **Local AI Only:** Uses Stable Diffusion WebUI on Windows VM exclusively (no cloud fallback)
+- **Advanced Features:** ControlNet (10+ types), ReActor face swap, ESRGAN upscaling
+- **Pipeline System:** Pre-built pipelines for thumbnails, avatars, social media batches
+- **Job Persistence:** Database-backed job tracking with history and retry
+
+**API Endpoints:**
+- `/api/creative/generate` - Unified generation endpoint
+- `/api/creative/capabilities` - Available models and features
+- `/api/creative/jobs` - Job CRUD operations
+- `/api/creative/pipelines` - Template pipelines
+
+### Lanyard Discord Presence (NEW)
+Enhanced presence tracking integration:
+- **WebSocket Mode:** Real-time updates via Lanyard WebSocket
+- **Unified Presence:** Aggregates Discord + Plex + Jellyfin + Spotify
+- **Presence Bridge:** Local WebSocket server for other services
+- **Dashboard API:** `/api/presence` for fetching user activity
+
 ### Jarvis AI Orchestrator and Autonomous Development
 The Jarvis Orchestrator (`lib/jarvis-orchestrator.ts`) provides multi-agent AI capabilities with a job queue, subagent management, local-first resource selection, and progress tracking. The OpenCode Integration (`lib/opencode-integration.ts`) enables autonomous code development using local AI, prioritizing models like qwen2.5-coder and deepseek-coder for feature development, bug fixing, code review, and refactoring.
 
