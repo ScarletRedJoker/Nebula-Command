@@ -291,11 +291,55 @@ If using Replit:
 
 ---
 
+## Discord Now Playing Feature
+
+The Discord bot includes a powerful Now Playing / Presence feature that shows what users are watching or listening to.
+
+### Requirements
+
+1. **Lanyard Integration** (for Discord presence data):
+   - Users must join the Lanyard Discord server: https://discord.gg/lanyard
+   - Lanyard tracks Discord presence (Spotify, games, etc.) via REST API
+   - This is READ-ONLY - we can view presence but not set it
+
+2. **Plex Integration** (for media tracking):
+   ```bash
+   PLEX_URL=http://your-plex-server:32400
+   PLEX_TOKEN=your_plex_token
+   ```
+   - Get your Plex token from: https://support.plex.tv/articles/204059436/
+   - Plex server must be accessible from where the bot runs (use Tailscale for home servers)
+
+3. **Jellyfin Integration** (alternative to Plex):
+   ```bash
+   JELLYFIN_URL=http://your-jellyfin-server:8096
+   JELLYFIN_API_KEY=your_jellyfin_api_key
+   ```
+   - Get API key from Jellyfin Dashboard > API Keys
+
+### Commands
+
+- `/nowplaying [user]` - Show what a user is currently doing
+- `/profile [user]` - Show a full activity profile card
+- `/presence toggle` - Enable/disable showing your activity
+- `/media-presence setup #channel` - Set channel for media updates
+- `/media-presence toggle` - Enable/disable auto-posting
+
+### Network Requirements
+
+If running the bot on Linode/cloud and your media server is at home:
+1. Use Tailscale to create a private network between servers
+2. Set `PLEX_URL` to the Tailscale IP: `http://100.x.x.x:32400`
+3. Ensure firewall allows traffic over Tailscale
+
+---
+
 ## Next Steps
 
 - [ ] Configure Discord bot commands
 - [ ] Set up Twitch/YouTube integration
 - [ ] Enable local AI services (Ollama)
+- [ ] Configure Plex/Jellyfin for Now Playing
 - [ ] Configure automated backups
 - [ ] Set up monitoring with Grafana
 
