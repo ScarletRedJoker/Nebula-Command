@@ -923,3 +923,67 @@ export type JarvisSecurityRule = typeof jarvisSecurityRules.$inferSelect;
 export type NewJarvisSecurityRule = typeof jarvisSecurityRules.$inferInsert;
 export type JarvisSecurityEvent = typeof jarvisSecurityEvents.$inferSelect;
 export type NewJarvisSecurityEvent = typeof jarvisSecurityEvents.$inferInsert;
+
+// ============================================
+// Secrets Management System
+// ============================================
+
+export const deploymentSecrets = pgTable("deployment_secrets", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  keyName: varchar("key_name", { length: 255 }).notNull(),
+  category: varchar("category", { length: 50 }).notNull().default("custom"),
+  targets: jsonb("targets").notNull().default([]),
+  valueHash: varchar("value_hash", { length: 64 }),
+  lastSyncedAt: timestamp("last_synced_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const secretSyncLogs = pgTable("secret_sync_logs", {
+  id: serial("id").primaryKey(),
+  deploymentTarget: varchar("deployment_target", { length: 50 }).notNull(),
+  action: varchar("action", { length: 50 }).notNull(),
+  status: varchar("status", { length: 20 }).notNull(),
+  message: text("message"),
+  secretsAffected: integer("secrets_affected").default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const tokenRotationConfig = pgTable("token_rotation_config", {
+  id: serial("id").primaryKey(),
+  tokenName: varchar("token_name", { length: 255 }).notNull().unique(),
+  autoRotate: boolean("auto_rotate").default(false),
+  rotationIntervalDays: integer("rotation_interval_days").default(30),
+  lastRotatedAt: timestamp("last_rotated_at"),
+  expiresAt: timestamp("expires_at"),
+  rotationHistory: jsonb("rotation_history").default([]),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const deploymentTargets = pgTable("deployment_targets", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  slug: varchar("slug", { length: 50 }).notNull().unique(),
+  name: varchar("name", { length: 255 }).notNull(),
+  targetType: varchar("target_type", { length: 50 }).notNull(),
+  connectionType: varchar("connection_type", { length: 20 }).notNull(),
+  sshHost: varchar("ssh_host", { length: 255 }),
+  sshUser: varchar("ssh_user", { length: 100 }),
+  sshPort: integer("ssh_port").default(22),
+  agentUrl: varchar("agent_url", { length: 500 }),
+  envFilePath: varchar("env_file_path", { length: 500 }),
+  status: varchar("status", { length: 20 }).default("unknown"),
+  lastConnectedAt: timestamp("last_connected_at"),
+  secretsCount: integer("secrets_count").default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type DeploymentSecret = typeof deploymentSecrets.$inferSelect;
+export type NewDeploymentSecret = typeof deploymentSecrets.$inferInsert;
+export type SecretSyncLog = typeof secretSyncLogs.$inferSelect;
+export type NewSecretSyncLog = typeof secretSyncLogs.$inferInsert;
+export type TokenRotationConfig = typeof tokenRotationConfig.$inferSelect;
+export type NewTokenRotationConfig = typeof tokenRotationConfig.$inferInsert;
+export type DeploymentTarget = typeof deploymentTargets.$inferSelect;
+export type NewDeploymentTarget = typeof deploymentTargets.$inferInsert;
