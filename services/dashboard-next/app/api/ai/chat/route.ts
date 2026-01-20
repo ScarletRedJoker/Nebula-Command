@@ -606,7 +606,7 @@ async function tryOllamaEndpoint(
   messages: { role: string; content: string }[],
   model: string,
   stream: boolean
-): Promise<Response | { content: string; provider: string; model: string }> {
+): Promise<Response | { content: string; provider: string; model: string; processingTimeMs?: number }> {
   const ollamaUrl = endpoint;
   const startTime = Date.now();
 
@@ -747,7 +747,7 @@ async function chatWithOllama(
   messages: { role: string; content: string }[],
   model: string,
   stream: boolean
-): Promise<Response | { content: string; provider: string; model: string }> {
+): Promise<Response | { content: string; provider: string; model: string; processingTimeMs?: number }> {
   const endpoints = getOllamaEndpoints();
   let lastError: Error | null = null;
   

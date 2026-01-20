@@ -160,7 +160,7 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as RepairRequest;
 
     // Validate Windows VM accessibility
-    if (!process.platform === "win32" && !WINDOWS_VM_IP) {
+    if (process.platform !== "win32" && !WINDOWS_VM_IP) {
       return NextResponse.json(
         {
           error: "Windows VM not configured",

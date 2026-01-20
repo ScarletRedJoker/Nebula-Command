@@ -305,7 +305,7 @@ export async function GET(request: NextRequest) {
       models = models.filter(m => m.baseModel === baseModel);
     }
 
-    const baseModels = [...new Set(models.filter(m => m.baseModel).map(m => m.baseModel))];
+    const baseModels = Array.from(new Set(models.filter(m => m.baseModel).map(m => m.baseModel)));
 
     return NextResponse.json({
       models: models.slice(0, limit),

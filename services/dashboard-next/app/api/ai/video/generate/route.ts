@@ -146,7 +146,7 @@ export async function POST(request: NextRequest) {
         subjectMotion: subjectMotion.toString(),
         seed: jobSeed,
         presetId: presetId || null,
-        userId: user.id || null,
+        userId: user.username || null,
         batchId: batchId || null,
         batchIndex: batchCount > 1 ? i : null,
       };

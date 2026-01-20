@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     let whereConditions = [
       or(
         eq(videoPresets.isPublic, true),
-        eq(videoPresets.userId, user.id || "")
+        eq(videoPresets.userId, user.username || "")
       ),
     ];
 
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
       negativePrompt: negativePrompt || null,
       isPublic,
       isDefault: false,
-      userId: user.id || null,
+      userId: user.username || null,
     };
 
     const [inserted] = await db.insert(videoPresets).values(newPreset).returning();
@@ -154,7 +154,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    if (preset.userId !== user.id && !preset.isPublic) {
+    if (preset.userId !== user.username && !preset.isPublic) {
       return NextResponse.json(
         { success: false, error: "Not authorized to delete this preset" },
         { status: 403 }

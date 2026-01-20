@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
         name,
         description: description || null,
         category: category || "custom",
-        userId: user.id || "anonymous",
+        userId: user.username || "anonymous",
         isPublic: false,
         isStarterPack: false,
       }).returning();

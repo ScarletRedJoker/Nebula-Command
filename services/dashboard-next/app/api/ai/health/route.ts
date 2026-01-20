@@ -107,7 +107,7 @@ export async function GET(request: NextRequest) {
   const metrics = aiFallbackManager.getMetrics();
 
   const anyOllamaOnline = endpointResults.some(e => e.status === "online" || e.status === "degraded");
-  const allModels = [...new Set(endpointResults.flatMap(e => e.models || []))];
+  const allModels = Array.from(new Set(endpointResults.flatMap(e => e.models || [])));
 
   const troubleshooting = [];
   

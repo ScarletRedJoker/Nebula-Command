@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
     const favorites = await db
       .select({ modelId: modelFavorites.modelId })
       .from(modelFavorites)
-      .where(eq(modelFavorites.userId, user.id || "anonymous"));
+      .where(eq(modelFavorites.userId, user.username || "anonymous"));
 
     const favoriteIds = new Set(favorites.map(f => f.modelId));
 
@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
         .from(modelFavorites)
         .where(
           and(
-            eq(modelFavorites.userId, user.id || "anonymous"),
+            eq(modelFavorites.userId, user.username || "anonymous"),
             modelId ? eq(modelFavorites.modelId, modelId) : and(
               eq(modelFavorites.externalSource, externalSource),
               eq(modelFavorites.externalId, externalId)
@@ -154,7 +154,7 @@ export async function POST(request: NextRequest) {
       }
 
       await db.insert(modelFavorites).values({
-        userId: user.id || "anonymous",
+        userId: user.username || "anonymous",
         modelId: modelId || null,
         externalSource,
         externalId,
@@ -171,7 +171,7 @@ export async function POST(request: NextRequest) {
         .delete(modelFavorites)
         .where(
           and(
-            eq(modelFavorites.userId, user.id || "anonymous"),
+            eq(modelFavorites.userId, user.username || "anonymous"),
             modelId ? eq(modelFavorites.modelId, modelId) : and(
               eq(modelFavorites.externalSource, externalSource || ""),
               eq(modelFavorites.externalId, externalId || "")

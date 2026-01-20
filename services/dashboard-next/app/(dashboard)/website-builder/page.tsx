@@ -809,7 +809,7 @@ const CATEGORIES = [
   { id: "headers", name: "Headers", icon: <Navigation className="h-4 w-4" /> },
   { id: "content", name: "Content", icon: <Type className="h-4 w-4" /> },
   { id: "forms", name: "Forms", icon: <Mail className="h-4 w-4" /> },
-  { id: "footers", name: "Footers", icon: <Footer className="h-4 w-4" /> },
+  { id: "footers", name: "Footers", icon: <Square className="h-4 w-4" /> },
   { id: "layout", name: "Layout", icon: <Layers className="h-4 w-4" /> },
 ];
 

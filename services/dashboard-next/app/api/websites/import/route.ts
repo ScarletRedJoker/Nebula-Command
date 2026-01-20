@@ -29,7 +29,7 @@ function generateId(): string {
   return `comp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
-function detectComponentType(element: cheerio.Cheerio<cheerio.Element>, $: cheerio.CheerioAPI): { type: string; category: string } {
+function detectComponentType(element: ReturnType<ReturnType<typeof cheerio.load>>, $: ReturnType<typeof cheerio.load>): { type: string; category: string } {
   const tagName = element.prop("tagName")?.toLowerCase() || "div";
   const className = element.attr("class") || "";
   const id = element.attr("id") || "";
