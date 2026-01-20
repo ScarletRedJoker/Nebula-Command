@@ -4,9 +4,11 @@ import { websiteProjects, websitePages, websiteHistory } from "@/lib/db/platform
 import { eq } from "drizzle-orm";
 import OpenAI from "openai";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-});
+function getOpenAIClient() {
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY || process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+  });
+}
 
 interface AIEditRequest {
   prompt: string;
@@ -134,6 +136,7 @@ async function generateAIEdit(
   context: Record<string, unknown>
 ): Promise<{ html?: string; css?: string; description: string }> {
   try {
+    const openai = getOpenAIClient();
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
@@ -191,6 +194,7 @@ async function generateContent(
   context: Record<string, unknown>
 ): Promise<{ html: string; css: string; description: string }> {
   try {
+    const openai = getOpenAIClient();
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
@@ -236,6 +240,7 @@ async function getSuggestions(
   context: Record<string, unknown>
 ): Promise<string[]> {
   try {
+    const openai = getOpenAIClient();
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
