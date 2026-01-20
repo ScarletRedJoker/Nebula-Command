@@ -85,6 +85,26 @@ test_database_connection() {
     return 0
 }
 
+test_windows_ai_service() {
+    local name="$1"
+    local port="$2"
+    local path="${3:-}"
+    local vm_ip="${WINDOWS_VM_TAILSCALE_IP:-100.118.44.102}"
+    
+    local url="http://${vm_ip}:${port}${path}"
+    local response
+    response=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 "$url" 2>/dev/null || echo "000")
+    
+    if [ "$response" = "200" ] || [ "$response" = "404" ]; then
+        test_result "Windows VM $name ($port)" "pass"
+    elif [ "$response" = "000" ]; then
+        test_result "Windows VM $name ($port)" "fail" "Connection failed (VM offline or port blocked)"
+    else
+        test_result "Windows VM $name ($port)" "fail" "HTTP $response"
+    fi
+    return 0
+}
+
 run_linode_tests() {
     echo -e "${CYAN}═══ Linode Deployment Smoke Tests ═══${NC}"
     echo ""
@@ -103,12 +123,19 @@ run_linode_tests() {
     echo ""
     echo -e "${CYAN}━━━ Discord Bot ━━━${NC}"
     test_container_health "discord-bot"
-    test_endpoint "Discord Bot health" "http://localhost:4000/health"
+    test_endpoint "Discord Bot liveness" "http://localhost:4000/live"
     
     echo ""
     echo -e "${CYAN}━━━ Stream Bot ━━━${NC}"
     test_container_health "stream-bot"
     test_endpoint "Stream Bot health" "http://localhost:3000/health" "200" "15"
+    
+    echo ""
+    echo -e "${CYAN}━━━ Windows VM AI Services ━━━${NC}"
+    test_windows_ai_service "Nebula Agent" "9765" "/api/health"
+    test_windows_ai_service "Ollama" "11434" "/api/tags"
+    test_windows_ai_service "Stable Diffusion" "7860" "/sdapi/v1/sd-models"
+    test_windows_ai_service "ComfyUI" "8188" "/system_stats"
     
     echo ""
     echo -e "${CYAN}━━━ Reverse Proxy ━━━${NC}"
