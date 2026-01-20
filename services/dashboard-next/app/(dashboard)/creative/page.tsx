@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { useToast } from "@/components/ui/use-toast";
 import {
   Wand2,
   Image as ImageIcon,
@@ -67,6 +68,7 @@ interface GeneratedVideo {
 }
 
 export default function CreativeStudioPage() {
+  const { toast } = useToast();
   const [aiStatus, setAIStatus] = useState<AIStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("image");
@@ -166,15 +168,31 @@ export default function CreativeStudioPage() {
           } : prev);
           await fetchImageProviders();
           await fetchSDModels();
+          toast({
+            title: "Success",
+            description: `Model switched to ${modelTitle}`,
+          });
         } else {
-          alert(`Failed to switch model: ${data.error || "Unknown error"}`);
+          toast({
+            title: "Failed to Switch Model",
+            description: data.error || "Unknown error occurred",
+            variant: "destructive",
+          });
         }
       } else {
         const error = await res.json();
-        alert(`Failed to switch model: ${error.error || "Unknown error"}`);
+        toast({
+          title: "Failed to Switch Model",
+          description: error.error || "Unknown error occurred",
+          variant: "destructive",
+        });
       }
     } catch (error: any) {
-      alert(`Failed to switch model: ${error.message}`);
+      toast({
+        title: "Failed to Switch Model",
+        description: error.message || "An unexpected error occurred",
+        variant: "destructive",
+      });
     } finally {
       setSwitchingModel(false);
     }
@@ -272,19 +290,39 @@ export default function CreativeStudioPage() {
         const blobUrl = URL.createObjectURL(blob);
         const provider = res.headers.get("x-provider") || "unknown";
         setGeneratedImage({ url: blobUrl, provider, isBlob: true });
+        toast({
+          title: "Success",
+          description: "Image generated successfully",
+        });
       } else if (res.ok) {
         const data = await safeParseJSON(res);
         setGeneratedImage(data);
+        toast({
+          title: "Success",
+          description: "Image generated successfully",
+        });
       } else {
         try {
           const error = await safeParseJSON(res);
-          alert(`Error: ${error.details || error.error || "Unknown error"}`);
+          toast({
+            title: "Failed to Generate Image",
+            description: error.details || error.error || "An unknown error occurred",
+            variant: "destructive",
+          });
         } catch (parseError: any) {
-          alert(`Error: ${parseError.message}`);
+          toast({
+            title: "Failed to Generate Image",
+            description: parseError.message || "An unexpected error occurred",
+            variant: "destructive",
+          });
         }
       }
     } catch (error: any) {
-      alert(`Failed to generate image: ${error.message}`);
+      toast({
+        title: "Failed to Generate Image",
+        description: error.message || "An unexpected error occurred",
+        variant: "destructive",
+      });
     } finally {
       setGeneratingImage(false);
     }
@@ -316,19 +354,39 @@ export default function CreativeStudioPage() {
         const provider = res.headers.get("x-provider") || "local";
         const model = res.headers.get("x-model") || videoModel;
         setGeneratedVideo({ url: blobUrl, provider, model, isBlob: true });
+        toast({
+          title: "Success",
+          description: "Video generated successfully",
+        });
       } else if (res.ok) {
         const data = await safeParseJSON(res);
         setGeneratedVideo(data);
+        toast({
+          title: "Success",
+          description: "Video generated successfully",
+        });
       } else {
         try {
           const error = await safeParseJSON(res);
-          alert(`Error: ${error.details || error.error || "Unknown error"}`);
+          toast({
+            title: "Failed to Generate Video",
+            description: error.details || error.error || "An unknown error occurred",
+            variant: "destructive",
+          });
         } catch (parseError: any) {
-          alert(`Error: ${parseError.message}`);
+          toast({
+            title: "Failed to Generate Video",
+            description: parseError.message || "An unexpected error occurred",
+            variant: "destructive",
+          });
         }
       }
     } catch (error: any) {
-      alert(`Failed to generate video: ${error.message}`);
+      toast({
+        title: "Failed to Generate Video",
+        description: error.message || "An unexpected error occurred",
+        variant: "destructive",
+      });
     } finally {
       setGeneratingVideo(false);
     }

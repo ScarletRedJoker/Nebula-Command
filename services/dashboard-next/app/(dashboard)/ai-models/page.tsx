@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -131,19 +132,19 @@ export default function AIModelsPage() {
         await fetchData();
         setCustomModel("");
         setSelectedPopular("");
+        toast.success(`Successfully pulled ${modelName}`);
       } else {
         const error = await res.json();
-        alert(`Failed to pull model: ${error.details || error.error}`);
+        toast.error(`Failed to pull model: ${error.details || error.error}`);
       }
     } catch (error: any) {
-      alert(`Error: ${error.message}`);
+      toast.error(`Error: ${error.message}`);
     } finally {
       setPullingModel(null);
     }
   }
 
   async function deleteModel(modelName: string) {
-    if (!confirm(`Are you sure you want to delete ${modelName}?`)) return;
     setDeletingModel(modelName);
 
     try {
@@ -155,12 +156,13 @@ export default function AIModelsPage() {
 
       if (res.ok) {
         await fetchData();
+        toast.success(`${modelName} deleted successfully`);
       } else {
         const error = await res.json();
-        alert(`Failed to delete model: ${error.details || error.error}`);
+        toast.error(`Failed to delete model: ${error.details || error.error}`);
       }
     } catch (error: any) {
-      alert(`Error: ${error.message}`);
+      toast.error(`Error: ${error.message}`);
     } finally {
       setDeletingModel(null);
     }
@@ -179,12 +181,13 @@ export default function AIModelsPage() {
 
       if (res.ok) {
         await fetchData();
+        toast.success(`Model ${action}ed successfully`);
       } else {
         const error = await res.json();
-        alert(`Failed to ${action} model: ${error.details || error.message}`);
+        toast.error(`Failed to ${action} model: ${error.details || error.message}`);
       }
     } catch (error: any) {
-      alert(`Error: ${error.message}`);
+      toast.error(`Error: ${error.message}`);
     } finally {
       setLoadingModel(null);
     }
