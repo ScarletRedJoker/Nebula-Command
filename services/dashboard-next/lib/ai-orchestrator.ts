@@ -102,6 +102,110 @@ export interface VideoResponse {
   duration?: number;
 }
 
+// Image-to-Image request interface
+export interface Img2ImgRequest {
+  image: string; // base64 or URL
+  prompt: string;
+  negativePrompt?: string;
+  denoisingStrength?: number; // 0.0 to 1.0, default 0.75
+  size?: "512x512" | "768x768" | "1024x1024";
+  steps?: number;
+  cfgScale?: number;
+  sampler?: string;
+}
+
+// Inpainting request interface
+export interface InpaintRequest {
+  image: string; // base64 or URL - the source image
+  mask: string; // base64 or URL - white areas will be inpainted
+  prompt: string;
+  negativePrompt?: string;
+  denoisingStrength?: number; // default 0.75
+  maskBlur?: number; // default 4
+  inpaintingFill?: number; // 0=fill, 1=original, 2=latent noise, 3=latent nothing
+  inpaintFullRes?: boolean; // whether to inpaint at full resolution
+  inpaintFullResPadding?: number;
+  steps?: number;
+  cfgScale?: number;
+}
+
+// ControlNet control types
+export type ControlNetType = 
+  | "canny" 
+  | "depth" 
+  | "openpose" 
+  | "softedge" 
+  | "scribble" 
+  | "lineart" 
+  | "tile" 
+  | "ip2p" 
+  | "shuffle" 
+  | "reference";
+
+// Single ControlNet unit configuration
+export interface ControlNetUnit {
+  image: string; // base64 or URL
+  controlType: ControlNetType;
+  weight?: number; // 0.0 to 2.0, default 1.0
+  guidanceStart?: number; // 0.0 to 1.0, default 0.0
+  guidanceEnd?: number; // 0.0 to 1.0, default 1.0
+  preprocessor?: string; // specific preprocessor override
+  model?: string; // specific model override
+  controlMode?: number; // 0=balanced, 1=prompt more important, 2=controlnet more important
+  resizeMode?: number; // 0=just resize, 1=crop and resize, 2=resize and fill
+}
+
+// ControlNet generation request
+export interface ControlNetRequest {
+  prompt: string;
+  negativePrompt?: string;
+  controlNets: ControlNetUnit[];
+  size?: "512x512" | "768x768" | "1024x1024";
+  steps?: number;
+  cfgScale?: number;
+  sampler?: string;
+  denoisingStrength?: number; // for img2img with controlnet
+  inputImage?: string; // optional base image for img2img mode
+}
+
+// Upscale request interface
+export interface UpscaleRequest {
+  image: string; // base64 or URL
+  scaleFactor?: 2 | 4; // default 2
+  upscaler?: string; // e.g., "R-ESRGAN 4x+", "ESRGAN_4x", "ScuNET", "SwinIR"
+  upscaler2?: string; // secondary upscaler for blending
+  upscaler2Visibility?: number; // 0.0 to 1.0, blend ratio
+  gfpganVisibility?: number; // 0.0 to 1.0, face enhancement
+  codeformerVisibility?: number; // 0.0 to 1.0, face enhancement
+  codeformerWeight?: number; // 0.0 to 1.0
+}
+
+// Face swap request interface
+export interface FaceSwapRequest {
+  sourceImage: string; // base64 or URL - the face to use
+  targetImage: string; // base64 or URL - the image to swap face into
+  faceIndex?: number; // which face to swap in target (default 0)
+  sourceFaceIndex?: number; // which face to use from source (default 0)
+  restoreFace?: boolean; // apply face restoration after swap
+  upscale?: boolean; // upscale result
+  upscaleFactor?: 2 | 4;
+}
+
+// Upscaler info returned from SD
+export interface SDUpscaler {
+  name: string;
+  model_name: string | null;
+  model_path: string | null;
+  model_url: string | null;
+  scale: number;
+}
+
+// ControlNet model info
+export interface ControlNetModel {
+  model_name: string;
+  module_name: string;
+}
+
 const DEFAULT_CONFIG: AIConfig = {
   provider: "auto",
   temperature: 0.7,
@@ -1282,6 +1386,720 @@ class AIOrchestrator {
         provider: "replicate",
       },
     ];
+  }
+
+  /**
+   * Ensures LOCAL_AI_ONLY constraint is respected.
+   * Throws an error if local SD is required but unavailable.
+   */
+  private async ensureLocalSDAvailable(operation: string): Promise<SDStatus> {
+    const localAIOnly = process.env.LOCAL_AI_ONLY !== "false";
+    const sdStatus = await this.getSDStatus(1);
+
+    if (!sdStatus.available) {
+      const msg = `Stable Diffusion is not reachable at ${this.stableDiffusionUrl}. ${sdStatus.error || "Check that SD WebUI is running."}`;
+      if (localAIOnly) {
+        throw new Error(`${msg} LOCAL_AI_ONLY is enabled - no cloud fallback available for ${operation}.`);
+      }
+      throw new Error(msg);
+    }
+
+    if (sdStatus.modelLoading) {
+      throw new Error("Stable Diffusion is currently loading a model. Please wait a few moments and try again.");
+    }
+
+    if (!sdStatus.modelLoaded) {
+      const availableHint = sdStatus.availableModels.length > 0
+        ? ` Available models: ${sdStatus.availableModels.slice(0, 3).join(", ")}${sdStatus.availableModels.length > 3 ? "..." : ""}`
+        : " No models found in SD WebUI.";
+      throw new Error(`No model loaded in Stable Diffusion.${availableHint}`);
+    }
+
+    return sdStatus;
+  }
+
+  /**
+   * Converts a URL or data URL to base64 format for SD API.
+   */
+  private async imageToBase64(image: string): Promise<string> {
+    // Already base64 (no URL prefix)
+    if (!image.startsWith("http") && !image.startsWith("data:")) {
+      return image;
+    }
+
+    // Data URL - extract base64 part
+    if (image.startsWith("data:")) {
+      const match = image.match(/^data:[^;]+;base64,(.+)$/);
+      if (match) {
+        return match[1];
+      }
+      throw new Error("Invalid data URL format");
+    }
+
+    // URL - fetch and convert
+    try {
+      const response = await fetch(image);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch image: ${response.status}`);
+      }
+      const buffer = await response.arrayBuffer();
+      return Buffer.from(buffer).toString("base64");
+    } catch (error: any) {
+      throw new Error(`Failed to download image from URL: ${error.message}`);
+    }
+  }
+
+  /**
+   * Image-to-Image generation using Stable Diffusion.
+   * Takes an input image and transforms it based on the prompt.
+   */
+  async img2img(request: Img2ImgRequest): Promise<ImageResponse> {
+    console.log(`[AI Orchestrator] img2img request with denoising strength: ${request.denoisingStrength || 0.75}`);
+    
+    const sdStatus = await this.ensureLocalSDAvailable("img2img");
+    
+    const imageBase64 = await this.imageToBase64(request.image);
+    
+    const sizeMap: Record<string, { width: number; height: number }> = {
+      "512x512": { width: 512, height: 512 },
+      "768x768": { width: 768, height: 768 },
+      "1024x1024": { width: 1024, height: 1024 },
+    };
+    const dimensions = sizeMap[request.size || "512x512"] || { width: 512, height: 512 };
+
+    console.log(`[SD img2img] Using model: ${sdStatus.currentModel}`);
+    console.log(`[SD img2img] Prompt: "${request.prompt.substring(0, 50)}..."`);
+
+    let response: Response;
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 180000); // 3 minute timeout
+
+      response = await fetch(`${this.stableDiffusionUrl}/sdapi/v1/img2img`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+        },
+        body: JSON.stringify({
+          init_images: [imageBase64],
+          prompt: request.prompt,
+          negative_prompt: request.negativePrompt || "blurry, low quality, distorted, watermark, text",
+          width: dimensions.width,
+          height: dimensions.height,
+          denoising_strength: request.denoisingStrength ?? 0.75,
+          steps: request.steps || 25,
+          cfg_scale: request.cfgScale || 7,
+          sampler_name: request.sampler || "DPM++ 2M Karras",
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+    } catch (fetchError: any) {
+      if (fetchError.name === "AbortError") {
+        throw new Error("img2img generation timed out after 3 minutes.");
+      }
+      throw new Error(`Cannot connect to Stable Diffusion: ${fetchError.message}`);
+    }
+
+    const responseText = await response.text();
+    if (!response.ok) {
+      console.error(`[SD img2img] Error: ${responseText.substring(0, 500)}`);
+      throw new Error(`Stable Diffusion img2img error (${response.status}): ${responseText.substring(0, 200)}`);
+    }
+
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch {
+      throw new Error("Stable Diffusion returned invalid JSON response.");
+    }
+
+    if (!data.images?.[0]) {
+      throw new Error("Stable Diffusion returned no image data for img2img.");
+    }
+
+    console.log(`[SD img2img] Successfully generated image`);
+    return {
+      base64: data.images[0],
+      provider: "stable-diffusion",
+    };
+  }
+
+  /**
+   * Inpainting: Fill in masked areas of an image with AI-generated content.
+   * White areas in the mask will be regenerated.
+   */
+  async inpaint(request: InpaintRequest): Promise<ImageResponse> {
+    console.log(`[AI Orchestrator] Inpaint request with mask blur: ${request.maskBlur || 4}`);
+    
+    const sdStatus = await this.ensureLocalSDAvailable("inpainting");
+    
+    const imageBase64 = await this.imageToBase64(request.image);
+    const maskBase64 = await this.imageToBase64(request.mask);
+
+    console.log(`[SD Inpaint] Using model: ${sdStatus.currentModel}`);
+    console.log(`[SD Inpaint] Prompt: "${request.prompt.substring(0, 50)}..."`);
+
+    let response: Response;
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 180000);
+
+      response = await fetch(`${this.stableDiffusionUrl}/sdapi/v1/img2img`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+        },
+        body: JSON.stringify({
+          init_images: [imageBase64],
+          mask: maskBase64,
+          prompt: request.prompt,
+          negative_prompt: request.negativePrompt || "blurry, low quality, distorted, watermark, text",
+          denoising_strength: request.denoisingStrength ?? 0.75,
+          mask_blur: request.maskBlur ?? 4,
+          inpainting_fill: request.inpaintingFill ?? 1, // 1 = original
+          inpaint_full_res: request.inpaintFullRes ?? true,
+          inpaint_full_res_padding: request.inpaintFullResPadding ?? 32,
+          steps: request.steps || 25,
+          cfg_scale: request.cfgScale || 7,
+          sampler_name: "DPM++ 2M Karras",
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+    } catch (fetchError: any) {
+      if (fetchError.name === "AbortError") {
+        throw new Error("Inpainting timed out after 3 minutes.");
+      }
+      throw new Error(`Cannot connect to Stable Diffusion: ${fetchError.message}`);
+    }
+
+    const responseText = await response.text();
+    if (!response.ok) {
+      console.error(`[SD Inpaint] Error: ${responseText.substring(0, 500)}`);
+      throw new Error(`Stable Diffusion inpainting error (${response.status}): ${responseText.substring(0, 200)}`);
+    }
+
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch {
+      throw new Error("Stable Diffusion returned invalid JSON response.");
+    }
+
+    if (!data.images?.[0]) {
+      throw new Error("Stable Diffusion returned no image data for inpainting.");
+    }
+
+    console.log(`[SD Inpaint] Successfully generated inpainted image`);
+    return {
+      base64: data.images[0],
+      provider: "stable-diffusion",
+    };
+  }
+
+  /**
+   * Get available ControlNet models from SD WebUI.
+   */
+  async getControlNetModels(): Promise<ControlNetModel[]> {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      
+      const response = await fetch(`${this.stableDiffusionUrl}/controlnet/model_list`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+
+      if (!response.ok) {
+        console.warn(`[ControlNet] Could not fetch model list: ${response.status}`);
+        return [];
+      }
+
+      const data = await response.json();
+      return (data.model_list || []).map((name: string) => ({
+        model_name: name,
+        module_name: name.split("_")[0] || "unknown",
+      }));
+    } catch (error: any) {
+      console.warn(`[ControlNet] Failed to get models: ${error.message}`);
+      return [];
+    }
+  }
+
+  /**
+   * Check if ControlNet extension is available in SD WebUI.
+   */
+  async checkControlNet(): Promise<boolean> {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
+      
+      const response = await fetch(`${this.stableDiffusionUrl}/controlnet/version`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      
+      return response.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Map control type to preprocessor and model name patterns.
+   */
+  private getControlNetConfig(controlType: ControlNetType): { preprocessor: string; modelPattern: string } {
+    const configs: Record<ControlNetType, { preprocessor: string; modelPattern: string }> = {
+      canny: { preprocessor: "canny", modelPattern: "canny" },
+      depth: { preprocessor: "depth_midas", modelPattern: "depth" },
+      openpose: { preprocessor: "openpose_full", modelPattern: "openpose" },
+      softedge: { preprocessor: "softedge_pidinet", modelPattern: "softedge" },
+      scribble: { preprocessor: "scribble_pidinet", modelPattern: "scribble" },
+      lineart: { preprocessor: "lineart_realistic", modelPattern: "lineart" },
+      tile: { preprocessor: "tile_resample", modelPattern: "tile" },
+      ip2p: { preprocessor: "none", modelPattern: "ip2p" },
+      shuffle: { preprocessor: "shuffle", modelPattern: "shuffle" },
+      reference: { preprocessor: "reference_only", modelPattern: "" },
+    };
+    return configs[controlType] || { preprocessor: "none", modelPattern: controlType };
+  }
+
+  /**
+   * ControlNet generation: Use control images to guide the generation.
+   * Supports multiple ControlNet units for complex control.
+   */
+  async controlnet(request: ControlNetRequest): Promise<ImageResponse> {
+    console.log(`[AI Orchestrator] ControlNet request with ${request.controlNets.length} control unit(s)`);
+    
+    const sdStatus = await this.ensureLocalSDAvailable("controlnet");
+    
+    // Check if ControlNet extension is available
+    const controlNetAvailable = await this.checkControlNet();
+    if (!controlNetAvailable) {
+      throw new Error("ControlNet extension is not installed or not responding. Install sd-webui-controlnet extension in SD WebUI.");
+    }
+
+    // Get available models to find matching ones
+    const availableModels = await this.getControlNetModels();
+
+    // Build ControlNet units
+    const controlNetUnits = await Promise.all(
+      request.controlNets.map(async (unit) => {
+        const imageBase64 = await this.imageToBase64(unit.image);
+        const config = this.getControlNetConfig(unit.controlType);
+        
+        // Find a matching model
+        let model = unit.model;
+        if (!model && config.modelPattern) {
+          const matchingModel = availableModels.find(m => 
+            m.model_name.toLowerCase().includes(config.modelPattern.toLowerCase())
+          );
+          model = matchingModel?.model_name || "";
+        }
+
+        return {
+          enabled: true,
+          input_image: imageBase64,
+          module: unit.preprocessor || config.preprocessor,
+          model: model || "None",
+          weight: unit.weight ?? 1.0,
+          guidance_start: unit.guidanceStart ?? 0.0,
+          guidance_end: unit.guidanceEnd ?? 1.0,
+          control_mode: unit.controlMode ?? 0,
+          resize_mode: unit.resizeMode ?? 1,
+        };
+      })
+    );
+
+    const sizeMap: Record<string, { width: number; height: number }> = {
+      "512x512": { width: 512, height: 512 },
+      "768x768": { width: 768, height: 768 },
+      "1024x1024": { width: 1024, height: 1024 },
+    };
+    const dimensions = sizeMap[request.size || "512x512"] || { width: 512, height: 512 };
+
+    console.log(`[SD ControlNet] Using model: ${sdStatus.currentModel}`);
+    console.log(`[SD ControlNet] Control types: ${request.controlNets.map(c => c.controlType).join(", ")}`);
+
+    // Determine if this is txt2img or img2img based on inputImage
+    const endpoint = request.inputImage 
+      ? `${this.stableDiffusionUrl}/sdapi/v1/img2img`
+      : `${this.stableDiffusionUrl}/sdapi/v1/txt2img`;
+
+    const basePayload: any = {
+      prompt: request.prompt,
+      negative_prompt: request.negativePrompt || "blurry, low quality, distorted, watermark, text",
+      width: dimensions.width,
+      height: dimensions.height,
+      steps: request.steps || 25,
+      cfg_scale: request.cfgScale || 7,
+      sampler_name: request.sampler || "DPM++ 2M Karras",
+      alwayson_scripts: {
+        controlnet: {
+          args: controlNetUnits,
+        },
+      },
+    };
+
+    if (request.inputImage) {
+      const inputBase64 = await this.imageToBase64(request.inputImage);
+      basePayload.init_images = [inputBase64];
+      basePayload.denoising_strength = request.denoisingStrength ?? 0.75;
+    }
+
+    let response: Response;
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 180000);
+
+      response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+        },
+        body: JSON.stringify(basePayload),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+    } catch (fetchError: any) {
+      if (fetchError.name === "AbortError") {
+        throw new Error("ControlNet generation timed out after 3 minutes.");
+      }
+      throw new Error(`Cannot connect to Stable Diffusion: ${fetchError.message}`);
+    }
+
+    const responseText = await response.text();
+    if (!response.ok) {
+      console.error(`[SD ControlNet] Error: ${responseText.substring(0, 500)}`);
+      
+      if (responseText.toLowerCase().includes("controlnet")) {
+        throw new Error("ControlNet processing failed. Ensure ControlNet models are downloaded and the extension is properly configured.");
+      }
+      throw new Error(`Stable Diffusion ControlNet error (${response.status}): ${responseText.substring(0, 200)}`);
+    }
+
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch {
+      throw new Error("Stable Diffusion returned invalid JSON response.");
+    }
+
+    if (!data.images?.[0]) {
+      throw new Error("Stable Diffusion returned no image data for ControlNet generation.");
+    }
+
+    console.log(`[SD ControlNet] Successfully generated image with ${request.controlNets.length} control(s)`);
+    return {
+      base64: data.images[0],
+      provider: "stable-diffusion",
+    };
+  }
+
+  /**
+   * Get available upscaler models from SD WebUI.
+   */
+  async getUpscalers(): Promise<SDUpscaler[]> {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      
+      const response = await fetch(`${this.stableDiffusionUrl}/sdapi/v1/upscalers`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+
+      if (!response.ok) {
+        return [];
+      }
+
+      return await response.json();
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Upscale an image using SD WebUI's extra-single-image endpoint.
+   * Uses ESRGAN, Real-ESRGAN, or other available upscalers.
+   */
+  async upscale(request: UpscaleRequest): Promise<ImageResponse> {
+    console.log(`[AI Orchestrator] Upscale request with scale factor: ${request.scaleFactor || 2}x`);
+    
+    await this.ensureLocalSDAvailable("upscaling");
+    
+    const imageBase64 = await this.imageToBase64(request.image);
+    
+    // Get available upscalers to validate/find the requested one
+    const upscalers = await this.getUpscalers();
+    let upscalerName = request.upscaler || "R-ESRGAN 4x+";
+    
+    // Try to find a matching upscaler
+    if (upscalers.length > 0) {
+      const exactMatch = upscalers.find(u => u.name === upscalerName);
+      if (!exactMatch) {
+        // Try partial match
+        const partialMatch = upscalers.find(u => 
+          u.name.toLowerCase().includes("esrgan") || 
+          u.name.toLowerCase().includes("real")
+        );
+        if (partialMatch) {
+          upscalerName = partialMatch.name;
+        } else if (upscalers.length > 0) {
+          // Use first available (skip "None" and "Lanczos")
+          const validUpscaler = upscalers.find(u => 
+            u.name !== "None" && u.name !== "Lanczos"
+          );
+          if (validUpscaler) {
+            upscalerName = validUpscaler.name;
+          }
+        }
+      }
+    }
+
+    console.log(`[SD Upscale] Using upscaler: ${upscalerName}`);
+
+    let response: Response;
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 300000); // 5 min for large upscales
+
+      const payload: any = {
+        image: imageBase64,
+        upscaling_resize: request.scaleFactor || 2,
+        upscaler_1: upscalerName,
+        upscaler_2: request.upscaler2 || "None",
+        extras_upscaler_2_visibility: request.upscaler2Visibility ?? 0,
+        gfpgan_visibility: request.gfpganVisibility ?? 0,
+        codeformer_visibility: request.codeformerVisibility ?? 0,
+        codeformer_weight: request.codeformerWeight ?? 0,
+      };
+
+      response = await fetch(`${this.stableDiffusionUrl}/sdapi/v1/extra-single-image`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+    } catch (fetchError: any) {
+      if (fetchError.name === "AbortError") {
+        throw new Error("Upscaling timed out after 5 minutes. Try a smaller image or lower scale factor.");
+      }
+      throw new Error(`Cannot connect to Stable Diffusion: ${fetchError.message}`);
+    }
+
+    const responseText = await response.text();
+    if (!response.ok) {
+      console.error(`[SD Upscale] Error: ${responseText.substring(0, 500)}`);
+      
+      if (responseText.toLowerCase().includes("out of memory") || responseText.toLowerCase().includes("cuda")) {
+        throw new Error("Upscaling ran out of GPU memory. Try a smaller image or use 2x instead of 4x.");
+      }
+      throw new Error(`Stable Diffusion upscale error (${response.status}): ${responseText.substring(0, 200)}`);
+    }
+
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch {
+      throw new Error("Stable Diffusion returned invalid JSON response.");
+    }
+
+    if (!data.image) {
+      throw new Error("Stable Diffusion returned no image data for upscaling.");
+    }
+
+    console.log(`[SD Upscale] Successfully upscaled image ${request.scaleFactor || 2}x`);
+    return {
+      base64: data.image,
+      provider: "stable-diffusion",
+    };
+  }
+
+  /**
+   * Check if ReActor face swap extension is available.
+   */
+  async checkReActor(): Promise<boolean> {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
+      
+      // ReActor adds endpoints under /reactor/
+      const response = await fetch(`${this.stableDiffusionUrl}/reactor/models`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      
+      return response.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Face swap: Replace faces in the target image with faces from the source image.
+   * Uses ReActor extension if available, otherwise provides guidance.
+   */
+  async faceSwap(request: FaceSwapRequest): Promise<ImageResponse> {
+    console.log(`[AI Orchestrator] Face swap request`);
+    
+    const sdStatus = await this.ensureLocalSDAvailable("face swap");
+    
+    const sourceBase64 = await this.imageToBase64(request.sourceImage);
+    const targetBase64 = await this.imageToBase64(request.targetImage);
+    
+    // Check if ReActor extension is available
+    const reactorAvailable = await this.checkReActor();
+    
+    if (!reactorAvailable) {
+      // Provide helpful guidance on installing ReActor
+      throw new Error(
+        "Face swap requires the ReActor extension. To install:\n" +
+        "1. Open SD WebUI Extensions tab\n" +
+        "2. Click 'Install from URL'\n" +
+        "3. Enter: https://github.com/Gourieff/sd-webui-reactor\n" +
+        "4. Click 'Install' and restart SD WebUI\n" +
+        "5. Download the inswapper model from the ReActor GitHub page"
+      );
+    }
+
+    console.log(`[SD FaceSwap] Using ReActor extension`);
+
+    // ReActor works through the img2img endpoint with alwayson_scripts
+    let response: Response;
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 180000);
+
+      const payload = {
+        init_images: [targetBase64],
+        prompt: "",
+        negative_prompt: "",
+        denoising_strength: 0, // 0 means no denoising, just face swap
+        width: -1, // Use original size
+        height: -1,
+        steps: 1,
+        cfg_scale: 1,
+        alwayson_scripts: {
+          reactor: {
+            args: [
+              sourceBase64, // source image
+              true, // enable
+              "0", // source face index
+              String(request.faceIndex ?? 0), // target face index
+              "inswapper_128.onnx", // model
+              request.restoreFace ? "CodeFormer" : "None", // face restorer
+              1, // restorer visibility
+              true, // restore face only
+              request.upscale ? (request.upscaleFactor === 4 ? "4x-UltraSharp" : "2x-ESRGAN") : "None", // upscaler
+              request.upscaleFactor || 1, // upscale factor
+              1, // upscaler visibility
+              false, // swap in source
+              true, // swap in generated
+              0, // console log level
+              "inswapper_128.onnx", // detection model
+            ],
+          },
+        },
+      };
+
+      response = await fetch(`${this.stableDiffusionUrl}/sdapi/v1/img2img`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+    } catch (fetchError: any) {
+      if (fetchError.name === "AbortError") {
+        throw new Error("Face swap timed out after 3 minutes.");
+      }
+      throw new Error(`Cannot connect to Stable Diffusion: ${fetchError.message}`);
+    }
+
+    const responseText = await response.text();
+    if (!response.ok) {
+      console.error(`[SD FaceSwap] Error: ${responseText.substring(0, 500)}`);
+      
+      const errorLower = responseText.toLowerCase();
+      if (errorLower.includes("reactor") || errorLower.includes("inswapper")) {
+        throw new Error(
+          "ReActor extension error. Ensure:\n" +
+          "1. inswapper_128.onnx model is in models/insightface/\n" +
+          "2. ReActor extension is up to date\n" +
+          "3. Required dependencies are installed (onnxruntime)"
+        );
+      }
+      if (errorLower.includes("no face")) {
+        throw new Error("No face detected in the source or target image. Ensure both images contain clear, visible faces.");
+      }
+      throw new Error(`Stable Diffusion face swap error (${response.status}): ${responseText.substring(0, 200)}`);
+    }
+
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch {
+      throw new Error("Stable Diffusion returned invalid JSON response.");
+    }
+
+    if (!data.images?.[0]) {
+      throw new Error("Stable Diffusion returned no image data for face swap.");
+    }
+
+    console.log(`[SD FaceSwap] Successfully swapped face`);
+    return {
+      base64: data.images[0],
+      provider: "stable-diffusion",
+    };
+  }
+
+  /**
+   * Get capabilities of the current SD WebUI setup.
+   * Returns info about available extensions and features.
+   */
+  async getAdvancedCapabilities(): Promise<{
+    img2img: boolean;
+    inpainting: boolean;
+    controlnet: { available: boolean; models: string[] };
+    upscaling: { available: boolean; upscalers: string[] };
+    faceSwap: { available: boolean; extension: string | null };
+  }> {
+    const sdStatus = await this.getSDStatus();
+    
+    const [controlNetModels, upscalers, reactorAvailable] = await Promise.all([
+      this.getControlNetModels(),
+      this.getUpscalers(),
+      this.checkReActor(),
+    ]);
+
+    return {
+      img2img: sdStatus.available && sdStatus.modelLoaded,
+      inpainting: sdStatus.available && sdStatus.modelLoaded,
+      controlnet: {
+        available: controlNetModels.length > 0,
+        models: controlNetModels.map(m => m.model_name),
+      },
+      upscaling: {
+        available: upscalers.length > 0,
+        upscalers: upscalers.map(u => u.name).filter(n => n !== "None"),
+      },
+      faceSwap: {
+        available: reactorAvailable,
+        extension: reactorAvailable ? "ReActor" : null,
+      },
+    };
   }
 }
 

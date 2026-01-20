@@ -760,3 +760,55 @@ export type JarvisSubagent = typeof jarvisSubagents.$inferSelect;
 export type NewJarvisSubagent = typeof jarvisSubagents.$inferInsert;
 export type JarvisTaskReview = typeof jarvisTaskReviews.$inferSelect;
 export type NewJarvisTaskReview = typeof jarvisTaskReviews.$inferInsert;
+
+// ============================================
+// Nebula Creative Engine Schema
+// ============================================
+
+export const creativeJobs = pgTable("creative_jobs", {
+  id: serial("id").primaryKey(),
+  type: varchar("type", { length: 50 }).notNull(), // 'text-to-image', 'image-to-image', 'inpainting', 'outpainting', 'controlnet', 'upscale', 'face-swap', 'batch'
+  status: varchar("status", { length: 50 }).notNull().default("pending"), // 'pending', 'processing', 'completed', 'failed', 'cancelled'
+  pipeline: varchar("pipeline", { length: 255 }),
+  prompt: text("prompt").notNull(),
+  negativePrompt: text("negative_prompt"),
+  inputImages: jsonb("input_images").default([]),
+  outputImages: jsonb("output_images").default([]),
+  parameters: jsonb("parameters").default({}),
+  controlnetConfig: jsonb("controlnet_config"),
+  error: text("error"),
+  userId: varchar("user_id", { length: 255 }),
+  parentJobId: integer("parent_job_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+});
+
+export const creativePipelines = pgTable("creative_pipelines", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 255 }).notNull().unique(),
+  description: text("description"),
+  stages: jsonb("stages").notNull().default([]),
+  isTemplate: boolean("is_template").default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const creativeAssets = pgTable("creative_assets", {
+  id: serial("id").primaryKey(),
+  type: varchar("type", { length: 50 }).notNull(), // 'input', 'output', 'reference', 'controlnet_map', 'template'
+  filename: varchar("filename", { length: 255 }).notNull(),
+  path: varchar("path", { length: 500 }).notNull(),
+  mimeType: varchar("mime_type", { length: 100 }),
+  size: integer("size"),
+  metadata: jsonb("metadata").default({}),
+  jobId: integer("job_id").references(() => creativeJobs.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type CreativeJob = typeof creativeJobs.$inferSelect;
+export type NewCreativeJob = typeof creativeJobs.$inferInsert;
+export type CreativePipeline = typeof creativePipelines.$inferSelect;
+export type NewCreativePipeline = typeof creativePipelines.$inferInsert;
+export type CreativeAsset = typeof creativeAssets.$inferSelect;
+export type NewCreativeAsset = typeof creativeAssets.$inferInsert;
