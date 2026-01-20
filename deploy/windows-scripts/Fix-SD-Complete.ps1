@@ -10,7 +10,6 @@ param(
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 
-# Find Python executable in venv
 $pythonExe = Join-Path $SDPath "venv\Scripts\python.exe"
 if (-not (Test-Path $pythonExe)) {
     Write-Host "ERROR: Python executable not found at $pythonExe" -ForegroundColor Red
@@ -18,58 +17,70 @@ if (-not (Test-Path $pythonExe)) {
     exit 1
 }
 
-Write-Host "`n╔════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-Write-Host "║     STABLE DIFFUSION - COMPLETE PIP FIX                    ║" -ForegroundColor Cyan
-Write-Host "║     Installing exact compatible versions                   ║" -ForegroundColor Cyan
-Write-Host "╚════════════════════════════════════════════════════════════╝`n" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "======================================================" -ForegroundColor Cyan
+Write-Host "     STABLE DIFFUSION - COMPLETE PIP FIX              " -ForegroundColor Cyan
+Write-Host "     Installing exact compatible versions             " -ForegroundColor Cyan
+Write-Host "======================================================" -ForegroundColor Cyan
+Write-Host ""
 
 try {
     Write-Host "[1/5] Removing conflicting packages..." -ForegroundColor Yellow
     & $pythonExe -m pip uninstall -y torch torchvision torchaudio xformers transformers protobuf accelerate diffusers 2>&1 | Out-Null
 
     Write-Host "[2/5] Installing PyTorch 2.1.2 + cu121..." -ForegroundColor Yellow
-    & $pythonExe -m pip install `
-        torch==2.1.2+cu121 `
-        torchvision==0.16.2+cu121 `
-        torchaudio==2.1.2+cu121 `
-        --index-url https://download.pytorch.org/whl/cu121 --no-cache-dir
+    & $pythonExe -m pip install torch==2.1.2+cu121 torchvision==0.16.2+cu121 torchaudio==2.1.2+cu121 --index-url https://download.pytorch.org/whl/cu121 --no-cache-dir
+    if ($LASTEXITCODE -ne 0) { throw "PyTorch installation failed" }
 
     Write-Host "[3/5] Installing xFormers 0.0.22.post7..." -ForegroundColor Yellow
     & $pythonExe -m pip install xformers==0.0.22.post7 --no-cache-dir
+    if ($LASTEXITCODE -ne 0) { throw "xFormers installation failed" }
 
     Write-Host "[4/5] Installing transformers, protobuf, accelerate, diffusers..." -ForegroundColor Yellow
-    & $pythonExe -m pip install `
-        transformers==4.36.2 `
-        protobuf==3.20.3 `
-        accelerate==0.25.0 `
-        diffusers==0.25.1 `
-        --no-cache-dir
+    & $pythonExe -m pip install transformers==4.36.2 protobuf==3.20.3 accelerate==0.25.0 diffusers==0.25.1 --no-cache-dir
+    if ($LASTEXITCODE -ne 0) { throw "Transformers installation failed" }
 
     Write-Host "[5/5] Installing core dependencies..." -ForegroundColor Yellow
-    & $pythonExe -m pip install `
-        numpy==1.26.4 `
-        safetensors `
-        einops `
-        --no-cache-dir
+    & $pythonExe -m pip install numpy==1.26.4 safetensors einops --no-cache-dir
+    if ($LASTEXITCODE -ne 0) { throw "Core dependencies installation failed" }
 
-    Write-Host "`n✓ Installation complete!" -ForegroundColor Green
-    Write-Host "`nVerifying installation..." -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "Installation complete! Verifying..." -ForegroundColor Green
+    Write-Host ""
     
-    $testResult = & $pythonExe -c @"
+    $testScript = @'
 import torch
 print(f"PyTorch: {torch.__version__}")
 print(f"CUDA Available: {torch.cuda.is_available()}")
+if torch.cuda.is_available():
+    print(f"CUDA Device: {torch.cuda.get_device_name(0)}")
 import xformers
 print(f"xFormers: {xformers.__version__}")
 import transformers
 print(f"Transformers: {transformers.__version__}")
-print("✓ All critical packages loaded successfully!")
-"@ 2>&1
+import google.protobuf
+print(f"Protobuf: {google.protobuf.__version__}")
+print("All critical packages loaded successfully!")
+'@
     
-    Write-Host $testResult -ForegroundColor Green
+    $testFile = Join-Path $env:TEMP "sd_test.py"
+    $testScript | Out-File -FilePath $testFile -Encoding utf8
+    & $pythonExe $testFile
+    Remove-Item $testFile -ErrorAction SilentlyContinue
+    
+    Write-Host ""
+    Write-Host "======================================================" -ForegroundColor Green
+    Write-Host "  REPAIR COMPLETED SUCCESSFULLY!                      " -ForegroundColor Green
+    Write-Host "======================================================" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "Next steps:" -ForegroundColor Cyan
+    Write-Host "  1. Navigate to: $SDPath" -ForegroundColor White
+    Write-Host "  2. Run: .\webui-user.bat" -ForegroundColor White
+    Write-Host ""
     exit 0
 }
 catch {
-    Write-Host "`n✗ Error during installation: $_" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "ERROR: $_" -ForegroundColor Red
     exit 1
 }
