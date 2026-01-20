@@ -421,7 +421,11 @@ export default function VideoStudioPage() {
       steps: preset.steps,
       scheduler: preset.scheduler,
       animateDiffModel: preset.animateDiffModel || "animatediff-v3",
-      cameraMotion: preset.cameraMotion || { pan: 0, zoom: 0, rotate: 0 },
+      cameraMotion: {
+        pan: preset.cameraMotion?.pan ?? 0,
+        zoom: preset.cameraMotion?.zoom ?? 0,
+        rotate: preset.cameraMotion?.rotate ?? 0,
+      },
       subjectMotion: parseFloat(preset.subjectMotion),
       negativePrompt: preset.negativePrompt || settings.negativePrompt,
     });
