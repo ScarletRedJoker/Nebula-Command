@@ -615,7 +615,7 @@ export default function AgentBuilderPage() {
                       size="sm"
                       className="h-8 w-8 p-0"
                       onClick={(e) => { e.stopPropagation(); handleEditAgent(agent); }}
-                      disabled={agent.isSystem}
+                      disabled={agent.isSystem ?? false}
                     >
                       <Pencil className="h-4 w-4" />
                     </Button>
@@ -632,7 +632,7 @@ export default function AgentBuilderPage() {
                       size="sm"
                       className="h-8 w-8 p-0 text-destructive hover:text-destructive"
                       onClick={(e) => { e.stopPropagation(); handleDeleteAgent(agent); }}
-                      disabled={agent.isSystem}
+                      disabled={agent.isSystem ?? false}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
