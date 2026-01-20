@@ -318,8 +318,8 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const capabilityCategories = [...new Set(CAPABILITIES.map(c => c.category))];
-  const toolCategories = [...new Set(TOOLS.map(t => t.category))];
+  const capabilityCategories = Array.from(new Set(CAPABILITIES.map(c => c.category)));
+  const toolCategories = Array.from(new Set(TOOLS.map(t => t.category)));
 
   return NextResponse.json({
     capabilities: {
@@ -334,7 +334,7 @@ export async function GET() {
     },
     models: {
       list: MODELS,
-      providers: [...new Set(MODELS.map(m => m.provider))],
+      providers: Array.from(new Set(MODELS.map(m => m.provider))),
       recommended: MODELS.filter(m => m.recommended),
       count: MODELS.length,
     },

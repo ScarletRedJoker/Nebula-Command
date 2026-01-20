@@ -86,15 +86,20 @@ export async function GET(request: NextRequest) {
     const includeTemplates = searchParams.get("templates") === "true";
     const templatesOnly = searchParams.get("templatesOnly") === "true";
 
-    let query = db.select().from(jarvisWorkflows);
+    let workflows;
     
     if (templatesOnly) {
-      query = query.where(eq(jarvisWorkflows.isTemplate, true));
+      workflows = await db.select().from(jarvisWorkflows)
+        .where(eq(jarvisWorkflows.isTemplate, true))
+        .orderBy(desc(jarvisWorkflows.createdAt));
     } else if (!includeTemplates) {
-      query = query.where(eq(jarvisWorkflows.isTemplate, false));
+      workflows = await db.select().from(jarvisWorkflows)
+        .where(eq(jarvisWorkflows.isTemplate, false))
+        .orderBy(desc(jarvisWorkflows.createdAt));
+    } else {
+      workflows = await db.select().from(jarvisWorkflows)
+        .orderBy(desc(jarvisWorkflows.createdAt));
     }
-
-    const workflows = await query.orderBy(desc(jarvisWorkflows.createdAt));
 
     const workflowsWithStats = await Promise.all(
       workflows.map(async (wf) => {

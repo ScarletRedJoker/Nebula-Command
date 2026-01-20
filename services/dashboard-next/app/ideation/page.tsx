@@ -487,7 +487,7 @@ Brief/Keywords: ${conceptInput}`,
     const colors = moodboardIdeas
       .map((i) => i.color)
       .filter((c): c is string => !!c);
-    const uniqueColors = [...new Set(colors)];
+    const uniqueColors = Array.from(new Set(colors));
     setColorPalette(uniqueColors);
     toast.success("Color palette extracted!");
   };

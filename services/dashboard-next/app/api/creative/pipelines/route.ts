@@ -199,10 +199,10 @@ export async function GET(request: NextRequest) {
       .from(creativePipelines)
       .orderBy(desc(creativePipelines.createdAt));
 
-    let allPipelines = [...customPipelines.map((p) => ({
+    let allPipelines: Array<any> = [...customPipelines.map((p) => ({
       ...p,
       isBuiltIn: false,
-      category: (p.config as any)?.category || "custom",
+      category: "custom",
     }))];
 
     if (includeBuiltIn) {
@@ -284,12 +284,8 @@ export async function POST(request: NextRequest) {
     const newPipeline: NewCreativePipeline = {
       name,
       description: description || null,
-      steps,
-      config: {
-        category: category || "custom",
-        isPublic: isPublic ?? false,
-      },
-      isActive: true,
+      stages: steps,
+      isTemplate: isPublic ?? false,
     };
 
     const [insertedPipeline] = await db

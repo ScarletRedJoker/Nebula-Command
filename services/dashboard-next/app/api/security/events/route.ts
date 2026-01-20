@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
       .limit(Math.min(limit, 100))
       .offset(offset);
 
-    const ruleIds = [...new Set(events.map((e) => e.ruleId).filter(Boolean))];
+    const ruleIds = Array.from(new Set(events.map((e) => e.ruleId).filter(Boolean)));
     const rules = ruleIds.length > 0
       ? await db
           .select({ id: jarvisSecurityRules.id, name: jarvisSecurityRules.name })
