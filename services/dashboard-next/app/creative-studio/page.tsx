@@ -88,6 +88,12 @@ interface Capabilities {
   }>;
 }
 
+interface SDModel {
+  title: string;
+  model_name: string;
+  filename?: string;
+}
+
 interface GeneratedImage {
   id: string;
   base64?: string;
@@ -176,6 +182,9 @@ export default function CreativeStudioPage() {
   const [showHistory, setShowHistory] = useState(true);
   const [loadingJobs, setLoadingJobs] = useState(false);
   
+  const [availableModels, setAvailableModels] = useState<SDModel[]>([]);
+  const [switchingModel, setSwitchingModel] = useState(false);
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
   const maskInputRef = useRef<HTMLInputElement>(null);
   const sourceInputRef = useRef<HTMLInputElement>(null);
@@ -214,12 +223,54 @@ export default function CreativeStudioPage() {
     }
   }, []);
 
+  const fetchModels = useCallback(async () => {
+    try {
+      const res = await fetch("/api/ai/models/sd?action=models", { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        setAvailableModels(data.models || data.checkpoints || []);
+      }
+    } catch (error) {
+      console.error("Failed to fetch models:", error);
+    }
+  }, []);
+
+  const switchModel = async (modelTitle: string) => {
+    if (switchingModel) return;
+    setSwitchingModel(true);
+
+    try {
+      const res = await fetch("/api/ai/models/sd", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "switch-model", model: modelTitle }),
+      });
+
+      if (res.ok) {
+        toast.success(`Switching to ${modelTitle}...`);
+        setTimeout(() => {
+          fetchCapabilities();
+          fetchModels();
+        }, 2000);
+      } else {
+        const error = await res.json();
+        toast.error(error.error || "Failed to switch model");
+      }
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to switch model";
+      toast.error(errorMessage);
+    } finally {
+      setSwitchingModel(false);
+    }
+  };
+
   useEffect(() => {
     fetchCapabilities();
     fetchJobs();
+    fetchModels();
     const interval = setInterval(fetchCapabilities, 30000);
     return () => clearInterval(interval);
-  }, [fetchCapabilities, fetchJobs]);
+  }, [fetchCapabilities, fetchJobs, fetchModels]);
 
   const handleFileUpload = (file: File, setter: (val: string | null) => void) => {
     const reader = new FileReader();
@@ -432,7 +483,7 @@ export default function CreativeStudioPage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {capabilities?.stableDiffusion.ready ? (
               <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/30">
                 <Check className="h-3 w-3 mr-1" />
@@ -444,15 +495,50 @@ export default function CreativeStudioPage() {
                 SD Offline
               </Badge>
             )}
-            {capabilities?.stableDiffusion.currentModel && (
+            
+            {availableModels.length > 0 ? (
+              <Select
+                value={capabilities?.stableDiffusion.currentModel || ""}
+                onValueChange={switchModel}
+                disabled={switchingModel || !capabilities?.stableDiffusion.available}
+              >
+                <SelectTrigger className="w-[220px] h-8 text-xs">
+                  {switchingModel ? (
+                    <span className="flex items-center gap-1">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Switching...
+                    </span>
+                  ) : (
+                    <SelectValue placeholder="Select Model" />
+                  )}
+                </SelectTrigger>
+                <SelectContent>
+                  {availableModels.map((model) => {
+                    const isCurrentModel = model.title === capabilities?.stableDiffusion.currentModel ||
+                      model.model_name === capabilities?.stableDiffusion.currentModel;
+                    return (
+                      <SelectItem key={model.model_name || model.title} value={model.title} className="text-xs">
+                        <span className="flex items-center gap-2">
+                          {isCurrentModel && (
+                            <Check className="h-3 w-3 text-green-500" />
+                          )}
+                          <span className="truncate max-w-[170px]">{model.title}</span>
+                        </span>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            ) : capabilities?.stableDiffusion.currentModel ? (
               <Badge variant="secondary" className="text-xs max-w-[200px] truncate">
                 {capabilities.stableDiffusion.currentModel}
               </Badge>
-            )}
+            ) : null}
+            
             <Button
               variant="outline"
               size="sm"
-              onClick={() => { fetchCapabilities(); fetchJobs(); }}
+              onClick={() => { fetchCapabilities(); fetchJobs(); fetchModels(); }}
             >
               <RefreshCw className="h-4 w-4" />
             </Button>

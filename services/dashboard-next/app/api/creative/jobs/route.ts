@@ -33,25 +33,34 @@ export async function GET(request: NextRequest) {
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    const [jobs, countResult] = await Promise.all([
-      db
-        .select()
-        .from(creativeJobs)
-        .where(whereClause)
-        .orderBy(desc(creativeJobs.createdAt))
-        .limit(limit)
-        .offset(offset),
-      db
-        .select({ count: sql<number>`count(*)` })
-        .from(creativeJobs)
-        .where(whereClause),
-    ]);
+    let jobs = [];
+    let total = 0;
+    
+    try {
+      const [jobsResult, countResult] = await Promise.all([
+        db
+          .select()
+          .from(creativeJobs)
+          .where(whereClause)
+          .orderBy(desc(creativeJobs.createdAt))
+          .limit(limit)
+          .offset(offset),
+        db
+          .select({ count: sql<number>`count(*)` })
+          .from(creativeJobs)
+          .where(whereClause),
+      ]);
+      jobs = jobsResult;
+      total = Number(countResult[0]?.count || 0);
+    } catch (dbError) {
+      console.warn("[Creative Jobs API] Database query failed (table may not exist):", dbError);
+    }
 
     return NextResponse.json({
       success: true,
       jobs,
       pagination: {
-        total: Number(countResult[0]?.count || 0),
+        total,
         limit,
         offset,
         hasMore: jobs.length === limit,
@@ -136,14 +145,24 @@ export async function POST(request: NextRequest) {
       controlnetConfig: body.controlnetConfig || null,
     };
 
-    const [insertedJob] = await db.insert(creativeJobs).values(newJob).returning();
-
-    console.log(`[Creative Jobs API] Created job ${insertedJob.id} of type ${type}`);
-
-    return NextResponse.json({
-      success: true,
-      job: insertedJob,
-    });
+    try {
+      const [insertedJob] = await db.insert(creativeJobs).values(newJob).returning();
+      console.log(`[Creative Jobs API] Created job ${insertedJob.id} of type ${type}`);
+      return NextResponse.json({
+        success: true,
+        job: insertedJob,
+      });
+    } catch (dbError) {
+      console.warn("[Creative Jobs API] Could not save job to database:", dbError);
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Database table not available. Job was not saved. Use /api/creative/generate directly for generation without job tracking.",
+          dbError: dbError instanceof Error ? dbError.message : "Unknown database error",
+        },
+        { status: 503 }
+      );
+    }
   } catch (error) {
     console.error("[Creative Jobs API] Create error:", error);
     return NextResponse.json(

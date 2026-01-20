@@ -53,4 +53,17 @@ create_db_if_not_exists "ticketbot" "ticketbot"
 create_db_if_not_exists "streambot" "streambot"
 create_db_if_not_exists "dashboard" "dashboard"
 
+# Grant schema access
+psql -v ON_ERROR_STOP=0 --username "$POSTGRES_USER" --dbname "homelab_jarvis" <<-EOSQL
+    GRANT ALL ON SCHEMA public TO jarvis;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO jarvis;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO jarvis;
+EOSQL
+
 echo "HomeLabHub databases initialized successfully!"
+
+# Run table creation script if it exists
+if [ -f "/docker-entrypoint-initdb.d/02-create-tables.sql" ]; then
+    echo "Creating dashboard tables..."
+    psql -v ON_ERROR_STOP=0 --username "$POSTGRES_USER" -f /docker-entrypoint-initdb.d/02-create-tables.sql
+fi
