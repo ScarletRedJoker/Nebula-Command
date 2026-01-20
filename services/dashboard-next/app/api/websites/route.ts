@@ -1,226 +1,150 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifySession } from "@/lib/session";
-import { cookies } from "next/headers";
-import fs from "fs/promises";
-import path from "path";
+import { db, isDbConnected } from "@/lib/db";
+import { websiteProjects, websitePages } from "@/lib/db/platform-schema";
+import { eq, desc, like } from "drizzle-orm";
 
-const PROJECTS_DIR = process.env.STUDIO_PROJECTS_DIR || 
-  (process.env.REPL_ID ? "./data/studio-projects" : "/opt/homelab/studio-projects");
-const WEBSITES_FILE = "websites.json";
-
-interface Website {
-  id: string;
-  name: string;
-  domain: string;
-  description: string;
-  type: "portfolio" | "blog" | "landing" | "community" | "custom";
-  status: "draft" | "published";
-  designProjectId?: string;
-  createdAt: string;
-  updatedAt: string;
-  settings?: {
-    primaryColor?: string;
-    fontFamily?: string;
-    favicon?: string;
-  };
-}
-
-async function checkAuth() {
-  const cookieStore = await cookies();
-  const session = cookieStore.get("session");
-  if (!session?.value) return null;
-  return await verifySession(session.value);
-}
-
-async function ensureDir(dir: string) {
+export async function GET(request: NextRequest) {
   try {
-    await fs.access(dir);
-  } catch {
-    await fs.mkdir(dir, { recursive: true });
-  }
-}
+    const type = request.nextUrl.searchParams.get("type");
+    const status = request.nextUrl.searchParams.get("status");
+    const search = request.nextUrl.searchParams.get("search");
 
-async function loadWebsites(): Promise<Website[]> {
-  try {
-    await ensureDir(PROJECTS_DIR);
-    const filePath = path.join(PROJECTS_DIR, WEBSITES_FILE);
-    const content = await fs.readFile(filePath, "utf-8");
-    return JSON.parse(content);
-  } catch (error: any) {
-    if (error.code === "ENOENT") {
-      const defaultWebsites: Website[] = [
+    if (!isDbConnected()) {
+      const defaultProjects = [
         {
-          id: "scarletredjoker",
-          name: "Scarlet Red Joker",
-          domain: "scarletredjoker.com",
+          id: "demo-1",
+          name: "Portfolio Demo",
           description: "Personal portfolio website",
           type: "portfolio",
-          status: "published",
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-        {
-          id: "rig-city",
-          name: "Rig City",
-          domain: "rig-city.com",
-          description: "Gaming community website",
-          type: "community",
-          status: "published",
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-        {
-          id: "evindrake",
-          name: "Evin Drake",
-          domain: "evindrake.net",
-          description: "Personal blog and homelab documentation",
-          type: "blog",
           status: "draft",
+          thumbnail: null,
+          domain: "portfolio.example.com",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+        {
+          id: "demo-2",
+          name: "Landing Page Demo",
+          description: "Product landing page",
+          type: "landing",
+          status: "draft",
+          thumbnail: null,
+          domain: "landing.example.com",
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         },
       ];
-      await saveWebsites(defaultWebsites);
-      return defaultWebsites;
-    }
-    throw error;
-  }
-}
-
-async function saveWebsites(websites: Website[]): Promise<void> {
-  await ensureDir(PROJECTS_DIR);
-  const filePath = path.join(PROJECTS_DIR, WEBSITES_FILE);
-  await fs.writeFile(filePath, JSON.stringify(websites, null, 2));
-}
-
-export async function GET(request: NextRequest) {
-  const user = await checkAuth();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  try {
-    const id = request.nextUrl.searchParams.get("id");
-    const websites = await loadWebsites();
-
-    if (id) {
-      const website = websites.find((w) => w.id === id);
-      if (!website) {
-        return NextResponse.json({ error: "Website not found" }, { status: 404 });
-      }
-      return NextResponse.json(website);
+      return NextResponse.json({ success: true, projects: defaultProjects, source: "demo" });
     }
 
-    return NextResponse.json({ websites });
-  } catch (error: any) {
+    let query = db.select().from(websiteProjects);
+
+    const projects = await query.orderBy(desc(websiteProjects.updatedAt));
+
+    let filteredProjects = projects;
+    if (type) {
+      filteredProjects = filteredProjects.filter(p => p.type === type);
+    }
+    if (status) {
+      filteredProjects = filteredProjects.filter(p => p.status === status);
+    }
+    if (search) {
+      const searchLower = search.toLowerCase();
+      filteredProjects = filteredProjects.filter(p => 
+        p.name.toLowerCase().includes(searchLower) || 
+        (p.description?.toLowerCase().includes(searchLower))
+      );
+    }
+
+    return NextResponse.json({ success: true, projects: filteredProjects });
+  } catch (error: unknown) {
     console.error("Websites GET error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ 
+      error: error instanceof Error ? error.message : "Failed to fetch websites" 
+    }, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
-  const user = await checkAuth();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   try {
     const body = await request.json();
-    const { name, domain, description, type } = body;
+    const { name, description, type = "custom", domain, settings } = body;
 
-    if (!name || !domain) {
-      return NextResponse.json({ error: "Name and domain are required" }, { status: 400 });
+    if (!name) {
+      return NextResponse.json({ error: "Name is required" }, { status: 400 });
     }
 
-    const websites = await loadWebsites();
-    
-    const id = domain.replace(/\./g, "-").toLowerCase();
-    if (websites.some((w) => w.id === id)) {
-      return NextResponse.json({ error: "Website already exists" }, { status: 409 });
+    if (!isDbConnected()) {
+      return NextResponse.json({ error: "Database not connected" }, { status: 503 });
     }
 
-    const newWebsite: Website = {
-      id,
-      name,
-      domain,
-      description: description || "",
-      type: type || "custom",
-      status: "draft",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    const defaultGlobalCss = `* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
 
-    websites.push(newWebsite);
-    await saveWebsites(websites);
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  line-height: 1.6;
+  color: #1a1a1a;
+}
 
-    return NextResponse.json({ success: true, website: newWebsite });
-  } catch (error: any) {
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}`;
+
+    const newProject = await db.insert(websiteProjects)
+      .values({
+        name,
+        description,
+        type,
+        domain,
+        settings: settings || {
+          primaryColor: "#6366f1",
+          secondaryColor: "#8b5cf6",
+          fontFamily: "Inter",
+          fontSize: "16px",
+        },
+        globalCss: defaultGlobalCss,
+        status: "draft",
+      })
+      .returning();
+
+    const homePage = await db.insert(websitePages)
+      .values({
+        projectId: newProject[0].id,
+        name: "Home",
+        slug: "/",
+        title: name,
+        description: description || `Welcome to ${name}`,
+        isHomepage: true,
+        components: [],
+        sortOrder: 0,
+      })
+      .returning();
+
+    return NextResponse.json({ 
+      success: true, 
+      project: newProject[0],
+      pages: [homePage[0]]
+    });
+  } catch (error: unknown) {
     console.error("Websites POST error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-}
-
-export async function PUT(request: NextRequest) {
-  const user = await checkAuth();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  try {
-    const body = await request.json();
-    const { id, ...updates } = body;
-
-    if (!id) {
-      return NextResponse.json({ error: "ID is required" }, { status: 400 });
-    }
-
-    const websites = await loadWebsites();
-    const index = websites.findIndex((w) => w.id === id);
-
-    if (index === -1) {
-      return NextResponse.json({ error: "Website not found" }, { status: 404 });
-    }
-
-    websites[index] = {
-      ...websites[index],
-      ...updates,
-      updatedAt: new Date().toISOString(),
-    };
-
-    await saveWebsites(websites);
-
-    return NextResponse.json({ success: true, website: websites[index] });
-  } catch (error: any) {
-    console.error("Websites PUT error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-}
-
-export async function DELETE(request: NextRequest) {
-  const user = await checkAuth();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  try {
-    const id = request.nextUrl.searchParams.get("id");
-
-    if (!id) {
-      return NextResponse.json({ error: "ID is required" }, { status: 400 });
-    }
-
-    const websites = await loadWebsites();
-    const filtered = websites.filter((w) => w.id !== id);
-
-    if (filtered.length === websites.length) {
-      return NextResponse.json({ error: "Website not found" }, { status: 404 });
-    }
-
-    await saveWebsites(filtered);
-
-    return NextResponse.json({ success: true });
-  } catch (error: any) {
-    console.error("Websites DELETE error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ 
+      error: error instanceof Error ? error.message : "Failed to create website" 
+    }, { status: 500 });
   }
 }

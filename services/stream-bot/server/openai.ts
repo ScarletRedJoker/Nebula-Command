@@ -2,27 +2,48 @@
 import OpenAI from "openai";
 import pRetry, { AbortError } from "p-retry";
 import { getOpenAIConfig, isReplit } from "../src/config/environment";
+import { localAIClient, initializeLocalAI } from "./local-ai-client";
+
+// Check if LOCAL_AI_ONLY mode is enabled
+const LOCAL_AI_ONLY = process.env.LOCAL_AI_ONLY === 'true' || process.env.LOCAL_AI_ONLY === '1';
 
 // Use environment-aware configuration
 let openai: OpenAI | null = null;
 let isOpenAIEnabled = false;
 
-try {
-  const config = getOpenAIConfig();
-  openai = new OpenAI({
-    baseURL: config.baseURL,
-    apiKey: config.apiKey
+if (LOCAL_AI_ONLY) {
+  console.log('[AI] LOCAL_AI_ONLY mode enabled - using local Ollama instance only');
+  console.log('[AI] Cloud AI providers (OpenAI, etc) will NOT be used');
+  
+  initializeLocalAI().then(() => {
+    const status = localAIClient.getStatus();
+    if (status.available) {
+      isOpenAIEnabled = true;
+      console.log('[AI] ✓ Local AI ready for use');
+    } else {
+      console.warn('[AI] ✗ Local AI unavailable - AI features disabled');
+    }
+  }).catch(err => {
+    console.error('[AI] Failed to initialize local AI:', err);
   });
-  isOpenAIEnabled = true;
-  const envType = isReplit() ? "Replit" : "Production";
-  console.log(`[OpenAI] AI Service initialized with ${envType} credentials`);
-  console.log(`[OpenAI]   Base URL: ${config.baseURL}`);
-  console.log(`[OpenAI]   Model: ${config.model}`);
-} catch (error) {
-  console.warn(`[OpenAI] AI features disabled: ${error instanceof Error ? error.message : String(error)}`);
+} else {
+  try {
+    const config = getOpenAIConfig();
+    openai = new OpenAI({
+      baseURL: config.baseURL,
+      apiKey: config.apiKey
+    });
+    isOpenAIEnabled = true;
+    const envType = isReplit() ? "Replit" : "Production";
+    console.log(`[OpenAI] AI Service initialized with ${envType} credentials`);
+    console.log(`[OpenAI]   Base URL: ${config.baseURL}`);
+    console.log(`[OpenAI]   Model: ${config.model}`);
+  } catch (error) {
+    console.warn(`[OpenAI] AI features disabled: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
-export { isOpenAIEnabled };
+export { isOpenAIEnabled, LOCAL_AI_ONLY };
 
 // Per-user configuration for fact generation
 export interface FactGenerationConfig {
@@ -197,6 +218,44 @@ export async function generateSnappleFact(
 
 // New personalized fact generation with full config support
 export async function generatePersonalizedFact(config: FactGenerationConfig): Promise<string> {
+  // If LOCAL_AI_ONLY mode, use local AI client
+  if (LOCAL_AI_ONLY) {
+    if (!localAIClient.isEnabled()) {
+      throw new Error(
+        "LOCAL_AI_ONLY mode is enabled but local AI is not configured. " +
+        "Please ensure Ollama is running at the configured OLLAMA_URL."
+      );
+    }
+    
+    const status = localAIClient.getStatus();
+    if (!status.available) {
+      throw new Error(
+        `Local AI service unavailable. Ollama is not running at ${status.config.ollamaUrl}. ` +
+        "Please start Ollama with: ollama serve"
+      );
+    }
+
+    const prompt = buildPersonalizedFactPrompt(config);
+    console.log(`[LocalAI] Generating personalized fact for user ${config.userId}`);
+    
+    try {
+      const fact = await localAIClient.generate(prompt, { 
+        temperature: config.aiTemperature != null ? config.aiTemperature / 10 : 0.9,
+        maxTokens: 100 
+      });
+      
+      let cleanedFact = fact.trim().replace(/^["']|["']$/g, "");
+      if (cleanedFact.length > 90) {
+        cleanedFact = smartTruncate(cleanedFact, 90);
+      }
+      
+      console.log(`[LocalAI] Final fact (${cleanedFact.length} chars): ${cleanedFact}`);
+      return cleanedFact;
+    } catch (error: any) {
+      throw new Error(`Local AI error: ${error.message}`);
+    }
+  }
+  
   if (!isOpenAIEnabled || !openai) {
     const envType = process.env.REPL_ID ? "Replit" : "Production";
     if (envType === "Replit") {

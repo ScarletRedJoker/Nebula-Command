@@ -304,6 +304,32 @@ app.use((req, res, next) => {
  */
 (async () => {
   /**
+   * Initialize Local AI client if LOCAL_AI_ONLY mode is enabled
+   */
+  const LOCAL_AI_ONLY = process.env.LOCAL_AI_ONLY === 'true' || process.env.LOCAL_AI_ONLY === '1';
+  if (LOCAL_AI_ONLY) {
+    try {
+      const { initializeLocalAI } = await import('./services/local-ai-client');
+      await initializeLocalAI();
+    } catch (error) {
+      console.error('[LocalAI] Failed to initialize local AI client:', error);
+    }
+  }
+
+  /**
+   * Initialize database connection with retry
+   */
+  try {
+    const { initializeDatabase } = await import('./db');
+    const dbConnected = await initializeDatabase();
+    if (!dbConnected) {
+      console.error('[Database] Failed to establish database connection - continuing anyway');
+    }
+  } catch (error) {
+    console.error('[Database] Database initialization error:', error);
+  }
+
+  /**
    * Register all API routes and initialize Discord bot
    * Returns HTTP server instance with WebSocket support
    */

@@ -485,6 +485,9 @@ async function chatWithOpenAI(
   };
 }
 
+const OLLAMA_REQUEST_TIMEOUT = 120000;
+const OLLAMA_CONNECT_TIMEOUT = 10000;
+
 async function tryOllamaEndpoint(
   endpoint: string,
   messages: { role: string; content: string }[],
@@ -492,6 +495,7 @@ async function tryOllamaEndpoint(
   stream: boolean
 ): Promise<Response | { content: string; provider: string; model: string }> {
   const ollamaUrl = endpoint;
+  const startTime = Date.now();
 
   const formattedMessages = [
     { role: "system", content: systemPrompt },
@@ -502,23 +506,31 @@ async function tryOllamaEndpoint(
   ];
 
   if (stream) {
-    const response = await fetch(`${ollamaUrl}/api/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model,
-        messages: formattedMessages,
-        stream: true,
-        options: {
-          temperature: 0.7,
-          num_predict: 2000,
-        },
-      }),
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => {
+      controller.abort();
+    }, OLLAMA_REQUEST_TIMEOUT);
 
-    if (!response.ok || !response.body) {
-      throw new Error(`Ollama error: ${response.statusText}`);
-    }
+    try {
+      const response = await fetch(`${ollamaUrl}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model,
+          messages: formattedMessages,
+          stream: true,
+          options: {
+            temperature: 0.7,
+            num_predict: 2000,
+          },
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+
+      if (!response.ok || !response.body) {
+        throw new Error(`Ollama error: ${response.statusText}`);
+      }
 
     const reader = response.body.getReader();
     const encoder = new TextEncoder();
@@ -565,33 +577,57 @@ async function tryOllamaEndpoint(
         Connection: "keep-alive",
       },
     });
+    } catch (error: any) {
+      clearTimeout(timeout);
+      if (error.name === "AbortError") {
+        throw new Error(`Ollama request timed out after ${OLLAMA_REQUEST_TIMEOUT / 1000}s`);
+      }
+      throw error;
+    }
   }
 
-  const response = await fetch(`${ollamaUrl}/api/chat`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
+  const controller = new AbortController();
+  const timeout = setTimeout(() => {
+    controller.abort();
+  }, OLLAMA_REQUEST_TIMEOUT);
+
+  try {
+    const response = await fetch(`${ollamaUrl}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model,
+        messages: formattedMessages,
+        stream: false,
+        options: {
+          temperature: 0.7,
+          num_predict: 2000,
+        },
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+
+    if (!response.ok) {
+      throw new Error(`Ollama error: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const processingTime = Date.now() - startTime;
+
+    return {
+      content: data.message?.content || "",
+      provider: "ollama",
       model,
-      messages: formattedMessages,
-      stream: false,
-      options: {
-        temperature: 0.7,
-        num_predict: 2000,
-      },
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Ollama error: ${response.statusText}`);
+      processingTimeMs: processingTime,
+    };
+  } catch (error: any) {
+    clearTimeout(timeout);
+    if (error.name === "AbortError") {
+      throw new Error(`Ollama request timed out after ${OLLAMA_REQUEST_TIMEOUT / 1000}s`);
+    }
+    throw error;
   }
-
-  const data = await response.json();
-
-  return {
-    content: data.message?.content || "",
-    provider: "ollama",
-    model,
-  };
 }
 
 async function chatWithOllama(
@@ -749,17 +785,45 @@ export async function POST(request: NextRequest) {
         try {
           result = await chatWithOllama(messages, finalModel, stream);
         } catch (ollamaError: any) {
-          console.warn("All Ollama endpoints failed, falling back to OpenAI:", ollamaError.message);
+          console.warn("All Ollama endpoints failed:", ollamaError.message);
+          
+          if (LOCAL_AI_ONLY) {
+            console.error("[AIChat] LOCAL_AI_ONLY mode - refusing to fall back to cloud AI");
+            return NextResponse.json({
+              error: "Local AI is currently offline",
+              errorCode: "LOCAL_AI_OFFLINE",
+              localAIOnly: true,
+              details: "Ollama is not responding. Please start Ollama on your Windows VM.",
+              troubleshooting: [
+                "Check if the Windows VM is running",
+                "Verify Tailscale connection is active",
+                "Start Ollama: ollama serve",
+                "Check Windows firewall allows port 11434",
+              ],
+              retryable: true,
+            }, { status: 503 });
+          }
+          
+          console.warn("[AIChat] Falling back to OpenAI:", ollamaError.message);
           const openaiModel = "gpt-4o";
           try {
             result = await chatWithOpenAI(messages, openaiModel, stream);
             usedFallback = true;
+            fallbackReason = `Local AI offline: ${ollamaError.message}`;
+            actualProvider = "openai";
           } catch (openaiError: any) {
             console.error("Both Ollama and OpenAI failed:", openaiError.message);
-            return NextResponse.json(
-              { error: "AI service unavailable", details: "Both local and cloud AI providers are unavailable" },
-              { status: 503 }
-            );
+            return NextResponse.json({
+              error: "AI service unavailable",
+              errorCode: "ALL_PROVIDERS_OFFLINE",
+              details: "Both local and cloud AI providers are unavailable",
+              troubleshooting: [
+                "Check network connectivity",
+                "Verify OpenAI API key is configured",
+                "Start Ollama on your Windows VM",
+              ],
+              retryable: true,
+            }, { status: 503 });
           }
         }
       } else {

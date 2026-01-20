@@ -95,6 +95,7 @@ const navGroups: NavGroup[] = [
       { href: "/infrastructure", label: "Infrastructure", icon: Server },
       { href: "/servers", label: "Servers", icon: HardDrive },
       { href: "/services", label: "Services", icon: Server },
+      { href: "/domain-manager", label: "Domain Manager", icon: Globe },
       { href: "/resources", label: "Resources", icon: Shield },
       { href: "/terminal", label: "Terminal", icon: Terminal },
       { href: "/remote", label: "Remote Console", icon: Monitor },

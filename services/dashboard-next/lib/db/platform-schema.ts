@@ -1112,3 +1112,113 @@ export type AiModel = typeof aiModels.$inferSelect;
 export type NewAiModel = typeof aiModels.$inferInsert;
 export type ModelDownload = typeof modelDownloads.$inferSelect;
 export type NewModelDownload = typeof modelDownloads.$inferInsert;
+
+// ============================================
+// Visual Website Builder System
+// ============================================
+
+export const websiteProjects = pgTable("website_projects", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  type: varchar("type", { length: 50 }).notNull().default("custom"), // portfolio, landing, blog, ecommerce, custom
+  status: varchar("status", { length: 50 }).notNull().default("draft"), // draft, published, archived
+  thumbnail: text("thumbnail"),
+  domain: varchar("domain", { length: 255 }),
+  favicon: text("favicon"),
+  settings: jsonb("settings"), // global settings like colors, fonts, meta
+  globalCss: text("global_css"),
+  globalJs: text("global_js"),
+  publishedAt: timestamp("published_at"),
+  publishedUrl: varchar("published_url", { length: 500 }),
+  userId: varchar("user_id", { length: 255 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const websitePages = pgTable("website_pages", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: uuid("project_id").references(() => websiteProjects.id).notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  slug: varchar("slug", { length: 255 }).notNull(),
+  title: varchar("title", { length: 500 }),
+  description: text("description"),
+  isHomepage: boolean("is_homepage").default(false),
+  components: jsonb("components").notNull().default([]), // array of component definitions
+  pageCss: text("page_css"),
+  pageJs: text("page_js"),
+  metaTags: jsonb("meta_tags"),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const websiteComponents = pgTable("website_components", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name", { length: 255 }).notNull(),
+  category: varchar("category", { length: 100 }).notNull(), // headers, content, forms, footers, layout
+  type: varchar("type", { length: 100 }).notNull(), // navbar, hero, text-block, image, card, etc.
+  icon: varchar("icon", { length: 100 }),
+  defaultHtml: text("default_html").notNull(),
+  defaultCss: text("default_css"),
+  defaultProps: jsonb("default_props"),
+  isBuiltin: boolean("is_builtin").default(true),
+  thumbnail: text("thumbnail"),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const websiteHistory = pgTable("website_history", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: uuid("project_id").references(() => websiteProjects.id).notNull(),
+  pageId: uuid("page_id").references(() => websitePages.id),
+  action: varchar("action", { length: 50 }).notNull(), // create, update, delete, publish
+  snapshot: jsonb("snapshot").notNull(), // snapshot of page/project state
+  userId: varchar("user_id", { length: 255 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type WebsiteProject = typeof websiteProjects.$inferSelect;
+export type NewWebsiteProject = typeof websiteProjects.$inferInsert;
+export type WebsitePage = typeof websitePages.$inferSelect;
+export type NewWebsitePage = typeof websitePages.$inferInsert;
+export type WebsiteComponent = typeof websiteComponents.$inferSelect;
+export type NewWebsiteComponent = typeof websiteComponents.$inferInsert;
+export type WebsiteHistory = typeof websiteHistory.$inferSelect;
+
+// ============================================
+// Setup Wizard Configuration
+// ============================================
+
+export const setupConfiguration = pgTable("setup_configuration", {
+  id: serial("id").primaryKey(),
+  setupComplete: boolean("setup_complete").default(false).notNull(),
+  currentStep: integer("current_step").default(0),
+  welcomeCompleted: boolean("welcome_completed").default(false),
+  environmentDetected: jsonb("environment_detected"),
+  adminConfigured: boolean("admin_configured").default(false),
+  adminUserId: varchar("admin_user_id", { length: 255 }),
+  nodesConfigured: jsonb("nodes_configured"),
+  secretsConfigured: jsonb("secrets_configured"),
+  aiServicesConfigured: jsonb("ai_services_configured"),
+  featuresEnabled: jsonb("features_enabled"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const setupStepData = pgTable("setup_step_data", {
+  id: serial("id").primaryKey(),
+  stepName: varchar("step_name", { length: 50 }).notNull().unique(),
+  stepNumber: integer("step_number").notNull(),
+  completed: boolean("completed").default(false),
+  data: jsonb("data"),
+  validatedAt: timestamp("validated_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type SetupConfiguration = typeof setupConfiguration.$inferSelect;
+export type NewSetupConfiguration = typeof setupConfiguration.$inferInsert;
+export type SetupStepData = typeof setupStepData.$inferSelect;
+export type NewSetupStepData = typeof setupStepData.$inferInsert;

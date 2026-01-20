@@ -15,6 +15,45 @@ if (!databaseUrl) {
 
 console.log('[Discord Bot DB] Using database:', databaseUrl.replace(/:[^:@]+@/, ':***@'));
 
+// Database connection retry configuration
+const DB_RETRY_CONFIG = {
+  maxRetries: parseInt(process.env.DB_MAX_RETRIES || '5', 10),
+  initialDelayMs: parseInt(process.env.DB_RETRY_DELAY_MS || '1000', 10),
+  maxDelayMs: 30000,
+  backoffMultiplier: 2,
+};
+
+async function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+export async function waitForDatabase(poolToCheck: any): Promise<boolean> {
+  let retries = 0;
+  let delay = DB_RETRY_CONFIG.initialDelayMs;
+
+  while (retries < DB_RETRY_CONFIG.maxRetries) {
+    try {
+      const client = await poolToCheck.connect();
+      await client.query('SELECT 1');
+      client.release();
+      console.log('[Database] ✓ Connection established');
+      return true;
+    } catch (error: any) {
+      retries++;
+      console.warn(`[Database] Connection attempt ${retries}/${DB_RETRY_CONFIG.maxRetries} failed:`, error.message);
+      
+      if (retries < DB_RETRY_CONFIG.maxRetries) {
+        console.log(`[Database] Retrying in ${delay}ms...`);
+        await sleep(delay);
+        delay = Math.min(delay * DB_RETRY_CONFIG.backoffMultiplier, DB_RETRY_CONFIG.maxDelayMs);
+      }
+    }
+  }
+
+  console.error('[Database] ✗ Failed to connect after', DB_RETRY_CONFIG.maxRetries, 'attempts');
+  return false;
+}
+
 /**
  * Auto-detect database type and use appropriate driver
  * 
@@ -69,3 +108,8 @@ if (isNeonDatabase) {
 }
 
 export { pool, db };
+
+// Initialize database connection with retry
+export async function initializeDatabase(): Promise<boolean> {
+  return waitForDatabase(pool);
+}

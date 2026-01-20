@@ -278,6 +278,121 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Metrics endpoint for monitoring
+  app.get("/metrics", async (req, res) => {
+    try {
+      const { pool } = await import('./db');
+      const memoryUsage = process.memoryUsage();
+      
+      // Database health check
+      let dbLatency = -1;
+      let dbConnected = false;
+      try {
+        const start = Date.now();
+        await pool.query('SELECT 1');
+        dbLatency = Date.now() - start;
+        dbConnected = true;
+      } catch (e) {
+        // DB not connected
+      }
+
+      // Bot manager stats
+      const managerStats = botManager.getStats();
+      
+      // Token refresh service status
+      const { tokenRefreshService } = await import('./token-refresh-service');
+      
+      // Local AI status
+      let localAIStatus = { enabled: false, available: false };
+      try {
+        const { localAIClient } = await import('./local-ai-client');
+        localAIStatus = localAIClient.getStatus();
+      } catch (e) {
+        // Local AI not configured
+      }
+
+      const metrics = {
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        startupTime: new Date(Date.now() - process.uptime() * 1000).toISOString(),
+        memory: {
+          heapUsed: memoryUsage.heapUsed,
+          heapTotal: memoryUsage.heapTotal,
+          external: memoryUsage.external,
+          rss: memoryUsage.rss,
+          arrayBuffers: memoryUsage.arrayBuffers
+        },
+        database: {
+          connected: dbConnected,
+          latencyMs: dbLatency
+        },
+        bot: {
+          totalWorkers: managerStats.totalWorkers,
+          activeWorkers: managerStats.activeWorkers,
+          wsClients: managerStats.totalWSClients
+        },
+        tokenRefresh: {
+          running: tokenRefreshService.isRunning()
+        },
+        localAI: localAIStatus,
+        process: {
+          pid: process.pid,
+          nodeVersion: process.version,
+          platform: process.platform,
+          arch: process.arch
+        }
+      };
+
+      res.json(metrics);
+    } catch (error: any) {
+      res.status(500).json({
+        error: 'Failed to collect metrics',
+        message: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
+
+  // Liveness probe for container orchestration
+  app.get("/live", async (req, res) => {
+    try {
+      const memoryUsage = process.memoryUsage();
+      const heapPercentage = Math.round((memoryUsage.heapUsed / memoryUsage.heapTotal) * 100);
+
+      if (heapPercentage > 95) {
+        return res.status(503).json({
+          alive: false,
+          message: 'Memory pressure detected',
+          timestamp: new Date().toISOString(),
+          memory: {
+            heapUsedMB: Math.round(memoryUsage.heapUsed / 1024 / 1024),
+            heapTotalMB: Math.round(memoryUsage.heapTotal / 1024 / 1024),
+            heapPercentage
+          }
+        });
+      }
+
+      res.json({
+        alive: true,
+        message: 'Service is alive',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        memory: {
+          heapUsedMB: Math.round(memoryUsage.heapUsed / 1024 / 1024),
+          heapTotalMB: Math.round(memoryUsage.heapTotal / 1024 / 1024),
+          heapPercentage
+        },
+        pid: process.pid
+      });
+    } catch (error) {
+      res.status(503).json({
+        alive: false,
+        message: 'Liveness check failed',
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
+
   // Diagnostics - Detailed system diagnostics for Nebula Command integration
   // Note: This endpoint is public for system monitoring and doesn't include user-specific data
   app.get("/api/diagnostics", async (req, res) => {

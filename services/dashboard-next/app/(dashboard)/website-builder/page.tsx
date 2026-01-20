@@ -5,7 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import { Slider } from "@/components/ui/slider";
 import {
   Select,
   SelectContent,
@@ -19,14 +24,27 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   Eye,
   Code2,
   Save,
   Undo2,
   Redo2,
-  History,
   Smartphone,
   Tablet,
   Monitor,
@@ -40,245 +58,454 @@ import {
   Sparkles,
   RefreshCw,
   Check,
-  X,
-  Clock,
+  Plus,
+  Trash2,
+  Copy,
+  Settings,
   Globe,
   FileCode,
   Layers,
   Settings2,
+  FolderOpen,
+  ChevronRight,
+  ChevronDown,
+  Search,
+  Filter,
+  Loader2,
+  ExternalLink,
+  Home,
+  File,
+  MoreVertical,
+  Grip,
+  ZoomIn,
+  ZoomOut,
+  Grid3X3,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  Bold,
+  Italic,
+  Link,
+  LayoutGrid,
+  Square,
+  CircleDot,
+  Mail,
+  Navigation,
+  Footer,
+  PanelLeft,
+  PanelRight,
+  PanelLeftClose,
+  PanelRightClose,
+  MessageSquare,
+  Wand2,
+  Send,
+  GripVertical,
+  MousePointer2,
+  Rocket,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import dynamic from "next/dynamic";
+import { toast } from "sonner";
 
 const MonacoEditor = dynamic(
   () => import("@monaco-editor/react").then((mod) => mod.default),
   { ssr: false }
 );
 
-interface Version {
+interface WebsiteProject {
   id: string;
-  timestamp: Date;
+  name: string;
+  description: string | null;
+  type: string;
+  status: string;
+  thumbnail: string | null;
+  domain: string | null;
+  settings: Record<string, unknown> | null;
+  globalCss: string | null;
+  globalJs: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface WebsitePage {
+  id: string;
+  projectId: string;
+  name: string;
+  slug: string;
+  title: string | null;
+  description: string | null;
+  isHomepage: boolean;
+  components: ComponentInstance[];
+  pageCss: string | null;
+  pageJs: string | null;
+  sortOrder: number;
+}
+
+interface ComponentInstance {
+  id: string;
+  type: string;
+  category: string;
   html: string;
-  css: string;
-  js: string;
-  label?: string;
+  css?: string;
+  props: Record<string, unknown>;
+  position: { x: number; y: number };
+  size: { width: string; height: string };
 }
 
-const DEFAULT_HTML = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>My Website</title>
-</head>
-<body>
-  <header class="hero">
-    <nav class="navbar">
-      <div class="logo">MyBrand</div>
-      <ul class="nav-links">
-        <li><a href="#home">Home</a></li>
-        <li><a href="#about">About</a></li>
-        <li><a href="#services">Services</a></li>
-        <li><a href="#contact">Contact</a></li>
+interface ComponentDefinition {
+  id: string;
+  name: string;
+  category: string;
+  type: string;
+  icon: React.ReactNode;
+  defaultHtml: string;
+  defaultCss?: string;
+  defaultProps: Record<string, unknown>;
+}
+
+const COMPONENT_LIBRARY: ComponentDefinition[] = [
+  {
+    id: "navbar-1",
+    name: "Navigation Bar",
+    category: "headers",
+    type: "navbar",
+    icon: <Navigation className="h-4 w-4" />,
+    defaultHtml: `<nav class="navbar">
+  <div class="logo">Brand</div>
+  <ul class="nav-links">
+    <li><a href="#home">Home</a></li>
+    <li><a href="#about">About</a></li>
+    <li><a href="#services">Services</a></li>
+    <li><a href="#contact">Contact</a></li>
+  </ul>
+</nav>`,
+    defaultCss: `.navbar { display: flex; justify-content: space-between; align-items: center; padding: 1rem 2rem; background: #1a1a2e; color: white; }
+.nav-links { display: flex; list-style: none; gap: 2rem; }
+.nav-links a { color: white; text-decoration: none; }
+.logo { font-size: 1.5rem; font-weight: bold; }`,
+    defaultProps: { backgroundColor: "#1a1a2e", textColor: "#ffffff" },
+  },
+  {
+    id: "hero-1",
+    name: "Hero Section",
+    category: "headers",
+    type: "hero",
+    icon: <Layout className="h-4 w-4" />,
+    defaultHtml: `<section class="hero">
+  <div class="hero-content">
+    <h1>Welcome to Our Website</h1>
+    <p>Create amazing experiences with our platform</p>
+    <button class="cta-btn">Get Started</button>
+  </div>
+</section>`,
+    defaultCss: `.hero { min-height: 80vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-align: center; }
+.hero h1 { font-size: 3.5rem; margin-bottom: 1rem; }
+.hero p { font-size: 1.3rem; opacity: 0.9; margin-bottom: 2rem; }
+.cta-btn { background: white; color: #667eea; border: none; padding: 1rem 2.5rem; font-size: 1.1rem; border-radius: 50px; cursor: pointer; }`,
+    defaultProps: { title: "Welcome", subtitle: "Create amazing experiences" },
+  },
+  {
+    id: "text-1",
+    name: "Text Block",
+    category: "content",
+    type: "text",
+    icon: <Type className="h-4 w-4" />,
+    defaultHtml: `<div class="text-block">
+  <h2>Section Title</h2>
+  <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
+</div>`,
+    defaultCss: `.text-block { padding: 3rem 2rem; max-width: 800px; margin: 0 auto; }
+.text-block h2 { font-size: 2rem; margin-bottom: 1rem; color: #1a1a2e; }
+.text-block p { color: #666; line-height: 1.8; }`,
+    defaultProps: {},
+  },
+  {
+    id: "image-1",
+    name: "Image Block",
+    category: "content",
+    type: "image",
+    icon: <ImageIcon className="h-4 w-4" />,
+    defaultHtml: `<figure class="image-block">
+  <img src="https://via.placeholder.com/800x400" alt="Placeholder image" />
+  <figcaption>Image caption goes here</figcaption>
+</figure>`,
+    defaultCss: `.image-block { padding: 2rem; text-align: center; }
+.image-block img { max-width: 100%; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+.image-block figcaption { margin-top: 1rem; color: #666; font-style: italic; }`,
+    defaultProps: { src: "", alt: "Image" },
+  },
+  {
+    id: "cards-1",
+    name: "Card Grid",
+    category: "content",
+    type: "cards",
+    icon: <LayoutGrid className="h-4 w-4" />,
+    defaultHtml: `<div class="card-grid">
+  <div class="card">
+    <div class="card-icon">⚡</div>
+    <h3>Feature One</h3>
+    <p>Description of the first feature</p>
+  </div>
+  <div class="card">
+    <div class="card-icon">🎨</div>
+    <h3>Feature Two</h3>
+    <p>Description of the second feature</p>
+  </div>
+  <div class="card">
+    <div class="card-icon">🚀</div>
+    <h3>Feature Three</h3>
+    <p>Description of the third feature</p>
+  </div>
+</div>`,
+    defaultCss: `.card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 2rem; padding: 3rem 2rem; }
+.card { background: white; padding: 2rem; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); text-align: center; transition: transform 0.3s; }
+.card:hover { transform: translateY(-5px); }
+.card-icon { font-size: 3rem; margin-bottom: 1rem; }
+.card h3 { margin-bottom: 0.5rem; color: #667eea; }`,
+    defaultProps: {},
+  },
+  {
+    id: "gallery-1",
+    name: "Image Gallery",
+    category: "content",
+    type: "gallery",
+    icon: <Grid3X3 className="h-4 w-4" />,
+    defaultHtml: `<div class="gallery">
+  <img src="https://via.placeholder.com/300x300" alt="Gallery 1" />
+  <img src="https://via.placeholder.com/300x300" alt="Gallery 2" />
+  <img src="https://via.placeholder.com/300x300" alt="Gallery 3" />
+  <img src="https://via.placeholder.com/300x300" alt="Gallery 4" />
+  <img src="https://via.placeholder.com/300x300" alt="Gallery 5" />
+  <img src="https://via.placeholder.com/300x300" alt="Gallery 6" />
+</div>`,
+    defaultCss: `.gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; padding: 2rem; }
+.gallery img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; transition: transform 0.3s; cursor: pointer; }
+.gallery img:hover { transform: scale(1.05); }`,
+    defaultProps: {},
+  },
+  {
+    id: "contact-1",
+    name: "Contact Form",
+    category: "forms",
+    type: "contact",
+    icon: <Mail className="h-4 w-4" />,
+    defaultHtml: `<form class="contact-form">
+  <h2>Contact Us</h2>
+  <div class="form-group">
+    <input type="text" placeholder="Your Name" required />
+  </div>
+  <div class="form-group">
+    <input type="email" placeholder="Your Email" required />
+  </div>
+  <div class="form-group">
+    <textarea placeholder="Your Message" rows="5" required></textarea>
+  </div>
+  <button type="submit">Send Message</button>
+</form>`,
+    defaultCss: `.contact-form { max-width: 500px; margin: 0 auto; padding: 3rem 2rem; }
+.contact-form h2 { text-align: center; margin-bottom: 2rem; }
+.form-group { margin-bottom: 1rem; }
+.contact-form input, .contact-form textarea { width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem; }
+.contact-form button { width: 100%; padding: 1rem; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1rem; }`,
+    defaultProps: {},
+  },
+  {
+    id: "newsletter-1",
+    name: "Newsletter Signup",
+    category: "forms",
+    type: "newsletter",
+    icon: <Mail className="h-4 w-4" />,
+    defaultHtml: `<div class="newsletter">
+  <h3>Subscribe to Our Newsletter</h3>
+  <p>Get the latest updates delivered to your inbox</p>
+  <form class="newsletter-form">
+    <input type="email" placeholder="Enter your email" />
+    <button type="submit">Subscribe</button>
+  </form>
+</div>`,
+    defaultCss: `.newsletter { background: #f8f9fa; padding: 3rem 2rem; text-align: center; }
+.newsletter h3 { margin-bottom: 0.5rem; }
+.newsletter p { color: #666; margin-bottom: 1.5rem; }
+.newsletter-form { display: flex; gap: 0.5rem; max-width: 400px; margin: 0 auto; }
+.newsletter-form input { flex: 1; padding: 0.75rem; border: 1px solid #ddd; border-radius: 8px; }
+.newsletter-form button { padding: 0.75rem 1.5rem; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; }`,
+    defaultProps: {},
+  },
+  {
+    id: "footer-1",
+    name: "Simple Footer",
+    category: "footers",
+    type: "footer",
+    icon: <Footer className="h-4 w-4" />,
+    defaultHtml: `<footer class="footer-simple">
+  <p>&copy; 2025 Your Company. All rights reserved.</p>
+</footer>`,
+    defaultCss: `.footer-simple { background: #1a1a2e; color: white; text-align: center; padding: 2rem; }`,
+    defaultProps: {},
+  },
+  {
+    id: "footer-2",
+    name: "Detailed Footer",
+    category: "footers",
+    type: "footer-detailed",
+    icon: <Footer className="h-4 w-4" />,
+    defaultHtml: `<footer class="footer-detailed">
+  <div class="footer-grid">
+    <div class="footer-col">
+      <h4>Company</h4>
+      <ul>
+        <li><a href="#">About Us</a></li>
+        <li><a href="#">Careers</a></li>
+        <li><a href="#">Blog</a></li>
       </ul>
-    </nav>
-    <div class="hero-content">
-      <h1>Welcome to My Website</h1>
-      <p>Build something amazing today</p>
-      <button class="cta-button">Get Started</button>
     </div>
-  </header>
-  
-  <section class="features">
-    <div class="feature-card">
-      <div class="icon">⚡</div>
-      <h3>Fast</h3>
-      <p>Lightning fast performance</p>
+    <div class="footer-col">
+      <h4>Support</h4>
+      <ul>
+        <li><a href="#">Help Center</a></li>
+        <li><a href="#">Contact</a></li>
+        <li><a href="#">FAQ</a></li>
+      </ul>
     </div>
-    <div class="feature-card">
-      <div class="icon">🎨</div>
-      <h3>Beautiful</h3>
-      <p>Stunning modern design</p>
+    <div class="footer-col">
+      <h4>Legal</h4>
+      <ul>
+        <li><a href="#">Privacy</a></li>
+        <li><a href="#">Terms</a></li>
+        <li><a href="#">Cookies</a></li>
+      </ul>
     </div>
-    <div class="feature-card">
-      <div class="icon">🔒</div>
-      <h3>Secure</h3>
-      <p>Enterprise-grade security</p>
-    </div>
-  </section>
-  
-  <footer>
-    <p>&copy; 2025 MyBrand. All rights reserved.</p>
-  </footer>
-</body>
-</html>`;
+  </div>
+  <div class="footer-bottom">
+    <p>&copy; 2025 Your Company. All rights reserved.</p>
+  </div>
+</footer>`,
+    defaultCss: `.footer-detailed { background: #1a1a2e; color: white; padding: 3rem 2rem 1rem; }
+.footer-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 2rem; max-width: 1200px; margin: 0 auto; }
+.footer-col h4 { margin-bottom: 1rem; }
+.footer-col ul { list-style: none; }
+.footer-col a { color: #aaa; text-decoration: none; display: block; padding: 0.3rem 0; }
+.footer-col a:hover { color: white; }
+.footer-bottom { border-top: 1px solid #333; margin-top: 2rem; padding-top: 1rem; text-align: center; color: #666; }`,
+    defaultProps: {},
+  },
+  {
+    id: "section-1",
+    name: "Content Section",
+    category: "layout",
+    type: "section",
+    icon: <Square className="h-4 w-4" />,
+    defaultHtml: `<section class="content-section">
+  <div class="container">
+    <h2>Section Title</h2>
+    <p>Add your content here</p>
+  </div>
+</section>`,
+    defaultCss: `.content-section { padding: 4rem 2rem; }
+.content-section .container { max-width: 1200px; margin: 0 auto; }
+.content-section h2 { font-size: 2.5rem; margin-bottom: 1rem; }`,
+    defaultProps: {},
+  },
+  {
+    id: "columns-1",
+    name: "Two Columns",
+    category: "layout",
+    type: "columns",
+    icon: <Layers className="h-4 w-4" />,
+    defaultHtml: `<div class="two-columns">
+  <div class="column">
+    <h3>Left Column</h3>
+    <p>Content for the left column goes here.</p>
+  </div>
+  <div class="column">
+    <h3>Right Column</h3>
+    <p>Content for the right column goes here.</p>
+  </div>
+</div>`,
+    defaultCss: `.two-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; padding: 3rem 2rem; }
+.column { padding: 1rem; }
+@media (max-width: 768px) { .two-columns { grid-template-columns: 1fr; } }`,
+    defaultProps: {},
+  },
+  {
+    id: "divider-1",
+    name: "Divider",
+    category: "layout",
+    type: "divider",
+    icon: <Separator className="h-4 w-4" />,
+    defaultHtml: `<hr class="divider" />`,
+    defaultCss: `.divider { border: none; height: 1px; background: linear-gradient(to right, transparent, #ddd, transparent); margin: 2rem 0; }`,
+    defaultProps: {},
+  },
+];
 
-const DEFAULT_CSS = `* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+const CATEGORIES = [
+  { id: "headers", name: "Headers", icon: <Navigation className="h-4 w-4" /> },
+  { id: "content", name: "Content", icon: <Type className="h-4 w-4" /> },
+  { id: "forms", name: "Forms", icon: <Mail className="h-4 w-4" /> },
+  { id: "footers", name: "Footers", icon: <Footer className="h-4 w-4" /> },
+  { id: "layout", name: "Layout", icon: <Layers className="h-4 w-4" /> },
+];
 
-body {
-  font-family: 'Segoe UI', system-ui, sans-serif;
-  line-height: 1.6;
-  color: #333;
-}
+const PROJECT_TYPES = [
+  { value: "all", label: "All Types" },
+  { value: "portfolio", label: "Portfolio" },
+  { value: "landing", label: "Landing Page" },
+  { value: "blog", label: "Blog" },
+  { value: "ecommerce", label: "E-Commerce" },
+  { value: "custom", label: "Custom" },
+];
 
-.hero {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  min-height: 100vh;
-  color: white;
-}
-
-.navbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1.5rem 5%;
-}
-
-.logo {
-  font-size: 1.8rem;
-  font-weight: bold;
-}
-
-.nav-links {
-  display: flex;
-  list-style: none;
-  gap: 2rem;
-}
-
-.nav-links a {
-  color: white;
-  text-decoration: none;
-  transition: opacity 0.3s;
-}
-
-.nav-links a:hover {
-  opacity: 0.8;
-}
-
-.hero-content {
-  text-align: center;
-  padding: 10rem 2rem;
-}
-
-.hero-content h1 {
-  font-size: 3.5rem;
-  margin-bottom: 1rem;
-  animation: fadeInUp 0.8s ease-out;
-}
-
-.hero-content p {
-  font-size: 1.3rem;
-  opacity: 0.9;
-  margin-bottom: 2rem;
-}
-
-.cta-button {
-  background: white;
-  color: #667eea;
-  border: none;
-  padding: 1rem 2.5rem;
-  font-size: 1.1rem;
-  border-radius: 50px;
-  cursor: pointer;
-  transition: transform 0.3s, box-shadow 0.3s;
-}
-
-.cta-button:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-}
-
-.features {
-  display: flex;
-  justify-content: center;
-  gap: 2rem;
-  padding: 5rem 2rem;
-  background: #f8f9fa;
-  flex-wrap: wrap;
-}
-
-.feature-card {
-  background: white;
-  padding: 2.5rem;
-  border-radius: 16px;
-  text-align: center;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-  transition: transform 0.3s;
-  max-width: 280px;
-}
-
-.feature-card:hover {
-  transform: translateY(-5px);
-}
-
-.feature-card .icon {
-  font-size: 3rem;
-  margin-bottom: 1rem;
-}
-
-.feature-card h3 {
-  margin-bottom: 0.5rem;
-  color: #667eea;
-}
-
-footer {
-  background: #2d3748;
-  color: white;
-  text-align: center;
-  padding: 2rem;
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}`;
-
-const DEFAULT_JS = `// Add interactivity here
-document.addEventListener('DOMContentLoaded', function() {
-  const ctaButton = document.querySelector('.cta-button');
-  
-  ctaButton?.addEventListener('click', function() {
-    alert('Welcome! Let\\'s get started.');
-  });
-  
-  // Smooth scroll for navigation
-  document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-    anchor.addEventListener('click', function(e) {
-      e.preventDefault();
-      const target = document.querySelector(this.getAttribute('href'));
-      target?.scrollIntoView({ behavior: 'smooth' });
-    });
-  });
-});`;
+const ZOOM_LEVELS = [50, 75, 100, 125, 150];
 
 type ViewportSize = "desktop" | "tablet" | "mobile";
 
 export default function WebsiteBuilderPage() {
-  const [html, setHtml] = useState(DEFAULT_HTML);
-  const [css, setCss] = useState(DEFAULT_CSS);
-  const [js, setJs] = useState(DEFAULT_JS);
-  const [activeTab, setActiveTab] = useState("html");
+  const [projects, setProjects] = useState<WebsiteProject[]>([]);
+  const [selectedProject, setSelectedProject] = useState<WebsiteProject | null>(null);
+  const [pages, setPages] = useState<WebsitePage[]>([]);
+  const [selectedPage, setSelectedPage] = useState<WebsitePage | null>(null);
+  const [selectedComponent, setSelectedComponent] = useState<ComponentInstance | null>(null);
+  
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  
   const [viewport, setViewport] = useState<ViewportSize>("desktop");
-  const [versions, setVersions] = useState<Version[]>([]);
-  const [currentVersionIndex, setCurrentVersionIndex] = useState(-1);
-  const [isSaving, setIsSaving] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
-  const [projectName, setProjectName] = useState("My Website");
-  const [showHistory, setShowHistory] = useState(false);
-  const [autoSave, setAutoSave] = useState(true);
+  const [zoom, setZoom] = useState(100);
+  const [showGrid, setShowGrid] = useState(false);
+  const [showCodeView, setShowCodeView] = useState(false);
+  
+  const [leftPanelOpen, setLeftPanelOpen] = useState(true);
+  const [rightPanelOpen, setRightPanelOpen] = useState(true);
+  const [rightPanelTab, setRightPanelTab] = useState<"components" | "properties" | "pages">("components");
+  
+  const [projectFilter, setProjectFilter] = useState("all");
+  const [projectSearch, setProjectSearch] = useState("");
+  const [componentSearch, setComponentSearch] = useState("");
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  
+  const [showNewProjectDialog, setShowNewProjectDialog] = useState(false);
+  const [showNewPageDialog, setShowNewPageDialog] = useState(false);
+  const [showSettingsDialog, setShowSettingsDialog] = useState(false);
+  const [showAiDialog, setShowAiDialog] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  
+  const [newProjectName, setNewProjectName] = useState("");
+  const [newProjectType, setNewProjectType] = useState("custom");
+  const [newProjectDescription, setNewProjectDescription] = useState("");
+  
+  const [newPageName, setNewPageName] = useState("");
+  const [newPageSlug, setNewPageSlug] = useState("");
+  
+  const [history, setHistory] = useState<ComponentInstance[][]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  
+  const [draggedComponent, setDraggedComponent] = useState<ComponentDefinition | null>(null);
+  
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const viewportWidths = {
     desktop: "100%",
@@ -286,24 +513,103 @@ export default function WebsiteBuilderPage() {
     mobile: "375px",
   };
 
-  const generatePreview = useCallback(() => {
-    const previewContent = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>${css}</style>
-        </head>
-        <body>
-          ${html.replace(/<html[^>]*>|<\/html>|<head>[\s\S]*?<\/head>|<body[^>]*>|<\/body>|<!DOCTYPE[^>]*>/gi, "")}
-          <script>${js}<\/script>
-        </body>
-      </html>
-    `;
-    return previewContent;
-  }, [html, css, js]);
+  const fetchProjects = useCallback(async () => {
+    try {
+      const res = await fetch("/api/websites");
+      if (res.ok) {
+        const data = await res.json();
+        setProjects(data.projects || []);
+      }
+    } catch (error) {
+      console.error("Failed to fetch projects:", error);
+      toast.error("Failed to load projects");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const fetchProjectDetails = useCallback(async (projectId: string) => {
+    try {
+      const res = await fetch(`/api/websites/${projectId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setSelectedProject(data.project);
+        setPages(data.pages || []);
+        const homepage = data.pages?.find((p: WebsitePage) => p.isHomepage) || data.pages?.[0];
+        if (homepage) {
+          setSelectedPage(homepage);
+          pushToHistory(homepage.components || []);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch project:", error);
+      toast.error("Failed to load project");
+    }
+  }, []);
 
   useEffect(() => {
-    if (iframeRef.current) {
+    fetchProjects();
+  }, [fetchProjects]);
+
+  const pushToHistory = (components: ComponentInstance[]) => {
+    const newHistory = history.slice(0, historyIndex + 1);
+    newHistory.push([...components]);
+    setHistory(newHistory);
+    setHistoryIndex(newHistory.length - 1);
+  };
+
+  const handleUndo = () => {
+    if (historyIndex > 0) {
+      setHistoryIndex(historyIndex - 1);
+      const prevComponents = history[historyIndex - 1];
+      if (selectedPage) {
+        setSelectedPage({ ...selectedPage, components: prevComponents });
+      }
+    }
+  };
+
+  const handleRedo = () => {
+    if (historyIndex < history.length - 1) {
+      setHistoryIndex(historyIndex + 1);
+      const nextComponents = history[historyIndex + 1];
+      if (selectedPage) {
+        setSelectedPage({ ...selectedPage, components: nextComponents });
+      }
+    }
+  };
+
+  const generatePreview = useCallback(() => {
+    if (!selectedPage || !selectedProject) return "";
+    
+    const globalCss = selectedProject.globalCss || "";
+    const pageCss = selectedPage.pageCss || "";
+    const componentsHtml = selectedPage.components?.map(c => c.html).join("\n") || "";
+    const componentsCss = selectedPage.components?.map(c => c.css || "").join("\n") || "";
+    
+    return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${selectedPage.title || selectedProject.name}</title>
+  <style>
+    ${globalCss}
+    ${pageCss}
+    ${componentsCss}
+    
+    .component-wrapper { position: relative; transition: outline 0.2s; }
+    .component-wrapper:hover { outline: 2px dashed #667eea; }
+    .component-wrapper.selected { outline: 2px solid #667eea; }
+  </style>
+</head>
+<body>
+  ${componentsHtml}
+</body>
+</html>`;
+  }, [selectedPage, selectedProject]);
+
+  useEffect(() => {
+    if (iframeRef.current && selectedPage) {
       const doc = iframeRef.current.contentDocument;
       if (doc) {
         doc.open();
@@ -311,384 +617,1039 @@ export default function WebsiteBuilderPage() {
         doc.close();
       }
     }
-  }, [generatePreview]);
+  }, [generatePreview, selectedPage]);
 
-  useEffect(() => {
-    if (autoSave) {
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current);
-      }
-      autoSaveTimerRef.current = setTimeout(() => {
-        handleAutoSave();
-      }, 30000);
+  const handleCreateProject = async () => {
+    if (!newProjectName.trim()) {
+      toast.error("Project name is required");
+      return;
     }
-    return () => {
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current);
-      }
-    };
-  }, [html, css, js, autoSave]);
 
-  const handleAutoSave = async () => {
-    const newVersion: Version = {
-      id: Date.now().toString(),
-      timestamp: new Date(),
-      html,
-      css,
-      js,
-      label: "Auto-save",
-    };
-    setVersions((prev) => [...prev.slice(-49), newVersion]);
-  };
-
-  const handleSave = async () => {
-    setIsSaving(true);
     try {
-      const response = await fetch("/api/website-builder/save", {
+      const res = await fetch("/api/websites", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: projectName,
-          html,
-          css,
-          js,
+          name: newProjectName,
+          type: newProjectType,
+          description: newProjectDescription,
         }),
       });
 
-      const newVersion: Version = {
-        id: Date.now().toString(),
-        timestamp: new Date(),
-        html,
-        css,
-        js,
-        label: "Manual save",
-      };
-      setVersions((prev) => [...prev, newVersion]);
-      setCurrentVersionIndex(versions.length);
-      
-      setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 2000);
+      if (res.ok) {
+        const data = await res.json();
+        setProjects([data.project, ...projects]);
+        setSelectedProject(data.project);
+        setPages(data.pages || []);
+        if (data.pages?.[0]) {
+          setSelectedPage(data.pages[0]);
+        }
+        setShowNewProjectDialog(false);
+        setNewProjectName("");
+        setNewProjectDescription("");
+        toast.success("Project created!");
+      } else {
+        const error = await res.json();
+        toast.error(error.error || "Failed to create project");
+      }
     } catch (error) {
-      console.error("Save failed:", error);
+      toast.error("Failed to create project");
+    }
+  };
+
+  const handleCreatePage = async () => {
+    if (!selectedProject || !newPageName.trim()) {
+      toast.error("Page name is required");
+      return;
+    }
+
+    const slug = newPageSlug || `/${newPageName.toLowerCase().replace(/\s+/g, "-")}`;
+
+    try {
+      const res = await fetch(`/api/websites/${selectedProject.id}/pages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newPageName,
+          slug,
+          title: newPageName,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setPages([...pages, data.page]);
+        setSelectedPage(data.page);
+        setShowNewPageDialog(false);
+        setNewPageName("");
+        setNewPageSlug("");
+        toast.success("Page created!");
+      } else {
+        const error = await res.json();
+        toast.error(error.error || "Failed to create page");
+      }
+    } catch (error) {
+      toast.error("Failed to create page");
+    }
+  };
+
+  const handleSave = async () => {
+    if (!selectedProject || !selectedPage) return;
+
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/websites/${selectedProject.id}/pages`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pageId: selectedPage.id,
+          components: selectedPage.components,
+          pageCss: selectedPage.pageCss,
+          pageJs: selectedPage.pageJs,
+        }),
+      });
+
+      if (res.ok) {
+        toast.success("Saved!");
+      } else {
+        toast.error("Failed to save");
+      }
+    } catch (error) {
+      toast.error("Failed to save");
     } finally {
-      setIsSaving(false);
+      setSaving(false);
     }
   };
 
-  const handleRevert = (version: Version) => {
-    setHtml(version.html);
-    setCss(version.css);
-    setJs(version.js);
-    setShowHistory(false);
-  };
+  const handlePublish = async () => {
+    if (!selectedProject) return;
 
-  const handleUndo = () => {
-    if (currentVersionIndex > 0) {
-      const prevVersion = versions[currentVersionIndex - 1];
-      setHtml(prevVersion.html);
-      setCss(prevVersion.css);
-      setJs(prevVersion.js);
-      setCurrentVersionIndex(currentVersionIndex - 1);
+    setPublishing(true);
+    try {
+      const res = await fetch(`/api/websites/${selectedProject.id}/publish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ environment: "production" }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        toast.success(`Published to ${data.publishedUrl}`);
+        setSelectedProject({ ...selectedProject, status: "published" });
+      } else {
+        toast.error("Failed to publish");
+      }
+    } catch (error) {
+      toast.error("Failed to publish");
+    } finally {
+      setPublishing(false);
     }
   };
 
-  const handleRedo = () => {
-    if (currentVersionIndex < versions.length - 1) {
-      const nextVersion = versions[currentVersionIndex + 1];
-      setHtml(nextVersion.html);
-      setCss(nextVersion.css);
-      setJs(nextVersion.js);
-      setCurrentVersionIndex(currentVersionIndex + 1);
+  const handleDragStart = (component: ComponentDefinition) => {
+    setDraggedComponent(component);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (!draggedComponent || !selectedPage) return;
+
+    const newComponent: ComponentInstance = {
+      id: `${draggedComponent.id}-${Date.now()}`,
+      type: draggedComponent.type,
+      category: draggedComponent.category,
+      html: draggedComponent.defaultHtml,
+      css: draggedComponent.defaultCss,
+      props: { ...draggedComponent.defaultProps },
+      position: { x: 0, y: 0 },
+      size: { width: "100%", height: "auto" },
+    };
+
+    const updatedComponents = [...(selectedPage.components || []), newComponent];
+    setSelectedPage({ ...selectedPage, components: updatedComponents });
+    pushToHistory(updatedComponents);
+    setSelectedComponent(newComponent);
+    setDraggedComponent(null);
+    toast.success(`Added ${draggedComponent.name}`);
+  };
+
+  const handleDeleteComponent = (componentId: string) => {
+    if (!selectedPage) return;
+
+    const updatedComponents = selectedPage.components.filter(c => c.id !== componentId);
+    setSelectedPage({ ...selectedPage, components: updatedComponents });
+    pushToHistory(updatedComponents);
+    setSelectedComponent(null);
+    toast.success("Component deleted");
+  };
+
+  const handleAiGenerate = async () => {
+    if (!aiPrompt.trim() || !selectedProject) return;
+
+    setAiLoading(true);
+    try {
+      const res = await fetch(`/api/websites/${selectedProject.id}/ai-generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: aiPrompt,
+          type: "layout",
+          currentHtml: selectedPage?.components?.map(c => c.html).join("\n"),
+          currentCss: selectedPage?.components?.map(c => c.css).join("\n"),
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.html && selectedPage) {
+          const newComponent: ComponentInstance = {
+            id: `ai-${Date.now()}`,
+            type: "ai-generated",
+            category: "content",
+            html: data.html,
+            css: data.css,
+            props: {},
+            position: { x: 0, y: 0 },
+            size: { width: "100%", height: "auto" },
+          };
+          const updatedComponents = [...(selectedPage.components || []), newComponent];
+          setSelectedPage({ ...selectedPage, components: updatedComponents });
+          pushToHistory(updatedComponents);
+          toast.success("AI content generated!");
+        }
+        setShowAiDialog(false);
+        setAiPrompt("");
+      } else {
+        const error = await res.json();
+        toast.error(error.error || "AI generation failed");
+      }
+    } catch (error) {
+      toast.error("AI generation failed");
+    } finally {
+      setAiLoading(false);
     }
   };
 
-  const handleExport = () => {
-    const fullHtml = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${projectName}</title>
-  <style>
-${css}
-  </style>
-</head>
-<body>
-${html.replace(/<html[^>]*>|<\/html>|<head>[\s\S]*?<\/head>|<body[^>]*>|<\/body>|<!DOCTYPE[^>]*>/gi, "")}
-  <script>
-${js}
-  </script>
-</body>
-</html>`;
+  const handleComponentPropertyChange = (property: string, value: unknown) => {
+    if (!selectedComponent || !selectedPage) return;
 
-    const blob = new Blob([fullHtml], { type: "text/html" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${projectName.toLowerCase().replace(/\s+/g, "-")}.html`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const updatedComponent = {
+      ...selectedComponent,
+      props: { ...selectedComponent.props, [property]: value },
+    };
+
+    const updatedComponents = selectedPage.components.map(c =>
+      c.id === selectedComponent.id ? updatedComponent : c
+    );
+
+    setSelectedPage({ ...selectedPage, components: updatedComponents });
+    setSelectedComponent(updatedComponent);
   };
+
+  const filteredProjects = projects.filter(p => {
+    if (projectFilter !== "all" && p.type !== projectFilter) return false;
+    if (projectSearch && !p.name.toLowerCase().includes(projectSearch.toLowerCase())) return false;
+    return true;
+  });
+
+  const filteredComponents = COMPONENT_LIBRARY.filter(c => {
+    if (activeCategory && c.category !== activeCategory) return false;
+    if (componentSearch && !c.name.toLowerCase().includes(componentSearch.toLowerCase())) return false;
+    return true;
+  });
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+          <p className="text-muted-foreground">Loading Website Builder...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)]">
-      <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 py-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+    <TooltipProvider>
+      <div className="flex flex-col h-[calc(100vh-4rem)]">
+        <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 py-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setLeftPanelOpen(!leftPanelOpen)}
+              >
+                {leftPanelOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeft className="h-4 w-4" />}
+              </Button>
+              
+              <div className="flex items-center gap-2">
+                <Globe className="h-5 w-5 text-primary" />
+                <span className="font-semibold">
+                  {selectedProject?.name || "Website Builder"}
+                </span>
+                {selectedProject && (
+                  <Badge variant={selectedProject.status === "published" ? "default" : "secondary"}>
+                    {selectedProject.status}
+                  </Badge>
+                )}
+              </div>
+            </div>
+
             <div className="flex items-center gap-2">
-              <Globe className="h-5 w-5 text-primary" />
-              <Input
-                value={projectName}
-                onChange={(e) => setProjectName(e.target.value)}
-                className="w-48 h-8 font-medium"
-              />
+              <div className="flex items-center border rounded-lg p-1">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant={viewport === "desktop" ? "secondary" : "ghost"}
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => setViewport("desktop")}
+                    >
+                      <Monitor className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Desktop</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant={viewport === "tablet" ? "secondary" : "ghost"}
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => setViewport("tablet")}
+                    >
+                      <Tablet className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Tablet</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant={viewport === "mobile" ? "secondary" : "ghost"}
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => setViewport("mobile")}
+                    >
+                      <Smartphone className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Mobile</TooltipContent>
+                </Tooltip>
+              </div>
+
+              <div className="flex items-center gap-1 border rounded-lg p-1">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => setZoom(Math.max(50, zoom - 25))}
+                      disabled={zoom <= 50}
+                    >
+                      <ZoomOut className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Zoom Out</TooltipContent>
+                </Tooltip>
+                <span className="text-xs w-10 text-center">{zoom}%</span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => setZoom(Math.min(150, zoom + 25))}
+                      disabled={zoom >= 150}
+                    >
+                      <ZoomIn className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Zoom In</TooltipContent>
+                </Tooltip>
+              </div>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={showGrid ? "secondary" : "ghost"}
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setShowGrid(!showGrid)}
+                  >
+                    <Grid3X3 className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Toggle Grid</TooltipContent>
+              </Tooltip>
+
+              <Separator orientation="vertical" className="h-6" />
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleUndo}
+                    disabled={historyIndex <= 0}
+                  >
+                    <Undo2 className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Undo</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleRedo}
+                    disabled={historyIndex >= history.length - 1}
+                  >
+                    <Redo2 className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Redo</TooltipContent>
+              </Tooltip>
+
+              <Separator orientation="vertical" className="h-6" />
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={showCodeView ? "secondary" : "ghost"}
+                    size="icon"
+                    onClick={() => setShowCodeView(!showCodeView)}
+                  >
+                    <Code2 className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Code View</TooltipContent>
+              </Tooltip>
+
+              <Dialog open={showAiDialog} onOpenChange={setShowAiDialog}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-1">
+                    <Sparkles className="h-4 w-4" />
+                    Ask Jarvis
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                      <Wand2 className="h-5 w-5 text-purple-500" />
+                      AI Assistant
+                    </DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <Textarea
+                      placeholder="Describe what you want to create or modify... e.g., 'Add a testimonials section with 3 customer quotes'"
+                      value={aiPrompt}
+                      onChange={(e) => setAiPrompt(e.target.value)}
+                      rows={4}
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        className="flex-1"
+                        onClick={handleAiGenerate}
+                        disabled={aiLoading || !aiPrompt.trim()}
+                      >
+                        {aiLoading ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Generating...
+                          </>
+                        ) : (
+                          <>
+                            <Send className="h-4 w-4 mr-2" />
+                            Generate
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+
+              <Dialog open={showSettingsDialog} onOpenChange={setShowSettingsDialog}>
+                <DialogTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <Settings className="h-4 w-4" />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Page Settings</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Page Title</Label>
+                      <Input
+                        value={selectedPage?.title || ""}
+                        onChange={(e) => selectedPage && setSelectedPage({ ...selectedPage, title: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Page Description</Label>
+                      <Textarea
+                        value={selectedPage?.description || ""}
+                        onChange={(e) => selectedPage && setSelectedPage({ ...selectedPage, description: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+
+              <Separator orientation="vertical" className="h-6" />
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSave}
+                disabled={saving || !selectedProject}
+              >
+                {saving ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4 mr-1" />
+                )}
+                Save
+              </Button>
+
+              <Button
+                size="sm"
+                onClick={handlePublish}
+                disabled={publishing || !selectedProject}
+                className="bg-gradient-to-r from-green-500 to-emerald-600"
+              >
+                {publishing ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <Rocket className="h-4 w-4 mr-1" />
+                )}
+                Publish
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setRightPanelOpen(!rightPanelOpen)}
+              >
+                {rightPanelOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRight className="h-4 w-4" />}
+              </Button>
             </div>
-            <Badge variant="outline" className="text-xs">
-              {versions.length} versions
-            </Badge>
           </div>
+        </div>
 
-          <div className="flex items-center gap-2">
-            <div className="flex items-center border rounded-lg p-1">
-              <Button
-                variant={viewport === "desktop" ? "secondary" : "ghost"}
-                size="icon"
-                className="h-7 w-7"
-                onClick={() => setViewport("desktop")}
+        <div className="flex-1 flex overflow-hidden">
+          <AnimatePresence>
+            {leftPanelOpen && (
+              <motion.div
+                initial={{ width: 0, opacity: 0 }}
+                animate={{ width: 280, opacity: 1 }}
+                exit={{ width: 0, opacity: 0 }}
+                className="border-r bg-background overflow-hidden"
               >
-                <Monitor className="h-4 w-4" />
-              </Button>
-              <Button
-                variant={viewport === "tablet" ? "secondary" : "ghost"}
-                size="icon"
-                className="h-7 w-7"
-                onClick={() => setViewport("tablet")}
-              >
-                <Tablet className="h-4 w-4" />
-              </Button>
-              <Button
-                variant={viewport === "mobile" ? "secondary" : "ghost"}
-                size="icon"
-                className="h-7 w-7"
-                onClick={() => setViewport("mobile")}
-              >
-                <Smartphone className="h-4 w-4" />
-              </Button>
-            </div>
-
-            <div className="h-6 w-px bg-border" />
-
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleUndo}
-              disabled={currentVersionIndex <= 0}
-            >
-              <Undo2 className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleRedo}
-              disabled={currentVersionIndex >= versions.length - 1}
-            >
-              <Redo2 className="h-4 w-4" />
-            </Button>
-
-            <Dialog open={showHistory} onOpenChange={setShowHistory}>
-              <DialogTrigger asChild>
-                <Button variant="ghost" size="sm">
-                  <History className="h-4 w-4 mr-1" />
-                  History
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Version History</DialogTitle>
-                </DialogHeader>
-                <div className="max-h-96 overflow-auto space-y-2">
-                  {versions.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-8">
-                      No versions saved yet
-                    </p>
-                  ) : (
-                    versions
-                      .slice()
-                      .reverse()
-                      .map((version) => (
-                        <div
-                          key={version.id}
-                          className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent/50 transition-colors"
-                        >
-                          <div>
-                            <p className="text-sm font-medium">
-                              {version.label || "Version"}
-                            </p>
-                            <p className="text-xs text-muted-foreground flex items-center gap-1">
-                              <Clock className="h-3 w-3" />
-                              {version.timestamp.toLocaleString()}
-                            </p>
+                <div className="p-3 border-b">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-semibold text-sm">Projects</h3>
+                    <Dialog open={showNewProjectDialog} onOpenChange={setShowNewProjectDialog}>
+                      <DialogTrigger asChild>
+                        <Button size="sm" variant="outline" className="h-7">
+                          <Plus className="h-3 w-3 mr-1" />
+                          New
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Create New Website</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          <div className="space-y-2">
+                            <Label>Project Name</Label>
+                            <Input
+                              value={newProjectName}
+                              onChange={(e) => setNewProjectName(e.target.value)}
+                              placeholder="My Website"
+                            />
                           </div>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleRevert(version)}
-                          >
-                            Revert
+                          <div className="space-y-2">
+                            <Label>Type</Label>
+                            <Select value={newProjectType} onValueChange={setNewProjectType}>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {PROJECT_TYPES.slice(1).map((t) => (
+                                  <SelectItem key={t.value} value={t.value}>
+                                    {t.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Description</Label>
+                            <Textarea
+                              value={newProjectDescription}
+                              onChange={(e) => setNewProjectDescription(e.target.value)}
+                              placeholder="Optional description..."
+                            />
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setShowNewProjectDialog(false)}>
+                            Cancel
                           </Button>
+                          <Button onClick={handleCreateProject}>Create</Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+                      <Input
+                        className="h-8 pl-7 text-xs"
+                        placeholder="Search..."
+                        value={projectSearch}
+                        onChange={(e) => setProjectSearch(e.target.value)}
+                      />
+                    </div>
+                    <Select value={projectFilter} onValueChange={setProjectFilter}>
+                      <SelectTrigger className="h-8 w-24 text-xs">
+                        <Filter className="h-3 w-3 mr-1" />
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PROJECT_TYPES.map((t) => (
+                          <SelectItem key={t.value} value={t.value} className="text-xs">
+                            {t.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <ScrollArea className="h-[calc(100vh-12rem)]">
+                  <div className="p-2 space-y-1">
+                    {filteredProjects.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground text-sm">
+                        No projects found
+                      </div>
+                    ) : (
+                      filteredProjects.map((project) => (
+                        <div
+                          key={project.id}
+                          className={cn(
+                            "p-3 rounded-lg cursor-pointer transition-colors",
+                            selectedProject?.id === project.id
+                              ? "bg-primary/10 border border-primary/20"
+                              : "hover:bg-muted"
+                          )}
+                          onClick={() => fetchProjectDetails(project.id)}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="w-12 h-12 rounded bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
+                              <Globe className="h-5 w-5 text-primary" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-sm truncate">{project.name}</p>
+                              <p className="text-xs text-muted-foreground capitalize">{project.type}</p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {new Date(project.updatedAt).toLocaleDateString()}
+                              </p>
+                            </div>
+                            <Badge
+                              variant={project.status === "published" ? "default" : "secondary"}
+                              className="text-xs"
+                            >
+                              {project.status}
+                            </Badge>
+                          </div>
                         </div>
                       ))
-                  )}
+                    )}
+                  </div>
+                </ScrollArea>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <div
+            className={cn(
+              "flex-1 bg-muted/30 flex flex-col overflow-hidden",
+              showGrid && "bg-[url('/grid.svg')]"
+            )}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={handleDrop}
+          >
+            {!selectedProject ? (
+              <div className="flex-1 flex items-center justify-center">
+                <div className="text-center space-y-4">
+                  <Globe className="h-16 w-16 mx-auto text-muted-foreground/50" />
+                  <div>
+                    <h3 className="text-lg font-semibold">Select a Project</h3>
+                    <p className="text-muted-foreground">
+                      Choose a project from the sidebar or create a new one
+                    </p>
+                  </div>
+                  <Button onClick={() => setShowNewProjectDialog(true)}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create New Website
+                  </Button>
                 </div>
-              </DialogContent>
-            </Dialog>
-
-            <div className="h-6 w-px bg-border" />
-
-            <Button variant="ghost" size="sm" onClick={handleExport}>
-              <Download className="h-4 w-4 mr-1" />
-              Export
-            </Button>
-
-            <Button
-              onClick={handleSave}
-              disabled={isSaving}
-              className="bg-gradient-to-r from-green-500 to-emerald-600"
-            >
-              {isSaving ? (
-                <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
-              ) : showSuccess ? (
-                <Check className="h-4 w-4 mr-1" />
-              ) : (
-                <Save className="h-4 w-4 mr-1" />
-              )}
-              {showSuccess ? "Saved!" : "Save"}
-            </Button>
+              </div>
+            ) : showCodeView ? (
+              <div className="flex-1 flex">
+                <div className="w-1/2 border-r">
+                  <div className="p-2 border-b bg-background text-xs font-medium flex items-center gap-2">
+                    <FileCode className="h-4 w-4" />
+                    HTML
+                  </div>
+                  <MonacoEditor
+                    height="calc(100% - 40px)"
+                    defaultLanguage="html"
+                    value={selectedPage?.components?.map(c => c.html).join("\n\n") || ""}
+                    theme="vs-dark"
+                    options={{
+                      minimap: { enabled: false },
+                      fontSize: 13,
+                      wordWrap: "on",
+                      readOnly: true,
+                    }}
+                  />
+                </div>
+                <div className="w-1/2">
+                  <div className="p-2 border-b bg-background text-xs font-medium flex items-center gap-2">
+                    <Palette className="h-4 w-4" />
+                    CSS
+                  </div>
+                  <MonacoEditor
+                    height="calc(100% - 40px)"
+                    defaultLanguage="css"
+                    value={`${selectedProject?.globalCss || ""}\n\n${selectedPage?.components?.map(c => c.css).join("\n\n") || ""}`}
+                    theme="vs-dark"
+                    options={{
+                      minimap: { enabled: false },
+                      fontSize: 13,
+                      wordWrap: "on",
+                      readOnly: true,
+                    }}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="flex-1 flex items-center justify-center p-4 overflow-auto">
+                <motion.div
+                  layout
+                  className="bg-white rounded-lg shadow-2xl overflow-hidden"
+                  style={{
+                    width: viewportWidths[viewport],
+                    height: viewport === "mobile" ? "667px" : "100%",
+                    maxWidth: "100%",
+                    transform: `scale(${zoom / 100})`,
+                    transformOrigin: "top center",
+                  }}
+                >
+                  <iframe
+                    ref={iframeRef}
+                    className="w-full h-full border-0"
+                    title="Preview"
+                    sandbox="allow-scripts"
+                  />
+                </motion.div>
+              </div>
+            )}
           </div>
+
+          <AnimatePresence>
+            {rightPanelOpen && (
+              <motion.div
+                initial={{ width: 0, opacity: 0 }}
+                animate={{ width: 300, opacity: 1 }}
+                exit={{ width: 0, opacity: 0 }}
+                className="border-l bg-background overflow-hidden"
+              >
+                <Tabs value={rightPanelTab} onValueChange={(v) => setRightPanelTab(v as typeof rightPanelTab)}>
+                  <TabsList className="w-full rounded-none border-b h-10">
+                    <TabsTrigger value="components" className="flex-1 text-xs">
+                      <Box className="h-3 w-3 mr-1" />
+                      Components
+                    </TabsTrigger>
+                    <TabsTrigger value="properties" className="flex-1 text-xs">
+                      <Settings2 className="h-3 w-3 mr-1" />
+                      Properties
+                    </TabsTrigger>
+                    <TabsTrigger value="pages" className="flex-1 text-xs">
+                      <File className="h-3 w-3 mr-1" />
+                      Pages
+                    </TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="components" className="m-0">
+                    <div className="p-3 border-b">
+                      <div className="relative">
+                        <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+                        <Input
+                          className="h-8 pl-7 text-xs"
+                          placeholder="Search components..."
+                          value={componentSearch}
+                          onChange={(e) => setComponentSearch(e.target.value)}
+                        />
+                      </div>
+                      <div className="flex gap-1 mt-2 flex-wrap">
+                        <Button
+                          variant={activeCategory === null ? "secondary" : "ghost"}
+                          size="sm"
+                          className="h-6 text-xs"
+                          onClick={() => setActiveCategory(null)}
+                        >
+                          All
+                        </Button>
+                        {CATEGORIES.map((cat) => (
+                          <Button
+                            key={cat.id}
+                            variant={activeCategory === cat.id ? "secondary" : "ghost"}
+                            size="sm"
+                            className="h-6 text-xs"
+                            onClick={() => setActiveCategory(cat.id)}
+                          >
+                            {cat.icon}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                    <ScrollArea className="h-[calc(100vh-14rem)]">
+                      <div className="p-2 space-y-1">
+                        {filteredComponents.map((component) => (
+                          <div
+                            key={component.id}
+                            draggable
+                            onDragStart={() => handleDragStart(component)}
+                            className="p-3 rounded-lg border bg-card hover:bg-accent cursor-grab active:cursor-grabbing transition-colors"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center text-primary">
+                                {component.icon}
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-sm font-medium">{component.name}</p>
+                                <p className="text-xs text-muted-foreground capitalize">{component.category}</p>
+                              </div>
+                              <GripVertical className="h-4 w-4 text-muted-foreground" />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </TabsContent>
+
+                  <TabsContent value="properties" className="m-0">
+                    <ScrollArea className="h-[calc(100vh-10rem)]">
+                      {selectedComponent ? (
+                        <div className="p-4 space-y-4">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-medium">{selectedComponent.type}</h4>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => handleDeleteComponent(selectedComponent.id)}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
+
+                          <Separator />
+
+                          <div className="space-y-4">
+                            <div className="space-y-2">
+                              <Label className="text-xs">Background Color</Label>
+                              <div className="flex gap-2">
+                                <Input
+                                  type="color"
+                                  className="h-8 w-12 p-1"
+                                  value={(selectedComponent.props.backgroundColor as string) || "#ffffff"}
+                                  onChange={(e) => handleComponentPropertyChange("backgroundColor", e.target.value)}
+                                />
+                                <Input
+                                  className="h-8 flex-1 text-xs"
+                                  value={(selectedComponent.props.backgroundColor as string) || "#ffffff"}
+                                  onChange={(e) => handleComponentPropertyChange("backgroundColor", e.target.value)}
+                                />
+                              </div>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label className="text-xs">Text Color</Label>
+                              <div className="flex gap-2">
+                                <Input
+                                  type="color"
+                                  className="h-8 w-12 p-1"
+                                  value={(selectedComponent.props.textColor as string) || "#000000"}
+                                  onChange={(e) => handleComponentPropertyChange("textColor", e.target.value)}
+                                />
+                                <Input
+                                  className="h-8 flex-1 text-xs"
+                                  value={(selectedComponent.props.textColor as string) || "#000000"}
+                                  onChange={(e) => handleComponentPropertyChange("textColor", e.target.value)}
+                                />
+                              </div>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label className="text-xs">Padding</Label>
+                              <Slider
+                                value={[(selectedComponent.props.padding as number) || 16]}
+                                max={100}
+                                step={4}
+                                onValueChange={([v]) => handleComponentPropertyChange("padding", v)}
+                              />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label className="text-xs">Margin</Label>
+                              <Slider
+                                value={[(selectedComponent.props.margin as number) || 0]}
+                                max={100}
+                                step={4}
+                                onValueChange={([v]) => handleComponentPropertyChange("margin", v)}
+                              />
+                            </div>
+
+                            <Separator />
+
+                            <div className="space-y-2">
+                              <Label className="text-xs">Custom CSS Class</Label>
+                              <Input
+                                className="h-8 text-xs font-mono"
+                                placeholder="my-custom-class"
+                                value={(selectedComponent.props.className as string) || ""}
+                                onChange={(e) => handleComponentPropertyChange("className", e.target.value)}
+                              />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label className="text-xs">Custom CSS</Label>
+                              <Textarea
+                                className="text-xs font-mono"
+                                placeholder=".my-class { ... }"
+                                rows={4}
+                                value={selectedComponent.css || ""}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="p-8 text-center text-muted-foreground">
+                          <MousePointer2 className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                          <p className="text-sm">Select a component to edit its properties</p>
+                        </div>
+                      )}
+                    </ScrollArea>
+                  </TabsContent>
+
+                  <TabsContent value="pages" className="m-0">
+                    <div className="p-3 border-b">
+                      <Dialog open={showNewPageDialog} onOpenChange={setShowNewPageDialog}>
+                        <DialogTrigger asChild>
+                          <Button size="sm" className="w-full">
+                            <Plus className="h-4 w-4 mr-2" />
+                            Add Page
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Create New Page</DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-4">
+                            <div className="space-y-2">
+                              <Label>Page Name</Label>
+                              <Input
+                                value={newPageName}
+                                onChange={(e) => setNewPageName(e.target.value)}
+                                placeholder="About Us"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>URL Slug</Label>
+                              <Input
+                                value={newPageSlug}
+                                onChange={(e) => setNewPageSlug(e.target.value)}
+                                placeholder="/about"
+                              />
+                            </div>
+                          </div>
+                          <DialogFooter>
+                            <Button variant="outline" onClick={() => setShowNewPageDialog(false)}>
+                              Cancel
+                            </Button>
+                            <Button onClick={handleCreatePage}>Create</Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
+                    <ScrollArea className="h-[calc(100vh-12rem)]">
+                      <div className="p-2 space-y-1">
+                        {pages.map((page) => (
+                          <div
+                            key={page.id}
+                            className={cn(
+                              "p-3 rounded-lg cursor-pointer transition-colors flex items-center gap-3",
+                              selectedPage?.id === page.id
+                                ? "bg-primary/10 border border-primary/20"
+                                : "hover:bg-muted"
+                            )}
+                            onClick={() => {
+                              setSelectedPage(page);
+                              pushToHistory(page.components || []);
+                            }}
+                          >
+                            {page.isHomepage ? (
+                              <Home className="h-4 w-4 text-primary" />
+                            ) : (
+                              <File className="h-4 w-4 text-muted-foreground" />
+                            )}
+                            <div className="flex-1">
+                              <p className="text-sm font-medium">{page.name}</p>
+                              <p className="text-xs text-muted-foreground">{page.slug}</p>
+                            </div>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-7 w-7">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem>
+                                  <Copy className="h-4 w-4 mr-2" />
+                                  Duplicate
+                                </DropdownMenuItem>
+                                <DropdownMenuItem>
+                                  <Home className="h-4 w-4 mr-2" />
+                                  Set as Homepage
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem className="text-destructive">
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </TabsContent>
+                </Tabs>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
-
-      <div className="flex-1 flex overflow-hidden">
-        <div className="w-1/2 border-r flex flex-col">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-            <div className="border-b px-4">
-              <TabsList className="h-10">
-                <TabsTrigger value="html" className="gap-1.5">
-                  <FileCode className="h-3.5 w-3.5" />
-                  HTML
-                </TabsTrigger>
-                <TabsTrigger value="css" className="gap-1.5">
-                  <Palette className="h-3.5 w-3.5" />
-                  CSS
-                </TabsTrigger>
-                <TabsTrigger value="js" className="gap-1.5">
-                  <Code2 className="h-3.5 w-3.5" />
-                  JavaScript
-                </TabsTrigger>
-              </TabsList>
-            </div>
-
-            <div className="flex-1">
-              <TabsContent value="html" className="h-full m-0">
-                <MonacoEditor
-                  height="100%"
-                  defaultLanguage="html"
-                  value={html}
-                  onChange={(value) => setHtml(value || "")}
-                  theme="vs-dark"
-                  options={{
-                    minimap: { enabled: false },
-                    fontSize: 14,
-                    wordWrap: "on",
-                    lineNumbers: "on",
-                    folding: true,
-                    automaticLayout: true,
-                  }}
-                />
-              </TabsContent>
-              <TabsContent value="css" className="h-full m-0">
-                <MonacoEditor
-                  height="100%"
-                  defaultLanguage="css"
-                  value={css}
-                  onChange={(value) => setCss(value || "")}
-                  theme="vs-dark"
-                  options={{
-                    minimap: { enabled: false },
-                    fontSize: 14,
-                    wordWrap: "on",
-                    lineNumbers: "on",
-                    folding: true,
-                    automaticLayout: true,
-                  }}
-                />
-              </TabsContent>
-              <TabsContent value="js" className="h-full m-0">
-                <MonacoEditor
-                  height="100%"
-                  defaultLanguage="javascript"
-                  value={js}
-                  onChange={(value) => setJs(value || "")}
-                  theme="vs-dark"
-                  options={{
-                    minimap: { enabled: false },
-                    fontSize: 14,
-                    wordWrap: "on",
-                    lineNumbers: "on",
-                    folding: true,
-                    automaticLayout: true,
-                  }}
-                />
-              </TabsContent>
-            </div>
-          </Tabs>
-        </div>
-
-        <div className="w-1/2 bg-muted/30 flex flex-col">
-          <div className="border-b px-4 py-2 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Eye className="h-4 w-4" />
-              <span className="text-sm font-medium">Live Preview</span>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                if (iframeRef.current) {
-                  const doc = iframeRef.current.contentDocument;
-                  if (doc) {
-                    doc.open();
-                    doc.write(generatePreview());
-                    doc.close();
-                  }
-                }
-              }}
-            >
-              <RefreshCw className="h-4 w-4 mr-1" />
-              Refresh
-            </Button>
-          </div>
-
-          <div className="flex-1 flex items-center justify-center p-4 overflow-auto">
-            <motion.div
-              layout
-              className="bg-white rounded-lg shadow-2xl overflow-hidden"
-              style={{
-                width: viewportWidths[viewport],
-                height: viewport === "mobile" ? "667px" : "100%",
-                maxWidth: "100%",
-              }}
-            >
-              <iframe
-                ref={iframeRef}
-                className="w-full h-full border-0"
-                title="Preview"
-                sandbox="allow-scripts"
-              />
-            </motion.div>
-          </div>
-        </div>
-      </div>
-    </div>
+    </TooltipProvider>
   );
 }

@@ -1,17 +1,77 @@
 #!/bin/bash
 set -e
 
-echo "Starting Discord Bot deployment..."
+echo "================================================"
+echo "  Discord Bot Starting..."
+echo "================================================"
+echo ""
 
-# Wait for PostgreSQL to be ready
-# Since docker-compose depends_on with service_healthy is set, the database should be ready
-# But we add a small grace period for network stability
+# Check critical environment variables
+echo "Checking required environment variables..."
+STARTUP_ERRORS=0
+
+# Check DATABASE_URL
+if [ -z "$DATABASE_URL" ] && [ -z "$DISCORD_DATABASE_URL" ]; then
+    echo "❌ ERROR: DATABASE_URL or DISCORD_DATABASE_URL not set"
+    STARTUP_ERRORS=$((STARTUP_ERRORS + 1))
+else
+    echo "✓ Database URL configured"
+fi
+
+# Check DISCORD_TOKEN
+if [ -z "$DISCORD_TOKEN" ]; then
+    echo "❌ ERROR: DISCORD_TOKEN not set"
+    STARTUP_ERRORS=$((STARTUP_ERRORS + 1))
+else
+    echo "✓ DISCORD_TOKEN configured"
+fi
+
+# Check SESSION_SECRET
+if [ -z "$SESSION_SECRET" ]; then
+    echo "⚠️ WARNING: SESSION_SECRET not set (using default)"
+else
+    echo "✓ SESSION_SECRET configured"
+fi
+
+# Check LOCAL_AI_ONLY mode
+if [ "$LOCAL_AI_ONLY" = "true" ] || [ "$LOCAL_AI_ONLY" = "1" ]; then
+    echo "✓ LOCAL_AI_ONLY mode enabled"
+    
+    # Check Ollama URL
+    OLLAMA_URL=${OLLAMA_URL:-${LOCAL_AI_URL:-http://localhost:11434}}
+    echo "  Ollama URL: $OLLAMA_URL"
+    
+    # Check if Ollama is reachable
+    if command -v curl &> /dev/null; then
+        if curl -s --connect-timeout 5 "${OLLAMA_URL}/api/tags" > /dev/null 2>&1; then
+            echo "  ✓ Ollama is accessible"
+        else
+            echo "  ⚠️ WARNING: Ollama is not accessible at $OLLAMA_URL"
+            echo "    AI features will be unavailable until Ollama is running"
+        fi
+    fi
+else
+    echo "○ LOCAL_AI_ONLY mode disabled"
+fi
+
+# Exit early if critical secrets are missing
+if [ "$STARTUP_ERRORS" -gt 0 ]; then
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "FATAL: $STARTUP_ERRORS required secrets missing!"
+    echo "Check configuration in deploy/linode/.env"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    exit 1
+fi
+
+echo ""
 echo "Waiting for PostgreSQL to be ready..."
 
 # Extract PostgreSQL host from DATABASE_URL if available
 # DATABASE_URL format: postgresql://user:password@hostname:5432/database
-if [ -n "$DATABASE_URL" ]; then
-  POSTGRES_HOST=$(echo "$DATABASE_URL" | sed -n 's/.*@\([^:]*\):.*/\1/p')
+DATABASE_URL_TO_USE=${DISCORD_DATABASE_URL:-$DATABASE_URL}
+if [ -n "$DATABASE_URL_TO_USE" ]; then
+  POSTGRES_HOST=$(echo "$DATABASE_URL_TO_USE" | sed -n 's/.*@\([^:]*\):.*/\1/p')
   echo "Extracted PostgreSQL host from DATABASE_URL: $POSTGRES_HOST"
 else
   POSTGRES_HOST=${POSTGRES_HOST:-postgres}
@@ -60,6 +120,15 @@ fi
 
 echo "Database initialization complete!"
 
+echo ""
+echo "================================================"
+echo "  Starting Discord Bot Application..."
+echo "================================================"
+echo ""
+
+# Set up signal handlers for graceful shutdown
+trap 'echo "Received SIGTERM, shutting down gracefully..."; exit 0' SIGTERM
+trap 'echo "Received SIGINT, shutting down gracefully..."; exit 0' SIGINT
+
 # Start the application
-echo "Starting application..."
 exec "$@"

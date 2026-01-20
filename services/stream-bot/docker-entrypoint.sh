@@ -39,6 +39,31 @@ if [ -z "$SPOTIFY_CLIENT_ID" ]; then
     echo "○ SPOTIFY_CLIENT_ID not set (Spotify OAuth disabled)"
 fi
 
+# Check LOCAL_AI_ONLY mode
+if [ "$LOCAL_AI_ONLY" = "true" ] || [ "$LOCAL_AI_ONLY" = "1" ]; then
+    echo "✓ LOCAL_AI_ONLY mode enabled"
+    
+    # Check Ollama URL
+    OLLAMA_URL=${OLLAMA_URL:-${LOCAL_AI_URL:-http://localhost:11434}}
+    echo "  Ollama URL: $OLLAMA_URL"
+    
+    # Check if Ollama is reachable using Node.js since we're in Alpine
+    if node -e "
+        const http = require('http');
+        const url = new URL('${OLLAMA_URL}/api/tags');
+        const req = http.get(url, { timeout: 5000 }, (res) => process.exit(res.statusCode === 200 ? 0 : 1));
+        req.on('error', () => process.exit(1));
+        req.on('timeout', () => { req.destroy(); process.exit(1); });
+    " 2>/dev/null; then
+        echo "  ✓ Ollama is accessible"
+    else
+        echo "  ⚠ WARNING: Ollama is not accessible at $OLLAMA_URL"
+        echo "    AI features will be unavailable until Ollama is running"
+    fi
+else
+    echo "○ LOCAL_AI_ONLY mode disabled"
+fi
+
 # Exit early if critical secrets are missing
 if [ "$STARTUP_ERRORS" -gt 0 ]; then
     echo ""
