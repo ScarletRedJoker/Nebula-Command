@@ -2,8 +2,26 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifySession } from "@/lib/session";
 import { cookies } from "next/headers";
 import { db, isDbConnected } from "@/lib/db";
-import { secretSyncLogs, deploymentSecrets } from "@/lib/db/platform-schema";
+import { secretSyncLogs, deploymentSecrets, deploymentTargets } from "@/lib/db/platform-schema";
 import { desc, eq } from "drizzle-orm";
+import { decryptSecret } from "@/lib/secrets-crypto";
+import { NodeSSH } from "node-ssh";
+
+interface DeploymentTarget {
+  id: string;
+  name: string;
+  connectionConfig?: {
+    host?: string;
+    user?: string;
+    port?: number;
+    envPath?: string;
+  };
+}
+
+interface Secret {
+  keyName: string;
+  encryptedValue: string | null;
+}
 
 async function checkAuth() {
   const cookieStore = await cookies();
@@ -136,8 +154,18 @@ async function performSync(
 
   if (target === "windows-vm" && config.agentUrl) {
     return await syncViaAgent(config.agentUrl, secrets, nebulaAgentToken);
-  } else if (config.host && config.user && sshPrivateKey) {
-    return await syncViaSSH(config.host, config.user, secrets, sshPrivateKey);
+  } else if (config.host && config.user) {
+    const targetObj: DeploymentTarget = {
+      id: target,
+      name: target,
+      connectionConfig: {
+        host: config.host,
+        user: config.user,
+        port: 22,
+        envPath: "/opt/homelab/HomeLabHub/.env",
+      },
+    };
+    return await syncViaSSH(targetObj, secrets);
   } else {
     return {
       success: false,
@@ -148,16 +176,72 @@ async function performSync(
 }
 
 async function syncViaSSH(
-  host: string,
-  user: string,
-  secrets: any[],
-  sshKey: string
+  target: DeploymentTarget,
+  secrets: Secret[]
 ): Promise<{ success: boolean; message: string; secretsAffected: number }> {
-  return {
-    success: true,
-    message: `SSH sync to ${user}@${host}: ${secrets.length} secrets synchronized`,
-    secretsAffected: secrets.length,
-  };
+  const ssh = new NodeSSH();
+
+  try {
+    let sshKey = process.env.SSH_PRIVATE_KEY;
+    if (!sshKey) {
+      return { success: false, message: "SSH_PRIVATE_KEY not configured", secretsAffected: 0 };
+    }
+
+    // Normalize SSH key - handle escaped newlines from env vars
+    sshKey = sshKey.replace(/\\n/g, "\n");
+
+    const config = target.connectionConfig;
+    if (!config?.host || !config?.user) {
+      return { success: false, message: "Target SSH host/user not configured", secretsAffected: 0 };
+    }
+
+    await ssh.connect({
+      host: config.host,
+      username: config.user,
+      privateKey: sshKey,
+      port: config.port || 22,
+    });
+
+    const envContent = secrets
+      .filter((s) => s.encryptedValue)
+      .map((s) => {
+        try {
+          const value = decryptSecret(s.encryptedValue!);
+          return `${s.keyName}=${value}`;
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean)
+      .join("\n");
+
+    if (!envContent) {
+      ssh.dispose();
+      return {
+        success: false,
+        message: `No decryptable secrets found for sync to ${target.name}`,
+        secretsAffected: 0,
+      };
+    }
+
+    const envPath = config.envPath || "/opt/homelab/HomeLabHub/.env";
+    await ssh.execCommand(`mkdir -p $(dirname ${envPath})`);
+    await ssh.execCommand(`cat > ${envPath} << 'ENVEOF'\n${envContent}\nENVEOF`);
+
+    ssh.dispose();
+    return {
+      success: true,
+      message: `Synced ${secrets.length} secrets to ${target.name}`,
+      secretsAffected: secrets.length,
+    };
+  } catch (error: any) {
+    ssh.dispose();
+    return {
+      success: false,
+      message: `SSH sync failed: ${error.message}`,
+      secretsAffected: 0,
+    };
+  }
 }
 
 async function syncViaAgent(
@@ -166,6 +250,27 @@ async function syncViaAgent(
   token?: string
 ): Promise<{ success: boolean; message: string; secretsAffected: number }> {
   try {
+    const decryptedSecrets: Array<{ key: string; value: string; category: string }> = [];
+    
+    for (const secret of secrets) {
+      if (secret.encryptedValue) {
+        try {
+          const value = decryptSecret(secret.encryptedValue);
+          decryptedSecrets.push({ key: secret.keyName, value, category: secret.category });
+        } catch (err) {
+          console.error(`[Sync] Failed to decrypt ${secret.keyName}:`, err);
+        }
+      }
+    }
+
+    if (decryptedSecrets.length === 0) {
+      return {
+        success: false,
+        message: `No decryptable secrets found for agent sync`,
+        secretsAffected: 0,
+      };
+    }
+
     const response = await fetch(`${agentUrl}/api/secrets/sync`, {
       method: "POST",
       headers: {
@@ -173,7 +278,7 @@ async function syncViaAgent(
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({
-        secrets: secrets.map((s) => ({ key: s.keyName, category: s.category })),
+        secrets: decryptedSecrets,
       }),
     });
 
@@ -183,8 +288,8 @@ async function syncViaAgent(
 
     return {
       success: true,
-      message: `Agent sync to ${agentUrl}: ${secrets.length} secrets synchronized`,
-      secretsAffected: secrets.length,
+      message: `Agent sync to ${agentUrl}: ${decryptedSecrets.length} secrets synchronized`,
+      secretsAffected: decryptedSecrets.length,
     };
   } catch (error) {
     return {

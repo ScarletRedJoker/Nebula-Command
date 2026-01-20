@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifySession } from "@/lib/session";
 import { cookies } from "next/headers";
 import { db, isDbConnected } from "@/lib/db";
-import { tokenRotationConfig } from "@/lib/db/platform-schema";
+import { tokenRotationConfig, deploymentSecrets } from "@/lib/db/platform-schema";
 import { eq, desc } from "drizzle-orm";
+import { encryptSecret, decryptSecret, canEncrypt } from "@/lib/secrets-crypto";
+import crypto from "crypto";
 
 async function checkAuth() {
   const cookieStore = await cookies();
@@ -176,6 +178,177 @@ async function updateRotationInterval(tokenName: string, intervalDays: number) {
   });
 }
 
+async function getStoredTokenValue(tokenName: string): Promise<string | null> {
+  if (!isDbConnected()) return null;
+  
+  const [secret] = await db
+    .select()
+    .from(deploymentSecrets)
+    .where(eq(deploymentSecrets.keyName, tokenName));
+  
+  if (secret?.encryptedValue) {
+    try {
+      return decryptSecret(secret.encryptedValue);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+async function storeRotatedToken(tokenName: string, newValue: string, expiresAt?: Date): Promise<void> {
+  if (!isDbConnected() || !canEncrypt()) return;
+
+  const [existing] = await db
+    .select()
+    .from(deploymentSecrets)
+    .where(eq(deploymentSecrets.keyName, tokenName));
+
+  const encrypted = encryptSecret(newValue);
+  const hash = crypto.createHash("sha256").update(newValue).digest("hex").substring(0, 16);
+
+  if (existing) {
+    await db
+      .update(deploymentSecrets)
+      .set({
+        encryptedValue: encrypted,
+        valueHash: hash,
+        updatedAt: new Date(),
+      })
+      .where(eq(deploymentSecrets.keyName, tokenName));
+  } else {
+    await db.insert(deploymentSecrets).values({
+      keyName: tokenName,
+      category: "oauth_tokens",
+      targets: ["all"],
+      encryptedValue: encrypted,
+      valueHash: hash,
+    });
+  }
+
+  if (expiresAt) {
+    const existingConfig = await db.select().from(tokenRotationConfig).where(eq(tokenRotationConfig.tokenName, tokenName));
+    if (existingConfig.length === 0) {
+      await db.insert(tokenRotationConfig).values({
+        tokenName,
+        expiresAt,
+        lastRotatedAt: new Date(),
+      });
+    } else {
+      await db
+        .update(tokenRotationConfig)
+        .set({ expiresAt, lastRotatedAt: new Date(), updatedAt: new Date() })
+        .where(eq(tokenRotationConfig.tokenName, tokenName));
+    }
+  }
+}
+
+async function rotateTwitchToken(): Promise<{ newValue?: string; expiresAt?: Date }> {
+  const refreshToken = await getStoredTokenValue("TWITCH_REFRESH_TOKEN");
+  if (!refreshToken) throw new Error("No Twitch refresh token stored");
+
+  const clientId = process.env.TWITCH_CLIENT_ID;
+  const clientSecret = process.env.TWITCH_CLIENT_SECRET;
+  if (!clientId || !clientSecret) throw new Error("Twitch OAuth credentials not configured");
+
+  const response = await fetch("https://id.twitch.tv/oauth2/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+      client_id: clientId,
+      client_secret: clientSecret,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Twitch refresh failed: ${error}`);
+  }
+
+  const data = await response.json();
+  const expiresAt = new Date(Date.now() + data.expires_in * 1000);
+
+  await storeRotatedToken("TWITCH_ACCESS_TOKEN", data.access_token, expiresAt);
+  if (data.refresh_token) {
+    await storeRotatedToken("TWITCH_REFRESH_TOKEN", data.refresh_token, new Date(Date.now() + 30 * 24 * 60 * 60 * 1000));
+  }
+
+  return { newValue: data.access_token, expiresAt };
+}
+
+async function rotateSpotifyToken(): Promise<{ newValue?: string; expiresAt?: Date }> {
+  const refreshToken = await getStoredTokenValue("SPOTIFY_REFRESH_TOKEN");
+  if (!refreshToken) throw new Error("No Spotify refresh token stored");
+
+  const clientId = process.env.SPOTIFY_CLIENT_ID;
+  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+  if (!clientId || !clientSecret) throw new Error("Spotify OAuth credentials not configured");
+
+  const response = await fetch("https://accounts.spotify.com/api/token", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`,
+    },
+    body: new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Spotify refresh failed: ${error}`);
+  }
+
+  const data = await response.json();
+  const expiresAt = new Date(Date.now() + data.expires_in * 1000);
+
+  await storeRotatedToken("SPOTIFY_TOKEN", data.access_token, expiresAt);
+  if (data.refresh_token) {
+    await storeRotatedToken("SPOTIFY_REFRESH_TOKEN", data.refresh_token, new Date(Date.now() + 365 * 24 * 60 * 60 * 1000));
+  }
+
+  return { newValue: data.access_token, expiresAt };
+}
+
+async function rotateYoutubeToken(): Promise<{ newValue?: string; expiresAt?: Date }> {
+  const refreshToken = await getStoredTokenValue("YOUTUBE_REFRESH_TOKEN");
+  if (!refreshToken) throw new Error("No YouTube refresh token stored");
+
+  const clientId = process.env.YOUTUBE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.YOUTUBE_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET;
+  if (!clientId || !clientSecret) throw new Error("YouTube/Google OAuth credentials not configured");
+
+  const response = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+      client_id: clientId,
+      client_secret: clientSecret,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`YouTube refresh failed: ${error}`);
+  }
+
+  const data = await response.json();
+  const expiresAt = new Date(Date.now() + data.expires_in * 1000);
+
+  await storeRotatedToken("YOUTUBE_ACCESS_TOKEN", data.access_token, expiresAt);
+  if (data.refresh_token) {
+    await storeRotatedToken("YOUTUBE_REFRESH_TOKEN", data.refresh_token, new Date(Date.now() + 180 * 24 * 60 * 60 * 1000));
+  }
+
+  return { newValue: data.access_token, expiresAt };
+}
+
 async function rotateToken(
   tokenName: string,
   config: (typeof ROTATABLE_TOKENS)[0]
@@ -187,41 +360,86 @@ async function rotateToken(
     };
   }
 
-  const newExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  try {
+    let result: { newValue?: string; expiresAt?: Date };
 
-  if (isDbConnected()) {
-    const existing = await db.select().from(tokenRotationConfig).where(eq(tokenRotationConfig.tokenName, tokenName));
-
-    const historyEntry = {
-      rotatedAt: new Date().toISOString(),
-      method: "manual",
-      success: true,
-    };
-
-    if (existing.length === 0) {
-      await db.insert(tokenRotationConfig).values({
-        tokenName,
-        lastRotatedAt: new Date(),
-        expiresAt: new Date(newExpiry),
-        rotationHistory: [historyEntry],
-      });
+    if (tokenName === "TWITCH_ACCESS_TOKEN" || tokenName === "TWITCH_REFRESH_TOKEN") {
+      result = await rotateTwitchToken();
+    } else if (tokenName === "SPOTIFY_TOKEN" || tokenName === "SPOTIFY_REFRESH_TOKEN") {
+      result = await rotateSpotifyToken();
+    } else if (tokenName === "YOUTUBE_REFRESH_TOKEN") {
+      result = await rotateYoutubeToken();
     } else {
-      const currentHistory = (existing[0].rotationHistory as any[]) || [];
-      await db
-        .update(tokenRotationConfig)
-        .set({
+      return {
+        success: false,
+        message: `Rotation not implemented for ${tokenName}`,
+      };
+    }
+
+    const newExpiry = result.expiresAt?.toISOString() || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    if (isDbConnected()) {
+      const existing = await db.select().from(tokenRotationConfig).where(eq(tokenRotationConfig.tokenName, tokenName));
+
+      const historyEntry = {
+        rotatedAt: new Date().toISOString(),
+        method: "oauth_refresh",
+        success: true,
+      };
+
+      if (existing.length === 0) {
+        await db.insert(tokenRotationConfig).values({
+          tokenName,
           lastRotatedAt: new Date(),
           expiresAt: new Date(newExpiry),
-          rotationHistory: [...currentHistory.slice(-9), historyEntry],
-          updatedAt: new Date(),
-        })
-        .where(eq(tokenRotationConfig.tokenName, tokenName));
+          rotationHistory: [historyEntry],
+        });
+      } else {
+        const currentHistory = (existing[0].rotationHistory as any[]) || [];
+        await db
+          .update(tokenRotationConfig)
+          .set({
+            lastRotatedAt: new Date(),
+            expiresAt: new Date(newExpiry),
+            rotationHistory: [...currentHistory.slice(-9), historyEntry],
+            updatedAt: new Date(),
+          })
+          .where(eq(tokenRotationConfig.tokenName, tokenName));
+      }
     }
-  }
 
-  return {
-    success: true,
-    message: `${config.platform} token rotation initiated. New token will expire on ${new Date(newExpiry).toLocaleDateString()}.`,
-    newExpiry,
-  };
+    return {
+      success: true,
+      message: `${config.platform} token rotated successfully. New token expires on ${new Date(newExpiry).toLocaleDateString()}.`,
+      newExpiry,
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    
+    if (isDbConnected()) {
+      const existing = await db.select().from(tokenRotationConfig).where(eq(tokenRotationConfig.tokenName, tokenName));
+      const historyEntry = {
+        rotatedAt: new Date().toISOString(),
+        method: "oauth_refresh",
+        success: false,
+        error: errorMessage,
+      };
+
+      if (existing.length > 0) {
+        const currentHistory = (existing[0].rotationHistory as any[]) || [];
+        await db
+          .update(tokenRotationConfig)
+          .set({
+            rotationHistory: [...currentHistory.slice(-9), historyEntry],
+            updatedAt: new Date(),
+          })
+          .where(eq(tokenRotationConfig.tokenName, tokenName));
+      }
+    }
+
+    return {
+      success: false,
+      message: `${config.platform} token rotation failed: ${errorMessage}`,
+    };
+  }
 }

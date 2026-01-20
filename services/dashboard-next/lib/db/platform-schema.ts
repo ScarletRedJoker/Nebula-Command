@@ -934,6 +934,7 @@ export const deploymentSecrets = pgTable("deployment_secrets", {
   category: varchar("category", { length: 50 }).notNull().default("custom"),
   targets: jsonb("targets").notNull().default([]),
   valueHash: varchar("value_hash", { length: 64 }),
+  encryptedValue: text("encrypted_value"),
   lastSyncedAt: timestamp("last_synced_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow(),

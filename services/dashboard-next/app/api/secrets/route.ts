@@ -5,6 +5,7 @@ import { db, isDbConnected } from "@/lib/db";
 import { deploymentSecrets, deploymentTargets } from "@/lib/db/platform-schema";
 import { eq, desc, like, or } from "drizzle-orm";
 import { createHash } from "crypto";
+import { encryptSecret, canEncrypt } from "@/lib/secrets-crypto";
 
 async function checkAuth() {
   const cookieStore = await cookies();
@@ -53,7 +54,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       secrets: secrets.map((s) => ({
         ...s,
-        hasValue: !!s.valueHash,
+        encryptedValue: undefined,
+        hasValue: !!s.valueHash || !!s.encryptedValue,
       })),
       targets,
     });
@@ -80,6 +82,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Key name and category are required" }, { status: 400 });
     }
 
+    if (value && !canEncrypt()) {
+      return NextResponse.json(
+        { error: "SECRETS_ENCRYPTION_KEY must be set to store secrets securely" },
+        { status: 400 }
+      );
+    }
+
     const normalizedKey = keyName.toUpperCase().replace(/[^A-Z0-9_]/g, "_");
 
     if (!isDbConnected()) {
@@ -104,12 +113,13 @@ export async function POST(request: NextRequest) {
         category,
         targets: targetList || ["all"],
         valueHash: value ? hashValue(value) : null,
+        encryptedValue: value && canEncrypt() ? encryptSecret(value) : null,
       })
       .returning();
 
     return NextResponse.json({
       success: true,
-      secret: newSecret,
+      secret: { ...newSecret, encryptedValue: undefined },
     });
   } catch (error) {
     console.error("[Secrets API] Error creating secret:", error);
@@ -145,7 +155,16 @@ export async function PUT(request: NextRequest) {
     if (keyName) updateData.keyName = keyName.toUpperCase().replace(/[^A-Z0-9_]/g, "_");
     if (category) updateData.category = category;
     if (targetList) updateData.targets = targetList;
-    if (value) updateData.valueHash = hashValue(value);
+    if (value) {
+      if (!canEncrypt()) {
+        return NextResponse.json(
+          { error: "SECRETS_ENCRYPTION_KEY must be set to store secrets securely" },
+          { status: 400 }
+        );
+      }
+      updateData.valueHash = hashValue(value);
+      updateData.encryptedValue = encryptSecret(value);
+    }
 
     const [updated] = await db
       .update(deploymentSecrets)
@@ -155,7 +174,7 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      secret: updated,
+      secret: { ...updated, encryptedValue: undefined },
     });
   } catch (error) {
     console.error("[Secrets API] Error updating secret:", error);
