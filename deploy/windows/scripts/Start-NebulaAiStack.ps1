@@ -162,17 +162,84 @@ function Start-Ollama {
     }
 }
 
+function Test-SDVenvHealth {
+    param([string]$SDPath)
+    $venvPython = Join-Path $SDPath "venv\Scripts\python.exe"
+    if (-not (Test-Path $venvPython)) {
+        return $false
+    }
+    try {
+        $result = & $venvPython -c "import torch; import numpy; print('ok')" 2>&1
+        if ($result -match "ok") {
+            return $true
+        }
+    } catch { }
+    return $false
+}
+
+function Repair-SDDependencies {
+    param([string]$SDPath)
+    Write-Log "Repairing SD dependencies at $SDPath..." "INFO"
+    $venvPip = Join-Path $SDPath "venv\Scripts\pip.exe"
+    if (-not (Test-Path $venvPip)) {
+        Write-Log "No venv found - will be created on first launch" "WARN"
+        return $false
+    }
+    try {
+        & $venvPip install "numpy<2" --quiet 2>&1 | Out-Null
+        & $venvPip install "protobuf==4.25.3" --quiet 2>&1 | Out-Null
+        & $venvPip install "opencv-python-headless<4.10" --quiet 2>&1 | Out-Null
+        Write-Log "Dependencies repaired" "OK"
+        return $true
+    } catch {
+        Write-Log "Failed to repair dependencies: $_" "ERROR"
+        return $false
+    }
+}
+
 function Start-StableDiffusion {
     Write-Log "Starting Stable Diffusion..." "INFO"
     if (Test-ServiceRunning -Port 7860) {
         Write-Log "Stable Diffusion already running on port 7860" "OK"
         return $true
     }
-    $sdPath = if (Test-Path $Script:Config.StableDiffusionForgePath) {
-        $Script:Config.StableDiffusionForgePath
-    } elseif (Test-Path $Script:Config.StableDiffusionPath) {
-        $Script:Config.StableDiffusionPath
-    } else { $null }
+    
+    $sdPath = $null
+    $a1111Path = $Script:Config.StableDiffusionPath
+    $forgePath = $Script:Config.StableDiffusionForgePath
+    
+    if (Test-Path $a1111Path) {
+        if (Test-SDVenvHealth -SDPath $a1111Path) {
+            Write-Log "Using A1111 WebUI (healthy venv)" "OK"
+            $sdPath = $a1111Path
+        } else {
+            Write-Log "A1111 venv needs repair, attempting..." "WARN"
+            Repair-SDDependencies -SDPath $a1111Path
+            $sdPath = $a1111Path
+        }
+    }
+    
+    if (-not $sdPath -and (Test-Path $forgePath)) {
+        if (Test-SDVenvHealth -SDPath $forgePath) {
+            Write-Log "Using Forge WebUI (healthy venv)" "OK"
+            $sdPath = $forgePath
+        } else {
+            Write-Log "Forge venv unhealthy, attempting repair..." "WARN"
+            if (Repair-SDDependencies -SDPath $forgePath) {
+                if (Test-SDVenvHealth -SDPath $forgePath) {
+                    Write-Log "Forge repaired successfully" "OK"
+                    $sdPath = $forgePath
+                }
+            }
+            if (-not $sdPath -and (Test-Path $a1111Path)) {
+                Write-Log "Forge repair failed, falling back to A1111" "WARN"
+                $sdPath = $a1111Path
+            } elseif (-not $sdPath) {
+                Write-Log "Forge repair failed, no A1111 fallback available" "ERROR"
+                $sdPath = $forgePath
+            }
+        }
+    }
     
     if ($sdPath) {
         $webui = Join-Path $sdPath "webui-user.bat"
@@ -180,7 +247,7 @@ function Start-StableDiffusion {
         Push-Location $sdPath
         Start-Process -FilePath "cmd.exe" -ArgumentList "/c", $webui -WindowStyle Minimized
         Pop-Location
-        Write-Log "Stable Diffusion launch initiated (takes 30-60s to load models)" "OK"
+        Write-Log "Stable Diffusion launch initiated from $sdPath (takes 30-60s to load models)" "OK"
         return $true
     } else {
         Write-Log "Stable Diffusion not found at expected paths" "WARN"
