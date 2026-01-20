@@ -353,8 +353,9 @@ class AIOrchestrator {
 
   async generateImage(request: ImageRequest): Promise<ImageResponse> {
     const provider = request.provider || "auto";
+    const localAIOnly = process.env.LOCAL_AI_ONLY !== "false";
 
-    // Auto mode: try local SD first if available, fall back to DALL-E
+    // Auto mode: try local SD first if available, fall back to DALL-E (unless LOCAL_AI_ONLY)
     if (provider === "auto") {
       const sdAvailable = await this.checkStableDiffusion();
       if (sdAvailable) {
@@ -362,12 +363,19 @@ class AIOrchestrator {
         try {
           return await this.generateWithSD(request);
         } catch (err) {
+          if (localAIOnly) {
+            console.log(`[AI Orchestrator] SD failed, LOCAL_AI_ONLY is set - not falling back to OpenAI`);
+            throw new Error(`Local Stable Diffusion failed: ${err instanceof Error ? err.message : err}. LOCAL_AI_ONLY is enabled - no cloud fallback.`);
+          }
           console.log(`[AI Orchestrator] SD failed, falling back to DALL-E: ${err instanceof Error ? err.message : err}`);
           if (this.hasOpenAI()) {
             return this.generateWithDALLE(request);
           }
           throw err;
         }
+      } else if (localAIOnly) {
+        console.log("[AI Orchestrator] Auto: LOCAL_AI_ONLY is set but SD is unavailable - not falling back to OpenAI");
+        throw new Error("Local Stable Diffusion is offline. Please start SD WebUI on your Windows VM or set LOCAL_AI_ONLY=false to allow cloud fallback.");
       } else if (this.hasOpenAI()) {
         console.log("[AI Orchestrator] Auto: Local SD unavailable, using DALL-E 3");
         return this.generateWithDALLE(request);
@@ -382,7 +390,11 @@ class AIOrchestrator {
       return this.generateWithSD(request);
     }
 
-    // OpenAI/DALL-E
+    // OpenAI/DALL-E - block if LOCAL_AI_ONLY is set
+    if (localAIOnly) {
+      console.log("[AI Orchestrator] OpenAI provider requested but LOCAL_AI_ONLY is set");
+      throw new Error("Local Stable Diffusion is offline. Please start SD WebUI on your Windows VM or set LOCAL_AI_ONLY=false to allow cloud fallback.");
+    }
     console.log("[AI Orchestrator] Generating image with DALL-E 3 (cloud)");
     return this.generateWithDALLE(request);
   }

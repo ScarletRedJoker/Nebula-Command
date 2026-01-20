@@ -788,13 +788,14 @@ export async function executeJarvisTool(
   try {
     switch (toolName) {
       case "generate_image": {
+        const localAIOnly = process.env.LOCAL_AI_ONLY !== "false";
         const response = await internalFetch("/api/ai/image", {
           method: "POST",
           body: JSON.stringify({
             prompt: args.prompt,
             style: args.style || "photographic",
             size: args.size || "1024x1024",
-            provider: "auto",
+            provider: localAIOnly ? "force-local" : "auto",
           }),
         });
 
