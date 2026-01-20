@@ -853,3 +853,38 @@ export type CreativePipeline = typeof creativePipelines.$inferSelect;
 export type NewCreativePipeline = typeof creativePipelines.$inferInsert;
 export type CreativeAsset = typeof creativeAssets.$inferSelect;
 export type NewCreativeAsset = typeof creativeAssets.$inferInsert;
+
+// ============================================
+// Jarvis Workflow Launcher System
+// ============================================
+
+export const jarvisWorkflows = pgTable("jarvis_workflows", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 255 }).notNull().unique(),
+  description: text("description"),
+  steps: jsonb("steps").notNull().default([]),
+  triggerType: varchar("trigger_type", { length: 50 }).notNull().default("manual"),
+  triggerConfig: jsonb("trigger_config").default({}),
+  isActive: boolean("is_active").default(true),
+  isTemplate: boolean("is_template").default(false),
+  createdBy: varchar("created_by", { length: 255 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const jarvisWorkflowRuns = pgTable("jarvis_workflow_runs", {
+  id: serial("id").primaryKey(),
+  workflowId: integer("workflow_id").references(() => jarvisWorkflows.id).notNull(),
+  status: varchar("status", { length: 50 }).notNull().default("pending"),
+  currentStep: integer("current_step").default(0),
+  stepResults: jsonb("step_results").default([]),
+  context: jsonb("context").default({}),
+  error: text("error"),
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"),
+});
+
+export type JarvisWorkflow = typeof jarvisWorkflows.$inferSelect;
+export type NewJarvisWorkflow = typeof jarvisWorkflows.$inferInsert;
+export type JarvisWorkflowRun = typeof jarvisWorkflowRuns.$inferSelect;
+export type NewJarvisWorkflowRun = typeof jarvisWorkflowRuns.$inferInsert;
