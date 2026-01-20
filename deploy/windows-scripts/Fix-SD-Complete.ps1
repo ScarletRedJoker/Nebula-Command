@@ -25,8 +25,9 @@ Write-Host "======================================================" -ForegroundC
 Write-Host ""
 
 try {
-    Write-Host "[1/5] Removing conflicting packages..." -ForegroundColor Yellow
-    & $pythonExe -m pip uninstall -y torch torchvision torchaudio xformers transformers protobuf accelerate diffusers 2>&1 | Out-Null
+    Write-Host "[1/5] Removing conflicting packages (if any)..." -ForegroundColor Yellow
+    $null = & $pythonExe -m pip uninstall -y torch torchvision torchaudio xformers transformers protobuf accelerate diffusers 2>&1
+    Write-Host "  Done" -ForegroundColor Gray
 
     Write-Host "[2/5] Installing PyTorch 2.1.2 + cu121..." -ForegroundColor Yellow
     & $pythonExe -m pip install torch==2.1.2+cu121 torchvision==0.16.2+cu121 torchaudio==2.1.2+cu121 --index-url https://download.pytorch.org/whl/cu121 --no-cache-dir
