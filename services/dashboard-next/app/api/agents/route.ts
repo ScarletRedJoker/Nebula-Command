@@ -12,7 +12,7 @@ async function checkAuth() {
   return await verifySession(session.value);
 }
 
-export interface JarvisAgentConfig {
+interface JarvisAgentConfig {
   id: number;
   name: string;
   persona: string;
@@ -30,7 +30,7 @@ export interface JarvisAgentConfig {
   updatedAt: Date | null;
 }
 
-export const BUILTIN_AGENT_CONFIGS: Omit<JarvisAgentConfig, "id" | "createdAt" | "updatedAt">[] = [
+const BUILTIN_AGENT_CONFIGS: Omit<JarvisAgentConfig, "id" | "createdAt" | "updatedAt">[] = [
   {
     name: "jarvis",
     persona: `You are Jarvis, the AI assistant for Nebula Command - a comprehensive homelab management platform. You help users with:
