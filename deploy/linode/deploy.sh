@@ -160,15 +160,25 @@ ensure_ssh_keys() {
     local ssh_dir="${HOME}/.ssh"
     local key_path="${ssh_dir}/homelab"
     
-    if [ -f "$key_path" ] && [ -f "${key_path}.pub" ]; then
+    mkdir -p "$ssh_dir"
+    chmod 700 "$ssh_dir"
+    
+    # Auto-provision from SSH_PRIVATE_KEY environment variable if available
+    if [ -n "${SSH_PRIVATE_KEY:-}" ] && [ ! -f "$key_path" ]; then
+        echo -e "${YELLOW}[SETUP]${NC} Writing SSH key from SSH_PRIVATE_KEY environment..."
+        echo "$SSH_PRIVATE_KEY" > "$key_path"
+        chmod 600 "$key_path"
+        echo -e "${GREEN}[OK]${NC} SSH key provisioned from environment"
+        return 0
+    fi
+    
+    if [ -f "$key_path" ]; then
+        chmod 600 "$key_path"
         echo -e "${GREEN}[OK]${NC} SSH key exists: $key_path"
         return 0
     fi
     
     echo -e "${YELLOW}[SETUP]${NC} No SSH key found, generating..."
-    mkdir -p "$ssh_dir"
-    chmod 700 "$ssh_dir"
-    
     ssh-keygen -t ed25519 -f "$key_path" -N "" -C "homelab-$(hostname)-$(date +%Y%m%d)" -q
     
     if [ -f "$key_path" ]; then

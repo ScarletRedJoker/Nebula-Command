@@ -240,10 +240,14 @@ export default function CreativeStudioPage() {
     setSwitchingModel(true);
 
     try {
+      // Find the model by title to get the actual filename (model_name)
+      const selectedModel = availableModels.find(m => m.title === modelTitle);
+      const modelName = selectedModel?.model_name || modelTitle;
+      
       const res = await fetch("/api/ai/models/sd", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "switch-model", model: modelTitle }),
+        body: JSON.stringify({ action: "switch-model", model: modelName }),
       });
 
       if (res.ok) {
