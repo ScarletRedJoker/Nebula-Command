@@ -888,3 +888,38 @@ export type JarvisWorkflow = typeof jarvisWorkflows.$inferSelect;
 export type NewJarvisWorkflow = typeof jarvisWorkflows.$inferInsert;
 export type JarvisWorkflowRun = typeof jarvisWorkflowRuns.$inferSelect;
 export type NewJarvisWorkflowRun = typeof jarvisWorkflowRuns.$inferInsert;
+
+// ============================================
+// Jarvis Security & Verification System
+// ============================================
+
+export const jarvisSecurityRules = pgTable("jarvis_security_rules", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  ruleType: varchar("rule_type", { length: 50 }).notNull(), // 'content_filter', 'output_validator', 'input_sanitizer', 'rate_limit'
+  pattern: text("pattern").notNull(), // regex or keywords to match
+  action: varchar("action", { length: 20 }).notNull(), // 'block', 'warn', 'log', 'redact'
+  severity: varchar("severity", { length: 20 }).notNull().default("medium"), // 'low', 'medium', 'high', 'critical'
+  isActive: boolean("is_active").default(true),
+  isBuiltin: boolean("is_builtin").default(false),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const jarvisSecurityEvents = pgTable("jarvis_security_events", {
+  id: serial("id").primaryKey(),
+  ruleId: integer("rule_id").references(() => jarvisSecurityRules.id),
+  eventType: varchar("event_type", { length: 20 }).notNull(), // 'blocked', 'warned', 'logged', 'redacted'
+  agentId: integer("agent_id"),
+  executionId: integer("execution_id"),
+  inputPreview: text("input_preview"), // first 500 chars of flagged input
+  outputPreview: text("output_preview"), // first 500 chars of flagged output
+  metadata: jsonb("metadata").default({}),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type JarvisSecurityRule = typeof jarvisSecurityRules.$inferSelect;
+export type NewJarvisSecurityRule = typeof jarvisSecurityRules.$inferInsert;
+export type JarvisSecurityEvent = typeof jarvisSecurityEvents.$inferSelect;
+export type NewJarvisSecurityEvent = typeof jarvisSecurityEvents.$inferInsert;
