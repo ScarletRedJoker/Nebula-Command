@@ -24,11 +24,16 @@ export async function GET(request: NextRequest) {
       aiOrchestrator.getAdvancedCapabilities(),
     ]);
 
-    const hasMotionModule = sdStatus.currentModel?.toLowerCase().includes("motion") ||
-      sdStatus.currentModel?.toLowerCase().startsWith("mm_") ||
-      sdStatus.currentModel?.toLowerCase().startsWith("mm-");
+    // Only flag actual AnimateDiff motion modules, not regular checkpoints with "mm_" prefix
+    // Motion modules are separate files like "mm_sd_v14.ckpt" used WITH a base model, not AS a base model
+    // Regular checkpoints can have any naming convention
+    const modelLower = sdStatus.currentModel?.toLowerCase() || "";
+    const hasMotionModule = modelLower.includes("motion_module") || 
+      modelLower.includes("animatediff") ||
+      (modelLower.includes("motion") && !modelLower.includes("sd"));
 
-    const sdReady = sdStatus.available && sdStatus.modelLoaded && !hasMotionModule;
+    // SD is ready if available and has any model loaded (motion module check is informational only)
+    const sdReady = sdStatus.available && sdStatus.modelLoaded;
 
     const capabilities = {
       stableDiffusion: {
