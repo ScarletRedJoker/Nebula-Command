@@ -1,26 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
-import { verifySession } from "@/lib/session";
 import { cookies } from "next/headers";
+import { verifySession } from "@/lib/session";
+import { 
+  handleOllamaStatusChange, 
+  getStatusCache, 
+  setStatusCache, 
+  STATUS_CACHE_TTL_MS 
+} from "@/lib/ai-status";
 
 const LOCAL_AI_ONLY = process.env.LOCAL_AI_ONLY !== "false";
-const STATUS_CACHE_TTL_MS = 30000;
-
-interface CachedStatus {
-  data: any;
-  timestamp: number;
-}
-
-let statusCache: CachedStatus | null = null;
-let ollamaRecoveryCallbacks: Array<() => void> = [];
-let lastOllamaStatus: "connected" | "error" | "not_configured" = "not_configured";
-
-async function checkAuth() {
-  const cookieStore = await cookies();
-  const session = cookieStore.get("session");
-  if (!session?.value) return null;
-  return await verifySession(session.value);
-}
 
 interface AIProviderStatus {
   name: string;
@@ -33,7 +22,6 @@ interface AIProviderStatus {
 }
 
 async function checkOpenAI(): Promise<AIProviderStatus> {
-  // LOCAL_AI_ONLY MODE: Skip OpenAI check entirely - no cloud API calls allowed
   if (LOCAL_AI_ONLY) {
     return {
       name: "OpenAI",
@@ -47,7 +35,6 @@ async function checkOpenAI(): Promise<AIProviderStatus> {
   const directKey = process.env.OPENAI_API_KEY;
   const projectId = process.env.OPENAI_PROJECT_ID;
   
-  // Replit's modelfarm uses a different key format - check if integration is configured
   const isReplitIntegration = baseURL && baseURL.includes('modelfarm');
   const apiKey = integrationKey || directKey;
 
@@ -55,13 +42,10 @@ async function checkOpenAI(): Promise<AIProviderStatus> {
     return { name: "OpenAI", status: "not_configured", error: "No valid API key configured" };
   }
   
-  // For non-Replit integrations, require sk- prefix
   if (!isReplitIntegration && apiKey && !apiKey.startsWith('sk-')) {
     return { name: "OpenAI", status: "not_configured", error: "API key must start with 'sk-'" };
   }
 
-  // For Replit modelfarm, skip API call as it's not needed
-  // Assume OpenAI is available if the integration is configured
   if (isReplitIntegration) {
     return {
       name: "OpenAI",
@@ -75,7 +59,7 @@ async function checkOpenAI(): Promise<AIProviderStatus> {
       baseURL: baseURL || undefined,
       apiKey: apiKey?.trim() || '',
       ...(projectId && { project: projectId.trim() }),
-      timeout: 10000, // 10 second timeout to prevent hanging
+      timeout: 10000,
     });
 
     const start = Date.now();
@@ -94,7 +78,6 @@ async function checkOpenAI(): Promise<AIProviderStatus> {
     };
   } catch (error: any) {
     const errorMsg = error.message || "Connection failed";
-    // Provide more specific error messages
     const isTimeoutError = error.name === "AbortError" || errorMsg.includes("timeout") || errorMsg.includes("ETIMEDOUT");
     return {
       name: "OpenAI",
@@ -175,34 +158,12 @@ async function checkOllama(): Promise<AIProviderStatus> {
   }
 }
 
-function handleOllamaStatusChange(newStatus: "connected" | "error" | "not_configured") {
-  if (lastOllamaStatus !== "connected" && newStatus === "connected") {
-    console.log("[AI Status] Ollama recovered - now online!");
-    ollamaRecoveryCallbacks.forEach(cb => {
-      try { cb(); } catch (e) { console.error("Recovery callback error:", e); }
-    });
-  }
-  lastOllamaStatus = newStatus;
-}
-
-export function onOllamaRecovery(callback: () => void): () => void {
-  ollamaRecoveryCallbacks.push(callback);
-  return () => {
-    ollamaRecoveryCallbacks = ollamaRecoveryCallbacks.filter(cb => cb !== callback);
-  };
-}
-
-export function getLastOllamaStatus(): "connected" | "error" | "not_configured" {
-  return lastOllamaStatus;
-}
-
 async function checkImageGeneration(): Promise<AIProviderStatus> {
   const baseURL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
   const integrationKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
   const directKey = process.env.OPENAI_API_KEY;
   const projectId = process.env.OPENAI_PROJECT_ID;
   
-  // Replit's modelfarm uses a different key format
   const isReplitIntegration = baseURL && baseURL.includes('modelfarm');
   const apiKey = integrationKey || directKey;
 
@@ -210,13 +171,10 @@ async function checkImageGeneration(): Promise<AIProviderStatus> {
     return { name: "DALL-E 3", status: "not_configured", error: "No valid API key configured" };
   }
   
-  // For non-Replit integrations, require sk- prefix
   if (!isReplitIntegration && apiKey && !apiKey.startsWith('sk-')) {
     return { name: "DALL-E 3", status: "not_configured", error: "API key must start with 'sk-'" };
   }
 
-  // For Replit modelfarm, skip models.list() check as it's not supported
-  // Assume DALL-E is available if the integration is configured
   if (isReplitIntegration) {
     return {
       name: "DALL-E 3",
@@ -260,7 +218,6 @@ async function checkStableDiffusion(): Promise<AIProviderStatus> {
   const WINDOWS_VM_IP = process.env.WINDOWS_VM_TAILSCALE_IP || "100.118.44.102";
   const sdUrl = process.env.STABLE_DIFFUSION_URL || `http://${WINDOWS_VM_IP}:7860`;
 
-  // Try multiple endpoints - API may vary by SD WebUI version
   const endpoints = [
     { url: `${sdUrl}/sdapi/v1/sd-models`, parseModels: true },
     { url: `${sdUrl}/internal/ping`, parseModels: false },
@@ -341,6 +298,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const forceRefresh = searchParams.get("refresh") === "true";
   
+  const statusCache = getStatusCache();
   if (!forceRefresh && statusCache && (Date.now() - statusCache.timestamp) < STATUS_CACHE_TTL_MS) {
     console.log(`[AI Status] Returning cached status (age: ${Math.round((Date.now() - statusCache.timestamp) / 1000)}s)`);
     return NextResponse.json({
@@ -419,15 +377,7 @@ export async function GET(request: NextRequest) {
     timestamp: new Date().toISOString(),
   };
 
-  statusCache = {
-    data: responseData,
-    timestamp: Date.now(),
-  };
+  setStatusCache(responseData);
 
   return NextResponse.json(responseData);
-}
-
-export function invalidateStatusCache(): void {
-  statusCache = null;
-  console.log("[AI Status] Cache invalidated");
 }
