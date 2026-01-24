@@ -280,6 +280,14 @@ curl http://localhost:5000/api/setup/step/secrets
 *   **Stable Diffusion/ComfyUI:** Local image generation
 
 ## Recent Changes
+- **January 24, 2026**: AI resilience and cost optimization enhancements:
+  - Added circuit breaker pattern with exponential backoff retry logic for AI services
+  - Implemented 80% local / 20% cloud ratio enforcement with deterministic provider selection
+  - Added streaming response support for Ollama chat completions with SSE
+  - Created unified content generation service for code, website design, and social posts
+  - Enhanced Windows AI agent with ServiceWatchdog auto-heal (cooldown, restart limits, manual reset)
+  - Updated stream-bot to use Ollama-first with OpenAI fallback pattern
+  - Fixed TypeScript compilation issues (token type transforms, iterator conversions)
 - **January 20, 2026**: Major AI features overhaul:
   - Fixed Creative Studio model validation - properly distinguishes base checkpoints from motion modules/LoRA/VAE
   - Added model switch warning banner in Creative Studio when invalid model is loaded
