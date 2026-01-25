@@ -9,8 +9,19 @@ export const dynamic = "force-dynamic";
 // Home server (Ubuntu) for media downloads - has NAS storage
 const HOME_SERVER_HOST = process.env.HOME_SSH_HOST || process.env.HOME_SERVER_HOST || "192.168.0.185";
 const HOME_SERVER_USER = process.env.HOME_SSH_USER || process.env.HOME_SERVER_USER || "evin";
-// NAS path on home server (where SMB share is mounted)
-const HOME_MEDIA_PATH = process.env.HOME_MEDIA_PATH || "/mnt/networkshare/media";
+// NAS base path on home server (where SMB share is mounted)
+const NAS_BASE_PATH = process.env.NAS_BASE_PATH || "/mnt/networkshare";
+const HOME_MEDIA_PATH = `${NAS_BASE_PATH}/media`;
+
+// Available NAS directories for downloads
+const NAS_DIRECTORIES: Record<string, string> = {
+  media: `${NAS_BASE_PATH}/media`,
+  music: `${NAS_BASE_PATH}/music`,
+  video: `${NAS_BASE_PATH}/video`,
+  movies: `${NAS_BASE_PATH}/video/Movies`,
+  shows: `${NAS_BASE_PATH}/video/Shows`,
+  in: `${NAS_BASE_PATH}/in`,
+};
 
 // Windows VM for AI services
 const WINDOWS_VM_HOST = process.env.WINDOWS_VM_HOST || "100.118.44.102";
@@ -100,7 +111,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { url, type } = body;
+    const { url, type, destination } = body;
 
     if (!url) {
       return NextResponse.json({ error: "Missing YouTube URL" }, { status: 400 });
@@ -110,15 +121,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid type. Must be 'audio' or 'video'" }, { status: 400 });
     }
 
+    // Determine destination directory
+    const destKey = destination || (type === "audio" ? "music" : "media");
+    const destPath = NAS_DIRECTORIES[destKey] || HOME_MEDIA_PATH;
+
     const timestamp = Date.now();
     const filename = type === "audio" ? `youtube_${timestamp}.flac` : `youtube_${timestamp}.mp4`;
     
     // Download to home server NAS for storage (accessible via SMB)
-    const remoteOutputPath = `${HOME_MEDIA_PATH}/${filename}`;
+    const remoteOutputPath = `${destPath}/${filename}`;
     
     // Build yt-dlp command for remote execution
     // First ensure directory exists, then download
-    let ytdlpCommand = `mkdir -p "${HOME_MEDIA_PATH}" && yt-dlp "${url}"`;
+    let ytdlpCommand = `mkdir -p "${destPath}" && yt-dlp "${url}"`;
     if (type === "audio") {
       // Use FLAC for lossless audio quality
       ytdlpCommand += ` -x --audio-format flac --audio-quality 0 -o "${remoteOutputPath}"`;
@@ -141,13 +156,18 @@ export async function POST(request: NextRequest) {
 
     console.log(`[YouTube] Download complete: ${filename}`);
 
+    // Build SMB path from destination path
+    const smbRelPath = destPath.replace(NAS_BASE_PATH, "");
+    const smbPath = `smb://192.168.0.185/networkshare${smbRelPath}/${filename}`;
+
     return NextResponse.json({
       success: true,
       message: `${type} downloaded successfully to NAS`,
       filename,
       path: remoteOutputPath,
       server: "home",
-      smbPath: `smb://192.168.0.185/networkshare/media/${filename}`,
+      smbPath,
+      destination: destKey,
       type,
     });
   } catch (error: any) {
@@ -166,18 +186,33 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const action = searchParams.get("action");
 
+    if (action === "directories") {
+      // Return available NAS directories
+      return NextResponse.json({
+        directories: Object.entries(NAS_DIRECTORIES).map(([key, path]) => ({
+          key,
+          path,
+          smbPath: `smb://192.168.0.185/networkshare${path.replace(NAS_BASE_PATH, "")}`,
+        })),
+        basePath: NAS_BASE_PATH,
+      });
+    }
+
     if (action === "list") {
       // List media files from home server NAS via SSH
-      const listCommand = `ls -la "${HOME_MEDIA_PATH}" 2>/dev/null | tail -n +2 | awk '{print $5, $6, $7, $8, $9}'`;
+      const dir = searchParams.get("dir") || "media";
+      const listPath = NAS_DIRECTORIES[dir] || HOME_MEDIA_PATH;
+      const listCommand = `ls -la "${listPath}" 2>/dev/null | tail -n +2 | awk '{print $5, $6, $7, $8, $9}'`;
       const result = await executeSSHCommand(listCommand, "home", 10000);
       
       if (!result.success) {
         // Directory might not exist yet
-        return NextResponse.json({ files: [], server: "home", path: HOME_MEDIA_PATH });
+        return NextResponse.json({ files: [], server: "home", path: listPath, directory: dir });
       }
 
       const filesList = [];
       const lines = (result.output || "").trim().split("\n").filter(Boolean);
+      const smbRelPath = listPath.replace(NAS_BASE_PATH, "");
       
       for (const line of lines) {
         const parts = line.trim().split(/\s+/);
@@ -187,8 +222,8 @@ export async function GET(request: NextRequest) {
           if (name && !name.startsWith(".")) {
             filesList.push({
               name,
-              path: `${HOME_MEDIA_PATH}/${name}`,
-              smbPath: `smb://192.168.0.185/networkshare/media/${name}`,
+              path: `${listPath}/${name}`,
+              smbPath: `smb://192.168.0.185/networkshare${smbRelPath}/${name}`,
               size,
               type: (name.endsWith(".flac") || name.endsWith(".mp3")) ? "audio" : name.endsWith(".mp4") ? "video" : "other",
             });
@@ -196,10 +231,10 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      return NextResponse.json({ files: filesList, server: "home", path: HOME_MEDIA_PATH });
+      return NextResponse.json({ files: filesList, server: "home", path: listPath, directory: dir });
     }
 
-    return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid action. Use 'list' or 'directories'" }, { status: 400 });
   } catch (error: any) {
     console.error("[YouTube API] Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
