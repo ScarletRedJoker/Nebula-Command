@@ -33,8 +33,14 @@ function isValidCheckpoint(modelName: string, availableModels: string[]): boolea
   const modelLower = modelName.toLowerCase();
   // Get valid checkpoints first
   const validCheckpoints = getValidCheckpoints(availableModels);
-  // Require exact case-insensitive match
-  return validCheckpoints.some(m => m.toLowerCase() === modelLower);
+  // Match flexibly - SD WebUI returns "model.ckpt" from options but "model.ckpt [hash]" in model list
+  // Also handle the reverse case where current model has hash but list doesn't
+  const baseModelName = modelLower.replace(/\s*\[[^\]]+\]$/, "").trim();
+  return validCheckpoints.some(m => {
+    const mLower = m.toLowerCase();
+    const mBase = mLower.replace(/\s*\[[^\]]+\]$/, "").trim();
+    return mLower === modelLower || mBase === baseModelName || mLower.startsWith(baseModelName);
+  });
 }
 
 function getValidCheckpoints(availableModels: string[]): string[] {
