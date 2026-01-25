@@ -85,7 +85,7 @@ class AIOptimizer {
       : modelRouter.AVAILABLE_MODELS['ollama:llama3.2:3b'];
     
     const cacheKey = this.config.enableCaching
-      ? getCacheKey(processedMessages, model.model)
+      ? getCacheKey('optimizer', { messages: processedMessages, model: model.model })
       : '';
     
     const estimatedCost = modelRouter.estimateCost(model, optimizedTokens, optimizedTokens);

@@ -3,7 +3,7 @@ const nextConfig = {
   reactStrictMode: true,
   output: 'standalone',
   experimental: {
-    serverComponentsExternalPackages: ['simple-git', 'ssh2', 'node-ssh', 'cpu-features', 'ssh2-sftp-client'],
+    serverComponentsExternalPackages: ['simple-git', 'ssh2', 'node-ssh', 'cpu-features', 'ssh2-sftp-client', 'ioredis'],
     instrumentationHook: true,
   },
   webpack: (config, { isServer }) => {
@@ -14,7 +14,17 @@ const nextConfig = {
         'node-ssh': 'commonjs node-ssh',
         'cpu-features': 'commonjs cpu-features',
         'ssh2-sftp-client': 'commonjs ssh2-sftp-client',
+        'ioredis': 'commonjs ioredis',
       });
+    } else {
+      config.resolve = config.resolve || {};
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        net: false,
+        tls: false,
+        dns: false,
+        fs: false,
+      };
     }
     return config;
   },

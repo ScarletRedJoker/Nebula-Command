@@ -1,41 +1,13 @@
 import { createHash } from 'crypto';
-import { Redis } from 'ioredis';
 
 const DEFAULT_TTL_MS = 60 * 60 * 1000;
 const MAX_CACHE_SIZE = 1000;
-const REDIS_KEY_PREFIX = 'ai:cache:';
 
 interface CacheEntry<T> {
   value: T;
   expiresAt: number;
   createdAt: number;
   hits: number;
-}
-
-let redisClient: Redis | null = null;
-
-function getRedisClient(): Redis | null {
-  if (redisClient) return redisClient;
-  
-  const redisUrl = process.env.REDIS_URL;
-  if (!redisUrl) return null;
-  
-  try {
-    redisClient = new Redis(redisUrl, {
-      maxRetriesPerRequest: 3,
-      lazyConnect: true,
-      connectTimeout: 5000,
-    });
-    
-    redisClient.on('error', (err) => {
-      console.error('[AICache] Redis error:', err.message);
-    });
-    
-    return redisClient;
-  } catch (error) {
-    console.warn('[AICache] Redis connection failed, using in-memory cache');
-    return null;
-  }
 }
 
 interface CacheStats {
@@ -52,12 +24,10 @@ export class AIResponseCache {
   private stats = { hits: 0, misses: 0 };
   private ttlMs: number;
   private maxSize: number;
-  private useRedis: boolean;
 
   constructor(ttlMs: number = DEFAULT_TTL_MS, maxSize: number = MAX_CACHE_SIZE) {
     this.ttlMs = ttlMs;
     this.maxSize = maxSize;
-    this.useRedis = !!process.env.REDIS_URL;
   }
 
   private generateHash(data: any): string {
@@ -93,22 +63,6 @@ export class AIResponseCache {
   }
 
   async getAsync<T>(key: string): Promise<T | null> {
-    const redis = getRedisClient();
-    
-    if (redis && this.useRedis) {
-      try {
-        const cached = await redis.get(REDIS_KEY_PREFIX + key);
-        if (cached) {
-          this.stats.hits++;
-          return JSON.parse(cached) as T;
-        }
-        this.stats.misses++;
-        return null;
-      } catch (error) {
-        console.warn('[AICache] Redis get failed, falling back to memory');
-      }
-    }
-    
     return this.get<T>(key);
   }
 
@@ -127,23 +81,6 @@ export class AIResponseCache {
   }
 
   async setAsync<T>(key: string, value: T, ttlMs?: number): Promise<void> {
-    const redis = getRedisClient();
-    const ttl = ttlMs ?? this.ttlMs;
-    
-    if (redis && this.useRedis) {
-      try {
-        await redis.set(
-          REDIS_KEY_PREFIX + key,
-          JSON.stringify(value),
-          'PX',
-          ttl
-        );
-        return;
-      } catch (error) {
-        console.warn('[AICache] Redis set failed, falling back to memory');
-      }
-    }
-    
     this.set(key, value, ttlMs);
   }
 

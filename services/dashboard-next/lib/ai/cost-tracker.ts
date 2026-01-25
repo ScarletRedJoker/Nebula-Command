@@ -300,7 +300,8 @@ class DailyCostTracker {
     const cutoffKey = getDateKey(cutoffDate);
     
     let removed = 0;
-    for (const dateKey of this.dailyStats.keys()) {
+    const keys = Array.from(this.dailyStats.keys());
+    for (const dateKey of keys) {
       if (dateKey < cutoffKey) {
         this.dailyStats.delete(dateKey);
         removed++;
