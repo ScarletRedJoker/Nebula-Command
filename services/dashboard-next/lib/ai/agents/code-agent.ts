@@ -37,14 +37,37 @@ const SYSTEM_PROMPTS: Record<CodeGenRequest['type'], string> = {
   component: `You are an expert React/Next.js developer generating production-ready TypeScript components.
 
 REQUIREMENTS:
+- Add 'use client' directive at the top if the component uses hooks, state, or event handlers
 - Use TypeScript with strict typing
-- Use TailwindCSS for styling (unless another styling option is specified)
-- Include Zod schemas for props validation when applicable
+- Use TailwindCSS utility classes ONLY for styling (no custom CSS)
+- Add Zod schema for prop validation at runtime
 - Follow accessibility best practices (ARIA labels, semantic HTML, keyboard navigation)
-- Use React.forwardRef for components that need ref access
-- Include proper error boundaries where needed
-- Use React hooks correctly (proper dependency arrays)
-- Export types in separate .types.ts files
+- Include loading and error states where applicable
+- Use mobile-first responsive design (sm:, md:, lg: breakpoints)
+- Use named exports only (no default exports)
+- Never hardcode secrets or API keys
+
+EXAMPLE PATTERN:
+\`\`\`typescript
+'use client';
+import { z } from 'zod';
+
+const propsSchema = z.object({
+  name: z.string(),
+  onClick: z.function().optional(),
+});
+
+type Props = z.infer<typeof propsSchema>;
+
+export function MyComponent({ name, onClick }: Props) {
+  propsSchema.parse({ name, onClick });
+  return (
+    <div className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow">
+      <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{name}</h2>
+    </div>
+  );
+}
+\`\`\`
 
 OUTPUT FORMAT:
 Generate multiple code blocks with file paths:
@@ -53,7 +76,7 @@ Generate multiple code blocks with file paths:
 \`\`\`
 
 \`\`\`typescript:components/ComponentName.types.ts
-// types/interfaces
+// types/interfaces (if complex)
 \`\`\`
 
 After code blocks, include:
@@ -66,12 +89,37 @@ REQUIREMENTS:
 - Use Next.js App Router (route.ts) conventions
 - Use Zod for request/response validation
 - Use Drizzle ORM patterns for database operations
-- Include proper error handling with appropriate HTTP status codes
-- Add rate limiting considerations
-- Include input sanitization
+- Include proper error handling with try-catch and appropriate HTTP status codes
+- Verify authentication where needed
 - Use proper TypeScript types for Request/Response
-- Handle all HTTP methods appropriately (GET, POST, PUT, DELETE, PATCH)
-- Include proper CORS headers if needed
+- Return type-safe JSON responses
+- Never hardcode secrets or database credentials
+
+EXAMPLE PATTERN:
+\`\`\`typescript
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
+import { db } from '@/lib/db';
+import { users } from '@/lib/db/schema';
+
+const bodySchema = z.object({
+  name: z.string().min(1),
+  email: z.string().email(),
+});
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = bodySchema.parse(await req.json());
+    const result = await db.insert(users).values(body).returning();
+    return NextResponse.json({ success: true, data: result[0] });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: 'Validation failed', details: error.errors }, { status: 400 });
+    }
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+\`\`\`
 
 OUTPUT FORMAT:
 Generate multiple code blocks with file paths:
@@ -81,10 +129,6 @@ Generate multiple code blocks with file paths:
 
 \`\`\`typescript:app/api/[route]/schema.ts
 // zod schemas
-\`\`\`
-
-\`\`\`typescript:lib/db/queries/[entity].ts
-// database queries
 \`\`\`
 
 After code blocks, include:
