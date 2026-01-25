@@ -251,6 +251,65 @@ export class StableDiffusionProvider {
       return false;
     }
   }
+
+  async checkHealth(): Promise<boolean> {
+    const status = await this.healthCheck();
+    return status.available;
+  }
+
+  async txt2img(options: {
+    prompt: string;
+    negativePrompt?: string;
+    steps?: number;
+    cfgScale?: number;
+    width?: number;
+    height?: number;
+    samplerName?: string;
+    seed?: number;
+    batchSize?: number;
+  }): Promise<{ images: string[]; info: Record<string, unknown> }> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+    try {
+      const payload = {
+        prompt: options.prompt,
+        negative_prompt: options.negativePrompt || '',
+        width: options.width || 512,
+        height: options.height || 512,
+        steps: options.steps || 30,
+        cfg_scale: options.cfgScale || 7,
+        sampler_name: options.samplerName || 'DPM++ 2M Karras',
+        seed: options.seed ?? -1,
+        batch_size: options.batchSize || 1,
+      };
+
+      const response = await fetch(`${this.baseURL}/sdapi/v1/txt2img`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+
+      if (!response.ok) {
+        throw new Error(`SD txt2img error: HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      const info = data.info ? JSON.parse(data.info) : {};
+
+      return {
+        images: data.images || [],
+        info,
+      };
+    } catch (error: unknown) {
+      clearTimeout(timeout);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`SD txt2img failed: ${message}`);
+    }
+  }
 }
 
 export const stableDiffusionProvider = new StableDiffusionProvider();
+export const sdClient = stableDiffusionProvider;

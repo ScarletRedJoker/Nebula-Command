@@ -97,16 +97,28 @@ function streamResponse(request: CodeGenRequest): Response {
 }
 
 function formatSSEChunk(chunk: StreamingCodeGenChunk): string {
-  return formatSSEMessage({
+  const message: Record<string, unknown> = {
     content: chunk.content,
     done: chunk.type === 'complete',
-    ...(chunk.type === 'file' && { file: chunk.file }),
-    ...(chunk.type === 'complete' && { 
-      response: chunk.response,
-      provider: chunk.metadata?.provider,
-    }),
-    ...(chunk.type === 'error' && { error: chunk.error }),
-  });
+  };
+
+  if (chunk.type === 'file' && chunk.file) {
+    message.file = chunk.file;
+  }
+
+  if (chunk.type === 'complete' && chunk.response) {
+    message.response = chunk.response;
+  }
+
+  if (chunk.type === 'complete' && chunk.metadata?.provider) {
+    message.provider = chunk.metadata.provider;
+  }
+
+  if (chunk.type === 'error' && chunk.error) {
+    message.error = chunk.error;
+  }
+
+  return formatSSEMessage(message as Parameters<typeof formatSSEMessage>[0]);
 }
 
 export async function GET() {

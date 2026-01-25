@@ -280,7 +280,15 @@ curl http://localhost:5000/api/setup/step/secrets
 *   **Stable Diffusion/ComfyUI:** Local image generation
 
 ## Recent Changes
-- **January 25, 2026 (latest)**: Enhanced AI reliability and Windows service management:
+- **January 25, 2026 (latest)**: Complete SD/ComfyUI integration and build fixes:
+  - Fixed TypeScript build error in code-gen route (proper type handling for SSE chunks)
+  - Added ComfyUI provider client with full workflow support (txt2img, queue, history, image upload)
+  - Added txt2img and progress API routes for Stable Diffusion (`/api/ai/image/txt2img`, `/api/ai/image/progress`)
+  - Created ImageGenerator UI component with real-time progress tracking and download support
+  - Added Image Generator page at `/ai/image-gen`
+  - Created AI provider index for unified imports
+  - All 24 AI integration tests passing
+- **January 25, 2026**: Enhanced AI reliability and Windows service management:
   - Fixed chatStream method with robust mid-stream error handling and provider fallback
   - Added transient error detection with exponential backoff retry (3 retries, 1s-4s delays)
   - Implemented streaming fallback metrics: emitStreamError, emitProviderSwitched, trackFallbackUsage
