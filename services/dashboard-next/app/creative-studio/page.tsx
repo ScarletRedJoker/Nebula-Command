@@ -28,6 +28,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import {
@@ -204,6 +210,7 @@ export default function CreativeStudioPage() {
   
   const [jobs, setJobs] = useState<Job[]>([]);
   const [showHistory, setShowHistory] = useState(true);
+  const [showMobileHistory, setShowMobileHistory] = useState(false);
   const [loadingJobs, setLoadingJobs] = useState(false);
   
   const [availableModels, setAvailableModels] = useState<SDModel[]>([]);
@@ -732,17 +739,29 @@ export default function CreativeStudioPage() {
             
             <Button
               variant="outline"
-              size="sm"
+              size="icon"
+              className="min-h-[44px] min-w-[44px]"
               onClick={() => { fetchCapabilities(); fetchJobs(); fetchModels(); }}
             >
               <RefreshCw className="h-4 w-4" />
             </Button>
+            {/* Desktop: toggle sidebar */}
             <Button
               variant="ghost"
-              size="sm"
+              size="icon"
+              className="hidden lg:flex min-h-[44px] min-w-[44px]"
               onClick={() => setShowHistory(!showHistory)}
             >
               {showHistory ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
+            </Button>
+            {/* Mobile: open sheet */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="lg:hidden min-h-[44px] min-w-[44px]"
+              onClick={() => setShowMobileHistory(true)}
+            >
+              <Clock className="h-4 w-4" />
             </Button>
           </div>
         </div>
@@ -794,7 +813,7 @@ export default function CreativeStudioPage() {
         )}
 
         <Tabs value={mode} onValueChange={(v) => setMode(v as GenerationMode)}>
-          <TabsList className="grid grid-cols-5 lg:grid-cols-9 h-auto">
+          <TabsList className="flex overflow-x-auto gap-1 h-auto pb-1 scrollbar-hide">
             {([
               { id: "text-to-image", label: "Text to Image" },
               { id: "image-to-image", label: "Image to Image" },
@@ -810,10 +829,10 @@ export default function CreativeStudioPage() {
                 key={id}
                 value={id}
                 disabled={id !== "sd-webui" && id !== "comfyui" && !isModeAvailable(id)}
-                className="flex items-center gap-1 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                className="flex items-center gap-1.5 text-xs px-3 py-2 min-w-fit whitespace-nowrap data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
               >
                 {getModeIcon(id)}
-                <span className="hidden sm:inline">{label}</span>
+                <span>{label}</span>
               </TabsTrigger>
             ))}
           </TabsList>
@@ -885,7 +904,7 @@ export default function CreativeStudioPage() {
                       </Badge>
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-4">
+                  <CardContent className="p-4 md:p-6 space-y-4">
                     <div className="space-y-2">
                       <Label>Mode</Label>
                       <Select value={videoMode} onValueChange={(v) => setVideoMode(v as VideoMode)}>
@@ -912,7 +931,7 @@ export default function CreativeStudioPage() {
 
                     <Collapsible open={showNegativePrompt} onOpenChange={setShowNegativePrompt}>
                       <CollapsibleTrigger asChild>
-                        <Button variant="ghost" size="sm" className="w-full justify-between">
+                        <Button variant="ghost" className="w-full justify-between h-11 min-h-[44px]">
                           <span>Negative Prompt</span>
                           {showNegativePrompt ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                         </Button>
@@ -1264,7 +1283,7 @@ export default function CreativeStudioPage() {
                     </Select>
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="p-4 md:p-6 space-y-4">
                   <div className="space-y-2">
                     <Label>Prompt</Label>
                     <Textarea
@@ -1278,7 +1297,7 @@ export default function CreativeStudioPage() {
 
                   <Collapsible open={showNegativePrompt} onOpenChange={setShowNegativePrompt}>
                     <CollapsibleTrigger asChild>
-                      <Button variant="ghost" size="sm" className="w-full justify-between">
+                      <Button variant="ghost" className="w-full justify-between h-11 min-h-[44px]">
                         <span>Negative Prompt</span>
                         {showNegativePrompt ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                       </Button>
@@ -1462,7 +1481,7 @@ export default function CreativeStudioPage() {
                     Parameters
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="p-4 md:p-6 space-y-4">
                   {mode !== "upscale" && mode !== "face-swap" && (
                     <>
                       <div className="space-y-2">
@@ -1666,7 +1685,7 @@ export default function CreativeStudioPage() {
                   )}
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-4 md:p-6">
                 {generatedImages.length === 0 ? (
                   <div className="aspect-square flex items-center justify-center border-2 border-dashed rounded-lg">
                     <div className="text-center text-muted-foreground">
@@ -1675,7 +1694,7 @@ export default function CreativeStudioPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {generatedImages.map((image) => (
                       <div
                         key={image.id}
@@ -1694,37 +1713,37 @@ export default function CreativeStudioPage() {
                           <Button
                             variant="secondary"
                             size="icon"
-                            className="h-8 w-8"
+                            className="h-11 w-11"
                             onClick={() => {
                               setSelectedImage(image);
                               setShowImageDialog(true);
                             }}
                           >
-                            <ZoomIn className="h-4 w-4" />
+                            <ZoomIn className="h-5 w-5" />
                           </Button>
                           <Button
                             variant="secondary"
                             size="icon"
-                            className="h-8 w-8"
+                            className="h-11 w-11"
                             onClick={() => handleDownload(image)}
                           >
-                            <Download className="h-4 w-4" />
+                            <Download className="h-5 w-5" />
                           </Button>
                           <Button
                             variant="secondary"
                             size="icon"
-                            className="h-8 w-8"
+                            className="h-11 w-11"
                             onClick={() => handleUseAsInput(image)}
                           >
-                            <Copy className="h-4 w-4" />
+                            <Copy className="h-5 w-5" />
                           </Button>
                           <Button
                             variant="destructive"
                             size="icon"
-                            className="h-8 w-8"
+                            className="h-11 w-11"
                             onClick={() => handleDeleteImage(image.id)}
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className="h-5 w-5" />
                           </Button>
                         </div>
                       </div>
@@ -1739,7 +1758,7 @@ export default function CreativeStudioPage() {
       </div>
 
       {showHistory && (
-        <div className="w-80 border-l bg-card/50 overflow-hidden flex flex-col">
+        <div className="hidden lg:flex w-80 border-l bg-card/50 overflow-hidden flex-col">
           <div className="p-4 border-b flex items-center justify-between">
             <h3 className="font-semibold flex items-center gap-2">
               <Clock className="h-4 w-4" />
@@ -1801,6 +1820,68 @@ export default function CreativeStudioPage() {
           </ScrollArea>
         </div>
       )}
+
+      {/* Mobile History Sheet */}
+      <Sheet open={showMobileHistory} onOpenChange={setShowMobileHistory}>
+        <SheetContent side="right" className="w-full sm:w-96 p-0">
+          <SheetHeader className="p-4 border-b">
+            <SheetTitle className="flex items-center gap-2">
+              <Clock className="h-4 w-4" />
+              Job History
+            </SheetTitle>
+          </SheetHeader>
+          <ScrollArea className="h-[calc(100vh-80px)]">
+            <div className="p-4 space-y-3">
+              {jobs.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">No generation history</p>
+              ) : (
+                jobs.map((job) => (
+                  <div
+                    key={job.id}
+                    className="p-3 rounded-lg border bg-secondary/30 cursor-pointer hover:bg-secondary/50 transition"
+                    onClick={() => { handleLoadJob(job); setShowMobileHistory(false); }}
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <Badge variant={job.status === "completed" ? "default" : job.status === "failed" ? "destructive" : "secondary"} className="text-xs">
+                        {job.type}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(job.createdAt).toLocaleTimeString()}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground line-clamp-2">
+                      {job.prompt || "No prompt"}
+                    </p>
+                    {job.status === "failed" && job.error && (
+                      <p className="text-xs text-red-500 mt-1 line-clamp-1">{job.error}</p>
+                    )}
+                    {job.outputImages && job.outputImages.length > 0 && (
+                      <div className="mt-2 flex gap-1">
+                        {job.outputImages.slice(0, 3).map((img, idx) => (
+                          <div key={idx} className="w-12 h-12 rounded bg-secondary overflow-hidden">
+                            {img.data && (
+                              <img
+                                src={`data:image/png;base64,${img.data}`}
+                                alt=""
+                                className="w-full h-full object-cover"
+                              />
+                            )}
+                          </div>
+                        ))}
+                        {job.outputImages.length > 3 && (
+                          <div className="w-12 h-12 rounded bg-secondary flex items-center justify-center text-xs text-muted-foreground">
+                            +{job.outputImages.length - 3}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </ScrollArea>
+        </SheetContent>
+      </Sheet>
 
       <Dialog open={showImageDialog} onOpenChange={setShowImageDialog}>
         <DialogContent className="max-w-4xl">
