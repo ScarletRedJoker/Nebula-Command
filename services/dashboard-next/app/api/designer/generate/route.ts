@@ -60,11 +60,14 @@ function streamResponse(prompt: string, type: ComponentType): Response {
         const generator = aiGenerator.generateStream(prompt, type);
 
         for await (const chunk of generator) {
-          const data = formatSSEMessage({
+          const message: Record<string, unknown> = {
             content: chunk.content,
             done: chunk.done,
-            component: chunk.component,
-          });
+          };
+          if (chunk.component) {
+            message.component = chunk.component;
+          }
+          const data = formatSSEMessage(message as Parameters<typeof formatSSEMessage>[0]);
           controller.enqueue(encoder.encode(data));
         }
 

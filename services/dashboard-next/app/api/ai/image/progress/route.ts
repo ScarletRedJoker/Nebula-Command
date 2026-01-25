@@ -5,6 +5,16 @@ export async function GET() {
   try {
     const progress = await stableDiffusionProvider.getProgress();
 
+    if (!progress) {
+      return NextResponse.json({
+        success: true,
+        progress: 0,
+        eta_relative: 0,
+        state: { sampling_step: 0, sampling_steps: 0 },
+        current_image: null,
+      });
+    }
+
     return NextResponse.json({
       success: true,
       progress: progress.progress,

@@ -6,7 +6,8 @@ import {
   type CodeGenResponse, 
   type StreamingCodeGenChunk 
 } from '@/lib/ai/agents/code-agent';
-import { createSSEHeaders, formatSSEMessage, formatSSEDone, formatSSEError } from '@/lib/ai/streaming';
+import { createSSEHeaders, formatSSEMessage, formatSSEDone, formatSSEError, type SSEChunk } from '@/lib/ai/streaming';
+import type { AIProviderName } from '@/lib/ai/types';
 
 const CodeGenRequestSchema = z.object({
   prompt: z.string().min(1, 'Prompt is required').max(10000, 'Prompt too long'),
@@ -97,28 +98,28 @@ function streamResponse(request: CodeGenRequest): Response {
 }
 
 function formatSSEChunk(chunk: StreamingCodeGenChunk): string {
-  const message: Record<string, unknown> = {
+  const message: Partial<SSEChunk> = {
     content: chunk.content,
     done: chunk.type === 'complete',
   };
 
   if (chunk.type === 'file' && chunk.file) {
-    message.file = chunk.file;
-  }
-
-  if (chunk.type === 'complete' && chunk.response) {
-    message.response = chunk.response;
-  }
-
-  if (chunk.type === 'complete' && chunk.metadata?.provider) {
-    message.provider = chunk.metadata.provider;
+    (message as Record<string, unknown>).file = chunk.file;
   }
 
   if (chunk.type === 'error' && chunk.error) {
     message.error = chunk.error;
   }
 
-  return formatSSEMessage(message as Parameters<typeof formatSSEMessage>[0]);
+  if (chunk.response) {
+    (message as Record<string, unknown>).response = chunk.response;
+  }
+
+  if (chunk.metadata?.provider) {
+    message.provider = chunk.metadata.provider as AIProviderName;
+  }
+
+  return formatSSEMessage(message as SSEChunk);
 }
 
 export async function GET() {

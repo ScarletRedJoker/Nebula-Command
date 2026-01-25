@@ -229,8 +229,9 @@ export class StableDiffusionProvider {
 
   async getProgress(): Promise<{
     progress: number;
-    eta: number;
+    eta_relative: number;
     state: { sampling_step: number; sampling_steps: number };
+    current_image: string | null;
   } | null> {
     try {
       const response = await fetch(`${this.baseURL}/sdapi/v1/progress`);

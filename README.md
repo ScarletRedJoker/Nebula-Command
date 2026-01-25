@@ -213,7 +213,9 @@ curl -fsSL https://raw.githubusercontent.com/ScarletRedJoker/HomeLabHub/main/dep
 # WINDOWS AI VM
 # ═══════════════════════════════════════════════════════════════
 # Run in PowerShell as Administrator:
-powershell -ExecutionPolicy Bypass -Command "& { irm https://raw.githubusercontent.com/ScarletRedJoker/HomeLabHub/main/deploy/windows/scripts/Start-NebulaAiStack.ps1 -OutFile Start-NebulaAiStack.ps1; .\Start-NebulaAiStack.ps1 install }"
+powershell -ExecutionPolicy Bypass -File .\Start-NebulaAiStack.ps1 -Action install
+# Or download and run:
+powershell -ExecutionPolicy Bypass -Command "& { irm https://raw.githubusercontent.com/ScarletRedJoker/HomeLabHub/main/deploy/windows/scripts/Start-NebulaAiStack.ps1 -OutFile Start-NebulaAiStack.ps1; .\Start-NebulaAiStack.ps1 -Action install }"
 ```
 
 ---
@@ -823,7 +825,7 @@ The Windows VM hosts GPU-accelerated AI services accessible via Tailscale:
 ```powershell
 # Run in PowerShell as Administrator
 cd C:\NebulaCommand\deploy\windows\scripts
-.\Start-NebulaAiStack.ps1 install
+.\Start-NebulaAiStack.ps1 -Action install
 
 # This script:
 # 1. Validates Python version (3.10-3.12 required, rejects 3.14+)
