@@ -35,8 +35,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Install wget for healthcheck
-RUN apk add --no-cache wget
+# Install wget for healthcheck, ffmpeg and python for yt-dlp
+RUN apk add --no-cache wget ffmpeg python3 py3-pip && \
+    pip3 install --no-cache-dir --break-system-packages yt-dlp
 
 # Create non-root user for security
 RUN addgroup --system --gid 1001 nodejs
