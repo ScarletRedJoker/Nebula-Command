@@ -303,6 +303,33 @@ export function getSSHPrivateKey(): Buffer | null {
     
     if (process.env.SSH_PRIVATE_KEY) {
       keyBuffer = Buffer.from(process.env.SSH_PRIVATE_KEY);
+    } else if (process.env.SSH_PRIVATE_KEY_FILE) {
+      // Read from file path specified in env
+      const keyPath = process.env.SSH_PRIVATE_KEY_FILE;
+      if (existsSync(keyPath)) {
+        try {
+          keyBuffer = readFileSync(keyPath);
+          console.log(`[SSH] Loaded key from SSH_PRIVATE_KEY_FILE: ${keyPath}`);
+        } catch (err: any) {
+          console.error(`[SSH] Failed to read SSH key from ${keyPath}: ${err.message}`);
+          return null;
+        }
+      } else {
+        console.error(`[SSH] SSH_PRIVATE_KEY_FILE path does not exist: ${keyPath}`);
+        return null;
+      }
+    } else if (process.env.SSH_KEY_PATH) {
+      // Read from SSH_KEY_PATH
+      const keyPath = process.env.SSH_KEY_PATH;
+      if (existsSync(keyPath)) {
+        try {
+          keyBuffer = readFileSync(keyPath);
+          console.log(`[SSH] Loaded key from SSH_KEY_PATH: ${keyPath}`);
+        } catch (err: any) {
+          console.error(`[SSH] Failed to read SSH key from ${keyPath}: ${err.message}`);
+          return null;
+        }
+      }
     } else {
       const keyPath = DEFAULT_SSH_KEY_PATH;
       if (existsSync(keyPath)) {
@@ -348,7 +375,10 @@ export function getSSHPrivateKey(): Buffer | null {
 }
 
 export function hasSSHKey(): boolean {
-  return !!process.env.SSH_PRIVATE_KEY || existsSync(DEFAULT_SSH_KEY_PATH);
+  if (process.env.SSH_PRIVATE_KEY) return true;
+  if (process.env.SSH_PRIVATE_KEY_FILE && existsSync(process.env.SSH_PRIVATE_KEY_FILE)) return true;
+  if (process.env.SSH_KEY_PATH && existsSync(process.env.SSH_KEY_PATH)) return true;
+  return existsSync(DEFAULT_SSH_KEY_PATH);
 }
 
 export function getDefaultServers(): ServerConfig[] {

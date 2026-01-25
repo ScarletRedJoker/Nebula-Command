@@ -25,8 +25,46 @@ function getSSHPrivateKey(): { key: Buffer | null; format: string; error?: strin
   if (process.env.SSH_PRIVATE_KEY) {
     rawKey = Buffer.from(process.env.SSH_PRIVATE_KEY);
     source = "SSH_PRIVATE_KEY env var";
+  } else if (process.env.SSH_PRIVATE_KEY_FILE) {
+    // Read from file path specified in env
+    const keyPath = process.env.SSH_PRIVATE_KEY_FILE;
+    if (existsSync(keyPath)) {
+      try {
+        rawKey = readFileSync(keyPath);
+        source = `SSH_PRIVATE_KEY_FILE (${keyPath})`;
+      } catch (err: any) {
+        console.error(`[SSH] Failed to read SSH key from ${keyPath}: ${err.message}`);
+        return {
+          key: null,
+          format: "error",
+          error: `Failed to read SSH key from ${keyPath}: ${err.message}`,
+        };
+      }
+    } else {
+      return {
+        key: null,
+        format: "error",
+        error: `SSH_PRIVATE_KEY_FILE path does not exist: ${keyPath}`,
+      };
+    }
+  } else if (process.env.SSH_KEY_PATH) {
+    // Read from SSH_KEY_PATH
+    const keyPath = process.env.SSH_KEY_PATH;
+    if (existsSync(keyPath)) {
+      try {
+        rawKey = readFileSync(keyPath);
+        source = `SSH_KEY_PATH (${keyPath})`;
+      } catch (err: any) {
+        console.error(`[SSH] Failed to read SSH key from ${keyPath}: ${err.message}`);
+        return {
+          key: null,
+          format: "error",
+          error: `Failed to read SSH key from ${keyPath}: ${err.message}`,
+        };
+      }
+    }
   } else {
-    // Try to read from file
+    // Try to read from default file
     const keyPath = DEFAULT_SSH_KEY_PATH;
     if (existsSync(keyPath)) {
       try {
