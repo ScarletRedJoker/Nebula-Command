@@ -1,16 +1,38 @@
-# Nebula Command - Unified AI Stack Startup
-# This script validates dependencies, repairs issues, and starts all AI services
-# Run as Administrator: .\Start-NebulaAiStack.ps1
+#Requires -Version 5.1
+<#
+.SYNOPSIS
+    Nebula Command - Unified AI Stack Startup
 
+.DESCRIPTION
+    This script validates dependencies, repairs issues, and starts all AI services.
+    Run as Administrator.
+
+.PARAMETER Action
+    The action to perform: start, stop, restart, status, repair, install, or validate
+
+.EXAMPLE
+    .\Start-NebulaAiStack.ps1 -Action start
+    .\Start-NebulaAiStack.ps1 -Action install
+    .\Start-NebulaAiStack.ps1 -Action status
+#>
+
+[CmdletBinding()]
 param(
-    [Parameter(Position=0)]
-    [ValidateSet("start", "stop", "restart", "status", "repair", "install", "validate")]
-    [string]$Action = "start",
+    [Parameter(Mandatory = $false, Position = 0)]
+    [ValidateSet('start', 'stop', 'restart', 'status', 'repair', 'install', 'validate')]
+    [string]$Action = 'start',
     
     [switch]$SkipValidation,
     [switch]$Force,
     [switch]$SkipPyTorchValidation
 )
+
+# Prevent shell verb interpretation
+if ($MyInvocation.InvocationName -match 'install|start|stop') {
+    Write-Host "USAGE: .\Start-NebulaAiStack.ps1 -Action <action>" -ForegroundColor Yellow
+    Write-Host "Actions: start, stop, restart, status, repair, install, validate" -ForegroundColor Cyan
+    exit 0
+}
 
 $ErrorActionPreference = "Continue"
 
