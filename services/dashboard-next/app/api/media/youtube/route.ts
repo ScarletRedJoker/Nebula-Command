@@ -9,11 +9,11 @@ export const dynamic = "force-dynamic";
 // Home server (Ubuntu) for media downloads - has NAS storage
 const HOME_SERVER_HOST = process.env.HOME_SSH_HOST || process.env.HOME_SERVER_HOST || "192.168.0.185";
 const HOME_SERVER_USER = process.env.HOME_SSH_USER || process.env.HOME_SERVER_USER || "evin";
-// NAS base path on home server (where SMB share is mounted)
-const NAS_BASE_PATH = process.env.NAS_BASE_PATH || "/mnt/networkshare";
+// NAS base path on home server (SMB share mounted at /srv/media)
+const NAS_BASE_PATH = process.env.NAS_BASE_PATH || "/srv/media";
 const HOME_MEDIA_PATH = `${NAS_BASE_PATH}/media`;
 
-// Available NAS directories for downloads
+// Available NAS directories for downloads (matches Plex library structure)
 const NAS_DIRECTORIES: Record<string, string> = {
   media: `${NAS_BASE_PATH}/media`,
   music: `${NAS_BASE_PATH}/music`,
