@@ -24,6 +24,12 @@ Thumbs.db
 # Testing
 coverage
 .nyc_output
+tests
+vitest.config.ts
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
 
 # Misc
 *.md
