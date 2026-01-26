@@ -15,10 +15,9 @@ export async function autoMigrateDatabase(): Promise<MigrationResult> {
   
   try {
     await ensureUsersTableSchema();
-    const adminCreated = await ensureAdminUser();
     
     console.log("[AutoMigrate] Database migration completed successfully");
-    return { success: true, message: "Database ready", adminCreated };
+    return { success: true, message: "Database ready", adminCreated: false };
   } catch (error: any) {
     console.error("[AutoMigrate] Migration failed:", error.message);
     return { success: false, message: error.message, adminCreated: false };
