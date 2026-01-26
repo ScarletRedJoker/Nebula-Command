@@ -1274,3 +1274,209 @@ export type ModelCollectionItem = typeof modelCollectionItems.$inferSelect;
 export type NewModelCollectionItem = typeof modelCollectionItems.$inferInsert;
 export type ModelFavorite = typeof modelFavorites.$inferSelect;
 export type NewModelFavorite = typeof modelFavorites.$inferInsert;
+
+// ============================================================================
+// USER MANAGEMENT & ROLE-BASED ACCESS CONTROL (RBAC)
+// ============================================================================
+
+export const userRoleEnum = ["admin", "developer", "viewer", "client"] as const;
+export type UserRole = typeof userRoleEnum[number];
+
+export const users = pgTable("users", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  username: varchar("username", { length: 100 }).notNull().unique(),
+  email: varchar("email", { length: 255 }).unique(),
+  passwordHash: varchar("password_hash", { length: 255 }).notNull(),
+  role: varchar("role", { length: 20 }).notNull().default("viewer"),
+  isActive: boolean("is_active").default(true),
+  lastLogin: timestamp("last_login"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  createdBy: uuid("created_by"),
+  metadata: jsonb("metadata"),
+});
+
+export const dashboardModuleEnum = [
+  "overview", "deployments", "ssh_connections", "ai_training",
+  "content_generation", "database_management", "user_management",
+  "system_settings", "analytics", "api_keys", "creative_studio",
+  "jarvis", "bot_editor", "stream_config", "media_library",
+  "servers", "services", "marketplace", "domains", "terminal",
+  "windows_vm", "command_center", "secrets_manager", "pipelines"
+] as const;
+export type DashboardModule = typeof dashboardModuleEnum[number];
+
+export const modulePermissions = pgTable("module_permissions", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid("user_id").references(() => users.id).notNull(),
+  module: varchar("module", { length: 50 }).notNull(),
+  canRead: boolean("can_read").default(false),
+  canWrite: boolean("can_write").default(false),
+  canDelete: boolean("can_delete").default(false),
+  canAdmin: boolean("can_admin").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const auditLogs = pgTable("audit_logs", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid("user_id").references(() => users.id),
+  username: varchar("username", { length: 100 }),
+  action: varchar("action", { length: 100 }).notNull(),
+  resource: varchar("resource", { length: 100 }).notNull(),
+  resourceId: varchar("resource_id", { length: 255 }),
+  details: jsonb("details"),
+  ipAddress: varchar("ip_address", { length: 45 }),
+  userAgent: text("user_agent"),
+  status: varchar("status", { length: 20 }).default("success"),
+  timestamp: timestamp("timestamp").defaultNow(),
+});
+
+export const apiKeys = pgTable("api_keys", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid("user_id").references(() => users.id).notNull(),
+  name: varchar("name", { length: 100 }).notNull(),
+  keyHash: varchar("key_hash", { length: 255 }).notNull(),
+  keyPrefix: varchar("key_prefix", { length: 10 }).notNull(),
+  scopes: text("scopes").array(),
+  expiresAt: timestamp("expires_at"),
+  lastUsed: timestamp("last_used"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const userSessions = pgTable("user_sessions", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid("user_id").references(() => users.id).notNull(),
+  tokenHash: varchar("token_hash", { length: 255 }).notNull(),
+  ipAddress: varchar("ip_address", { length: 45 }),
+  userAgent: text("user_agent"),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// ============================================================================
+// AI MODEL TRAINING PIPELINE
+// ============================================================================
+
+export const trainingDatasets = pgTable("training_datasets", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  type: varchar("type", { length: 50 }).notNull(),
+  format: varchar("format", { length: 50 }),
+  size: integer("size"),
+  recordCount: integer("record_count"),
+  storagePath: text("storage_path"),
+  metadata: jsonb("metadata"),
+  status: varchar("status", { length: 50 }).default("pending"),
+  createdBy: uuid("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const trainingJobs = pgTable("training_jobs", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name", { length: 255 }).notNull(),
+  modelType: varchar("model_type", { length: 100 }).notNull(),
+  baseModel: varchar("base_model", { length: 255 }),
+  datasetId: uuid("dataset_id").references(() => trainingDatasets.id),
+  status: varchar("status", { length: 50 }).default("pending"),
+  progress: decimal("progress", { precision: 5, scale: 2 }).default("0"),
+  config: jsonb("config"),
+  hyperparameters: jsonb("hyperparameters"),
+  metrics: jsonb("metrics"),
+  outputPath: text("output_path"),
+  errorMessage: text("error_message"),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  createdBy: uuid("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const trainedModels = pgTable("trained_models", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name", { length: 255 }).notNull(),
+  version: varchar("version", { length: 50 }).notNull(),
+  type: varchar("type", { length: 100 }).notNull(),
+  baseModel: varchar("base_model", { length: 255 }),
+  trainingJobId: uuid("training_job_id").references(() => trainingJobs.id),
+  storagePath: text("storage_path"),
+  size: integer("size"),
+  metrics: jsonb("metrics"),
+  config: jsonb("config"),
+  isDeployed: boolean("is_deployed").default(false),
+  deploymentEndpoint: text("deployment_endpoint"),
+  createdBy: uuid("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// ============================================================================
+// SSL CERTIFICATE MANAGEMENT
+// ============================================================================
+
+export const sslCertificates = pgTable("ssl_certificates", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  domain: varchar("domain", { length: 255 }).notNull(),
+  provider: varchar("provider", { length: 50 }).default("letsencrypt"),
+  status: varchar("status", { length: 50 }).default("pending"),
+  issuedAt: timestamp("issued_at"),
+  expiresAt: timestamp("expires_at"),
+  autoRenew: boolean("auto_renew").default(true),
+  certificatePath: text("certificate_path"),
+  privateKeyPath: text("private_key_path"),
+  lastRenewalAttempt: timestamp("last_renewal_attempt"),
+  renewalError: text("renewal_error"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// ============================================================================
+// SFTP FILE TRANSFERS
+// ============================================================================
+
+export const sftpTransfers = pgTable("sftp_transfers", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  connectionId: uuid("connection_id"),
+  direction: varchar("direction", { length: 20 }).notNull(),
+  localPath: text("local_path").notNull(),
+  remotePath: text("remote_path").notNull(),
+  status: varchar("status", { length: 50 }).default("pending"),
+  progress: decimal("progress", { precision: 5, scale: 2 }).default("0"),
+  size: integer("size"),
+  bytesTransferred: integer("bytes_transferred").default(0),
+  errorMessage: text("error_message"),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  createdBy: uuid("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Type exports for RBAC
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
+export type ModulePermission = typeof modulePermissions.$inferSelect;
+export type NewModulePermission = typeof modulePermissions.$inferInsert;
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type NewAuditLog = typeof auditLogs.$inferInsert;
+export type ApiKey = typeof apiKeys.$inferSelect;
+export type NewApiKey = typeof apiKeys.$inferInsert;
+export type UserSession = typeof userSessions.$inferSelect;
+export type NewUserSession = typeof userSessions.$inferInsert;
+
+// Type exports for Training
+export type TrainingDataset = typeof trainingDatasets.$inferSelect;
+export type NewTrainingDataset = typeof trainingDatasets.$inferInsert;
+export type TrainingJob = typeof trainingJobs.$inferSelect;
+export type NewTrainingJob = typeof trainingJobs.$inferInsert;
+export type TrainedModel = typeof trainedModels.$inferSelect;
+export type NewTrainedModel = typeof trainedModels.$inferInsert;
+
+// Type exports for SSL
+export type SSLCertificate = typeof sslCertificates.$inferSelect;
+export type NewSSLCertificate = typeof sslCertificates.$inferInsert;
+
+// Type exports for SFTP
+export type SFTPTransfer = typeof sftpTransfers.$inferSelect;
+export type NewSFTPTransfer = typeof sftpTransfers.$inferInsert;

@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
 import { createSession, isSessionSecretConfigured } from "@/lib/session";
+import { userService } from "@/lib/services/user-service";
+import { auditService } from "@/lib/services/audit-service";
+import { getClientIp } from "@/lib/middleware/permissions";
 
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME;
 const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH;
@@ -18,6 +21,8 @@ export async function POST(request: NextRequest) {
     }
 
     const { username, password } = await request.json();
+    const ipAddress = getClientIp(request);
+    const userAgent = request.headers.get("user-agent") || undefined;
 
     if (!username || !password) {
       return NextResponse.json(
@@ -26,47 +31,96 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!ADMIN_USERNAME || (!ADMIN_PASSWORD_HASH && !ADMIN_PASSWORD)) {
-      console.error("Admin credentials not configured in environment variables");
-      return NextResponse.json(
-        { error: "Server configuration error" },
-        { status: 500 }
-      );
-    }
-
-    if (username !== ADMIN_USERNAME) {
-      return NextResponse.json(
-        { error: "Invalid credentials" },
-        { status: 401 }
-      );
-    }
-
-    let isValidPassword = false;
-    if (ADMIN_PASSWORD_HASH) {
-      isValidPassword = await bcrypt.compare(password, ADMIN_PASSWORD_HASH);
-    } else if (ADMIN_PASSWORD) {
-      isValidPassword = password === ADMIN_PASSWORD;
-    }
+    let authenticatedUser = await userService.verifyPassword(username, password);
     
-    if (!isValidPassword) {
-      return NextResponse.json(
-        { error: "Invalid credentials" },
-        { status: 401 }
+    if (authenticatedUser) {
+      await auditService.log({
+        userId: authenticatedUser.id,
+        username: authenticatedUser.username,
+        action: "user.login",
+        resource: "auth",
+        details: { method: "database" },
+        ipAddress,
+        userAgent,
+        status: "success",
+      });
+      
+      const sessionToken = await createSession(
+        authenticatedUser.username, 
+        authenticatedUser.id, 
+        authenticatedUser.role
       );
+      const cookieStore = await cookies();
+      cookieStore.set("session", sessionToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 7 * 24 * 60 * 60,
+        path: "/",
+      });
+      
+      return NextResponse.json({ 
+        success: true,
+        user: {
+          id: authenticatedUser.id,
+          username: authenticatedUser.username,
+          role: authenticatedUser.role,
+        }
+      });
     }
 
-    const sessionToken = await createSession(username);
+    if (ADMIN_USERNAME && (ADMIN_PASSWORD_HASH || ADMIN_PASSWORD)) {
+      if (username === ADMIN_USERNAME) {
+        let isValidPassword = false;
+        if (ADMIN_PASSWORD_HASH) {
+          isValidPassword = await bcrypt.compare(password, ADMIN_PASSWORD_HASH);
+        } else if (ADMIN_PASSWORD) {
+          isValidPassword = password === ADMIN_PASSWORD;
+        }
+        
+        if (isValidPassword) {
+          await auditService.log({
+            username,
+            action: "user.login",
+            resource: "auth",
+            details: { method: "env_fallback" },
+            ipAddress,
+            userAgent,
+            status: "success",
+          });
+          
+          const sessionToken = await createSession(username);
+          const cookieStore = await cookies();
+          cookieStore.set("session", sessionToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "lax",
+            maxAge: 7 * 24 * 60 * 60,
+            path: "/",
+          });
 
-    const cookieStore = await cookies();
-    cookieStore.set("session", sessionToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 7 * 24 * 60 * 60,
-      path: "/",
+          return NextResponse.json({ 
+            success: true,
+            user: { username, role: "admin" }
+          });
+        }
+      }
+    }
+
+    await auditService.log({
+      username,
+      action: "user.login",
+      resource: "auth",
+      details: { reason: "invalid_credentials" },
+      ipAddress,
+      userAgent,
+      status: "failure",
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json(
+      { error: "Invalid credentials" },
+      { status: 401 }
+    );
   } catch (error) {
     console.error("Login error:", error);
     return NextResponse.json(

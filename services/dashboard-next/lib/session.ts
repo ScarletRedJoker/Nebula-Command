@@ -15,14 +15,20 @@ function getSessionSecret(): Uint8Array {
 
 export interface SessionPayload {
   username: string;
+  userId?: string;
+  role?: string;
   iat?: number;
   exp?: number;
 }
 
-export async function createSession(username: string): Promise<string> {
+export async function createSession(username: string, userId?: string, role?: string): Promise<string> {
   const secret = getSessionSecret();
   
-  const token = await new jose.SignJWT({ username })
+  const payload: Record<string, any> = { username };
+  if (userId) payload.userId = userId;
+  if (role) payload.role = role;
+  
+  const token = await new jose.SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(SESSION_EXPIRY)
@@ -38,6 +44,8 @@ export async function verifySession(token: string): Promise<SessionPayload | nul
     
     return {
       username: payload.username as string,
+      userId: payload.userId as string | undefined,
+      role: payload.role as string | undefined,
       iat: payload.iat,
       exp: payload.exp,
     };
