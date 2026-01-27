@@ -6,6 +6,8 @@ export { stableDiffusionProvider, StableDiffusionProvider, sdClient } from './pr
 export type { SDModel } from './providers/stable-diffusion';
 export { ComfyUIClient, comfyClient } from './providers/comfyui';
 export type { ComfyUISystemStats, ComfyUIPromptResponse, ComfyUIHistoryItem } from './providers/comfyui';
+export { ComfyUIJobOrchestrator, comfyUIOrchestrator } from './comfyui-orchestrator';
+export type { ComfyUIJob, ComfyUIBatchResult, ComfyUIJobStatus, ComfyUIOutputAsset, ComfyUIQueueStatus, ExecuteWorkflowOptions, ExecuteBatchOptions } from './comfyui-orchestrator';
 export { healthChecker } from './health-checker';
 export type { HealthCheckResult, HealthMonitorState } from './health-checker';
 export { responseCache, getCacheKey, AIResponseCache } from './cache';

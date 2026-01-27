@@ -73,3 +73,21 @@ This multi-agent AI system manages a job queue and subagents, supporting local-f
 - **Caddy:** Reverse proxy.
 - **Ollama:** Local LLM inference.
 - **Stable Diffusion/ComfyUI:** Local image generation.
+
+## Recent Changes
+
+- **January 27, 2026**: ComfyUI Full Integration (Automation-Ready):
+  - Database schema: `comfyui_workflows` and `comfyui_jobs` tables for workflow persistence and job tracking
+  - Service Manager (`lib/ai/comfyui-manager.ts`): State detection (OFFLINE/STARTING/LOADING_MODELS/READY/DEGRADED), VRAM monitoring, readiness polling
+  - Job Orchestrator (`lib/ai/comfyui-orchestrator.ts`): Workflow execution, exponential backoff retry (1s-16s), batch processing, job persistence
+  - API Endpoints (`/api/ai/comfyui/*`): status, queue, workflows CRUD, execute, jobs, retry, batch
+  - Dashboard UI (`/comfyui`): Status card, workflow management, job list, execution dialogs
+  - Supports headless/remote operation via `COMFYUI_URL` environment variable
+  - Future-ready for AI influencer pipelines, content factories, scheduled jobs
+
+- **January 27, 2026**: Production hardening - AI service configuration and logging:
+  - Created centralized AI config system (lib/ai/config.ts) - environment-first configuration
+  - Environment variables: WINDOWS_VM_TAILSCALE_IP, OLLAMA_URL, STABLE_DIFFUSION_URL, COMFYUI_URL
+  - Implemented structured AI logging (lib/ai/logger.ts) for all AI operations with correlation IDs
+  - Startup validation in instrumentation.ts for AI configuration
+  - Dashboard error boundaries with context-aware guidance

@@ -1224,6 +1224,48 @@ export type SetupStepData = typeof setupStepData.$inferSelect;
 export type NewSetupStepData = typeof setupStepData.$inferInsert;
 
 // ============================================
+// ComfyUI Workflows and Jobs
+// ============================================
+
+export const comfyuiWorkflows = pgTable("comfyui_workflows", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  workflowJson: jsonb("workflow_json").notNull(),
+  category: varchar("category", { length: 100 }),
+  tags: text("tags").array().default([]),
+  thumbnailUrl: varchar("thumbnail_url", { length: 500 }),
+  version: integer("version").default(1),
+  isActive: boolean("is_active").default(true),
+  createdBy: varchar("created_by", { length: 255 }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const comfyuiJobs = pgTable("comfyui_jobs", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  workflowId: uuid("workflow_id").references(() => comfyuiWorkflows.id),
+  promptId: varchar("prompt_id", { length: 100 }),
+  status: varchar("status", { length: 50 }).notNull(),
+  inputParams: jsonb("input_params"),
+  outputAssets: jsonb("output_assets"),
+  errorMessage: text("error_message"),
+  errorCode: varchar("error_code", { length: 50 }),
+  retryCount: integer("retry_count").default(0),
+  maxRetries: integer("max_retries").default(3),
+  priority: integer("priority").default(0),
+  batchId: uuid("batch_id"),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type ComfyuiWorkflow = typeof comfyuiWorkflows.$inferSelect;
+export type NewComfyuiWorkflow = typeof comfyuiWorkflows.$inferInsert;
+export type ComfyuiJob = typeof comfyuiJobs.$inferSelect;
+export type NewComfyuiJob = typeof comfyuiJobs.$inferInsert;
+
+// ============================================
 // Model Collections System
 // ============================================
 
