@@ -1,9 +1,17 @@
 import fetch from 'node-fetch';
 
-const OLLAMA_URL = process.env.OLLAMA_BASE_URL || 'http://100.118.44.102:11434';
+function getOllamaUrl(): string {
+  if (process.env.OLLAMA_BASE_URL) return process.env.OLLAMA_BASE_URL;
+  if (process.env.OLLAMA_URL) return process.env.OLLAMA_URL;
+  const vmIp = process.env.WINDOWS_VM_TAILSCALE_IP || process.env.WINDOWS_VM_IP;
+  if (vmIp) return `http://${vmIp}:11434`;
+  return 'http://localhost:11434';
+}
+
+const OLLAMA_URL = getOllamaUrl();
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const DEFAULT_MODEL = 'llama3.2:3b';
-const TIMEOUT_MS = 30000;
+const DEFAULT_MODEL = process.env.OLLAMA_MODEL || 'llama3.2:3b';
+const TIMEOUT_MS = parseInt(process.env.AI_REQUEST_TIMEOUT || '30000', 10);
 
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';

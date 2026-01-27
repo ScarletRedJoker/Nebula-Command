@@ -37,6 +37,7 @@ import { registerConfigCommands, handleConfigAutocomplete } from './features/con
 import { registerPresenceCommands, initPresenceFeature } from './features/presence';
 import { registerMusicCommands, initMusicPlayer } from './features/music';
 import { registerMediaPresenceCommands, initMediaPresence, loadMediaPresenceSettings, processMediaSessions, getConfiguredServerIds } from './features/media-presence';
+import { registerAICommands, handleAIButtonInteraction } from './features/ai';
 import { commandEngine } from '../services/commandEngine';
 import { guildIdentityService } from '../services/guildIdentityService';
 import { welcomeCardRenderer } from '../services/welcomeCardRenderer';
@@ -84,6 +85,7 @@ registerConfigCommands(commands);
 registerPresenceCommands(commands as any);
 registerMusicCommands(commands as any);
 registerMediaPresenceCommands(commands as any);
+registerAICommands(commands as any);
 console.log('[Discord] Total commands after all registrations:', Array.from(commands.keys()).join(', '));
 
 export async function startBot(storage: IStorage, broadcast: (data: any) => void): Promise<void> {
@@ -2087,6 +2089,16 @@ export async function startBot(storage: IStorage, broadcast: (data: any) => void
           if (handled) return;
         } catch (giveawayError) {
           console.error('[Giveaways] Error handling giveaway button interaction:', giveawayError);
+        }
+      }
+
+      // Handle AI button interactions (imagine regenerate/vary)
+      if (interaction.isButton() && interaction.customId.startsWith('imagine_')) {
+        try {
+          const handled = await handleAIButtonInteraction(interaction);
+          if (handled) return;
+        } catch (aiError) {
+          console.error('[AI Commands] Error handling button interaction:', aiError);
         }
       }
     });
