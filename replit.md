@@ -76,6 +76,17 @@ This multi-agent AI system manages a job queue and subagents, supporting local-f
 
 ## Recent Changes
 
+- **January 27, 2026**: Centralized IP Configuration (Zero Hardcoded IPs):
+  - Enhanced `lib/ai/config.ts` with WindowsVMConfig interface: ip, nebulaAgentUrl, nebulaAgentPort, isConfigured
+  - Added helper functions: getWindowsVMIP_safe(), requireWindowsVMIP(), buildServiceUrl(), requireServiceUrl()
+  - Runtime fallback warnings via warnFallback() for each service (logs once per service per session)
+  - Updated 50+ files across lib/, API routes, and UI components to use getAIConfig()
+  - Pattern: `config.windowsVM.ip` (nullable), `config.ollama.url`, `config.stableDiffusion.url`, `config.comfyui.url`
+  - UI components show "Not configured" instead of hardcoded IPs when unconfigured
+  - Env schema examples updated to generic "100.x.x.x" placeholders
+  - Verified: grep confirms 0 remaining hardcoded "100.118.44.102" references
+  - Supports Docker, Windows, Linux, Tailscale, LAN, and remote access without code changes
+
 - **January 27, 2026**: ComfyUI Full Integration (Automation-Ready):
   - Database schema: `comfyui_workflows` and `comfyui_jobs` tables for workflow persistence and job tracking
   - Service Manager (`lib/ai/comfyui-manager.ts`): State detection (OFFLINE/STARTING/LOADING_MODELS/READY/DEGRADED), VRAM monitoring, readiness polling
