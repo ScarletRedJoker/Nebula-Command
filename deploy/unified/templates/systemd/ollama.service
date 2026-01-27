@@ -1,0 +1,30 @@
+[Unit]
+Description=Ollama AI Service
+Documentation=https://ollama.ai
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ollama
+Group=ollama
+ExecStart=/usr/local/bin/ollama serve
+Restart=always
+RestartSec=3
+Environment="OLLAMA_HOST=0.0.0.0:11434"
+Environment="OLLAMA_ORIGINS=*"
+Environment="OLLAMA_KEEP_ALIVE=5m"
+
+# Resource limits
+LimitNOFILE=65535
+LimitNPROC=65535
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/ollama /home/ollama/.ollama
+
+[Install]
+WantedBy=multi-user.target

@@ -102,3 +102,13 @@ This multi-agent AI system manages a job queue and subagents, supporting local-f
   - Implemented structured AI logging (lib/ai/logger.ts) for all AI operations with correlation IDs
   - Startup validation in instrumentation.ts for AI configuration
   - Dashboard error boundaries with context-aware guidance
+
+- **January 27, 2026**: Automated Deployment and Node Auto-Configuration:
+  - Bootstrap scripts: `deploy/unified/bootstrap.sh` (Linux), `deploy/unified/bootstrap.ps1` (Windows)
+  - Hardware detection: GPU (NVIDIA/AMD/Intel), VRAM, CUDA/ROCm, RAM, disk, network interfaces
+  - Dynamic per-node config: `deploy/unified/state/<node-id>/` with hardware-profile.json, .env, service configs
+  - Auto-configures Ollama, ComfyUI, Stable Diffusion based on detected capabilities
+  - Service supervision: systemd (Linux), NSSM (Windows) with auto-restart
+  - Node registration API: `/api/nodes/register` for multi-node service discovery
+  - Supports GPU (8GB+, 4-8GB, <4GB VRAM) and CPU-only deployments
+  - One-command deployment: works on Windows and Linux with no cloud dependency

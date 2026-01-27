@@ -1,0 +1,25 @@
+[Unit]
+Description=Stable Diffusion WebUI Service
+Documentation=https://github.com/AUTOMATIC1111/stable-diffusion-webui
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=${SD_USER}
+WorkingDirectory=${SD_DIR}
+ExecStart=${SD_DIR}/venv/bin/python launch.py --listen --port 7860 --api ${SD_EXTRA_ARGS}
+Restart=always
+RestartSec=5
+
+# Environment
+Environment="PYTHONUNBUFFERED=1"
+
+# Resource limits
+LimitNOFILE=65535
+
+# GPU access
+SupplementaryGroups=video render
+
+[Install]
+WantedBy=multi-user.target

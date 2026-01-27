@@ -1,4 +1,24 @@
-# Unified Deployment Orchestrator
+# Unified Deployment System
+
+One-command deployment for Windows and Linux nodes with automatic hardware detection, service configuration, and supervision.
+
+## Node Bootstrap (New!)
+
+### Linux
+```bash
+./deploy/unified/bootstrap.sh
+```
+
+### Windows (PowerShell as Administrator)
+```powershell
+.\deploy\unified\bootstrap.ps1
+```
+
+See [Bootstrap Options](#bootstrap-options) below for all options.
+
+---
+
+## Deployment Orchestrator
 
 Deploy to Local Ubuntu, Windows VM, and Linode from a single control plane.
 
@@ -134,4 +154,54 @@ ssh-add -l
 
 # Check specific service
 curl -sf http://localhost:9091/api/health
+```
+
+---
+
+## Bootstrap Options
+
+### Hardware Detection
+The bootstrap automatically detects:
+- **GPU**: NVIDIA (CUDA), AMD (ROCm), Intel (integrated)
+- **VRAM**: Amount and optimization settings
+- **RAM**: Memory availability
+- **Disk**: Available storage
+- **Network**: Primary IP, Tailscale IP
+
+### Auto-Configuration
+| Hardware | Ollama | ComfyUI | Stable Diffusion |
+|----------|--------|---------|------------------|
+| GPU 8GB+ VRAM | ✅ GPU | ✅ High VRAM | ✅ XFormers |
+| GPU 4-8GB VRAM | ✅ GPU | ✅ Normal | ✅ Med VRAM |
+| CPU only (8GB+ RAM) | ✅ CPU | ⚠️ CPU | ❌ Skipped |
+
+### Linux Options
+```bash
+./bootstrap.sh [options]
+  --dashboard-url URL   Dashboard URL for node registration
+  --no-ollama           Skip Ollama installation
+  --no-comfyui          Skip ComfyUI installation
+  --force-comfyui       Install ComfyUI even without GPU
+  --dry-run             Show what would be done
+```
+
+### Windows Options
+```powershell
+.\bootstrap.ps1 [options]
+  -DashboardUrl URL     Dashboard URL for node registration
+  -NoOllama             Skip Ollama installation
+  -NoComfyUI            Skip ComfyUI installation
+  -ForceComfyUI         Install ComfyUI even without GPU
+  -DryRun               Show what would be done
+```
+
+### Generated Files
+```
+state/<node-id>/
+├── hardware-profile.json   # Detected hardware
+├── .env                    # Environment variables
+├── ollama.conf             # Ollama configuration
+├── comfyui.conf            # ComfyUI configuration
+├── sd.conf                 # Stable Diffusion config
+└── services.json           # Enabled services manifest
 ```

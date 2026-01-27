@@ -1,0 +1,25 @@
+[Unit]
+Description=ComfyUI Image Generation Service
+Documentation=https://github.com/comfyanonymous/ComfyUI
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=${COMFYUI_USER}
+WorkingDirectory=${COMFYUI_DIR}
+ExecStart=${COMFYUI_DIR}/venv/bin/python main.py --listen 0.0.0.0 --port 8188 ${COMFYUI_EXTRA_ARGS}
+Restart=always
+RestartSec=5
+
+# Environment
+Environment="PYTHONUNBUFFERED=1"
+
+# Resource limits
+LimitNOFILE=65535
+
+# GPU access
+SupplementaryGroups=video render
+
+[Install]
+WantedBy=multi-user.target
