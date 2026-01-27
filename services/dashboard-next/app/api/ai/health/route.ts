@@ -6,12 +6,16 @@ import { cookies } from "next/headers";
 import { healthChecker } from "@/lib/ai/health-checker";
 import { gpuMonitor } from "@/lib/ai/gpu-monitor";
 import { comfyClient } from "@/lib/ai/providers/comfyui";
+import { getAIConfig, aiLogger } from "@/lib/ai";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const LOCAL_AI_ONLY = process.env.LOCAL_AI_ONLY === "true";
-const WINDOWS_VM_IP = process.env.WINDOWS_VM_TAILSCALE_IP || "100.118.44.102";
+
+function getWindowsVMIP(): string | null {
+  return process.env.WINDOWS_VM_TAILSCALE_IP || null;
+}
 
 async function checkAuth() {
   const cookieStore = await cookies();
@@ -21,21 +25,13 @@ async function checkAuth() {
 }
 
 function getOllamaEndpoints(): string[] {
-  const WINDOWS_VM_IP = process.env.WINDOWS_VM_TAILSCALE_IP || "100.118.44.102";
-  const UBUNTU_IP = process.env.UBUNTU_TAILSCALE_IP || "100.66.61.51";
-  
-  const endpoints: string[] = [];
-  
-  if (process.env.OLLAMA_URL) {
-    endpoints.push(process.env.OLLAMA_URL);
-  } else {
-    endpoints.push(`http://${WINDOWS_VM_IP}:11434`);
-  }
+  const config = getAIConfig();
+  const endpoints: string[] = [config.ollama.url];
   
   if (process.env.OLLAMA_FALLBACK_URL) {
     endpoints.push(process.env.OLLAMA_FALLBACK_URL);
-  } else {
-    endpoints.push(`http://${UBUNTU_IP}:11434`);
+  } else if (process.env.UBUNTU_TAILSCALE_IP) {
+    endpoints.push(`http://${process.env.UBUNTU_TAILSCALE_IP}:11434`);
   }
   
   return endpoints;
@@ -63,6 +59,7 @@ async function testEndpoint(url: string): Promise<EndpointStatus> {
     const latencyMs = Date.now() - start;
 
     if (!response.ok) {
+      aiLogger.logHealthCheck('ollama', false, latencyMs, `HTTP ${response.status}`);
       return {
         url,
         status: "offline",
@@ -74,25 +71,34 @@ async function testEndpoint(url: string): Promise<EndpointStatus> {
     const data = await response.json();
     const models = (data.models || []).map((m: { name: string }) => m.name);
 
+    aiLogger.logHealthCheck('ollama', true, latencyMs);
     return {
       url,
       status: latencyMs > 2000 ? "degraded" : "online",
       latencyMs,
       models,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const latencyMs = Date.now() - start;
+    const errorMessage = error instanceof Error 
+      ? (error.name === "AbortError" ? "Connection timeout (5s)" : error.message)
+      : 'Unknown error';
+    
+    aiLogger.logConnectionFailure('ollama', url, errorMessage);
     return {
       url,
       status: "offline",
-      latencyMs: Date.now() - start,
-      error: error.name === "AbortError" ? "Connection timeout (5s)" : error.message,
+      latencyMs,
+      error: errorMessage,
     };
   }
 }
 
 async function testSDEndpoint(): Promise<EndpointStatus> {
-  const url = `http://${WINDOWS_VM_IP}:7860`;
+  const config = getAIConfig();
+  const url = config.stableDiffusion.url;
   const start = Date.now();
+  
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
@@ -100,26 +106,38 @@ async function testSDEndpoint(): Promise<EndpointStatus> {
     clearTimeout(timeout);
     const latencyMs = Date.now() - start;
     if (!response.ok) {
+      aiLogger.logHealthCheck('stable-diffusion', false, latencyMs, `HTTP ${response.status}`);
       return { url, status: "offline", latencyMs, error: `HTTP ${response.status}` };
     }
+    aiLogger.logHealthCheck('stable-diffusion', true, latencyMs);
     return { url, status: latencyMs > 2000 ? "degraded" : "online", latencyMs };
-  } catch (error: any) {
-    return { url, status: "offline", latencyMs: Date.now() - start, error: error.message };
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const latencyMs = Date.now() - start;
+    aiLogger.logHealthCheck('stable-diffusion', false, latencyMs, errorMessage);
+    return { url, status: "offline", latencyMs, error: errorMessage };
   }
 }
 
 async function testComfyUIEndpoint(): Promise<EndpointStatus> {
-  const url = `http://${WINDOWS_VM_IP}:8188`;
+  const config = getAIConfig();
+  const url = config.comfyui.url;
   const start = Date.now();
+  
   try {
     const isHealthy = await comfyClient.health();
     const latencyMs = Date.now() - start;
     if (isHealthy) {
+      aiLogger.logHealthCheck('comfyui', true, latencyMs);
       return { url, status: latencyMs > 2000 ? "degraded" : "online", latencyMs };
     }
+    aiLogger.logHealthCheck('comfyui', false, latencyMs, 'Health check returned unhealthy');
     return { url, status: "offline", latencyMs, error: "Health check failed" };
-  } catch (error: any) {
-    return { url, status: "offline", latencyMs: Date.now() - start, error: error.message };
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const latencyMs = Date.now() - start;
+    aiLogger.logConnectionFailure('comfyui', url, errorMessage);
+    return { url, status: "offline", latencyMs, error: errorMessage };
   }
 }
 
@@ -179,14 +197,18 @@ export async function GET(request: NextRequest) {
     });
   }
 
+  const windowsVMIP = getWindowsVMIP();
+  const vmIPDisplay = windowsVMIP || '<WINDOWS_VM_IP>';
+
   if (!sdOnline) {
     troubleshooting.push({
       issue: "Stable Diffusion WebUI is offline",
       steps: [
         "1. Check if the Windows VM is running",
-        "2. Start SD WebUI: cd C:\\AI\\stable-diffusion-webui && webui.bat",
-        "3. Check port 7860 is open in Windows firewall",
-        `4. Test manually: curl http://${WINDOWS_VM_IP}:7860/sdapi/v1/sd-models`,
+        "2. Ensure WINDOWS_VM_TAILSCALE_IP or STABLE_DIFFUSION_URL is configured",
+        "3. Start SD WebUI: cd C:\\AI\\stable-diffusion-webui && webui.bat",
+        "4. Check port 7860 is open in Windows firewall",
+        `5. Test manually: curl http://${vmIPDisplay}:7860/sdapi/v1/sd-models`,
       ],
     });
   }
@@ -196,9 +218,10 @@ export async function GET(request: NextRequest) {
       issue: "ComfyUI is offline",
       steps: [
         "1. Check if the Windows VM is running",
-        "2. Start ComfyUI: cd C:\\AI\\ComfyUI && python main.py --listen",
-        "3. Check port 8188 is open in Windows firewall",
-        `4. Test manually: curl http://${WINDOWS_VM_IP}:8188/system_stats`,
+        "2. Ensure WINDOWS_VM_TAILSCALE_IP or COMFYUI_URL is configured",
+        "3. Start ComfyUI: cd C:\\AI\\ComfyUI && python main.py --listen",
+        "4. Check port 8188 is open in Windows firewall",
+        `5. Test manually: curl http://${vmIPDisplay}:8188/system_stats`,
       ],
     });
   }

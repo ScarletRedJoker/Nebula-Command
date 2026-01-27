@@ -299,6 +299,16 @@ curl http://localhost:5000/api/setup/step/secrets
   - CodeAgent for multi-file code generation (components, API routes, Docker, scripts)
   - Enhanced Windows agent with PowerShell orchestrator, PyTorch CUDA validator, incident reporting
   - API endpoints: /api/ai/costs, /api/ai/code-gen, /api/incidents
+- **January 27, 2026**: Production hardening - AI service configuration and logging:
+  - Created centralized AI config system (lib/ai/config.ts) - removes hardcoded IPs, environment-first configuration
+  - Environment variables: WINDOWS_VM_TAILSCALE_IP, OLLAMA_URL, STABLE_DIFFUSION_URL, COMFYUI_URL
+  - Implemented structured AI logging (lib/ai/logger.ts) for all AI operations with correlation IDs
+  - Updated all AI providers (Ollama, OpenAI, SD, ComfyUI) to use new config and logging
+  - Updated service-discovery.ts to use getAIConfig() - no more hardcoded localhost assumptions
+  - Enhanced health-checker with auto-recovery via Windows agent when available
+  - Created dashboard error boundaries (global-error.tsx, error.tsx) with context-aware guidance
+  - Added /api/errors/log endpoint for client-side error reporting
+  - Note: Many other files still have hardcoded IP (100.118.44.102) - requires additional refactoring
 - **January 24, 2026**: AI resilience and cost optimization enhancements:
   - Added circuit breaker pattern with exponential backoff retry logic for AI services
   - Implemented 80% local / 20% cloud ratio enforcement with deterministic provider selection

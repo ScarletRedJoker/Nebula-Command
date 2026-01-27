@@ -1,6 +1,7 @@
-const COMFYUI_URL = process.env.COMFYUI_URL || 'http://100.118.44.102:8188';
+import { getAIConfig } from '../config';
+import { aiLogger } from '../logger';
+
 const HEALTH_TIMEOUT = 5000;
-const GENERATION_TIMEOUT = 300000;
 
 export interface ComfyUISystemStats {
   system: {
@@ -32,49 +33,72 @@ export interface ComfyUIHistoryItem {
 }
 
 export class ComfyUIClient {
-  private baseURL: string;
+  private config = getAIConfig().comfyui;
 
   constructor(baseURL?: string) {
-    this.baseURL = baseURL || COMFYUI_URL;
+    if (baseURL) {
+      this.config = { ...this.config, url: baseURL };
+    }
+  }
+
+  get baseURL(): string {
+    return this.config.url;
   }
 
   async health(): Promise<boolean> {
+    const ctx = aiLogger.startRequest('comfyui', 'health_check');
+    
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), HEALTH_TIMEOUT);
 
-      const res = await fetch(`${this.baseURL}/system_stats`, {
+      const res = await fetch(`${this.config.url}/system_stats`, {
         signal: controller.signal,
       });
 
       clearTimeout(timeout);
-      return res.ok;
-    } catch {
+      const isHealthy = res.ok;
+      aiLogger.endRequest(ctx, isHealthy);
+      return isHealthy;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      aiLogger.logConnectionFailure('comfyui', this.config.url, errorMessage);
       return false;
     }
   }
 
   async getSystemStats(): Promise<ComfyUISystemStats | null> {
+    const ctx = aiLogger.startRequest('comfyui', 'get_system_stats');
+    
     try {
-      const res = await fetch(`${this.baseURL}/system_stats`);
-      if (!res.ok) return null;
-      return await res.json();
-    } catch {
+      const res = await fetch(`${this.config.url}/system_stats`);
+      if (!res.ok) {
+        aiLogger.endRequest(ctx, false, { error: `HTTP ${res.status}` });
+        return null;
+      }
+      const stats = await res.json();
+      aiLogger.endRequest(ctx, true, { deviceCount: stats.devices?.length });
+      return stats;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      aiLogger.logError(ctx, errorMessage);
       return null;
     }
   }
 
   async queuePrompt(workflow: Record<string, unknown>, clientId?: string): Promise<ComfyUIPromptResponse> {
+    const ctx = aiLogger.startRequest('comfyui', 'queue_prompt', { clientId });
+    
     const body: Record<string, unknown> = { prompt: workflow };
     if (clientId) {
       body.client_id = clientId;
     }
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), GENERATION_TIMEOUT);
+    const timeout = setTimeout(() => controller.abort(), this.config.timeout);
 
     try {
-      const res = await fetch(`${this.baseURL}/prompt`, {
+      const res = await fetch(`${this.config.url}/prompt`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -85,39 +109,77 @@ export class ComfyUIClient {
 
       if (!res.ok) {
         const error = await res.text();
+        aiLogger.logError(ctx, `HTTP ${res.status}: ${error}`, `HTTP_${res.status}`);
         throw new Error(`ComfyUI error: ${res.status} - ${error}`);
       }
 
-      return await res.json();
-    } catch (error) {
+      const response = await res.json();
+      aiLogger.endRequest(ctx, true, { promptId: response.prompt_id });
+      return response;
+    } catch (error: unknown) {
       clearTimeout(timeout);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      aiLogger.logError(ctx, errorMessage);
       throw error;
     }
   }
 
   async getHistory(promptId?: string): Promise<Record<string, ComfyUIHistoryItem>> {
+    const ctx = aiLogger.startRequest('comfyui', 'get_history', { promptId });
+    
     const url = promptId 
-      ? `${this.baseURL}/history/${promptId}`
-      : `${this.baseURL}/history`;
+      ? `${this.config.url}/history/${promptId}`
+      : `${this.config.url}/history`;
 
-    const res = await fetch(url);
-    if (!res.ok) {
-      throw new Error(`Failed to get history: ${res.status}`);
+    try {
+      const res = await fetch(url);
+      if (!res.ok) {
+        aiLogger.logError(ctx, `HTTP ${res.status}`, `HTTP_${res.status}`);
+        throw new Error(`Failed to get history: ${res.status}`);
+      }
+
+      const history = await res.json();
+      aiLogger.endRequest(ctx, true, { historyCount: Object.keys(history).length });
+      return history;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      aiLogger.logError(ctx, errorMessage);
+      throw error;
     }
-
-    return await res.json();
   }
 
   async getQueue(): Promise<{ queue_running: unknown[]; queue_pending: unknown[] }> {
-    const res = await fetch(`${this.baseURL}/queue`);
-    if (!res.ok) {
-      throw new Error(`Failed to get queue: ${res.status}`);
+    const ctx = aiLogger.startRequest('comfyui', 'get_queue');
+    
+    try {
+      const res = await fetch(`${this.config.url}/queue`);
+      if (!res.ok) {
+        aiLogger.logError(ctx, `HTTP ${res.status}`, `HTTP_${res.status}`);
+        throw new Error(`Failed to get queue: ${res.status}`);
+      }
+      const queue = await res.json();
+      aiLogger.endRequest(ctx, true, { 
+        running: queue.queue_running?.length,
+        pending: queue.queue_pending?.length,
+      });
+      return queue;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      aiLogger.logError(ctx, errorMessage);
+      throw error;
     }
-    return await res.json();
   }
 
   async interrupt(): Promise<void> {
-    await fetch(`${this.baseURL}/interrupt`, { method: 'POST' });
+    const ctx = aiLogger.startRequest('comfyui', 'interrupt');
+    
+    try {
+      await fetch(`${this.config.url}/interrupt`, { method: 'POST' });
+      aiLogger.endRequest(ctx, true);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      aiLogger.logError(ctx, errorMessage);
+    }
   }
 
   async uploadImage(
@@ -126,6 +188,8 @@ export class ComfyUIClient {
     subfolder?: string,
     overwrite = false
   ): Promise<{ name: string; subfolder: string; type: string }> {
+    const ctx = aiLogger.startRequest('comfyui', 'upload_image', { filename, subfolder });
+    
     const formData = new FormData();
     formData.append('image', file, filename);
     if (subfolder) {
@@ -133,67 +197,120 @@ export class ComfyUIClient {
     }
     formData.append('overwrite', overwrite ? 'true' : 'false');
 
-    const res = await fetch(`${this.baseURL}/upload/image`, {
-      method: 'POST',
-      body: formData,
-    });
+    try {
+      const res = await fetch(`${this.config.url}/upload/image`, {
+        method: 'POST',
+        body: formData,
+      });
 
-    if (!res.ok) {
-      throw new Error(`Failed to upload image: ${res.status}`);
+      if (!res.ok) {
+        aiLogger.logError(ctx, `HTTP ${res.status}`, `HTTP_${res.status}`);
+        throw new Error(`Failed to upload image: ${res.status}`);
+      }
+
+      const result = await res.json();
+      aiLogger.endRequest(ctx, true, { uploadedName: result.name });
+      return result;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      aiLogger.logError(ctx, errorMessage);
+      throw error;
     }
-
-    return await res.json();
   }
 
   async getImage(filename: string, subfolder: string, type = 'output'): Promise<Blob> {
+    const ctx = aiLogger.startRequest('comfyui', 'get_image', { filename, subfolder, type });
+    
     const params = new URLSearchParams({
       filename,
       subfolder,
       type,
     });
 
-    const res = await fetch(`${this.baseURL}/view?${params}`);
-    if (!res.ok) {
-      throw new Error(`Failed to get image: ${res.status}`);
-    }
+    try {
+      const res = await fetch(`${this.config.url}/view?${params}`);
+      if (!res.ok) {
+        aiLogger.logError(ctx, `HTTP ${res.status}`, `HTTP_${res.status}`);
+        throw new Error(`Failed to get image: ${res.status}`);
+      }
 
-    return await res.blob();
+      const blob = await res.blob();
+      aiLogger.endRequest(ctx, true, { size: blob.size });
+      return blob;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      aiLogger.logError(ctx, errorMessage);
+      throw error;
+    }
   }
 
   async getObjectInfo(): Promise<Record<string, unknown>> {
-    const res = await fetch(`${this.baseURL}/object_info`);
-    if (!res.ok) {
-      throw new Error(`Failed to get object info: ${res.status}`);
+    const ctx = aiLogger.startRequest('comfyui', 'get_object_info');
+    
+    try {
+      const res = await fetch(`${this.config.url}/object_info`);
+      if (!res.ok) {
+        aiLogger.logError(ctx, `HTTP ${res.status}`, `HTTP_${res.status}`);
+        throw new Error(`Failed to get object info: ${res.status}`);
+      }
+      const info = await res.json();
+      aiLogger.endRequest(ctx, true, { nodeCount: Object.keys(info).length });
+      return info;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      aiLogger.logError(ctx, errorMessage);
+      throw error;
     }
-    return await res.json();
   }
 
   async getEmbeddings(): Promise<string[]> {
-    const res = await fetch(`${this.baseURL}/embeddings`);
-    if (!res.ok) {
-      throw new Error(`Failed to get embeddings: ${res.status}`);
+    const ctx = aiLogger.startRequest('comfyui', 'get_embeddings');
+    
+    try {
+      const res = await fetch(`${this.config.url}/embeddings`);
+      if (!res.ok) {
+        aiLogger.logError(ctx, `HTTP ${res.status}`, `HTTP_${res.status}`);
+        throw new Error(`Failed to get embeddings: ${res.status}`);
+      }
+      const embeddings = await res.json();
+      aiLogger.endRequest(ctx, true, { embeddingCount: embeddings.length });
+      return embeddings;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      aiLogger.logError(ctx, errorMessage);
+      throw error;
     }
-    return await res.json();
   }
 
   async waitForPrompt(
     promptId: string,
     pollIntervalMs = 1000,
-    timeoutMs = GENERATION_TIMEOUT
+    timeoutMs?: number
   ): Promise<ComfyUIHistoryItem | null> {
+    const ctx = aiLogger.startRequest('comfyui', 'wait_for_prompt', { promptId });
+    const effectiveTimeout = timeoutMs || this.config.timeout;
     const startTime = Date.now();
 
-    while (Date.now() - startTime < timeoutMs) {
-      const history = await this.getHistory(promptId);
-      const item = history[promptId];
+    while (Date.now() - startTime < effectiveTimeout) {
+      try {
+        const history = await this.getHistory(promptId);
+        const item = history[promptId];
 
-      if (item && item.status?.completed) {
-        return item;
+        if (item && item.status?.completed) {
+          aiLogger.endRequest(ctx, true, { 
+            duration: Date.now() - startTime,
+            status: item.status.status_str,
+          });
+          return item;
+        }
+      } catch {
+        // Continue polling on transient errors
       }
 
       await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
     }
 
+    aiLogger.logError(ctx, 'Timeout waiting for prompt completion');
     return null;
   }
 

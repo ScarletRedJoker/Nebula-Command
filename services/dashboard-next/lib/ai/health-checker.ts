@@ -3,12 +3,23 @@ import { ollamaProvider } from './providers/ollama';
 import { openaiProvider } from './providers/openai';
 import { stableDiffusionProvider } from './providers/stable-diffusion';
 import { comfyClient } from './providers/comfyui';
+import { getAIConfig } from './config';
+import { aiLogger } from './logger';
 
-const POLL_INTERVAL_MS = 30000;
+const POLL_INTERVAL_MS = parseInt(process.env.AI_HEALTH_CHECK_INTERVAL || '30000');
 const FAILURE_THRESHOLD = 3;
-const WINDOWS_VM_IP = process.env.WINDOWS_VM_TAILSCALE_IP || '100.118.44.102';
-const AGENT_PORT = process.env.WINDOWS_AGENT_PORT || '9765';
-const AGENT_TOKEN = process.env.KVM_AGENT_TOKEN;
+
+function getAgentConfig() {
+  const windowsVMIP = process.env.WINDOWS_VM_TAILSCALE_IP;
+  const agentPort = process.env.WINDOWS_AGENT_PORT || '9765';
+  const agentToken = process.env.KVM_AGENT_TOKEN;
+  
+  return {
+    enabled: !!windowsVMIP && !!agentToken,
+    url: windowsVMIP ? `http://${windowsVMIP}:${agentPort}` : null,
+    token: agentToken,
+  };
+}
 
 export interface HealthCheckResult {
   provider: AIProviderName;
@@ -25,6 +36,7 @@ export interface HealthMonitorState {
 class AIHealthChecker {
   private intervalId: NodeJS.Timeout | null = null;
   private state: HealthMonitorState;
+  private agentConfig = getAgentConfig();
 
   constructor() {
     this.state = {
@@ -59,20 +71,17 @@ class AIHealthChecker {
         status = { available: false, lastCheck: new Date(), consecutiveFailures: 0, error: 'Unknown provider' };
     }
 
-    // Check consecutive failures BEFORE assigning to state
-    // Mark unavailable when failures >= threshold, regardless of current availability
     if (status.consecutiveFailures >= FAILURE_THRESHOLD) {
       status.available = false;
       console.log(`[HealthChecker] ${name} marked unavailable after ${FAILURE_THRESHOLD} consecutive failures`);
     }
 
-    // Check for auto-recovery BEFORE updating state (compare with previous status)
     const previousStatus = this.state.providers[name];
     if (status.consecutiveFailures === 0 && !previousStatus.available && status.available) {
       console.log(`[HealthChecker] ${name} auto-recovered`);
+      aiLogger.logRecovery(name, 'unavailable');
     }
 
-    // Now assign to state
     this.state.providers[name] = status;
 
     return status;
@@ -83,7 +92,6 @@ class AIHealthChecker {
     
     await Promise.all(providers.map(p => this.checkProvider(p)));
     
-    // Auto-recovery: trigger Windows agent restart for failed local services
     await this.autoRecoverServices();
     
     this.state.lastFullCheck = new Date();
@@ -115,21 +123,22 @@ class AIHealthChecker {
           error: 'ComfyUI health check returned unhealthy',
         };
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       const failures = (previousStatus?.consecutiveFailures || 0) + 1;
       return {
         available: false,
         lastCheck: new Date(),
         consecutiveFailures: failures,
         latencyMs: Date.now() - start,
-        error: error.message,
+        error: errorMessage,
       };
     }
   }
 
   private async autoRecoverServices(): Promise<void> {
-    if (!AGENT_TOKEN) {
-      return; // Can't auto-recover without agent token
+    if (!this.agentConfig.enabled || !this.agentConfig.url || !this.agentConfig.token) {
+      return;
     }
 
     const localProviders: AIProviderName[] = ['ollama', 'stable-diffusion', 'comfyui'];
@@ -137,8 +146,6 @@ class AIHealthChecker {
     for (const provider of localProviders) {
       const status = this.state.providers[provider];
       
-      // Attempt recovery at threshold and every 3 failures after (3, 6, 9, etc.)
-      // This ensures recovery attempts continue if initial repair fails
       if (status.consecutiveFailures >= FAILURE_THRESHOLD && status.consecutiveFailures % FAILURE_THRESHOLD === 0) {
         console.log(`[HealthChecker] Auto-recovery triggered for ${provider}`);
         
@@ -152,12 +159,12 @@ class AIHealthChecker {
           const serviceName = serviceMap[provider];
           if (!serviceName) continue;
 
-          const url = `http://${WINDOWS_VM_IP}:${AGENT_PORT}/api/watchdog/repair`;
+          const url = `${this.agentConfig.url}/api/watchdog/repair`;
           const response = await fetch(url, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${AGENT_TOKEN}`,
+              'Authorization': `Bearer ${this.agentConfig.token}`,
             },
             body: JSON.stringify({ service: serviceName }),
             signal: AbortSignal.timeout(60000),
@@ -167,16 +174,17 @@ class AIHealthChecker {
             const result = await response.json();
             console.log(`[HealthChecker] Auto-recovery result for ${provider}:`, result);
             
-            // If recovery succeeded, reset failure count
             if (result.success && result.online) {
               this.state.providers[provider].consecutiveFailures = 0;
               this.state.providers[provider].available = true;
+              aiLogger.logRecovery(provider, 'auto-repair');
             }
           } else {
             console.error(`[HealthChecker] Auto-recovery failed for ${provider}: HTTP ${response.status}`);
           }
-        } catch (error: any) {
-          console.error(`[HealthChecker] Auto-recovery error for ${provider}:`, error.message);
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          console.error(`[HealthChecker] Auto-recovery error for ${provider}:`, errorMessage);
         }
       }
     }
@@ -188,7 +196,18 @@ class AIHealthChecker {
       return;
     }
 
+    const config = getAIConfig();
     console.log(`[HealthChecker] Starting health monitoring (interval: ${POLL_INTERVAL_MS}ms)`);
+    console.log(`[HealthChecker] Monitoring endpoints:`);
+    console.log(`  - Ollama: ${config.ollama.url}`);
+    console.log(`  - Stable Diffusion: ${config.stableDiffusion.url}`);
+    console.log(`  - ComfyUI: ${config.comfyui.url}`);
+    console.log(`  - OpenAI: ${config.openai.apiKey ? 'configured' : 'not configured'}`);
+    
+    if (this.agentConfig.enabled) {
+      console.log(`  - Windows Agent: ${this.agentConfig.url} (auto-recovery enabled)`);
+    }
+    
     this.state.isRunning = true;
 
     this.checkAllProviders().catch(err => {

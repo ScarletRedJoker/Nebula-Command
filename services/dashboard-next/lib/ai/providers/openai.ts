@@ -6,12 +6,13 @@ import type {
   StreamingChunk,
   ProviderHealthStatus,
 } from '../types';
-
-const TIMEOUT_MS = 30000;
+import { getAIConfig } from '../config';
+import { aiLogger } from '../logger';
 
 export class OpenAIProvider {
   private client: OpenAI | null = null;
   private healthStatus: ProviderHealthStatus;
+  private config = getAIConfig().openai;
 
   constructor() {
     this.healthStatus = {
@@ -23,23 +24,25 @@ export class OpenAIProvider {
   }
 
   private initClient(): void {
-    const integrationKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
-    const directKey = process.env.OPENAI_API_KEY;
-    const apiKey = integrationKey?.startsWith('sk-') ? integrationKey : directKey;
+    const apiKey = this.config.apiKey;
 
     if (apiKey?.startsWith('sk-')) {
       this.client = new OpenAI({
         apiKey,
-        timeout: TIMEOUT_MS,
+        baseURL: this.config.baseUrl,
+        timeout: this.config.timeout,
       });
       this.healthStatus.available = true;
+      aiLogger.logHealthCheck('openai', true, undefined, undefined);
+    } else if (apiKey) {
+      aiLogger.logConfigWarning('openai', 'API key appears invalid (should start with "sk-")');
     }
   }
 
   getProviderInfo(): AIProvider {
     return {
       name: 'openai',
-      baseURL: 'https://api.openai.com',
+      baseURL: this.config.baseUrl,
       available: this.healthStatus.available && this.client !== null,
       priority: 2,
       supports: {
@@ -63,24 +66,34 @@ export class OpenAIProvider {
         consecutiveFailures: this.healthStatus.consecutiveFailures + 1,
         error: 'No API key configured',
       };
+      aiLogger.logHealthCheck('openai', false, undefined, 'No API key configured');
       return this.healthStatus;
     }
 
     try {
       const start = Date.now();
       await this.client.models.list();
+      const latencyMs = Date.now() - start;
       
+      const wasUnavailable = !this.healthStatus.available;
       this.healthStatus = {
         available: true,
         lastCheck: new Date(),
         consecutiveFailures: 0,
-        latencyMs: Date.now() - start,
+        latencyMs,
       };
-    } catch (error: any) {
+      aiLogger.logHealthCheck('openai', true, latencyMs);
+      
+      if (wasUnavailable) {
+        aiLogger.logRecovery('openai', 'unavailable');
+      }
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       this.healthStatus.consecutiveFailures++;
       this.healthStatus.available = this.healthStatus.consecutiveFailures < 3;
       this.healthStatus.lastCheck = new Date();
-      this.healthStatus.error = error.message;
+      this.healthStatus.error = errorMessage;
+      aiLogger.logHealthCheck('openai', false, undefined, errorMessage);
     }
 
     return this.healthStatus;
@@ -99,7 +112,11 @@ export class OpenAIProvider {
       throw new Error('OpenAI client not initialized');
     }
 
-    const start = Date.now();
+    const ctx = aiLogger.startRequest('openai', 'chat', {
+      model: request.model,
+      messageCount: request.messages.length,
+    });
+
     const model = request.model || 'gpt-4o-mini';
 
     try {
@@ -110,23 +127,28 @@ export class OpenAIProvider {
         max_tokens: request.maxTokens ?? 2000,
       });
 
-      const latency = Date.now() - start;
+      const latency = Date.now() - ctx.startTime;
       const content = response.choices[0]?.message?.content || '';
+      const tokensUsed = response.usage?.total_tokens || 0;
+
+      aiLogger.endRequest(ctx, true, { model, tokensUsed, latency });
 
       return {
         content,
         provider: 'openai',
         model,
         latency,
-        tokensUsed: response.usage?.total_tokens || 0,
+        tokensUsed,
         usage: {
           promptTokens: response.usage?.prompt_tokens || 0,
           completionTokens: response.usage?.completion_tokens || 0,
-          totalTokens: response.usage?.total_tokens || 0,
+          totalTokens: tokensUsed,
         },
       };
-    } catch (error: any) {
-      throw new Error(`OpenAI chat failed: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      aiLogger.logError(ctx, errorMessage);
+      throw new Error(`OpenAI chat failed: ${errorMessage}`);
     }
   }
 
@@ -134,6 +156,11 @@ export class OpenAIProvider {
     if (!this.client) {
       throw new Error('OpenAI client not initialized');
     }
+
+    const ctx = aiLogger.startRequest('openai', 'chat_stream', {
+      model: request.model,
+      messageCount: request.messages.length,
+    });
 
     const model = request.model || 'gpt-4o-mini';
 
@@ -146,9 +173,12 @@ export class OpenAIProvider {
         stream: true,
       });
 
+      let chunkCount = 0;
+
       for await (const chunk of stream) {
         const content = chunk.choices[0]?.delta?.content || '';
         const done = chunk.choices[0]?.finish_reason !== null;
+        chunkCount++;
         
         yield {
           content,
@@ -157,8 +187,12 @@ export class OpenAIProvider {
           model,
         };
       }
-    } catch (error: any) {
-      throw new Error(`OpenAI stream failed: ${error.message}`);
+
+      aiLogger.endRequest(ctx, true, { model, chunksReceived: chunkCount });
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      aiLogger.logError(ctx, errorMessage);
+      throw new Error(`OpenAI stream failed: ${errorMessage}`);
     }
   }
 
@@ -171,7 +205,7 @@ export class OpenAIProvider {
       throw new Error('OpenAI client not initialized');
     }
 
-    const start = Date.now();
+    const ctx = aiLogger.startRequest('openai', 'generate_image', { size });
 
     try {
       const response = await this.client.images.generate({
@@ -181,14 +215,20 @@ export class OpenAIProvider {
         size,
       });
 
+      const latency = Date.now() - ctx.startTime;
       const imageData = response.data?.[0];
+      
+      aiLogger.endRequest(ctx, true, { latency, hasImage: !!imageData?.url });
+
       return {
         url: imageData?.url || '',
         revisedPrompt: imageData?.revised_prompt,
-        latency: Date.now() - start,
+        latency,
       };
-    } catch (error: any) {
-      throw new Error(`OpenAI image generation failed: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      aiLogger.logError(ctx, errorMessage);
+      throw new Error(`OpenAI image generation failed: ${errorMessage}`);
     }
   }
 
@@ -200,7 +240,9 @@ export class OpenAIProvider {
       throw new Error('OpenAI client not initialized');
     }
 
-    const start = Date.now();
+    const ctx = aiLogger.startRequest('openai', 'embeddings', {
+      inputCount: Array.isArray(input) ? input.length : 1,
+    });
 
     try {
       const response = await this.client.embeddings.create({
@@ -208,12 +250,19 @@ export class OpenAIProvider {
         input,
       });
 
+      const latency = Date.now() - ctx.startTime;
+      const embeddings = response.data.map(d => d.embedding);
+      
+      aiLogger.endRequest(ctx, true, { embeddingsCount: embeddings.length, latency });
+
       return {
-        embeddings: response.data.map(d => d.embedding),
-        latency: Date.now() - start,
+        embeddings,
+        latency,
       };
-    } catch (error: any) {
-      throw new Error(`OpenAI embeddings failed: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      aiLogger.logError(ctx, errorMessage);
+      throw new Error(`OpenAI embeddings failed: ${errorMessage}`);
     }
   }
 }

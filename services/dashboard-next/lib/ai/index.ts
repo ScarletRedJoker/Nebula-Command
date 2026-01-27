@@ -2,8 +2,10 @@ export * from './types';
 export * from './orchestrator';
 export { ollamaProvider, OllamaProvider } from './providers/ollama';
 export { openaiProvider, OpenAIProvider } from './providers/openai';
-export { stableDiffusionProvider, StableDiffusionProvider } from './providers/stable-diffusion';
+export { stableDiffusionProvider, StableDiffusionProvider, sdClient } from './providers/stable-diffusion';
 export type { SDModel } from './providers/stable-diffusion';
+export { ComfyUIClient, comfyClient } from './providers/comfyui';
+export type { ComfyUISystemStats, ComfyUIPromptResponse, ComfyUIHistoryItem } from './providers/comfyui';
 export { healthChecker } from './health-checker';
 export type { HealthCheckResult, HealthMonitorState } from './health-checker';
 export { responseCache, getCacheKey, AIResponseCache } from './cache';
@@ -15,3 +17,8 @@ export { modelRouter, selectModel, detectTaskType, getLocalModels, getCloudModel
 export type { ModelConfig, TaskType, RouterOptions } from './model-router';
 export { aiOptimizer, optimizeAndExecute } from './optimizer';
 export type { OptimizedRequest, OptimizerConfig } from './optimizer';
+
+export { getAIConfig, validateAIConfig, logConfigStatus } from './config';
+export type { AIConfig, AIEndpointConfig } from './config';
+export { aiLogger } from './logger';
+export type { AILogEntry, AIRequestContext, LogLevel } from './logger';

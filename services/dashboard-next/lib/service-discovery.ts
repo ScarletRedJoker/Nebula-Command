@@ -1,9 +1,11 @@
 /**
  * Service Discovery - Resolves service endpoints across distributed infrastructure
- * Reads from service-map.yml and environment variables
+ * Production-safe: No hardcoded IPs, fully environment-configurable
  */
 
-export type ServiceLocation = "linode" | "local" | "cloud";
+import { getAIConfig } from './ai/config';
+
+export type ServiceLocation = "linode" | "local" | "cloud" | "unknown";
 export type Environment = "development" | "production";
 
 export interface ServiceEndpoint {
@@ -11,105 +13,196 @@ export interface ServiceEndpoint {
   url: string;
   location: ServiceLocation;
   healthy?: boolean;
+  error?: string;
 }
 
 const ENV = (process.env.NODE_ENV === "production" ? "production" : "development") as Environment;
 
-const WINDOWS_VM_IP = process.env.WINDOWS_VM_TAILSCALE_IP || "100.118.44.102";
-const LOCAL_SERVER_IP = process.env.LOCAL_TAILSCALE_IP || "100.66.61.51";
+function getEnvOrNull(key: string): string | null {
+  const value = process.env[key];
+  return value && value.trim() !== '' ? value.trim() : null;
+}
+
+function getWindowsVMIP(): string | null {
+  return getEnvOrNull('WINDOWS_VM_TAILSCALE_IP');
+}
+
+function getLocalServerIP(): string | null {
+  return getEnvOrNull('LOCAL_TAILSCALE_IP');
+}
+
+function buildVMUrl(port: number): string | null {
+  const ip = getWindowsVMIP();
+  return ip ? `http://${ip}:${port}` : null;
+}
+
+function buildLocalUrl(port: number): string | null {
+  const ip = getLocalServerIP();
+  return ip ? `http://${ip}:${port}` : null;
+}
 
 function getOllamaUrl(): string {
-  if (process.env.OLLAMA_URL) return process.env.OLLAMA_URL;
-  return `http://${WINDOWS_VM_IP}:11434`;
+  const config = getAIConfig();
+  return config.ollama.url;
 }
 
 function getStableDiffusionUrl(): string {
-  if (process.env.STABLE_DIFFUSION_URL) return process.env.STABLE_DIFFUSION_URL;
-  return `http://${WINDOWS_VM_IP}:7860`;
+  const config = getAIConfig();
+  return config.stableDiffusion.url;
 }
 
-function getLocalServiceUrl(port: number): string {
-  return `http://${LOCAL_SERVER_IP}:${port}`;
+function getComfyUIUrl(): string {
+  const config = getAIConfig();
+  return config.comfyui.url;
 }
 
-const SERVICE_ENDPOINTS: Record<string, Record<Environment, string>> = {
+function getDiscordBotUrl(): string {
+  const explicit = getEnvOrNull('DISCORD_BOT_URL');
+  if (explicit) return explicit;
+  
+  if (ENV === 'production') {
+    return 'http://discord-bot:4000';
+  }
+  
+  return process.env.REPL_ID ? 'http://0.0.0.0:4000' : 'http://localhost:4000';
+}
+
+function getStreamBotUrl(): string {
+  const explicit = getEnvOrNull('STREAM_BOT_URL');
+  if (explicit) return explicit;
+  
+  if (ENV === 'production') {
+    return 'http://stream-bot:5000';
+  }
+  
+  return process.env.REPL_ID ? 'http://0.0.0.0:3000' : 'http://localhost:3000';
+}
+
+function getPlexUrl(): string {
+  const explicit = getEnvOrNull('PLEX_URL');
+  if (explicit) return explicit;
+  
+  const localUrl = buildLocalUrl(32400);
+  return localUrl || 'http://localhost:32400';
+}
+
+function getMinioUrl(): string {
+  const explicit = getEnvOrNull('MINIO_URL');
+  if (explicit) return explicit;
+  
+  const localUrl = buildLocalUrl(9000);
+  return localUrl || 'http://localhost:9000';
+}
+
+function getHomeAssistantUrl(): string {
+  const explicit = getEnvOrNull('HOME_ASSISTANT_URL');
+  if (explicit) return explicit;
+  
+  const localUrl = buildLocalUrl(8123);
+  return localUrl || 'http://localhost:8123';
+}
+
+interface ServiceConfig {
+  getUrl: () => string;
+  location: ServiceLocation;
+  healthPath?: string;
+}
+
+const SERVICE_CONFIG: Record<string, ServiceConfig> = {
   "ollama": {
-    production: getOllamaUrl(),
-    development: getOllamaUrl(),
+    getUrl: getOllamaUrl,
+    location: "local",
+    healthPath: "/api/tags",
   },
   "stable-diffusion": {
-    production: getStableDiffusionUrl(),
-    development: getStableDiffusionUrl(),
+    getUrl: getStableDiffusionUrl,
+    location: "local",
+    healthPath: "/sdapi/v1/sd-models",
+  },
+  "comfyui": {
+    getUrl: getComfyUIUrl,
+    location: "local",
+    healthPath: "/system_stats",
   },
   "openai": {
-    production: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || "https://api.openai.com/v1",
-    development: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || "https://api.openai.com/v1",
+    getUrl: () => getAIConfig().openai.baseUrl,
+    location: "cloud",
   },
   "plex": {
-    production: process.env.PLEX_URL || getLocalServiceUrl(32400),
-    development: process.env.PLEX_URL || getLocalServiceUrl(32400),
+    getUrl: getPlexUrl,
+    location: "local",
+    healthPath: "/identity",
   },
   "minio": {
-    production: process.env.MINIO_URL || getLocalServiceUrl(9000),
-    development: process.env.MINIO_URL || getLocalServiceUrl(9000),
+    getUrl: getMinioUrl,
+    location: "local",
+    healthPath: "/minio/health/live",
   },
   "home-assistant": {
-    production: process.env.HOME_ASSISTANT_URL || getLocalServiceUrl(8123),
-    development: process.env.HOME_ASSISTANT_URL || getLocalServiceUrl(8123),
+    getUrl: getHomeAssistantUrl,
+    location: "local",
+    healthPath: "/api/",
   },
   "discord-bot": {
-    production: process.env.DISCORD_BOT_URL || "http://discord-bot:4000",
-    development: process.env.DISCORD_BOT_URL || "http://localhost:4000",
+    getUrl: getDiscordBotUrl,
+    location: "linode",
+    healthPath: "/health",
   },
   "stream-bot": {
-    production: process.env.STREAM_BOT_URL || "http://stream-bot:5000",
-    development: process.env.STREAM_BOT_URL || "http://localhost:3000",
+    getUrl: getStreamBotUrl,
+    location: "linode",
+    healthPath: "/health",
   },
-};
-
-const SERVICE_LOCATIONS: Record<string, ServiceLocation> = {
-  "ollama": "local",
-  "stable-diffusion": "local",
-  "openai": "cloud",
-  "plex": "local",
-  "minio": "local",
-  "home-assistant": "local",
-  "discord-bot": "linode",
-  "stream-bot": "linode",
-  "dashboard": "linode",
 };
 
 export function getServiceUrl(serviceName: string): string {
-  const service = SERVICE_ENDPOINTS[serviceName];
-  if (!service) {
+  const config = SERVICE_CONFIG[serviceName];
+  if (!config) {
+    console.warn(`[ServiceDiscovery] Unknown service: ${serviceName}`);
     throw new Error(`Unknown service: ${serviceName}`);
   }
-  return service[ENV];
+  return config.getUrl();
 }
 
 export function getServiceLocation(serviceName: string): ServiceLocation {
-  return SERVICE_LOCATIONS[serviceName] || "linode";
+  return SERVICE_CONFIG[serviceName]?.location || "unknown";
 }
 
 export async function checkServiceHealth(serviceName: string): Promise<ServiceEndpoint> {
-  const url = getServiceUrl(serviceName);
-  const location = getServiceLocation(serviceName);
+  const config = SERVICE_CONFIG[serviceName];
+  if (!config) {
+    return {
+      name: serviceName,
+      url: 'unknown',
+      location: 'unknown',
+      healthy: false,
+      error: 'Unknown service',
+    };
+  }
+
+  const url = config.getUrl();
+  const location = config.location;
+
+  if (serviceName === "openai") {
+    const aiConfig = getAIConfig();
+    return { 
+      name: serviceName, 
+      url, 
+      location, 
+      healthy: !!aiConfig.openai.apiKey,
+      error: aiConfig.openai.apiKey ? undefined : 'No API key configured',
+    };
+  }
+
+  if (!config.healthPath) {
+    return { name: serviceName, url, location, healthy: true };
+  }
 
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
 
-    let healthUrl = url;
-    if (serviceName === "ollama") {
-      healthUrl = `${url}/api/tags`;
-    } else if (serviceName === "stable-diffusion") {
-      healthUrl = `${url}/sdapi/v1/sd-models`;
-    } else if (serviceName === "openai") {
-      return { name: serviceName, url, location, healthy: true };
-    } else if (serviceName === "plex") {
-      healthUrl = `${url}/identity`;
-    }
-
+    const healthUrl = `${url}${config.healthPath}`;
     const response = await fetch(healthUrl, { signal: controller.signal });
     clearTimeout(timeout);
 
@@ -118,32 +211,45 @@ export async function checkServiceHealth(serviceName: string): Promise<ServiceEn
       url,
       location,
       healthy: response.ok,
+      error: response.ok ? undefined : `HTTP ${response.status}`,
     };
-  } catch {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Connection failed';
     return {
       name: serviceName,
       url,
       location,
       healthy: false,
+      error: errorMessage,
     };
   }
 }
 
 export async function getAllServiceStatus(): Promise<ServiceEndpoint[]> {
-  const services = Object.keys(SERVICE_ENDPOINTS);
+  const services = Object.keys(SERVICE_CONFIG);
   const results = await Promise.all(services.map(checkServiceHealth));
   return results;
 }
 
 export function isLocalAIAvailable(): boolean {
-  return !!process.env.OLLAMA_URL || !!process.env.STABLE_DIFFUSION_URL;
+  const config = getAIConfig();
+  return config.ollama.url !== 'http://localhost:11434' || 
+         config.stableDiffusion.url !== 'http://localhost:7860';
 }
 
 export function getAIProvider(): "openai" | "ollama" | "hybrid" {
-  const hasOpenAI = !!process.env.AI_INTEGRATIONS_OPENAI_API_KEY || !!process.env.OPENAI_API_KEY;
-  const hasOllama = !!process.env.OLLAMA_URL;
+  const config = getAIConfig();
+  const hasOpenAI = !!config.openai.apiKey;
+  const hasOllama = getWindowsVMIP() || getEnvOrNull('OLLAMA_URL');
 
   if (hasOpenAI && hasOllama) return "hybrid";
   if (hasOllama) return "ollama";
   return "openai";
+}
+
+export function logServiceDiscoveryStatus(): void {
+  console.log('[ServiceDiscovery] Configuration loaded:');
+  Object.entries(SERVICE_CONFIG).forEach(([name, config]) => {
+    console.log(`  ${name}: ${config.getUrl()} (${config.location})`);
+  });
 }

@@ -4,9 +4,8 @@ import type {
   ImageGenerationResponse,
   ProviderHealthStatus,
 } from '../types';
-
-const DEFAULT_SD_URL = 'http://100.118.44.102:7860';
-const TIMEOUT_MS = 120000;
+import { getAIConfig } from '../config';
+import { aiLogger } from '../logger';
 
 export interface SDModel {
   title: string;
@@ -17,11 +16,13 @@ export interface SDModel {
 }
 
 export class StableDiffusionProvider {
-  private baseURL: string;
   private healthStatus: ProviderHealthStatus;
+  private config = getAIConfig().stableDiffusion;
 
   constructor(baseURL?: string) {
-    this.baseURL = baseURL || process.env.STABLE_DIFFUSION_URL || DEFAULT_SD_URL;
+    if (baseURL) {
+      this.config = { ...this.config, url: baseURL };
+    }
     this.healthStatus = {
       available: false,
       lastCheck: new Date(0),
@@ -29,10 +30,14 @@ export class StableDiffusionProvider {
     };
   }
 
+  get baseURL(): string {
+    return this.config.url;
+  }
+
   getProviderInfo(): AIProvider {
     return {
       name: 'stable-diffusion',
-      baseURL: this.baseURL,
+      baseURL: this.config.url,
       available: this.healthStatus.available,
       priority: 1,
       supports: {
@@ -50,7 +55,7 @@ export class StableDiffusionProvider {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 5000);
 
-      const response = await fetch(`${this.baseURL}/sdapi/v1/sd-models`, {
+      const response = await fetch(`${this.config.url}/sdapi/v1/sd-models`, {
         signal: controller.signal,
       });
       clearTimeout(timeout);
@@ -58,24 +63,33 @@ export class StableDiffusionProvider {
       const latencyMs = Date.now() - start;
 
       if (response.ok) {
+        const wasUnavailable = !this.healthStatus.available;
         this.healthStatus = {
           available: true,
           lastCheck: new Date(),
           consecutiveFailures: 0,
           latencyMs,
         };
+        aiLogger.logHealthCheck('stable-diffusion', true, latencyMs);
+        
+        if (wasUnavailable) {
+          aiLogger.logRecovery('stable-diffusion', 'unavailable');
+        }
       } else {
         this.healthStatus.consecutiveFailures++;
         this.healthStatus.available = this.healthStatus.consecutiveFailures < 3;
         this.healthStatus.lastCheck = new Date();
         this.healthStatus.error = `HTTP ${response.status}`;
+        aiLogger.logHealthCheck('stable-diffusion', false, latencyMs, `HTTP ${response.status}`);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       this.healthStatus.consecutiveFailures++;
       this.healthStatus.available = false;
       this.healthStatus.lastCheck = new Date();
-      this.healthStatus.error = error.message;
+      this.healthStatus.error = errorMessage;
       this.healthStatus.latencyMs = Date.now() - start;
+      aiLogger.logConnectionFailure('stable-diffusion', this.config.url, errorMessage);
     }
 
     return this.healthStatus;
@@ -90,54 +104,80 @@ export class StableDiffusionProvider {
   }
 
   async listModels(): Promise<SDModel[]> {
+    const ctx = aiLogger.startRequest('stable-diffusion', 'list_models');
+    
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 10000);
 
-      const response = await fetch(`${this.baseURL}/sdapi/v1/sd-models`, {
+      const response = await fetch(`${this.config.url}/sdapi/v1/sd-models`, {
         signal: controller.signal,
       });
       clearTimeout(timeout);
 
       if (!response.ok) {
+        aiLogger.endRequest(ctx, false, { error: `HTTP ${response.status}` });
         return [];
       }
 
-      return await response.json();
-    } catch {
+      const models = await response.json();
+      aiLogger.endRequest(ctx, true, { modelCount: models.length });
+      return models;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      aiLogger.logError(ctx, errorMessage);
       return [];
     }
   }
 
   async getCurrentModel(): Promise<string | null> {
+    const ctx = aiLogger.startRequest('stable-diffusion', 'get_current_model');
+    
     try {
-      const response = await fetch(`${this.baseURL}/sdapi/v1/options`);
-      if (!response.ok) return null;
+      const response = await fetch(`${this.config.url}/sdapi/v1/options`);
+      if (!response.ok) {
+        aiLogger.endRequest(ctx, false, { error: `HTTP ${response.status}` });
+        return null;
+      }
       const data = await response.json();
-      return data.sd_model_checkpoint || null;
-    } catch {
+      const model = data.sd_model_checkpoint || null;
+      aiLogger.endRequest(ctx, true, { model });
+      return model;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      aiLogger.logError(ctx, errorMessage);
       return null;
     }
   }
 
   async setModel(modelName: string): Promise<boolean> {
+    const ctx = aiLogger.startRequest('stable-diffusion', 'set_model', { modelName });
+    
     try {
-      const response = await fetch(`${this.baseURL}/sdapi/v1/options`, {
+      const response = await fetch(`${this.config.url}/sdapi/v1/options`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sd_model_checkpoint: modelName }),
       });
-      return response.ok;
-    } catch {
+      const success = response.ok;
+      aiLogger.endRequest(ctx, success, { modelName });
+      return success;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      aiLogger.logError(ctx, errorMessage);
       return false;
     }
   }
 
   async generateImage(request: ImageGenerationRequest): Promise<ImageGenerationResponse> {
-    const start = Date.now();
+    const ctx = aiLogger.startRequest('stable-diffusion', 'generate_image', {
+      width: request.width,
+      height: request.height,
+      steps: request.steps,
+    });
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    const timeout = setTimeout(() => controller.abort(), this.config.timeout);
 
     try {
       const payload = {
@@ -150,7 +190,7 @@ export class StableDiffusionProvider {
         sampler_name: request.sampler || 'Euler a',
       };
 
-      const response = await fetch(`${this.baseURL}/sdapi/v1/txt2img`, {
+      const response = await fetch(`${this.config.url}/sdapi/v1/txt2img`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -159,20 +199,28 @@ export class StableDiffusionProvider {
       clearTimeout(timeout);
 
       if (!response.ok) {
+        const errorText = await response.text().catch(() => 'No response body');
+        aiLogger.logError(ctx, `HTTP ${response.status}: ${errorText}`, `HTTP_${response.status}`);
         throw new Error(`SD generation error: HTTP ${response.status}`);
       }
 
       const data = await response.json();
+      const latency = Date.now() - ctx.startTime;
+      const imageCount = (data.images || []).length;
+      
+      aiLogger.endRequest(ctx, true, { imageCount, latency });
 
       return {
         images: data.images || [],
         provider: 'stable-diffusion',
-        latency: Date.now() - start,
+        latency,
         seed: data.info ? JSON.parse(data.info).seed : undefined,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       clearTimeout(timeout);
-      throw new Error(`SD generation failed: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      aiLogger.logError(ctx, errorMessage);
+      throw new Error(`SD generation failed: ${errorMessage}`);
     }
   }
 
@@ -186,10 +234,13 @@ export class StableDiffusionProvider {
       cfgScale?: number;
     } = {}
   ): Promise<ImageGenerationResponse> {
-    const start = Date.now();
+    const ctx = aiLogger.startRequest('stable-diffusion', 'img2img', {
+      denoisingStrength: options.denoisingStrength,
+      steps: options.steps,
+    });
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    const timeout = setTimeout(() => controller.abort(), this.config.timeout);
 
     try {
       const payload = {
@@ -201,7 +252,7 @@ export class StableDiffusionProvider {
         cfg_scale: options.cfgScale || 7,
       };
 
-      const response = await fetch(`${this.baseURL}/sdapi/v1/img2img`, {
+      const response = await fetch(`${this.config.url}/sdapi/v1/img2img`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -210,20 +261,26 @@ export class StableDiffusionProvider {
       clearTimeout(timeout);
 
       if (!response.ok) {
+        aiLogger.logError(ctx, `HTTP ${response.status}`, `HTTP_${response.status}`);
         throw new Error(`SD img2img error: HTTP ${response.status}`);
       }
 
       const data = await response.json();
+      const latency = Date.now() - ctx.startTime;
+      
+      aiLogger.endRequest(ctx, true, { imageCount: (data.images || []).length, latency });
 
       return {
         images: data.images || [],
         provider: 'stable-diffusion',
-        latency: Date.now() - start,
+        latency,
         seed: data.info ? JSON.parse(data.info).seed : undefined,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       clearTimeout(timeout);
-      throw new Error(`SD img2img failed: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      aiLogger.logError(ctx, errorMessage);
+      throw new Error(`SD img2img failed: ${errorMessage}`);
     }
   }
 
@@ -234,7 +291,7 @@ export class StableDiffusionProvider {
     current_image: string | null;
   } | null> {
     try {
-      const response = await fetch(`${this.baseURL}/sdapi/v1/progress`);
+      const response = await fetch(`${this.config.url}/sdapi/v1/progress`);
       if (!response.ok) return null;
       return await response.json();
     } catch {
@@ -243,12 +300,18 @@ export class StableDiffusionProvider {
   }
 
   async interrupt(): Promise<boolean> {
+    const ctx = aiLogger.startRequest('stable-diffusion', 'interrupt');
+    
     try {
-      const response = await fetch(`${this.baseURL}/sdapi/v1/interrupt`, {
+      const response = await fetch(`${this.config.url}/sdapi/v1/interrupt`, {
         method: 'POST',
       });
-      return response.ok;
-    } catch {
+      const success = response.ok;
+      aiLogger.endRequest(ctx, success);
+      return success;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      aiLogger.logError(ctx, errorMessage);
       return false;
     }
   }
@@ -269,8 +332,15 @@ export class StableDiffusionProvider {
     seed?: number;
     batchSize?: number;
   }): Promise<{ images: string[]; info: Record<string, unknown> }> {
+    const ctx = aiLogger.startRequest('stable-diffusion', 'txt2img', {
+      width: options.width,
+      height: options.height,
+      steps: options.steps,
+      batchSize: options.batchSize,
+    });
+
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    const timeout = setTimeout(() => controller.abort(), this.config.timeout);
 
     try {
       const payload = {
@@ -285,7 +355,7 @@ export class StableDiffusionProvider {
         batch_size: options.batchSize || 1,
       };
 
-      const response = await fetch(`${this.baseURL}/sdapi/v1/txt2img`, {
+      const response = await fetch(`${this.config.url}/sdapi/v1/txt2img`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -294,11 +364,16 @@ export class StableDiffusionProvider {
       clearTimeout(timeout);
 
       if (!response.ok) {
+        const errorText = await response.text().catch(() => 'No response body');
+        aiLogger.logError(ctx, `HTTP ${response.status}: ${errorText}`, `HTTP_${response.status}`);
         throw new Error(`SD txt2img error: HTTP ${response.status}`);
       }
 
       const data = await response.json();
       const info = data.info ? JSON.parse(data.info) : {};
+      const latency = Date.now() - ctx.startTime;
+      
+      aiLogger.endRequest(ctx, true, { imageCount: (data.images || []).length, latency });
 
       return {
         images: data.images || [],
@@ -306,8 +381,9 @@ export class StableDiffusionProvider {
       };
     } catch (error: unknown) {
       clearTimeout(timeout);
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      throw new Error(`SD txt2img failed: ${message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      aiLogger.logError(ctx, errorMessage);
+      throw new Error(`SD txt2img failed: ${errorMessage}`);
     }
   }
 }

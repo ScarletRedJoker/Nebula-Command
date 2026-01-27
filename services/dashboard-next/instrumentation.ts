@@ -58,5 +58,21 @@ export async function register() {
     } catch (error) {
       console.warn("[Instrumentation] Service registration skipped:", error);
     }
+
+    try {
+      const { validateAIConfig, logConfigStatus } = await import("./lib/ai/config");
+      logConfigStatus();
+      
+      const validation = validateAIConfig();
+      if (!validation.valid) {
+        console.error("[Instrumentation] AI Configuration errors:");
+        validation.errors.forEach(e => console.error(`  - ${e}`));
+        if (process.env.NODE_ENV === "production" && process.env.AI_CONFIG_STRICT === "true") {
+          console.error("[Instrumentation] Strict mode enabled - AI services may not work correctly");
+        }
+      }
+    } catch (error) {
+      console.warn("[Instrumentation] AI config validation skipped:", error);
+    }
   }
 }
