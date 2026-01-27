@@ -14,6 +14,7 @@ import parser from 'cron-parser';
 import { db, isDbConnected } from '../db';
 import { contentPipelines, type ContentPipeline } from '../db/platform-schema';
 import { influencerPipeline, type PipelineRunResult } from './influencer-pipeline';
+import { recordJobExecution, recordQueueDepth } from '@/lib/observability/metrics-collector';
 
 function log(level: 'info' | 'warn' | 'error' | 'debug', operation: string, message: string, metadata?: Record<string, unknown>): void {
   const prefix = `[PipelineScheduler:${operation}]`;
@@ -204,6 +205,8 @@ export class SchedulerService {
     this.insertByPriority(queued);
     log('info', 'addToQueue', 'Pipeline added to queue', { pipelineId, priority, queueSize: this.queue.length });
     
+    recordQueueDepth('pipeline-scheduler', this.queue.length);
+    
     this.processQueue();
     return true;
   }
@@ -329,6 +332,7 @@ export class SchedulerService {
 
       await this.updatePipelineSchedule(pipeline);
 
+      const durationMs = Date.now() - startTime;
       this.stats.totalExecuted++;
       log('info', 'executePipeline', 'Pipeline executed successfully', {
         pipelineId: queued.pipelineId,
@@ -336,12 +340,14 @@ export class SchedulerService {
         status: result.status,
       });
 
+      recordJobExecution('pipeline', 'completed', durationMs, { pipelineId: queued.pipelineId, runId: result.runId });
+
       return {
         queuedPipeline: queued,
         result,
         error: null,
         executedAt: new Date(),
-        durationMs: Date.now() - startTime,
+        durationMs,
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -349,6 +355,8 @@ export class SchedulerService {
         pipelineId: queued.pipelineId,
       });
 
+      const durationMs = Date.now() - startTime;
+      
       if (queued.retryCount < this.config.maxRetries) {
         setTimeout(() => {
           const retryQueued: QueuedPipeline = {
@@ -369,6 +377,8 @@ export class SchedulerService {
           pipelineId: queued.pipelineId,
           maxRetries: this.config.maxRetries,
         });
+        
+        recordJobExecution('pipeline', 'failed', durationMs, { pipelineId: queued.pipelineId, error: errorMessage });
       }
 
       return {
@@ -376,7 +386,7 @@ export class SchedulerService {
         result: null,
         error: errorMessage,
         executedAt: new Date(),
-        durationMs: Date.now() - startTime,
+        durationMs,
       };
     }
   }

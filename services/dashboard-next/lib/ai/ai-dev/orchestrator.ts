@@ -22,6 +22,7 @@ import { repoManager, type FilePatch } from './repo-manager';
 import { aiLogger } from '../logger';
 import { contextManager, type ContextSummary } from './context-manager';
 import { remoteExecutor, type RemoteExecutionConfig } from './remote-executor';
+import { recordJobExecution, recordQueueDepth } from '@/lib/observability/metrics-collector';
 
 export type JobStatus = 
   | 'pending'
@@ -420,6 +421,8 @@ export class AIDevOrchestrator {
 
       const ctxSummary = await contextManager.summarizeContext(jobId);
 
+      const durationMs = Date.now() - startTime;
+      
       aiLogger.endRequest(logContext, true, {
         patchCount: patches.length,
         testsRun,
@@ -429,8 +432,10 @@ export class AIDevOrchestrator {
         autoApproved,
         autoApprovalRule,
         tokensUsed: totalTokens,
-        durationMs: Date.now() - startTime,
+        durationMs,
       });
+
+      recordJobExecution('ai-dev', 'completed', durationMs, { jobId, patchCount: patches.length, autoApproved });
 
       return {
         success: true,
@@ -443,18 +448,21 @@ export class AIDevOrchestrator {
         autoApproved,
         autoApprovalRule,
         tokensUsed: totalTokens,
-        durationMs: Date.now() - startTime,
+        durationMs,
         contextSummary: ctxSummary || undefined,
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const durationMs = Date.now() - startTime;
       
       await this.updateJobStatus(jobId, 'failed', {
         errorMessage,
-        durationMs: Date.now() - startTime,
+        durationMs,
       });
 
       aiLogger.logError(logContext, error as Error);
+      
+      recordJobExecution('ai-dev', 'failed', durationMs, { jobId, error: errorMessage });
 
       return {
         success: false,
@@ -465,7 +473,7 @@ export class AIDevOrchestrator {
         buildPassed: false,
         autoApproved: false,
         tokensUsed: 0,
-        durationMs: Date.now() - startTime,
+        durationMs,
         error: errorMessage,
       };
     } finally {

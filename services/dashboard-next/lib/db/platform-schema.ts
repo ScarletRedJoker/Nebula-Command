@@ -1956,6 +1956,92 @@ export const scheduledJobs = pgTable("scheduled_jobs", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+/**
+ * System Metrics - Production observability metrics storage
+ */
+export const systemMetrics = pgTable("system_metrics", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  value: varchar("value", { length: 100 }).notNull(),
+  tags: jsonb("tags"),
+  timestamp: timestamp("timestamp").defaultNow(),
+  metricType: varchar("metric_type", { length: 20 }).notNull(), // 'counter', 'gauge', 'histogram'
+});
+
+export type SystemMetric = typeof systemMetrics.$inferSelect;
+export type NewSystemMetric = typeof systemMetrics.$inferInsert;
+
+/**
+ * System Alerts - Production alerting for monitoring
+ */
+export const systemAlerts = pgTable("system_alerts", {
+  id: varchar("id", { length: 100 }).primaryKey(),
+  category: varchar("category", { length: 50 }).notNull(),
+  severity: varchar("severity", { length: 20 }).notNull(),
+  title: varchar("title", { length: 500 }).notNull(),
+  message: text("message").notNull(),
+  source: varchar("source", { length: 255 }).notNull(),
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+  acknowledged: boolean("acknowledged").default(false),
+  acknowledgedBy: varchar("acknowledged_by", { length: 255 }),
+  acknowledgedAt: timestamp("acknowledged_at"),
+  resolvedAt: timestamp("resolved_at"),
+  metadata: jsonb("metadata").default({}),
+  deduplicationKey: varchar("deduplication_key", { length: 500 }).notNull(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type SystemAlert = typeof systemAlerts.$inferSelect;
+export type NewSystemAlert = typeof systemAlerts.$inferInsert;
+
+// ============================================
+// Incident Management & Failure Tracking System
+// ============================================
+
+export const incidentEvents = pgTable("incident_events", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  incidentId: uuid("incident_id").references(() => incidents.id).notNull(),
+  eventType: varchar("event_type", { length: 50 }).notNull(),
+  actor: varchar("actor", { length: 255 }).notNull(),
+  message: text("message").notNull(),
+  data: jsonb("data").default({}),
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+});
+
+export const failureRecords = pgTable("failure_records", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  failureType: varchar("failure_type", { length: 50 }).notNull(),
+  service: varchar("service", { length: 255 }).notNull(),
+  message: text("message").notNull(),
+  stack: text("stack"),
+  fingerprint: varchar("fingerprint", { length: 64 }),
+  context: jsonb("context").default({}),
+  incidentId: uuid("incident_id").references(() => incidents.id),
+  acknowledged: boolean("acknowledged").default(false),
+  acknowledgedBy: varchar("acknowledged_by", { length: 255 }),
+  acknowledgedAt: timestamp("acknowledged_at"),
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+});
+
+export const failureAggregates = pgTable("failure_aggregates", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  fingerprint: varchar("fingerprint", { length: 64 }).notNull().unique(),
+  service: varchar("service", { length: 255 }).notNull(),
+  message: text("message").notNull(),
+  occurrenceCount: integer("occurrence_count").default(1),
+  firstSeenAt: timestamp("first_seen_at").defaultNow().notNull(),
+  lastSeenAt: timestamp("last_seen_at").defaultNow().notNull(),
+  incidentId: uuid("incident_id").references(() => incidents.id),
+  metadata: jsonb("metadata").default({}),
+});
+
+export type IncidentEvent = typeof incidentEvents.$inferSelect;
+export type NewIncidentEvent = typeof incidentEvents.$inferInsert;
+export type FailureRecord = typeof failureRecords.$inferSelect;
+export type NewFailureRecord = typeof failureRecords.$inferInsert;
+export type FailureAggregate = typeof failureAggregates.$inferSelect;
+export type NewFailureAggregate = typeof failureAggregates.$inferInsert;
+
 // Type exports for AI Influencer Pipeline
 export type InfluencerPersona = typeof influencerPersonas.$inferSelect;
 export type NewInfluencerPersona = typeof influencerPersonas.$inferInsert;

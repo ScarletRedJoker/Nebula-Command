@@ -82,6 +82,7 @@ const navGroups: NavGroup[] = [
       { href: "/status", label: "Status", icon: Activity },
       { href: "/activity", label: "Activity", icon: History },
       { href: "/incidents", label: "Incidents", icon: AlertTriangle },
+      { href: "/observability", label: "Observability", icon: Activity },
     ],
   },
   {

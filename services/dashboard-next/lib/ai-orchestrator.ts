@@ -10,6 +10,7 @@ import { peerDiscovery, type PeerService } from "./peer-discovery";
 import { withResilience } from "./ai-resilience";
 import { recordChatUsage } from "./ai-metrics";
 import { getAIConfig } from "@/lib/ai/config";
+import { recordAIRequest } from "@/lib/observability/metrics-collector";
 
 interface LocalAIState {
   windows_vm?: {
@@ -453,60 +454,84 @@ class AIOrchestrator {
     }
 
     const model = config.model || "gpt-4o";
-    const response = await this.openaiClient.chat.completions.create({
-      model,
-      messages,
-      temperature: config.temperature,
-      max_tokens: config.maxTokens,
-    });
+    const startTime = Date.now();
+    
+    try {
+      const response = await this.openaiClient.chat.completions.create({
+        model,
+        messages,
+        temperature: config.temperature,
+        max_tokens: config.maxTokens,
+      });
 
-    return {
-      content: response.choices[0]?.message?.content || "",
-      provider: "openai",
-      model,
-      fallbackUsed: false,
-      usage: response.usage ? {
-        promptTokens: response.usage.prompt_tokens,
-        completionTokens: response.usage.completion_tokens,
-        totalTokens: response.usage.total_tokens,
-      } : undefined,
-    };
+      const latencyMs = Date.now() - startTime;
+      const totalTokens = response.usage?.total_tokens || 0;
+      
+      recordAIRequest('openai', model, totalTokens, latencyMs, true);
+
+      return {
+        content: response.choices[0]?.message?.content || "",
+        provider: "openai",
+        model,
+        fallbackUsed: false,
+        usage: response.usage ? {
+          promptTokens: response.usage.prompt_tokens,
+          completionTokens: response.usage.completion_tokens,
+          totalTokens: response.usage.total_tokens,
+        } : undefined,
+      };
+    } catch (error) {
+      const latencyMs = Date.now() - startTime;
+      recordAIRequest('openai', model, 0, latencyMs, false);
+      throw error;
+    }
   }
 
   private async chatWithOllama(messages: ChatMessage[], config: AIConfig): Promise<ChatResponse> {
     const model = config.model || process.env.OLLAMA_DEFAULT_MODEL || "qwen2.5:latest";
+    const startTime = Date.now();
 
-    const response = await fetch(`${this.ollamaUrl}/api/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    try {
+      const response = await fetch(`${this.ollamaUrl}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model,
+          messages,
+          stream: false,
+          options: {
+            temperature: config.temperature,
+            num_predict: config.maxTokens,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Ollama error: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const latencyMs = Date.now() - startTime;
+      const totalTokens = (data.prompt_eval_count || 0) + (data.eval_count || 0);
+      
+      recordAIRequest('ollama', model, totalTokens, latencyMs, true);
+
+      return {
+        content: data.message?.content || "",
+        provider: "ollama",
         model,
-        messages,
-        stream: false,
-        options: {
-          temperature: config.temperature,
-          num_predict: config.maxTokens,
-        },
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Ollama error: ${response.statusText}`);
+        fallbackUsed: false,
+        usage: data.eval_count ? {
+          promptTokens: data.prompt_eval_count || 0,
+          completionTokens: data.eval_count || 0,
+          totalTokens,
+        } : undefined,
+      };
+    } catch (error) {
+      const latencyMs = Date.now() - startTime;
+      recordAIRequest('ollama', model, 0, latencyMs, false);
+      throw error;
     }
-
-    const data = await response.json();
-
-    return {
-      content: data.message?.content || "",
-      provider: "ollama",
-      model,
-      fallbackUsed: false,
-      usage: data.eval_count ? {
-        promptTokens: data.prompt_eval_count || 0,
-        completionTokens: data.eval_count || 0,
-        totalTokens: (data.prompt_eval_count || 0) + (data.eval_count || 0),
-      } : undefined,
-    };
   }
 
   async *streamChatWithOllama(

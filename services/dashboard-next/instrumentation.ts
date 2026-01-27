@@ -81,5 +81,13 @@ export async function register() {
     } catch (error) {
       console.warn("[Instrumentation] AI config validation skipped:", error);
     }
+
+    try {
+      const { initializeObservability } = await import("./lib/observability");
+      await initializeObservability();
+      console.log("[Instrumentation] Observability system initialized");
+    } catch (error) {
+      console.warn("[Instrumentation] Observability initialization skipped:", error);
+    }
   }
 }
