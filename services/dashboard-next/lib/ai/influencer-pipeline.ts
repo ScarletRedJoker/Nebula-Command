@@ -23,6 +23,8 @@ import {
 } from '../db/platform-schema';
 import { comfyUIOrchestrator, type ComfyUIOutputAsset } from './comfyui-orchestrator';
 import { aiOrchestrator, type ChatMessage } from '../ai-orchestrator';
+import { videoAssemblyService } from './video-assembly';
+import { createImageSequenceParams } from './comfyui-workflows';
 
 function isBuildTime(): boolean {
   return !process.env.DATABASE_URL || 
@@ -234,7 +236,7 @@ class InfluencerPipelineOrchestrator {
 
         if (promptChain.length > 0 && pipeline.workflowId) {
           const frameStage = await this.executeStage(run.id, 'frame_generation', async () => {
-            generatedFrames = await this.generateFrames(promptChain, pipeline.workflowId!);
+            generatedFrames = await this.generateFrames(promptChain, pipeline.workflowId!, persona);
             
             await this.updateVideoProject(videoProject.id, {
               generatedFrames: generatedFrames.map(f => ({
@@ -251,7 +253,35 @@ class InfluencerPipelineOrchestrator {
         }
 
         const assemblyStage = await this.executeStage(run.id, 'video_assembly', async () => {
-          return { message: 'Video assembly placeholder - implement with ffmpeg' };
+          if (generatedFrames.length === 0) {
+            return { message: 'No frames to assemble', skipped: true };
+          }
+
+          const assemblyResult = await videoAssemblyService.assembleVideo(
+            generatedFrames,
+            undefined,
+            undefined,
+            {
+              fps: 24,
+              format: (pipeline.outputFormat as 'mp4' | 'webm') || 'mp4',
+              resolution: pipeline.outputResolution || '1080p',
+              projectId: videoProject.id,
+            }
+          );
+
+          if (assemblyResult.success) {
+            await this.updateVideoProject(videoProject.id, {
+              finalVideoPath: assemblyResult.videoPath,
+              thumbnailPath: assemblyResult.thumbnailPath,
+            });
+          }
+
+          return {
+            videoPath: assemblyResult.videoPath,
+            thumbnailPath: assemblyResult.thumbnailPath,
+            duration: assemblyResult.durationSeconds,
+            success: assemblyResult.success,
+          };
         });
         stages.push(assemblyStage);
 
@@ -515,19 +545,38 @@ Respond in JSON format:
    */
   async generateFrames(
     promptChain: PromptChainItem[],
-    workflowId: string
+    workflowId: string,
+    persona?: InfluencerPersona | null
   ): Promise<GeneratedFrame[]> {
     log('info', 'generateFrames', 'Generating frames', {
       shotCount: promptChain.length,
       workflowId,
+      hasPersona: !!persona,
     });
 
     try {
-      const paramsList = promptChain.map((item, index) => ({
-        prompt: item.prompt,
-        negative_prompt: item.negativePrompt || '',
-        shot_index: index,
-      }));
+      let paramsList: Record<string, unknown>[];
+      
+      if (persona) {
+        const sequenceParams = createImageSequenceParams(persona, promptChain, {
+          baseSeed: Date.now(),
+          consistentLatent: true,
+        });
+        paramsList = sequenceParams.map(params => ({
+          prompt: params.prompt,
+          negative_prompt: params.negativePrompt,
+          seed: params.seed,
+          lora_name: params.loraConfig?.name,
+          lora_weight: params.loraConfig?.weight,
+          shot_index: params.shotIndex,
+        }));
+      } else {
+        paramsList = promptChain.map((item, index) => ({
+          prompt: item.prompt,
+          negative_prompt: item.negativePrompt || '',
+          shot_index: index,
+        }));
+      }
 
       const batchResult = await comfyUIOrchestrator.executeBatch(workflowId, paramsList, {
         concurrency: 2,

@@ -2,6 +2,8 @@ import express, { Request, Response } from 'express';
 import next from 'next';
 import { createProxyMiddleware, Options } from 'http-proxy-middleware';
 import { createServer } from 'http';
+import { pipelineScheduler } from '../lib/ai/pipeline-scheduler';
+import { isDbConnected } from '../lib/db';
 
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = '0.0.0.0';
@@ -50,6 +52,37 @@ app.prepare().then(() => {
   httpServer.listen(port, hostname, () => {
     console.log(`> Ready on http://${hostname}:${port}`);
     console.log(`> Terminal WebSocket proxy enabled at /terminal-ws -> localhost:${terminalPort}`);
+
+    // Start pipeline scheduler after server is ready and database is connected
+    if (isDbConnected()) {
+      pipelineScheduler.start();
+      console.log('[PipelineScheduler] Started automatically');
+    } else {
+      console.warn('[PipelineScheduler] Database not connected, scheduler initialization deferred');
+    }
+  });
+
+  // Graceful shutdown handlers
+  process.on('SIGTERM', async () => {
+    console.log('[Server] SIGTERM received, shutting down...');
+    try {
+      await pipelineScheduler.stop();
+      console.log('[PipelineScheduler] Scheduler stopped gracefully');
+    } catch (error) {
+      console.error('[PipelineScheduler] Error stopping scheduler:', error);
+    }
+    process.exit(0);
+  });
+
+  process.on('SIGINT', async () => {
+    console.log('[Server] SIGINT received, shutting down...');
+    try {
+      await pipelineScheduler.stop();
+      console.log('[PipelineScheduler] Scheduler stopped gracefully');
+    } catch (error) {
+      console.error('[PipelineScheduler] Error stopping scheduler:', error);
+    }
+    process.exit(0);
   });
 }).catch((err) => {
   console.error('Failed to start server:', err);

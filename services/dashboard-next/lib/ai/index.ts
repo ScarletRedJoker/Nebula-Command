@@ -24,3 +24,53 @@ export { getAIConfig, validateAIConfig, logConfigStatus } from './config';
 export type { AIConfig, AIEndpointConfig } from './config';
 export { aiLogger } from './logger';
 export type { AILogEntry, AIRequestContext, LogLevel } from './logger';
+
+// Influencer Pipeline
+export { influencerPipeline } from './influencer-pipeline';
+export type { 
+  PipelineRunStatus, 
+  VideoProjectStatus, 
+  ExecutionOptions, 
+  BatchOptions, 
+  GeneratedScript, 
+  PromptChainItem, 
+  GeneratedFrame, 
+  PipelineRunResult, 
+  BatchResult 
+} from './influencer-pipeline';
+
+// Pipeline Scheduler
+export { pipelineScheduler } from './pipeline-scheduler';
+export type { 
+  QueueItem, 
+  SchedulerConfig, 
+  SchedulerStats, 
+  QueueAddResult, 
+  ExecutionResult 
+} from './pipeline-scheduler';
+
+// ComfyUI Workflow Helpers
+export { 
+  buildPersonaWorkflowParams, 
+  createImageSequenceParams, 
+  buildVideoFrameParams,
+  toComfyUINodeInputs,
+  toAnimateDiffInputs,
+  createBatchParams,
+  buildWorkflowOverrides
+} from './comfyui-workflows';
+export type { 
+  PersonaWorkflowParams, 
+  ImageSequenceParams, 
+  VideoFrameParams, 
+  AnimateDiffConfig 
+} from './comfyui-workflows';
+
+// Video Assembly
+export { videoAssemblyService } from './video-assembly';
+export type { 
+  AssemblyOptions, 
+  VideoAssemblyResult, 
+  AudioMixResult, 
+  ThumbnailResult 
+} from './video-assembly';
