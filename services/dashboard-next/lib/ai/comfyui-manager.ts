@@ -311,4 +311,40 @@ export class ComfyUIServiceManager {
 
 export const comfyUIManager = new ComfyUIServiceManager();
 
+export async function safeCheckHealth(): Promise<ComfyUIServiceState> {
+  try {
+    return await comfyUIManager.checkHealth();
+  } catch (error) {
+    console.error('[ComfyUI Manager] Safe health check failed:', error);
+    return ComfyUIServiceState.OFFLINE;
+  }
+}
+
+export async function safeGetReadinessInfo(): Promise<ReadinessInfo> {
+  try {
+    return comfyUIManager.getReadinessInfo();
+  } catch (error) {
+    console.error('[ComfyUI Manager] Safe readiness info failed:', error);
+    return {
+      state: ComfyUIServiceState.OFFLINE,
+      lastCheck: null,
+      lastLatencyMs: null,
+      vramUsage: null,
+      queueSize: 0,
+      modelLoadProgress: 0,
+      deviceCount: 0,
+      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+export async function safeWaitForReady(timeoutMs: number = 60000): Promise<boolean> {
+  try {
+    return await comfyUIManager.waitForReady(timeoutMs);
+  } catch (error) {
+    console.error('[ComfyUI Manager] Safe wait for ready failed:', error);
+    return false;
+  }
+}
+
 export default comfyUIManager;
