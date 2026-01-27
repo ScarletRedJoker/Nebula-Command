@@ -1,345 +1,75 @@
 # Nebula Command
 
 ## Overview
-Nebula Command is a creation engine designed for comprehensive homelab management, AI-powered content creation, Discord community integration, and multi-platform streaming. It provides a unified, integrated solution for digital creators and homelab enthusiasts, streamlining content generation, distribution, and community engagement. The platform is optimized for distributed deployment across cloud and local infrastructure.
-
-## Quick Start Guide
-
-### 1. Run the Setup Wizard
-Navigate to `/setup` to run the interactive OOTB Setup Wizard. The wizard guides you through:
-- Environment detection (Linode/Home)
-- Secrets configuration (API keys for Discord, Twitch, YouTube, etc.)
-- Database setup and migrations
-- AI services configuration (Ollama, ComfyUI)
-- Platform connections
-- Deployment targets
-
-### 2. Access the Dashboard
-After setup, access the main dashboard at `/` to manage all services.
-
-### 3. Configure Services
-- **Discord Bot**: Configure via `/bot-editor`
-- **Stream Bot**: Set up platforms at `/stream-config`
-- **AI Services**: Manage models at `/ai-models`
+Nebula Command is a creation engine for comprehensive homelab management, AI-powered content creation, Discord community integration, and multi-platform streaming. It provides a unified solution for digital creators and homelab enthusiasts, streamlining content generation, distribution, and community engagement. The platform is optimized for distributed deployment across cloud and local infrastructure, aiming to be a central hub for digital creation and homelab operations.
 
 ## User Preferences
 - **Development Workflow:** Edit locally → Push to GitHub → Pull on servers
 - **Database:** Shared PostgreSQL (Neon in dev, self-hosted in prod)
 - **Secrets:** .env file (never commit)
 
-## Features
-
-### Core Dashboard Features
-- **OOTB Setup Wizard** (`/setup`): 7-step guided configuration wizard
-- **Command Center** (`/command-center`): Unified control of all environments
-- **Deploy Center** (`/deploy`): Remote deployment and verification
-- **Services Manager** (`/services`): Container and service management
-- **Secrets Manager** (`/secrets-manager`): Secure credential management
-
-### AI & Creative
-- **Jarvis AI** (`/jarvis`): AI chat assistant with tool calling
-- **Creative Studio** (`/creative`): AI image generation with ComfyUI/SD
-- **AI Models** (`/ai-models`): Model marketplace and management
-- **AI Training** (`/ai-training`): Fine-tuning and LoRA training
-- **AI Speech** (`/ai-speech`): Text-to-speech and speech-to-text
-
-### Automation & Development
-- **Workflows** (`/workflows`): Multi-step AI automation
-- **Agent Builder** (`/agents`): Custom AI agent configuration
-- **Pipelines** (`/pipelines`): Deployment automation
-- **Bot Editor** (`/bot-editor`): Discord bot customization
-
-### Infrastructure
-- **Servers** (`/servers`): Server monitoring and control
-- **Windows VM** (`/windows`): GPU server management
-- **Domains** (`/domains`): DNS and SSL management
-- **Marketplace** (`/marketplace`): Docker package installation
-
 ## System Architecture
 
 ### Core Services
-*   **Dashboard (Next.js 14):** Web interface for homelab management, Docker controls, SSH metrics, deployment pipelines, code editor, visual website designer, and Jarvis AI assistant.
-*   **Discord Bot (Node.js/React):** Customizable bot for community management with per-server identity and granular feature toggles.
-*   **Stream Bot (Node.js/React/Vite):** Multi-platform content posting across Twitch, YouTube, and Kick.
+- **Dashboard (Next.js 14):** Web interface for homelab management, Docker controls, SSH metrics, deployment pipelines, code editor, visual website designer, and Jarvis AI assistant.
+- **Discord Bot (Node.js/React):** Customizable bot for community management with per-server identity and granular feature toggles.
+- **Stream Bot (Node.js/React/Vite):** Multi-platform content posting across Twitch, YouTube, and Kick.
+- **Nebula Agent (Node.js/Express):** Runs on Windows VM for health monitoring, command execution, model management, and service control.
 
 ### Cross-Service Integration and Deployment
-Services share a PostgreSQL database and Redis for caching, communicating via webhooks and APIs. The system uses a three-tier distributed deployment model:
-- **Ubuntu Host (Home)**: Windows 11 VM with GPU passthrough
-- **Linode (Cloud)**: Dashboard, Discord bot, Stream bot
-- **Tailscale**: Secure mesh networking between all nodes
+Services share a PostgreSQL database and Redis for caching, communicating via webhooks and APIs. The system employs a three-tier distributed deployment model:
+- **Ubuntu Host (Home)**: Windows 11 VM with GPU passthrough for AI services.
+- **Linode (Cloud)**: Hosts the Dashboard, Discord bot, and Stream bot.
+- **Tailscale**: Provides secure mesh networking between all nodes.
 
 ### Platform Architecture
-Three-layer design (Experience, Control Plane, Execution Plane) with:
-- Marketplace API for Docker packages
-- Agent Orchestrator API for AI agents
-- Service Discovery via `service-map.yml`
-- Creative Studio for AI content creation
+A three-layer design (Experience, Control Plane, Execution Plane) supports:
+- A Marketplace API for Docker packages.
+- An Agent Orchestrator API for managing AI agents.
+- Service Discovery facilitated by `service-map.yml`.
+- A Creative Studio for AI content generation.
 
 ### AI Node Management
-- Monitors service health, GPU statistics, package versions
-- PowerShell script (`Start-NebulaAiStack.ps1`) for Windows AI startup
-- APIs for Speech, Job Scheduling, Training, Embeddings/RAG
-- Unified model management via dashboard and Windows Model Agent
+The system monitors service health, GPU statistics, and package versions on AI nodes. It includes APIs for Speech, Job Scheduling, Training, and Embeddings/RAG, with unified model management via the dashboard and a Windows Model Agent.
 
 ### Creative Engine
-Content generation at `/creative-studio`:
-- Text-to-image, Image-to-image, Inpainting
-- ControlNet, Upscaling, Face Swap
-- Database-backed pipeline for job persistence
+The Creative Studio (`/creative-studio`) supports:
+- Text-to-image, Image-to-image, and Inpainting.
+- ControlNet, Upscaling, and Face Swap features.
+- A database-backed pipeline ensures job persistence.
 
 ### Jarvis AI Orchestrator
-- Multi-agent AI with job queue and subagent management
-- Local-first resource selection and progress tracking
-- OpenCode integration for autonomous code development
+This multi-agent AI system manages a job queue and subagents, supporting local-first resource selection, progress tracking, and integration with OpenCode for autonomous code development.
 
-### Nebula Agent
-Node.js/Express agent on Windows VM (port 9765 via Tailscale):
-- Health monitoring
-- Command execution
-- Model management
-- Service control
-
-## Deployment Instructions
-
-### Prerequisites
-- Node.js 20+
-- PostgreSQL database
-- Redis (optional, for caching)
-
-### Environment Setup
-
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/your-repo/nebula-command.git
-   cd nebula-command
-   ```
-
-2. **Install dependencies**:
-   ```bash
-   cd services/dashboard-next && npm install
-   cd ../discord-bot && npm install
-   cd ../stream-bot && npm install
-   ```
-
-3. **Configure environment variables** (see Environment Variables section)
-
-4. **Run the setup wizard**:
-   ```bash
-   npm run dev
-   # Navigate to http://localhost:5000/setup
-   ```
-
-### Deployment Targets
-
-#### Linode (Production)
-```bash
-./deploy/scripts/bootstrap-linode.sh
-```
-
-#### Ubuntu Home Server
-```bash
-./deploy/local/deploy.sh
-```
-
-#### Windows VM (GPU)
-1. Start Tailscale and ensure connectivity
-2. Run `Start-NebulaAiStack.ps1` for AI services
-3. Nebula Agent auto-starts on port 9765
-
-## Environment Variables Reference
-
-### Required Variables
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `DATABASE_URL` | PostgreSQL connection string | `postgresql://user:pass@host:5432/db` |
-| `SESSION_SECRET` | Session encryption key | Random 32+ char string |
-
-### Discord Bot
-| Variable | Description |
-|----------|-------------|
-| `DISCORD_TOKEN` | Bot authentication token |
-| `DISCORD_CLIENT_ID` | OAuth2 client ID |
-| `DISCORD_CLIENT_SECRET` | OAuth2 client secret |
-
-### Streaming Platforms
-| Variable | Description |
-|----------|-------------|
-| `TWITCH_CLIENT_ID` | Twitch application client ID |
-| `TWITCH_CLIENT_SECRET` | Twitch application secret |
-| `YOUTUBE_API_KEY` | YouTube Data API key |
-
-### Spotify Integration
-| Variable | Description |
-|----------|-------------|
-| `SPOTIFY_CLIENT_ID` | Spotify application client ID |
-| `SPOTIFY_CLIENT_SECRET` | Spotify application secret |
-
-### AI Services
-| Variable | Description |
-|----------|-------------|
-| `OPENAI_API_KEY` | OpenAI API key (fallback) |
-| `WINDOWS_VM_TAILSCALE_IP` | Windows VM IP for local AI |
-
-### Deployment Servers
-| Variable | Description |
-|----------|-------------|
-| `LINODE_SSH_HOST` | Linode server hostname/IP |
-| `HOME_SSH_HOST` | Home server hostname/IP |
-| `SSH_PRIVATE_KEY` | SSH private key for deployment |
-
-### Optional Variables
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `REDIS_URL` | Redis connection string | - |
-| `NODE_ENV` | Environment mode | `development` |
-| `PORT` | Dashboard port | `5000` |
-
-## Troubleshooting Guide
-
-### Common Issues
-
-#### Database Connection Failed
-**Symptoms**: "DATABASE_URL not configured" or connection errors
-**Solutions**:
-1. Verify `DATABASE_URL` is set correctly
-2. Check database server is running
-3. Ensure network connectivity to database host
-
-#### AI Services Unavailable
-**Symptoms**: Ollama/ComfyUI not detected
-**Solutions**:
-1. Verify Windows VM is running and Tailscale connected
-2. Check `WINDOWS_VM_TAILSCALE_IP` is set
-3. Ensure Ollama is running on port 11434
-4. Test: `curl http://<VM_IP>:11434/api/tags`
-
-#### Discord Bot Not Responding
-**Symptoms**: Bot online but not responding to commands
-**Solutions**:
-1. Verify `DISCORD_TOKEN` is valid
-2. Check bot has proper permissions in server
-3. Ensure bot is in the correct guild
-4. Check dashboard logs for errors
-
-#### Platform OAuth Failures
-**Symptoms**: "Invalid credentials" for Twitch/Spotify/YouTube
-**Solutions**:
-1. Regenerate API credentials from developer portal
-2. Verify redirect URIs match your deployment URL
-3. Check credentials are not expired
-4. Ensure all required scopes are granted
-
-#### Deployment Target Unreachable
-**Symptoms**: SSH connection failures
-**Solutions**:
-1. Verify target server is online
-2. Check SSH key is properly configured
-3. Ensure firewall allows SSH (port 22)
-4. For Windows VM: Verify Tailscale connection
-
-### Debug Commands
-
-```bash
-# Check database connection
-curl http://localhost:5000/api/health/check
-
-# Test AI services
-curl http://localhost:5000/api/ai/health
-
-# Verify environment detection
-curl http://localhost:5000/api/setup/detect
-
-# Check secrets status
-curl http://localhost:5000/api/setup/step/secrets
-```
-
-### Log Locations
-- Dashboard: Console output / `/tmp/logs/`
-- Discord Bot: `services/discord-bot/logs/`
-- Stream Bot: `services/stream-bot/logs/`
+### Key Features
+- **OOTB Setup Wizard** (`/setup`): Guided configuration for environment, secrets, database, AI, and platform connections.
+- **Command Center** (`/command-center`): Unified control across all environments.
+- **Deploy Center** (`/deploy`): Remote deployment and verification.
+- **Services Manager** (`/services`): Container and service management.
+- **Secrets Manager** (`/secrets-manager`): Secure credential management.
+- **Jarvis AI** (`/jarvis`): AI chat assistant with tool calling.
+- **Creative Studio** (`/creative`): AI image generation with ComfyUI/SD.
+- **AI Models** (`/ai-models`): Model marketplace and management.
+- **Workflows** (`/workflows`): Multi-step AI automation.
+- **Agent Builder** (`/agents`): Custom AI agent configuration.
+- **Pipelines** (`/pipelines`): Deployment automation.
+- **Bot Editor** (`/bot-editor`): Discord bot customization.
+- **Servers** (`/servers`): Server monitoring and control.
+- **Windows VM** (`/windows`): GPU server management.
+- **Domains** (`/domains`): DNS and SSL management.
+- **Marketplace** (`/marketplace`): Docker package installation.
 
 ## External Dependencies
-*   **PostgreSQL:** Primary relational database
-*   **Redis:** Caching and session management
-*   **OpenAI API:** AI services (cloud fallback)
-*   **Discord API (discord.js):** Discord Bot functionality
-*   **Twitch/YouTube/Kick APIs:** Stream Bot integration
-*   **Spotify API:** Music bot features
-*   **Plex API:** "Now Playing" status
-*   **Home Assistant API:** Homelab automation
-*   **Cloudflare API:** DNS management
-*   **Tailscale:** Secure network connectivity
-*   **Caddy:** Reverse proxy
-*   **Ollama:** Local LLM inference
-*   **Stable Diffusion/ComfyUI:** Local image generation
-
-## Recent Changes
-- **January 25, 2026 (latest)**: Complete SD/ComfyUI integration and build fixes:
-  - Fixed TypeScript build error in code-gen route (proper type handling for SSE chunks)
-  - Added ComfyUI provider client with full workflow support (txt2img, queue, history, image upload)
-  - Added txt2img and progress API routes for Stable Diffusion (`/api/ai/image/txt2img`, `/api/ai/image/progress`)
-  - Created ImageGenerator UI component with real-time progress tracking and download support
-  - Added Image Generator page at `/ai/image-gen`
-  - Created AI provider index for unified imports
-  - All 24 AI integration tests passing
-- **January 25, 2026**: Enhanced AI reliability and Windows service management:
-  - Fixed chatStream method with robust mid-stream error handling and provider fallback
-  - Added transient error detection with exponential backoff retry (3 retries, 1s-4s delays)
-  - Implemented streaming fallback metrics: emitStreamError, emitProviderSwitched, trackFallbackUsage
-  - Created Windows service watchdog daemon (`deploy/windows/scripts/service-watchdog.ps1`)
-  - Watchdog features: 30s health checks, 60s cooldown, 5 restarts/hour limit, state persistence
-  - Added health webhook reporting and CLI actions (start/stop/status/reset)
-- **January 25, 2026**: Major AI orchestration overhaul:
-  - Refactored AI system into modular `lib/ai/` structure with unified AIProvider interface
-  - New provider clients: ollama.ts, openai.ts, stable-diffusion.ts
-  - Health checker with 30s polling, 3-failure threshold, auto-recovery
-  - Response caching (1 hour TTL) with prompt hashing
-  - Cost tracker with daily spend limits ($5 default), alerts at 80%, auto LOCAL_ONLY mode
-  - Client-side streaming with useAIStream hook and StreamingChat component
-  - CodeAgent for multi-file code generation (components, API routes, Docker, scripts)
-  - Enhanced Windows agent with PowerShell orchestrator, PyTorch CUDA validator, incident reporting
-  - API endpoints: /api/ai/costs, /api/ai/code-gen, /api/incidents
-- **January 27, 2026**: Production hardening - AI service configuration and logging:
-  - Created centralized AI config system (lib/ai/config.ts) - removes hardcoded IPs, environment-first configuration
-  - Environment variables: WINDOWS_VM_TAILSCALE_IP, OLLAMA_URL, STABLE_DIFFUSION_URL, COMFYUI_URL
-  - Implemented structured AI logging (lib/ai/logger.ts) for all AI operations with correlation IDs
-  - Updated all AI providers (Ollama, OpenAI, SD, ComfyUI) to use new config and logging
-  - Updated service-discovery.ts to use getAIConfig() - no more hardcoded localhost assumptions
-  - Enhanced health-checker with auto-recovery via Windows agent when available
-  - Created dashboard error boundaries (global-error.tsx, error.tsx) with context-aware guidance
-  - Added /api/errors/log endpoint for client-side error reporting
-  - Note: Many other files still have hardcoded IP (100.118.44.102) - requires additional refactoring
-- **January 24, 2026**: AI resilience and cost optimization enhancements:
-  - Added circuit breaker pattern with exponential backoff retry logic for AI services
-  - Implemented 80% local / 20% cloud ratio enforcement with deterministic provider selection
-  - Added streaming response support for Ollama chat completions with SSE
-  - Created unified content generation service for code, website design, and social posts
-  - Enhanced Windows AI agent with ServiceWatchdog auto-heal (cooldown, restart limits, manual reset)
-  - Updated stream-bot to use Ollama-first with OpenAI fallback pattern
-  - Fixed TypeScript compilation issues (token type transforms, iterator conversions)
-- **January 20, 2026**: Major AI features overhaul:
-  - Fixed Creative Studio model validation - properly distinguishes base checkpoints from motion modules/LoRA/VAE
-  - Added model switch warning banner in Creative Studio when invalid model is loaded
-  - Enabled AI cloud fallback - OpenAI fallback now works when local AI is offline (unless LOCAL_AI_ONLY=true)
-  - Improved Jarvis AI status indicators - clear service status banners and actionable error messages
-  - Added health gating to disable UI actions when required AI services are offline
-- **January 2026**: Added comprehensive OOTB Setup Wizard with 7-step guided configuration
-- **January 2026**: Updated API routes for setup wizard steps (secrets, database, AI, platforms, deployment)
-- **January 2026**: Added environment detection and service connectivity testing
-- **January 2026**: Comprehensive documentation update with quick start guide and troubleshooting
-
-## Project Structure
-```
-nebula-command/
-├── services/
-│   ├── dashboard-next/     # Main Next.js dashboard
-│   ├── discord-bot/        # Discord bot service
-│   ├── stream-bot/         # Multi-platform stream bot
-│   └── nebula-agent/       # Windows VM agent
-├── deploy/
-│   ├── linode/             # Linode deployment configs
-│   ├── local/              # Home server deployment
-│   └── nebula-deployer/    # CLI deployment tool
-├── config/                 # Shared configuration files
-└── docs/                   # Additional documentation
-```
+- **PostgreSQL:** Primary relational database.
+- **Redis:** Caching and session management.
+- **OpenAI API:** Cloud-based AI services (fallback).
+- **Discord API (discord.js):** Discord Bot functionality.
+- **Twitch/YouTube/Kick APIs:** Stream Bot integration.
+- **Spotify API:** Music bot features.
+- **Plex API:** "Now Playing" status.
+- **Home Assistant API:** Homelab automation.
+- **Cloudflare API:** DNS management.
+- **Tailscale:** Secure network connectivity.
+- **Caddy:** Reverse proxy.
+- **Ollama:** Local LLM inference.
+- **Stable Diffusion/ComfyUI:** Local image generation.
