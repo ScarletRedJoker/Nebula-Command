@@ -13,6 +13,7 @@ import {
 } from "@/lib/service-locator";
 import { getAllServices, type RegisteredService } from "@/lib/service-registry";
 import { detectSSHKeyFormat } from "@/lib/ssh-key-converter";
+import { getAIConfig } from "@/lib/ai/config";
 
 async function checkAuth() {
   const cookieStore = await cookies();
@@ -290,8 +291,9 @@ async function getUbuntuHomeNodeInfo(): Promise<NodeInfo> {
 }
 
 async function getWindowsVMNodeInfo(): Promise<NodeInfo> {
-  const config = getDeploymentConfig("windows-vm");
-  const tailscaleIp = process.env.WINDOWS_VM_TAILSCALE_IP || "100.118.44.102";
+  const deployConfig = getDeploymentConfig("windows-vm");
+  const aiConfig = getAIConfig();
+  const tailscaleIp = aiConfig.windowsVM.ip || "localhost";
   
   const agentResult = await testAgentConnection("windows-vm");
   
@@ -304,7 +306,7 @@ async function getWindowsVMNodeInfo(): Promise<NodeInfo> {
   
   return {
     id: "windows-vm",
-    name: config?.name || "Windows AI VM",
+    name: deployConfig?.name || "Windows AI VM",
     description: "GPU services via Tailscale",
     hostname: tailscaleIp,
     tailscaleIp,

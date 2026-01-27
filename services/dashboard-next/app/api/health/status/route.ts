@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { Pool } from "pg";
 import { Client } from "ssh2";
 import { readFileSync, existsSync } from "fs";
+import { getAIConfig } from "@/lib/ai/config";
 
 interface ServiceHealth {
   id: string;
@@ -610,7 +611,7 @@ async function checkAIService(name: string, url: string, healthPath: string): Pr
 
 export async function GET() {
   const services: ServiceHealth[] = [];
-  const WINDOWS_VM_IP = process.env.WINDOWS_VM_TAILSCALE_IP || "100.118.44.102";
+  const config = getAIConfig();
 
   services.push({
     id: "dashboard",
@@ -622,9 +623,9 @@ export async function GET() {
     uptime: 100,
   });
 
-  const ollamaUrl = process.env.OLLAMA_URL || `http://${WINDOWS_VM_IP}:11434`;
-  const sdUrl = process.env.STABLE_DIFFUSION_URL || `http://${WINDOWS_VM_IP}:7860`;
-  const comfyUrl = process.env.COMFYUI_URL || `http://${WINDOWS_VM_IP}:8188`;
+  const ollamaUrl = config.ollama.url;
+  const sdUrl = config.stableDiffusion.url;
+  const comfyUrl = config.comfyui.url;
   
   const discordBotUrl = process.env.DISCORD_BOT_URL || (process.env.NODE_ENV === "production" ? "http://discord-bot:4000" : "http://localhost:4000");
   const streamBotUrl = process.env.STREAM_BOT_URL || (process.env.NODE_ENV === "production" ? "http://stream-bot:5000" : "http://localhost:3000");

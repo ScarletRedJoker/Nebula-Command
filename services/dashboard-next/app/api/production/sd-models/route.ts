@@ -2,10 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { aiOrchestrator } from "@/lib/ai-orchestrator";
 import { verifySession } from "@/lib/session";
 import { cookies } from "next/headers";
+import { getAIConfig } from "@/lib/ai/config";
 
-const WINDOWS_VM_IP = process.env.WINDOWS_VM_TAILSCALE_IP || "100.118.44.102";
-const NEBULA_AGENT_URL = process.env.NEBULA_AGENT_URL || `http://${WINDOWS_VM_IP}:9765`;
 const NEBULA_AGENT_TOKEN = process.env.NEBULA_AGENT_TOKEN;
+
+function getNebulaAgentUrl(): string | null {
+  const config = getAIConfig();
+  return config.windowsVM.nebulaAgentUrl;
+}
 
 interface SDModel {
   title: string;
@@ -72,20 +76,23 @@ export async function GET() {
 
   try {
     let nebulaData: any = null;
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 8000);
-      
-      const res = await fetch(`${NEBULA_AGENT_URL}/api/sd/models`, {
-        headers: getAuthHeaders(),
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
-      
-      if (res.ok) {
-        nebulaData = await res.json();
-      }
-    } catch (e) {}
+    const agentUrl = getNebulaAgentUrl();
+    if (agentUrl) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
+        
+        const res = await fetch(`${agentUrl}/api/sd/models`, {
+          headers: getAuthHeaders(),
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+        
+        if (res.ok) {
+          nebulaData = await res.json();
+        }
+      } catch (e) {}
+    }
 
     if (nebulaData?.success) {
       const checkpoints = (nebulaData.models || [])
@@ -180,23 +187,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 120000);
+    const agentUrl = getNebulaAgentUrl();
+    if (agentUrl) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 120000);
 
-      const res = await fetch(`${NEBULA_AGENT_URL}/api/sd/switch-model`, {
-        method: "POST",
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ model }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
+        const res = await fetch(`${agentUrl}/api/sd/switch-model`, {
+          method: "POST",
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ model }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
 
-      if (res.ok) {
-        const data = await res.json();
-        return NextResponse.json(data);
-      }
-    } catch (e) {}
+        if (res.ok) {
+          const data = await res.json();
+          return NextResponse.json(data);
+        }
+      } catch (e) {}
+    }
 
     const success = await aiOrchestrator.loadSDModel(model);
 

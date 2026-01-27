@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { getAIConfig } from "@/lib/ai/config";
 
-// LOCAL_AI_ONLY mode: When true, NEVER use cloud AI providers
-const LOCAL_AI_ONLY = process.env.LOCAL_AI_ONLY !== "false";
+const aiConfig = getAIConfig();
+const LOCAL_AI_ONLY = aiConfig.fallback.localOnlyMode;
 
 interface ProviderStatus {
   name: string;
@@ -44,10 +45,11 @@ class AIProviderDiagnostics {
   private comfyuiUrl: string;
 
   constructor() {
-    this.windowsVmIp = process.env.WINDOWS_VM_TAILSCALE_IP || "100.118.44.102";
-    this.ollamaUrl = process.env.OLLAMA_URL || `http://${this.windowsVmIp}:11434`;
-    this.sdUrl = process.env.STABLE_DIFFUSION_URL || `http://${this.windowsVmIp}:7860`;
-    this.comfyuiUrl = process.env.COMFYUI_URL || `http://${this.windowsVmIp}:8188`;
+    const config = getAIConfig();
+    this.windowsVmIp = config.windowsVM.ip || "Not configured";
+    this.ollamaUrl = config.ollama.url;
+    this.sdUrl = config.stableDiffusion.url;
+    this.comfyuiUrl = config.comfyui.url;
   }
 
   async runDiagnostics(): Promise<DiagnosticsResponse> {

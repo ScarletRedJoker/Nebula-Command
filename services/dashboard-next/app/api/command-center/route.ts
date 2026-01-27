@@ -3,6 +3,7 @@ import { healthMonitor, type DeploymentHealth, type HealthIssue } from "@/lib/he
 import { getAllServices, getHealthyPeers, type RegisteredService } from "@/lib/service-registry";
 import { peerDiscovery, type PeerService } from "@/lib/peer-discovery";
 import { getEnvironmentConfig, detectEnvironment, type Environment, type EnvironmentConfig } from "@/lib/env-bootstrap";
+import { getAIConfig } from "@/lib/ai/config";
 
 interface EnvironmentInfo {
   id: string;
@@ -581,9 +582,14 @@ export async function POST(request: Request) {
       case "restart-comfyui":
         const serviceName = action.replace("restart-", "");
         try {
-          const windowsVmIp = process.env.WINDOWS_VM_TAILSCALE_IP || "100.118.44.102";
+          const aiConfig = getAIConfig();
           const agentToken = process.env.NEBULA_AGENT_TOKEN || "";
-          const restartRes = await fetch(`http://${windowsVmIp}:9765/api/services/${serviceName}/restart`, {
+          const agentUrl = aiConfig.windowsVM.nebulaAgentUrl;
+          if (!agentUrl) {
+            result = { success: false, error: "Windows VM not configured" };
+            break;
+          }
+          const restartRes = await fetch(`${agentUrl}/api/services/${serviceName}/restart`, {
             method: "POST",
             headers: { 
               "Content-Type": "application/json",

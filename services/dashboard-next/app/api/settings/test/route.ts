@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifySession } from "@/lib/session";
 import { cookies } from "next/headers";
 import OpenAI from "openai";
+import { getAIConfig } from "@/lib/ai/config";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -81,8 +82,8 @@ async function testOpenAI(): Promise<TestResult> {
 }
 
 async function testOllama(customUrl?: string): Promise<TestResult> {
-  const WINDOWS_VM_IP = process.env.WINDOWS_VM_TAILSCALE_IP || "100.118.44.102";
-  const ollamaUrl = customUrl || process.env.OLLAMA_URL || `http://${WINDOWS_VM_IP}:11434`;
+  const config = getAIConfig();
+  const ollamaUrl = customUrl || config.ollama.url;
 
   try {
     const controller = new AbortController();
@@ -129,8 +130,8 @@ async function testOllama(customUrl?: string): Promise<TestResult> {
 }
 
 async function testStableDiffusion(customUrl?: string): Promise<TestResult> {
-  const WINDOWS_VM_IP = process.env.WINDOWS_VM_TAILSCALE_IP || "100.118.44.102";
-  const sdUrl = customUrl || process.env.STABLE_DIFFUSION_URL || `http://${WINDOWS_VM_IP}:7860`;
+  const config = getAIConfig();
+  const sdUrl = customUrl || config.stableDiffusion.url;
 
   try {
     const controller = new AbortController();

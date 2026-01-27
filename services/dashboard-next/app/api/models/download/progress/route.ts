@@ -1,8 +1,12 @@
 import { NextRequest } from "next/server";
 import { verifySession } from "@/lib/session";
 import { cookies } from "next/headers";
+import { getAIConfig } from "@/lib/ai/config";
 
-const WINDOWS_AGENT_URL = process.env.WINDOWS_AGENT_URL || "http://100.118.44.102:9765";
+function getWindowsAgentUrl(): string {
+  const config = getAIConfig();
+  return config.windowsVM.nebulaAgentUrl || 'http://localhost:9765';
+}
 
 async function checkAuth() {
   const cookieStore = await cookies();
@@ -42,6 +46,7 @@ export async function GET(request: NextRequest) {
               headers["Authorization"] = `Bearer ${agentToken}`;
             }
 
+            const WINDOWS_AGENT_URL = getWindowsAgentUrl();
             const url = downloadId 
               ? `${WINDOWS_AGENT_URL}/api/models/downloads/${downloadId}`
               : `${WINDOWS_AGENT_URL}/api/models/downloads`;

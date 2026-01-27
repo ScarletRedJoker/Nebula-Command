@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { getServerById } from "@/lib/server-config-store";
 import { checkServerOnline, wakeAndWaitForOnline } from "@/lib/wol-relay";
 import { peerDiscovery } from "@/lib/peer-discovery";
+import { getAIConfig } from "@/lib/ai/config";
 
 async function checkAuth() {
   const cookieStore = await cookies();
@@ -125,7 +126,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const agentHost = discovered?.host || server?.tailscaleIp || server?.host || "100.118.44.102";
+    const config = getAIConfig();
+    const fallbackHost = config.windowsVM.ip || 'localhost';
+    const agentHost = discovered?.host || server?.tailscaleIp || server?.host || fallbackHost;
     const agentPort = discovered?.port || server?.agentPort || 9765;
     const agentToken = server?.agentToken || process.env.NEBULA_AGENT_TOKEN;
     const discoverySource = discovered?.source || "fallback";
@@ -375,7 +378,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const agentHost = discovered?.host || server?.tailscaleIp || server?.host || "100.118.44.102";
+    const config = getAIConfig();
+    const fallbackHost = config.windowsVM.ip || 'localhost';
+    const agentHost = discovered?.host || server?.tailscaleIp || server?.host || fallbackHost;
     const agentPort = discovered?.port || server?.agentPort || 9765;
     const agentToken = server?.agentToken || process.env.NEBULA_AGENT_TOKEN;
     const discoverySource = discovered?.source || "fallback";

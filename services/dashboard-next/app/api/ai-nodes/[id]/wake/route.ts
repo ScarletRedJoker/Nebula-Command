@@ -1,23 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import dgram from 'dgram';
+import { getAIConfig } from '@/lib/ai/config';
 
 const WakeSchema = z.object({
   mac: z.string().regex(/^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/).optional(),
 });
 
-const AI_NODES: Record<string, { name: string; mac: string; ip: string }> = {
-  windows: {
-    name: 'Windows AI Node',
-    mac: process.env.WINDOWS_VM_MAC || 'AA:BB:CC:DD:EE:FF',
-    ip: process.env.WINDOWS_VM_TAILSCALE_IP || '100.118.44.102',
-  },
-  gpu: {
-    name: 'Windows AI Node',
-    mac: process.env.WINDOWS_VM_MAC || 'AA:BB:CC:DD:EE:FF',
-    ip: process.env.WINDOWS_VM_TAILSCALE_IP || '100.118.44.102',
-  },
-};
+function getAINodes(): Record<string, { name: string; mac: string; ip: string }> {
+  const config = getAIConfig();
+  const vmIP = config.windowsVM.ip || 'localhost';
+  return {
+    windows: {
+      name: 'Windows AI Node',
+      mac: process.env.WINDOWS_VM_MAC || 'AA:BB:CC:DD:EE:FF',
+      ip: vmIP,
+    },
+    gpu: {
+      name: 'Windows AI Node',
+      mac: process.env.WINDOWS_VM_MAC || 'AA:BB:CC:DD:EE:FF',
+      ip: vmIP,
+    },
+  };
+}
 
 function createMagicPacket(macAddress: string): Buffer {
   const mac = macAddress.replace(/[:-]/g, '');
@@ -66,6 +71,7 @@ export async function POST(
 ) {
   const { id } = await params;
   
+  const AI_NODES = getAINodes();
   const node = AI_NODES[id];
   if (!node) {
     return NextResponse.json({ error: 'Node not found' }, { status: 404 });

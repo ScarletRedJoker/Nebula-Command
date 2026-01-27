@@ -7,9 +7,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifySession } from '@/lib/session';
 import { cookies } from 'next/headers';
+import { getAIConfig } from '@/lib/ai/config';
 
-const WINDOWS_VM_IP = process.env.WINDOWS_VM_TAILSCALE_IP || '100.118.44.102';
-const AGENT_PORT = process.env.WINDOWS_AGENT_PORT || '9765';
+const config = getAIConfig();
+const WINDOWS_VM_IP = config.windowsVM.ip || 'localhost';
+const AGENT_PORT = process.env.WINDOWS_AGENT_PORT || String(config.windowsVM.nebulaAgentPort);
 const AGENT_TOKEN = process.env.KVM_AGENT_TOKEN;
 
 async function checkAuth() {

@@ -5,11 +5,13 @@
 
 import { Client } from "ssh2";
 import { getSSHPrivateKey } from "./server-config-store";
+import { getAIConfig } from "@/lib/ai/config";
 
 // Configuration
+const config = getAIConfig();
 const UBUNTU_HOST = process.env.VM_HOST || "100.66.61.51";
 const UBUNTU_USER = process.env.VM_HOST_USER || "evin";
-const WINDOWS_HOST = process.env.WINDOWS_VM_HOST || "100.118.44.102";
+const WINDOWS_HOST = process.env.WINDOWS_VM_HOST || config.windowsVM.ip || "localhost";
 const WINDOWS_USER = process.env.WINDOWS_VM_USER || "Evin";
 const DEFAULT_TIMEOUT = 10000;
 

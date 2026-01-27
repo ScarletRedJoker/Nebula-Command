@@ -1,5 +1,8 @@
-const WINDOWS_VM_IP = process.env.WINDOWS_VM_TAILSCALE_IP || '100.118.44.102';
-const AGENT_PORT = process.env.WINDOWS_AGENT_PORT || '9765';
+import { getAIConfig } from "@/lib/ai/config";
+
+const config = getAIConfig();
+const WINDOWS_VM_IP = config.windowsVM.ip || "localhost";
+const AGENT_PORT = process.env.WINDOWS_AGENT_PORT || String(config.windowsVM.nebulaAgentPort);
 const AGENT_TOKEN = process.env.KVM_AGENT_TOKEN;
 
 export interface GPUStats {

@@ -84,10 +84,10 @@ export const streamBotEnvSchema = z.object({
 });
 
 export const aiServicesEnvSchema = z.object({
-  OLLAMA_HOST: z.string().default("http://100.118.44.102:11434"),
-  STABLE_DIFFUSION_API_URL: z.string().default("http://100.118.44.102:7860/api"),
-  COMFYUI_API_URL: z.string().default("http://100.118.44.102:8188/api"),
-  WINDOWS_VM_TAILSCALE_IP: z.string().regex(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/, "Invalid IP address").default("100.118.44.102"),
+  OLLAMA_HOST: z.string().optional(),
+  STABLE_DIFFUSION_API_URL: z.string().optional(),
+  COMFYUI_API_URL: z.string().optional(),
+  WINDOWS_VM_TAILSCALE_IP: z.string().regex(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/, "Invalid IP address").optional(),
   NEBULA_AGENT_TOKEN: z.string().min(32, "Token must be at least 32 characters").optional(),
   CUDA_VISIBLE_DEVICES: z.string().default("0"),
   WHISPER_MODEL: z.enum(["tiny", "base", "small", "medium", "large", "large-v2", "large-v3"]).default("base"),
@@ -117,8 +117,8 @@ export const dashboardVariables: EnvVariable[] = [
   { key: "LINODE_SSH_USER", type: "string", required: false, description: "SSH username for Linode server", example: "root", default: "root" },
   { key: "HOME_SSH_HOST", type: "string", required: false, description: "Hostname or IP of the home Ubuntu server", example: "host.evindrake.net", default: "host.evindrake.net" },
   { key: "HOME_SSH_USER", type: "string", required: false, description: "SSH username for home server", example: "evin", default: "evin" },
-  { key: "WINDOWS_VM_TAILSCALE_IP", type: "string", required: false, description: "Tailscale IP of Windows VM", example: "100.118.44.102", default: "100.118.44.102" },
-  { key: "UBUNTU_TAILSCALE_IP", type: "string", required: false, description: "Tailscale IP of Ubuntu server", example: "100.66.61.51", default: "100.66.61.51" },
+  { key: "WINDOWS_VM_TAILSCALE_IP", type: "string", required: false, description: "Tailscale IP of Windows VM", example: "100.x.x.x" },
+  { key: "UBUNTU_TAILSCALE_IP", type: "string", required: false, description: "Tailscale IP of Ubuntu server", example: "100.x.x.x" },
   { key: "CLOUDFLARE_API_TOKEN", type: "string", required: false, description: "Cloudflare API token for DNS management", hint: "https://dash.cloudflare.com/profile/api-tokens", sensitive: true },
   { key: "NEBULA_AGENT_TOKEN", type: "string", required: false, description: "Token for Windows VM agent communication", instructions: "Generate: openssl rand -hex 32", sensitive: true },
   { key: "SERVICE_AUTH_TOKEN", type: "string", required: false, description: "Token for service-to-service authentication", instructions: "Generate: openssl rand -hex 32", sensitive: true },
@@ -169,10 +169,10 @@ export const streamBotVariables: EnvVariable[] = [
 ];
 
 export const aiServicesVariables: EnvVariable[] = [
-  { key: "OLLAMA_HOST", type: "string", required: false, description: "URL to Ollama LLM server", example: "http://100.118.44.102:11434", default: "http://100.118.44.102:11434" },
-  { key: "STABLE_DIFFUSION_API_URL", type: "string", required: false, description: "URL to Stable Diffusion WebUI API", example: "http://100.118.44.102:7860/api", default: "http://100.118.44.102:7860/api" },
-  { key: "COMFYUI_API_URL", type: "string", required: false, description: "URL to ComfyUI API", example: "http://100.118.44.102:8188/api", default: "http://100.118.44.102:8188/api" },
-  { key: "WINDOWS_VM_TAILSCALE_IP", type: "string", required: false, description: "Tailscale IP of Windows VM with GPU", example: "100.118.44.102", default: "100.118.44.102" },
+  { key: "OLLAMA_HOST", type: "string", required: false, description: "URL to Ollama LLM server", example: "http://localhost:11434" },
+  { key: "STABLE_DIFFUSION_API_URL", type: "string", required: false, description: "URL to Stable Diffusion WebUI API", example: "http://localhost:7860/api" },
+  { key: "COMFYUI_API_URL", type: "string", required: false, description: "URL to ComfyUI API", example: "http://localhost:8188/api" },
+  { key: "WINDOWS_VM_TAILSCALE_IP", type: "string", required: false, description: "Tailscale IP of Windows VM with GPU", example: "100.x.x.x" },
   { key: "NEBULA_AGENT_TOKEN", type: "string", required: false, description: "Token for Nebula Agent authentication", instructions: "Generate: openssl rand -hex 32. Must match token on Windows VM", sensitive: true },
   { key: "CUDA_VISIBLE_DEVICES", type: "string", required: false, description: "GPU devices to use", example: "0", default: "0" },
   { key: "WHISPER_MODEL", type: "string", required: false, description: "Whisper model for speech-to-text", example: "base", default: "base" },

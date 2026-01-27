@@ -14,6 +14,7 @@ import { installations, marketplacePackages } from "@/lib/db/platform-schema";
 import { eq, inArray } from "drizzle-orm";
 import { Client } from "ssh2";
 import { getServerById, getSSHPrivateKey } from "@/lib/server-config-store";
+import { getAIConfig } from "@/lib/ai/config";
 
 async function checkAuth() {
   const cookieStore = await cookies();
@@ -67,7 +68,21 @@ interface AgentStatusForAPI {
 
 async function fetchAgentStatus(): Promise<AgentStatusForAPI> {
   try {
-    const host = process.env.WINDOWS_VM_TAILSCALE_IP || "100.118.44.102";
+    const config = getAIConfig();
+    const host = config.windowsVM.ip;
+    if (!host) {
+      return {
+        "windows-vm": {
+          status: "unknown",
+          gpuAvailable: false,
+          services: [
+            { name: "Ollama", status: "unknown" },
+            { name: "Stable Diffusion", status: "unknown" },
+            { name: "ComfyUI", status: "unknown" },
+          ],
+        },
+      };
+    }
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 2000);
     

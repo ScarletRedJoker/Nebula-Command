@@ -1,7 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { getAIConfig } from '../lib/ai/config';
 
-const OLLAMA_URL = process.env.OLLAMA_URL || 'http://100.118.44.102:11434';
-const OPENAI_API_KEY = process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+const config = getAIConfig();
+const OLLAMA_URL = config.ollama.url;
+const SD_URL = config.stableDiffusion.url;
+const COMFYUI_URL = config.comfyui.url;
+const OPENAI_API_KEY = config.openai.apiKey;
 
 const TEST_TIMEOUT = 10000;
 const HEALTH_CHECK_TIMEOUT = 3000;
@@ -252,8 +256,8 @@ describe('AI Integration Tests', () => {
         try {
           let url = '';
           if (service === 'ollama') url = `${OLLAMA_URL}/api/version`;
-          else if (service === 'stable-diffusion') url = 'http://100.118.44.102:7860/sdapi/v1/options';
-          else if (service === 'comfyui') url = 'http://100.118.44.102:8188/system_stats';
+          else if (service === 'stable-diffusion') url = `${SD_URL}/sdapi/v1/options`;
+          else if (service === 'comfyui') url = `${COMFYUI_URL}/system_stats`;
 
           const controller = new AbortController();
           const timeout = setTimeout(() => controller.abort(), 3000);

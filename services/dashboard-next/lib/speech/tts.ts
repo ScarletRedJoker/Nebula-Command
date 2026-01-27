@@ -4,6 +4,7 @@
  */
 
 import OpenAI from "openai";
+import { getAIConfig } from "@/lib/ai/config";
 
 export type TTSModel = "xtts" | "piper" | "edge-tts" | "openai";
 export type TTSVoice = "alloy" | "echo" | "fable" | "onyx" | "nova" | "shimmer" | string;
@@ -31,7 +32,8 @@ class TextToSpeechService {
   private cacheDir: string;
 
   constructor() {
-    this.windowsVmIp = process.env.WINDOWS_VM_TAILSCALE_IP || "100.118.44.102";
+    const config = getAIConfig();
+    this.windowsVmIp = config.windowsVM.ip || "localhost";
     this.ttsPort = parseInt(process.env.TTS_PORT || "8767", 10);
     this.cacheDir = process.env.TTS_CACHE_DIR || "/tmp/tts-cache";
     this.initOpenAI();

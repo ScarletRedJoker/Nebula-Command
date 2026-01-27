@@ -4,8 +4,12 @@ import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import { aiModels, modelDownloads } from "@/lib/db/platform-schema";
 import { eq } from "drizzle-orm";
+import { getAIConfig } from "@/lib/ai/config";
 
-const WINDOWS_AGENT_URL = process.env.WINDOWS_AGENT_URL || "http://100.118.44.102:9765";
+function getWindowsAgentUrl(): string {
+  const config = getAIConfig();
+  return config.windowsVM.nebulaAgentUrl || 'http://localhost:9765';
+}
 
 const MODEL_DIRECTORIES = {
   sd_forge: {
@@ -126,6 +130,7 @@ export async function POST(request: NextRequest) {
       }
 
       try {
+        const WINDOWS_AGENT_URL = getWindowsAgentUrl();
         const response = await fetch(`${WINDOWS_AGENT_URL}/api/models/install`, {
           method: "POST",
           headers,
@@ -153,7 +158,8 @@ export async function POST(request: NextRequest) {
 
         if (body.refreshAfterInstall !== false) {
           try {
-            await fetch(`${WINDOWS_AGENT_URL}/api/models/refresh`, {
+            const refreshUrl = getWindowsAgentUrl();
+            await fetch(`${refreshUrl}/api/models/refresh`, {
               method: "POST",
               headers,
               body: JSON.stringify({ target: t }),

@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { writeFileSync, mkdirSync, existsSync } from 'fs';
 import { dirname } from 'path';
+import { getAIConfig } from '@/lib/ai/config';
 
 interface HealthReport {
   timestamp: string;
@@ -125,7 +126,8 @@ export async function GET() {
 }
 
 function convertToStateFormat(report: HealthReport) {
-  const windowsVmIp = report.tailscale_ip || '100.118.44.102';
+  const config = getAIConfig();
+  const windowsVmIp = report.tailscale_ip || config.windowsVM.ip || 'localhost';
   
   return {
     timestamp: report.timestamp,

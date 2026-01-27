@@ -6,6 +6,7 @@ import { serverRegistry, type ServerWithHealth } from "@/lib/server-registry";
 import { getDefaultSshKeyPath, getSSHPrivateKey } from "@/lib/server-config-store";
 import { getAllServices, type RegisteredService } from "@/lib/service-registry";
 import { getAgentConfig, type DeploymentTarget } from "@/lib/service-locator";
+import { getAIConfig } from "@/lib/ai/config";
 
 async function checkAuth() {
   const cookieStore = await cookies();
@@ -273,12 +274,13 @@ async function getServerMetrics(server: ServerWithHealth, registryInfo: Registry
 async function getWindowsServerMetrics(registryInfo: RegistryInfo | undefined): Promise<any> {
   const capabilities = SERVER_CAPABILITIES["windows"] || [];
   const agentHealth = await checkWindowsAgentHealth();
+  const config = getAIConfig();
   
   const baseResponse = {
     id: "windows",
     name: "Windows VM",
     description: "AI workstation - Ollama, ComfyUI, Stable Diffusion",
-    ip: process.env.WINDOWS_VM_HOST || "100.118.44.102",
+    ip: config.windowsVM.ip || 'localhost',
     supportsWol: true,
     serverType: "windows",
     heartbeat: {

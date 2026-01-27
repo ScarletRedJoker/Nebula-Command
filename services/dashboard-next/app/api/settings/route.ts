@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import fs from "fs/promises";
 import path from "path";
 import { getAllServers, saveServers, ServerConfig } from "@/lib/server-config-store";
+import { getAIConfig } from "@/lib/ai/config";
 
 import { existsSync, accessSync, constants } from "fs";
 
@@ -78,17 +79,17 @@ function maskApiKey(key: string | undefined): string {
 }
 
 function getAISettings(): AISettings {
+  const config = getAIConfig();
   const integrationKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
   const directKey = process.env.OPENAI_API_KEY;
   const apiKey = (integrationKey && integrationKey.startsWith('sk-')) ? integrationKey : directKey;
-  const WINDOWS_VM_IP = process.env.WINDOWS_VM_TAILSCALE_IP || "100.118.44.102";
 
   return {
     openaiKeyConfigured: !!(apiKey && apiKey.startsWith('sk-')),
     openaiKeyMasked: apiKey ? maskApiKey(apiKey) : "",
-    ollamaUrl: process.env.OLLAMA_URL || `http://${WINDOWS_VM_IP}:11434`,
-    windowsVmIp: WINDOWS_VM_IP,
-    stableDiffusionUrl: process.env.STABLE_DIFFUSION_URL || `http://${WINDOWS_VM_IP}:7860`,
+    ollamaUrl: config.ollama.url,
+    windowsVmIp: config.windowsVM.ip || '',
+    stableDiffusionUrl: config.stableDiffusion.url,
   };
 }
 

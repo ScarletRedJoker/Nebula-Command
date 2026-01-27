@@ -852,7 +852,7 @@ export default function CreativeStudioPage() {
                 </CardHeader>
                 <CardContent className="p-0">
                   <iframe
-                    src={`http://${capabilities?.stableDiffusion?.url?.replace(/^https?:\/\//, '').replace(/\/$/, '') || process.env.NEXT_PUBLIC_WINDOWS_VM_IP || '100.118.44.102'}:7860`}
+                    src={`http://${capabilities?.stableDiffusion?.url?.replace(/^https?:\/\//, '').replace(/\/$/, '') || process.env.NEXT_PUBLIC_WINDOWS_VM_IP || 'Not configured'}:7860`}
                     className="w-full border-0"
                     style={{ height: 'calc(100vh - 280px)', minHeight: '600px' }}
                     title="Stable Diffusion WebUI"
@@ -878,7 +878,7 @@ export default function CreativeStudioPage() {
                 </CardHeader>
                 <CardContent className="p-0">
                   <iframe
-                    src={`http://${process.env.NEXT_PUBLIC_WINDOWS_VM_IP || '100.118.44.102'}:8188`}
+                    src={`http://${process.env.NEXT_PUBLIC_WINDOWS_VM_IP || 'Not configured'}:8188`}
                     className="w-full border-0"
                     style={{ height: 'calc(100vh - 280px)', minHeight: '600px' }}
                     title="ComfyUI"

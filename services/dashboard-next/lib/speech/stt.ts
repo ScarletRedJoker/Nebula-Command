@@ -7,6 +7,7 @@ import OpenAI from "openai";
 import { readFile } from "fs/promises";
 import { existsSync } from "fs";
 import { extname } from "path";
+import { getAIConfig } from "@/lib/ai/config";
 
 export type STTModel = "whisper-small" | "whisper-medium" | "whisper-large";
 
@@ -45,7 +46,8 @@ class SpeechToTextService {
   private whisperPort: number;
 
   constructor() {
-    this.windowsVmIp = process.env.WINDOWS_VM_TAILSCALE_IP || "100.118.44.102";
+    const config = getAIConfig();
+    this.windowsVmIp = config.windowsVM.ip || "localhost";
     this.whisperPort = parseInt(process.env.WHISPER_PORT || "8766", 10);
     this.initOpenAI();
   }

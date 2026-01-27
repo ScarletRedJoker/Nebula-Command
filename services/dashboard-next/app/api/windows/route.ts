@@ -3,6 +3,7 @@ import { exec } from "child_process";
 import { promisify } from "util";
 import fs from "fs/promises";
 import path from "path";
+import { getAIConfig } from "@/lib/ai/config";
 
 const execAsync = promisify(exec);
 
@@ -51,7 +52,9 @@ async function getVMConfig(): Promise<{ vmName: string; vmIp: string } | null> {
   } catch {
   }
   
-  return { vmName: "RDPWindows", vmIp: "100.118.44.102" };
+  const config = getAIConfig();
+  const fallbackIp = config.windowsVM.ip || "localhost";
+  return { vmName: "RDPWindows", vmIp: fallbackIp };
 }
 
 async function checkPort(host: string, port: number, timeout = 3000): Promise<boolean> {

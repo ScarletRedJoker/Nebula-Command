@@ -11,6 +11,7 @@
 
 import { circuitBreaker, healthMonitor, ServiceName, getResilienceStatus } from "./ai-resilience";
 import { aiMetrics, recordChatUsage as recordMetricsChatUsage } from "./ai-metrics";
+import { getAIConfig } from "@/lib/ai/config";
 
 export type AIProviderType = "ollama" | "openai" | "custom";
 
@@ -88,8 +89,8 @@ class AIFallbackManager {
   private latencyHistory: number[] = [];
 
   getOllamaUrl(): string {
-    const WINDOWS_VM_IP = process.env.WINDOWS_VM_TAILSCALE_IP || "100.118.44.102";
-    return process.env.OLLAMA_URL || `http://${WINDOWS_VM_IP}:11434`;
+    const config = getAIConfig();
+    return config.ollama.url;
   }
 
   async checkOllamaHealth(forceRefresh = false): Promise<ProviderHealth> {

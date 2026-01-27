@@ -4,6 +4,8 @@
  * Provides health monitoring, model management, GPU scheduling, and generation queuing
  */
 
+import { getAIConfig } from "@/lib/ai/config";
+
 export interface LocalModel {
   id: string;
   name: string;
@@ -78,10 +80,10 @@ class LocalAIRuntime {
   private ollamaHealthCache: CachedOllamaHealth | null = null;
 
   constructor() {
-    const WINDOWS_VM_IP = process.env.WINDOWS_VM_TAILSCALE_IP || "100.118.44.102";
-    this.ollamaUrl = process.env.OLLAMA_URL || `http://${WINDOWS_VM_IP}:11434`;
-    this.sdUrl = process.env.STABLE_DIFFUSION_URL || `http://${WINDOWS_VM_IP}:7860`;
-    this.comfyUrl = process.env.COMFYUI_URL || `http://${WINDOWS_VM_IP}:8188`;
+    const config = getAIConfig();
+    this.ollamaUrl = config.ollama.url;
+    this.sdUrl = config.stableDiffusion.url;
+    this.comfyUrl = config.comfyui.url;
   }
 
   async isOllamaOnline(forceRefresh = false): Promise<{ online: boolean; latencyMs?: number; error?: string }> {

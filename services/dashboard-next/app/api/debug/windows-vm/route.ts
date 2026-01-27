@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
+import { getAIConfig } from "@/lib/ai/config";
 
-const WINDOWS_VM_IP = process.env.WINDOWS_VM_TAILSCALE_IP || "100.118.44.102";
-const AGENT_PORT = 9765;
+const config = getAIConfig();
+const WINDOWS_VM_IP = config.windowsVM.ip || "localhost";
+const AGENT_PORT = config.windowsVM.nebulaAgentPort;
 const OLLAMA_PORT = 11434;
 const SD_PORT = 7860;
 const COMFYUI_PORT = 8188;

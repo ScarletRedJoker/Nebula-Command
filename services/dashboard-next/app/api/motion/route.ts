@@ -249,8 +249,10 @@ function detectGestureFromPose(pose: PoseData, gestureName?: string): GestureRes
 }
 
 async function callNebulaAgent(endpoint: string, method: string, body?: any): Promise<any> {
-  const host = process.env.NEBULA_AGENT_HOST || "100.118.44.102";
-  const port = process.env.NEBULA_AGENT_PORT || "9765";
+  const { getAIConfig } = await import("@/lib/ai/config");
+  const config = getAIConfig();
+  const host = process.env.NEBULA_AGENT_HOST || config.windowsVM.ip || "localhost";
+  const port = process.env.NEBULA_AGENT_PORT || String(config.windowsVM.nebulaAgentPort);
   const token = process.env.NEBULA_AGENT_TOKEN;
 
   const url = `http://${host}:${port}${endpoint}`;

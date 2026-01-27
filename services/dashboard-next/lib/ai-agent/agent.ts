@@ -9,10 +9,10 @@
 
 import OpenAI from "openai";
 import { tools, getToolByName, getToolsSchema, formatToolsForPrompt, Tool, ToolResult, ToolCall } from "./tools";
+import { getAIConfig } from "@/lib/ai/config";
 
 // LOCAL_AI_ONLY mode: When true, NEVER use cloud AI providers
 const LOCAL_AI_ONLY = process.env.LOCAL_AI_ONLY !== "false";
-const WINDOWS_VM_IP = process.env.WINDOWS_VM_TAILSCALE_IP || "100.118.44.102";
 
 export type AgentProvider = "openai" | "ollama" | "auto";
 
@@ -85,15 +85,15 @@ export class AIAgent {
   private messages: AgentMessage[] = [];
   private steps: AgentStep[] = [];
 
-  constructor(config: AgentConfig) {
+  constructor(agentConfig: AgentConfig) {
     this.config = {
       maxIterations: 10,
       autoApprove: false,
       systemPrompt: DEFAULT_SYSTEM_PROMPT,
-      ...config,
+      ...agentConfig,
     };
-    const WINDOWS_VM_IP = process.env.WINDOWS_VM_TAILSCALE_IP || "100.118.44.102";
-    this.ollamaUrl = process.env.OLLAMA_URL || `http://${WINDOWS_VM_IP}:11434`;
+    const aiConfig = getAIConfig();
+    this.ollamaUrl = aiConfig.ollama.url;
     this.initOpenAI();
   }
 
@@ -134,7 +134,7 @@ export class AIAgent {
       
       const ollamaAvailable = await this.isOllamaAvailable();
       if (!ollamaAvailable) {
-        throw new Error(`Local AI is currently unavailable. Please ensure Ollama is running on your Windows VM (${WINDOWS_VM_IP}:11434).`);
+        throw new Error(`Local AI is currently unavailable. Please ensure Ollama is running at ${this.ollamaUrl}.`);
       }
       
       return { provider: "ollama", model: this.config.model || process.env.OLLAMA_DEFAULT_MODEL || "qwen2.5:latest" };

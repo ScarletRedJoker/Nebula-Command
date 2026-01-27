@@ -1,19 +1,20 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { getAIConfig } from "@/lib/ai/config";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-// LOCAL_AI_ONLY mode: When true, NEVER use cloud AI providers
-const LOCAL_AI_ONLY = process.env.LOCAL_AI_ONLY !== "false";
-const WINDOWS_VM_IP = process.env.WINDOWS_VM_TAILSCALE_IP || "100.118.44.102";
+const aiConfig = getAIConfig();
+const LOCAL_AI_ONLY = aiConfig.fallback.localOnlyMode;
+const WINDOWS_VM_IP = aiConfig.windowsVM.ip || "Not configured";
 
 const LOCAL_AI_TROUBLESHOOTING = [
   `1. Check if Windows VM is powered on`,
   `2. Verify Tailscale connection: ping ${WINDOWS_VM_IP}`,
   `3. Start Ollama: 'ollama serve' in Windows terminal`,
   `4. Check Windows Firewall allows port 11434`,
-  `5. Test: curl http://${WINDOWS_VM_IP}:11434/api/tags`,
+  `5. Test: curl ${aiConfig.ollama.url}/api/tags`,
 ];
 
 let openai: OpenAI | null = null;

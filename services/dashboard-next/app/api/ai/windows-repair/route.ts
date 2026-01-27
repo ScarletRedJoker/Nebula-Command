@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { exec } from "child_process";
 import { promisify } from "util";
+import { getAIConfig } from "@/lib/ai/config";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,8 +16,8 @@ interface RepairRequest {
   force?: boolean;
 }
 
-// Windows VM connection details from environment
-const WINDOWS_VM_IP = process.env.WINDOWS_VM_TAILSCALE_IP || "100.118.44.102";
+const config = getAIConfig();
+const WINDOWS_VM_IP = config.windowsVM.ip || "localhost";
 const WINDOWS_VM_USER = process.env.WINDOWS_VM_USER || "Administrator";
 const WINDOWS_SCRIPTS_PATH = "C:\\scripts\\windows-repair";
 

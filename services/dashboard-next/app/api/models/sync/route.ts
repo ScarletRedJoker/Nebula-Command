@@ -4,8 +4,12 @@ import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import { aiModels, modelDownloads } from "@/lib/db/platform-schema";
 import { eq, and } from "drizzle-orm";
+import { getAIConfig } from "@/lib/ai/config";
 
-const WINDOWS_AGENT_URL = process.env.WINDOWS_AGENT_URL || "http://100.118.44.102:9765";
+function getWindowsAgentUrl(): string {
+  const config = getAIConfig();
+  return config.windowsVM.nebulaAgentUrl || 'http://localhost:9765';
+}
 
 // Windows model directory mapping
 const WINDOWS_MODEL_DIRS: Record<string, string> = {
@@ -42,6 +46,7 @@ async function scanWindowsDirectories(): Promise<{
   if (agentToken) headers["Authorization"] = `Bearer ${agentToken}`;
 
   try {
+    const WINDOWS_AGENT_URL = getWindowsAgentUrl();
     const response = await fetch(`${WINDOWS_AGENT_URL}/api/models/scan`, {
       headers,
       signal: AbortSignal.timeout(30000),
@@ -227,6 +232,7 @@ export async function POST(request: NextRequest) {
       modelType: modelType || model?.type || "checkpoint",
     };
 
+    const WINDOWS_AGENT_URL = getWindowsAgentUrl();
     const agentRes = await fetch(`${WINDOWS_AGENT_URL}/api/models/sync`, {
       method: "POST",
       headers,

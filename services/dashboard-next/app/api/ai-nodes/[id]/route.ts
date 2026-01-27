@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { getAIConfig } from '@/lib/ai/config';
 
-const WINDOWS_VM_IP = process.env.WINDOWS_VM_TAILSCALE_IP || '100.118.44.102';
-const AGENT_PORT = 9765;
 const AGENT_TOKEN = process.env.NEBULA_AGENT_TOKEN;
 
 async function fetchAgent(path: string, options: RequestInit = {}) {
-  const url = `http://${WINDOWS_VM_IP}:${AGENT_PORT}${path}`;
+  const config = getAIConfig();
+  const agentUrl = config.windowsVM.nebulaAgentUrl;
+  if (!agentUrl) {
+    throw new Error('Windows VM agent URL not configured');
+  }
+  const url = `${agentUrl}${path}`;
   
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -43,10 +47,11 @@ export async function GET(
         fetchAgent('/api/models').catch(() => null),
       ]);
       
+      const config = getAIConfig();
       return NextResponse.json({
         id,
         name: 'Windows AI Node',
-        ip: WINDOWS_VM_IP,
+        ip: config.windowsVM.ip || 'unknown',
         status: health ? 'online' : 'offline',
         health,
         services,
@@ -57,10 +62,11 @@ export async function GET(
     
     return NextResponse.json({ error: 'Node not found' }, { status: 404 });
   } catch (error: any) {
+    const config = getAIConfig();
     return NextResponse.json({
       id,
       name: 'Windows AI Node',
-      ip: WINDOWS_VM_IP,
+      ip: config.windowsVM.ip || 'unknown',
       status: 'offline',
       error: error.message,
       timestamp: new Date().toISOString(),

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { aiOrchestrator } from "@/lib/ai-orchestrator";
+import { getAIConfig } from "@/lib/ai/config";
 
 interface NodeStatus {
   id: string;
@@ -89,8 +90,9 @@ async function checkHttpEndpoint(
 }
 
 export async function GET() {
+  const config = getAIConfig();
   const UBUNTU_TAILSCALE_IP = process.env.UBUNTU_TAILSCALE_IP || "100.118.44.100";
-  const WINDOWS_VM_TAILSCALE_IP = process.env.WINDOWS_VM_TAILSCALE_IP || "100.118.44.102";
+  const WINDOWS_VM_TAILSCALE_IP = config.windowsVM.ip || "localhost";
   const LINODE_TAILSCALE_IP = process.env.LINODE_TAILSCALE_IP || "100.118.44.101";
 
   const nodes: { id: string; name: string; ip: string; port: number }[] = [

@@ -4,8 +4,12 @@ import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import { aiModels } from "@/lib/db/platform-schema";
 import { eq, desc, and } from "drizzle-orm";
+import { getAIConfig } from "@/lib/ai/config";
 
-const WINDOWS_AGENT_URL = process.env.WINDOWS_AGENT_URL || "http://100.118.44.102:9765";
+function getWindowsAgentUrl(): string {
+  const config = getAIConfig();
+  return config.windowsVM.nebulaAgentUrl || 'http://localhost:9765';
+}
 
 async function checkAuth() {
   const cookieStore = await cookies();
@@ -49,6 +53,7 @@ export async function GET(request: NextRequest) {
       const agentToken = process.env.NEBULA_AGENT_TOKEN;
       if (agentToken) headers["Authorization"] = `Bearer ${agentToken}`;
 
+      const WINDOWS_AGENT_URL = getWindowsAgentUrl();
       const agentRes = await fetch(`${WINDOWS_AGENT_URL}/api/models`, {
         headers,
         signal: AbortSignal.timeout(10000),
@@ -124,6 +129,7 @@ export async function DELETE(request: NextRequest) {
       const agentToken = process.env.NEBULA_AGENT_TOKEN;
       if (agentToken) headers["Authorization"] = `Bearer ${agentToken}`;
 
+      const WINDOWS_AGENT_URL = getWindowsAgentUrl();
       const agentRes = await fetch(`${WINDOWS_AGENT_URL}/api/models/delete`, {
         method: "POST",
         headers,

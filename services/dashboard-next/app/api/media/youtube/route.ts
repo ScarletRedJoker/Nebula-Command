@@ -3,6 +3,7 @@ import { verifySession } from "@/lib/session";
 import { cookies } from "next/headers";
 import { Client } from "ssh2";
 import { getSSHPrivateKey } from "@/lib/server-config-store";
+import { getAIConfig } from "@/lib/ai/config";
 
 export const dynamic = "force-dynamic";
 
@@ -23,8 +24,10 @@ const NAS_DIRECTORIES: Record<string, string> = {
   in: `${NAS_BASE_PATH}/in`,
 };
 
-// Windows VM for AI services
-const WINDOWS_VM_HOST = process.env.WINDOWS_VM_HOST || "100.118.44.102";
+function getWindowsVMHost(): string {
+  const config = getAIConfig();
+  return config.windowsVM.ip || process.env.WINDOWS_VM_HOST || 'localhost';
+}
 const WINDOWS_VM_USER = process.env.WINDOWS_VM_USER || "Evin";
 
 async function checkAuth() {
@@ -45,7 +48,7 @@ async function executeSSHCommand(
     return { success: false, error: "SSH private key not found" };
   }
 
-  const host = target === "home" ? HOME_SERVER_HOST : WINDOWS_VM_HOST;
+  const host = target === "home" ? HOME_SERVER_HOST : getWindowsVMHost();
   const username = target === "home" ? HOME_SERVER_USER : WINDOWS_VM_USER;
 
   return new Promise((resolve) => {

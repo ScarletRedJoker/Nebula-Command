@@ -7,6 +7,7 @@ import {
   getAllDeploymentTargets,
   type DeploymentTarget,
 } from "@/lib/service-locator";
+import { getAIConfig } from "@/lib/ai/config";
 
 // Try to import health monitor, but don't fail if unavailable
 let healthMonitor: any = null;
@@ -140,7 +141,8 @@ function getServicePort(service: string): number | null {
 async function detectWindowsVmIssues(): Promise<Issue[]> {
   const issues: Issue[] = [];
   const agentToken = process.env.NEBULA_AGENT_TOKEN;
-  const tailscaleIp = process.env.WINDOWS_VM_TAILSCALE_IP || "100.118.44.102";
+  const config = getAIConfig();
+  const tailscaleIp = config.windowsVM.ip || 'localhost';
 
   // Check agent authentication
   if (!agentToken) {
@@ -249,7 +251,7 @@ async function detectWindowsVmIssues(): Promise<Issue[]> {
       severity: "warning",
       title: "Tailscale Configuration Missing",
       description:
-        "WINDOWS_VM_TAILSCALE_IP is not configured. Using default IP 100.118.44.102.",
+        "WINDOWS_VM_TAILSCALE_IP is not configured. Using centralized config.",
       autoFixable: false,
       manualSteps: [
         "1. Get the actual Tailscale IP from the Windows VM",
@@ -258,7 +260,7 @@ async function detectWindowsVmIssues(): Promise<Issue[]> {
       ],
       metadata: {
         envVariable: "WINDOWS_VM_TAILSCALE_IP",
-        defaultValue: "100.118.44.102",
+        currentValue: tailscaleIp,
       },
     });
   }
