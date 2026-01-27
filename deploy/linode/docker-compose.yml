@@ -225,6 +225,7 @@ services:
       - 8.8.4.4
     environment:
       DATABASE_URL: "postgresql://ticketbot:${DISCORD_DB_PASSWORD}@homelab-postgres:5432/ticketbot"
+      DISCORD_TOKEN: ${DISCORD_BOT_TOKEN}
       DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN}
       DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID}
       DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET}
