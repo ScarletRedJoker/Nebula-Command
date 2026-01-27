@@ -377,12 +377,18 @@ safe_docker_build() {
     
     local cache_arg=""
     if [ "$use_cache" = false ]; then
-        cache_arg="--no-cache"
+        # Use aggressive cache-busting: --no-cache rebuilds all layers, --pull fetches fresh base images
+        cache_arg="--no-cache --pull"
     fi
     
     local build_result=0
     
     log_section "Docker Build Started"
+    
+    # Clear any BuildKit inline cache before build
+    if [ "$use_cache" = false ]; then
+        docker builder prune -f --filter "until=1h" >> "$log_file" 2>&1 || true
+    fi
     
     if [ "$VERBOSE" = true ]; then
         echo "Build log: $log_file"
