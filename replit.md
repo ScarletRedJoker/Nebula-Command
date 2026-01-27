@@ -36,7 +36,15 @@ Nebula Command provides a comprehensive suite of features including:
 - **Bot Editor & Servers:** Discord bot customization and server monitoring.
 - **Windows VM & Domains:** GPU server management and DNS/SSL management.
 - **Marketplace:** Docker package installation.
-- **AI Developer:** An autonomous code modification system with human approval gates.
+- **AI Developer:** An autonomous code modification system with:
+  - Ollama as default local LLM provider (no cloud dependencies)
+  - Git branch isolation (`ai-dev/{jobId}-{timestamp}` branches for safe changes)
+  - Auto-approval rules (docs-only, test-only, small-changes with conditions)
+  - Build verification (npm/cargo/go/python detection and execution)
+  - Remote execution via Nebula Agent API with automatic local fallback
+  - Context/memory management with token-aware compression and Redis persistence
+  - Human approval gates with diff preview and rollback support
+  - Dashboard UI with real-time progress, execution logs, and syntax-highlighted diffs
 - **AI Influencer / Video Automation Pipeline:** Fully automated content generation system with:
   - ComfyUI-based image sequences with LoRA/embedding support for style consistency
   - AnimateDiff video frame generation with persona-aware prompting
