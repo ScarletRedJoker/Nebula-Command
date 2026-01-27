@@ -85,6 +85,17 @@ This multi-agent AI system manages a job queue and subagents, supporting local-f
   - Supports headless/remote operation via `COMFYUI_URL` environment variable
   - Future-ready for AI influencer pipelines, content factories, scheduled jobs
 
+- **January 27, 2026**: AI Developer - Autonomous Code Modification System:
+  - Database schema: `ai_dev_jobs`, `ai_dev_patches`, `ai_dev_approvals`, `ai_dev_runs`, `ai_dev_providers` tables
+  - Provider Registry (`lib/ai/ai-dev/provider-registry.ts`): Multi-provider support (Ollama default, OpenAI, Anthropic)
+  - Tool Interfaces (`lib/ai/ai-dev/tools.ts`): read_file, write_file, search_files, search_code, run_command, run_tests, git_diff
+  - Repo Manager (`lib/ai/ai-dev/repo-manager.ts`): Diff generation, patch apply/rollback, git operations
+  - Orchestrator (`lib/ai/ai-dev/orchestrator.ts`): Job lifecycle (pending→planning→executing→review→approved→applied), tool calling loop
+  - API Endpoints (`/api/ai/dev/*`): jobs CRUD, job actions (execute/approve/reject/rollback), providers health, patches, approvals
+  - Dashboard UI (`/ai-dev`): Job queue, create job dialog, diff viewer, approval workflow, provider health
+  - Safeguards: Human approval gates, rollback support, path sandboxing, dangerous command blocking
+  - No cloud lock-in: Works locally with Ollama, configurable via environment variables
+
 - **January 27, 2026**: Production hardening - AI service configuration and logging:
   - Created centralized AI config system (lib/ai/config.ts) - environment-first configuration
   - Environment variables: WINDOWS_VM_TAILSCALE_IP, OLLAMA_URL, STABLE_DIFFUSION_URL, COMFYUI_URL

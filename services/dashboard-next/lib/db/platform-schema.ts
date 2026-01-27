@@ -1522,3 +1522,156 @@ export type NewSSLCertificate = typeof sslCertificates.$inferInsert;
 // Type exports for SFTP
 export type SFTPTransfer = typeof sftpTransfers.$inferSelect;
 export type NewSFTPTransfer = typeof sftpTransfers.$inferInsert;
+
+// ============================================================================
+// AI DEVELOPER - AUTONOMOUS CODE MODIFICATION SYSTEM
+// ============================================================================
+
+export const aiDevJobs = pgTable("ai_dev_jobs", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: varchar("title", { length: 500 }).notNull(),
+  description: text("description"),
+  type: varchar("type", { length: 50 }).notNull(), // 'feature', 'bugfix', 'refactor', 'test', 'docs'
+  status: varchar("status", { length: 50 }).default("pending"), // pending, planning, executing, review, approved, applied, rejected, rolled_back, failed
+  priority: integer("priority").default(0),
+  
+  // Target scope
+  targetPaths: text("target_paths").array(), // Files/directories to modify
+  targetRepo: varchar("target_repo", { length: 255 }).default("services/dashboard-next"),
+  
+  // AI configuration
+  provider: varchar("provider", { length: 50 }).default("ollama"), // ollama, openai, anthropic
+  model: varchar("model", { length: 100 }),
+  
+  // Planning and execution
+  plan: jsonb("plan"), // Array of steps the AI plans to take
+  context: jsonb("context"), // Codebase context, relevant files, architecture info
+  
+  // Results
+  filesModified: text("files_modified").array(),
+  testsRun: boolean("tests_run").default(false),
+  testsPassed: boolean("tests_passed"),
+  errorMessage: text("error_message"),
+  
+  // Metrics
+  tokensUsed: integer("tokens_used"),
+  durationMs: integer("duration_ms"),
+  
+  // Audit
+  createdBy: uuid("created_by").references(() => users.id),
+  assignedTo: uuid("assigned_to").references(() => agents.id), // AI agent handling this
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+});
+
+export const aiDevPatches = pgTable("ai_dev_patches", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  jobId: uuid("job_id").references(() => aiDevJobs.id).notNull(),
+  
+  // Patch details
+  filePath: text("file_path").notNull(),
+  patchType: varchar("patch_type", { length: 50 }).notNull(), // 'create', 'modify', 'delete', 'rename'
+  
+  // Content
+  originalContent: text("original_content"), // For rollback
+  newContent: text("new_content"),
+  diffUnified: text("diff_unified"), // Unified diff format
+  diffStats: jsonb("diff_stats"), // { additions: number, deletions: number, hunks: number }
+  
+  // Status
+  status: varchar("status", { length: 50 }).default("pending"), // pending, applied, rolled_back, rejected
+  appliedAt: timestamp("applied_at"),
+  rolledBackAt: timestamp("rolled_back_at"),
+  
+  // Git info
+  commitHash: varchar("commit_hash", { length: 40 }),
+  rollbackCommitHash: varchar("rollback_commit_hash", { length: 40 }),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const aiDevApprovals = pgTable("ai_dev_approvals", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  jobId: uuid("job_id").references(() => aiDevJobs.id).notNull(),
+  
+  // Approval details
+  decision: varchar("decision", { length: 50 }).notNull(), // 'approved', 'rejected', 'request_changes'
+  comments: text("comments"),
+  reviewedPatches: uuid("reviewed_patches").array(), // Specific patches reviewed
+  
+  // Reviewer
+  reviewedBy: uuid("reviewed_by").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at").defaultNow(),
+  
+  // Auto-approval config
+  isAutoApproved: boolean("is_auto_approved").default(false),
+  autoApprovalRule: varchar("auto_approval_rule", { length: 100 }), // e.g., 'tests_pass', 'docs_only'
+});
+
+export const aiDevRuns = pgTable("ai_dev_runs", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  jobId: uuid("job_id").references(() => aiDevJobs.id).notNull(),
+  
+  // Run details
+  stepIndex: integer("step_index").default(0),
+  stepName: varchar("step_name", { length: 255 }),
+  action: varchar("action", { length: 100 }).notNull(), // 'read_file', 'search_code', 'edit_file', 'run_test', 'run_command'
+  
+  // Input/Output
+  input: jsonb("input"),
+  output: jsonb("output"),
+  
+  // Status
+  status: varchar("status", { length: 50 }).default("pending"), // pending, running, completed, failed
+  errorMessage: text("error_message"),
+  
+  // Metrics
+  tokensUsed: integer("tokens_used"),
+  durationMs: integer("duration_ms"),
+  
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const aiDevProviders = pgTable("ai_dev_providers", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name", { length: 100 }).notNull().unique(),
+  displayName: varchar("display_name", { length: 255 }).notNull(),
+  type: varchar("type", { length: 50 }).notNull(), // 'ollama', 'openai', 'anthropic', 'local'
+  
+  // Configuration
+  baseUrl: text("base_url"),
+  defaultModel: varchar("default_model", { length: 100 }),
+  availableModels: text("available_models").array(),
+  
+  // Capabilities
+  supportsStreaming: boolean("supports_streaming").default(true),
+  supportsTools: boolean("supports_tools").default(true),
+  maxContextTokens: integer("max_context_tokens"),
+  
+  // Status
+  isEnabled: boolean("is_enabled").default(true),
+  isDefault: boolean("is_default").default(false),
+  lastHealthCheck: timestamp("last_health_check"),
+  healthStatus: varchar("health_status", { length: 50 }).default("unknown"),
+  
+  // Config
+  config: jsonb("config"), // Provider-specific settings
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Type exports for AI Developer
+export type AIDevJob = typeof aiDevJobs.$inferSelect;
+export type NewAIDevJob = typeof aiDevJobs.$inferInsert;
+export type AIDevPatch = typeof aiDevPatches.$inferSelect;
+export type NewAIDevPatch = typeof aiDevPatches.$inferInsert;
+export type AIDevApproval = typeof aiDevApprovals.$inferSelect;
+export type NewAIDevApproval = typeof aiDevApprovals.$inferInsert;
+export type AIDevRun = typeof aiDevRuns.$inferSelect;
+export type NewAIDevRun = typeof aiDevRuns.$inferInsert;
+export type AIDevProvider = typeof aiDevProviders.$inferSelect;
+export type NewAIDevProvider = typeof aiDevProviders.$inferInsert;
