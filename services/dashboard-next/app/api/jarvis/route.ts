@@ -17,7 +17,12 @@ import { verifySession } from "@/lib/session";
 import { cookies } from "next/headers";
 import OpenAI from "openai";
 
-const openai = new OpenAI();
+// Lazy initialization to avoid errors during build
+let _openai: OpenAI | null = null;
+function getOpenAI(): OpenAI {
+  if (!_openai) _openai = new OpenAI();
+  return _openai;
+}
 
 async function checkAuth() {
   const cookieStore = await cookies();
@@ -778,7 +783,7 @@ The infrastructure includes:
   messages.push({ role: "user", content: message });
   
   try {
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAI().chat.completions.create({
       model: "gpt-4o",
       messages,
       tools: getOpenAITools(),
@@ -808,7 +813,7 @@ The infrastructure includes:
         })),
       ];
       
-      const finalCompletion = await openai.chat.completions.create({
+      const finalCompletion = await getOpenAI().chat.completions.create({
         model: "gpt-4o",
         messages: toolMessages,
         temperature: 0.7,
