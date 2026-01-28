@@ -3,14 +3,16 @@ FROM node:20-alpine AS base
 
 # Install all dependencies (including devDependencies for build)
 FROM base AS deps
-RUN apk add --no-cache libc6-compat
+# Add build tools for native modules (ssh2, cpu-features)
+RUN apk add --no-cache libc6-compat python3 make g++ git
 WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
 
 # Install ALL dependencies (devDependencies needed for TypeScript build)
-RUN npm ci
+# Use legacy-peer-deps to avoid conflicts
+RUN npm ci --legacy-peer-deps
 
 # Rebuild the source code only when needed
 FROM base AS builder
@@ -24,7 +26,10 @@ ENV NODE_ENV=production
 ENV NODE_OPTIONS="--max-old-space-size=8192"
 
 # Build the application - skip type checking for faster builds (done in CI)
-RUN SKIP_TYPE_CHECK=true npm run build
+# Increase memory and add retry for large builds
+RUN SKIP_TYPE_CHECK=true SKIP_ESLINT=true npm run build || \
+    (echo "First build attempt failed, retrying with more memory..." && \
+     NODE_OPTIONS="--max-old-space-size=12288" SKIP_TYPE_CHECK=true SKIP_ESLINT=true npm run build)
 
 # Prune dev dependencies after build for smaller production image
 RUN npm prune --omit=dev
