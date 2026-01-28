@@ -65,7 +65,7 @@ import type {
 } from "@/lib/motion-capture";
 
 interface SystemStatus {
-  gpu: { available: boolean; name?: string; vram?: { total: number; used: number; free: number } };
+  gpu: { available: boolean; name?: string; vram?: string | { total: number; used: number; free: number } };
   comfyui: { online: boolean; queueLength?: number };
   mocap: { status: MotionCaptureStatus; inputType?: InputType; modelType?: ModelType };
 }
@@ -214,7 +214,7 @@ export default function ARVRStudioPage() {
       ]);
 
       let comfyData = { online: false, queueLength: 0 };
-      let gpuData = { available: false };
+      let gpuData: { available: boolean; name?: string; vram?: string } = { available: false };
 
       if (comfyRes?.ok) {
         const data = await comfyRes.json();

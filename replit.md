@@ -25,6 +25,15 @@ A three-layer design (Experience, Control Plane, Execution Plane) supports a Mar
 ### AI Node Management & Creative Engine
 The system monitors AI node health and performance, featuring APIs for Speech, Job Scheduling, Training, and Embeddings/RAG. The Creative Studio supports advanced AI image generation (text-to-image, image-to-image, inpainting, ControlNet, upscaling, face swap) with job persistence. A ComfyUI Service Supervisor ensures robust operation of the image generation pipeline.
 
+### GPU VRAM Orchestrator (RTX 3060 12GB)
+Smart resource management preventing OOM errors by ensuring only compatible services run simultaneously:
+- **VRAM Tracking:** Real-time monitoring of GPU memory usage
+- **Smart Switching:** Automatically unloads models before loading new ones (e.g., unload Ollama before starting Stable Diffusion)
+- **Service Budgets:** Ollama 3B (~2.5GB), Ollama 8B (~5.5GB), SD/ComfyUI (~6-8GB)
+- **Compatible Combinations:** Ollama 3B + Embeddings (4GB), or standalone Ollama 8B/SD/ComfyUI
+- **API Endpoint:** `/api/gpu/orchestrator` for status and switching
+- **Jarvis Integration:** Ask "switch to Stable Diffusion" or "check GPU status" via chat
+
 ### AR/VR & 3D Development
 - **AR/VR Studio:** Immersive content creation hub with motion capture, 3D asset pipeline, and VR/AR platform targeting (Quest, SteamVR, Vision Pro, WebXR).
 - **Motion Capture Bridge:** 933-line library supporting MediaPipe, OpenPose, mocap devices, pose/hands/face/holistic tracking for ControlNet/AnimateDiff.

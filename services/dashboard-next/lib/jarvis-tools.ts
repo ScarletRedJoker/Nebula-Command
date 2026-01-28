@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { jarvisOrchestrator } from "./jarvis-orchestrator";
 import { localAIRuntime } from "./local-ai-runtime";
 import { openCodeIntegration } from "./opencode-integration";
+import { gpuOrchestrator, GPUService } from "./gpu-vram-orchestrator";
 import { exec } from "child_process";
 import { promisify } from "util";
 import * as fs from "fs/promises";
@@ -571,6 +572,34 @@ export const jarvisTools: JarvisTool[] = [
         },
       },
       required: ["action"],
+    },
+  },
+  {
+    name: "gpu_switch",
+    description: "Switch the GPU (RTX 3060 12GB) to a different AI service. Use this when the user wants to switch between Ollama and Stable Diffusion, or needs to free up VRAM.",
+    parameters: {
+      type: "object",
+      properties: {
+        service: {
+          type: "string",
+          description: "Target AI service to activate",
+          enum: ["ollama", "stablediffusion", "comfyui", "embeddings"],
+        },
+        model: {
+          type: "string",
+          description: "Specific model to load (optional). For Ollama: llama3.2:3b, llama3:8b. For SD: sd1.5, sdxl.",
+        },
+      },
+      required: ["service"],
+    },
+  },
+  {
+    name: "gpu_status",
+    description: "Check the current GPU VRAM usage and what AI services are running. Use this when the user asks about GPU status, VRAM, or what's running on the GPU.",
+    parameters: {
+      type: "object",
+      properties: {},
+      required: [],
     },
   },
 ];
@@ -1839,6 +1868,102 @@ export async function executeJarvisTool(
           return {
             success: false,
             result: `Failed to manage VM: ${error.message}`,
+          };
+        }
+      }
+
+      case "gpu_switch": {
+        const service = args.service as GPUService;
+        const model = args.model;
+
+        if (!["ollama", "stablediffusion", "comfyui", "embeddings"].includes(service)) {
+          return {
+            success: false,
+            result: `Invalid service: ${service}. Must be one of: ollama, stablediffusion, comfyui, embeddings`,
+          };
+        }
+
+        try {
+          const state = await gpuOrchestrator.refreshState();
+          let result = `## 🎮 GPU VRAM Orchestrator (RTX 3060 12GB)\n\n`;
+          result += `**Current Status:** ${state.status}\n`;
+          result += `**VRAM Used:** ${state.totalVramUsed.toFixed(1)}GB / 11GB available\n\n`;
+
+          if (state.activeServices.length > 0) {
+            result += `**Active Services:**\n`;
+            for (const s of state.activeServices) {
+              result += `  - ${s.service}${s.model ? ` (${s.model})` : ""}: ${s.vramUsage.toFixed(1)}GB\n`;
+            }
+            result += "\n";
+          }
+
+          const { canActivate, requiresUnload, reason } = gpuOrchestrator.canActivate(service, model);
+          
+          if (!canActivate) {
+            result += `❌ Cannot activate ${service}: ${reason}\n`;
+            return { success: false, result, data: { state, canActivate: false } };
+          }
+
+          if (requiresUnload && requiresUnload.length > 0) {
+            result += `⚠️ Will unload: ${requiresUnload.join(", ")} to free VRAM\n\n`;
+          }
+
+          const switchResult = await gpuOrchestrator.smartSwitch(service, model);
+          
+          result += `**Action:** ${switchResult.action}\n`;
+          result += `**Result:** ${switchResult.success ? "✅ Success" : "❌ Failed"}\n`;
+          result += `**Message:** ${switchResult.message}\n`;
+          result += `\n**VRAM:** ${switchResult.vramBefore.toFixed(1)}GB → ${switchResult.vramAfter.toFixed(1)}GB\n`;
+
+          if (switchResult.unloadedServices && switchResult.unloadedServices.length > 0) {
+            result += `\n**Unloaded Services:** ${switchResult.unloadedServices.join(", ")}\n`;
+          }
+
+          return {
+            success: switchResult.success,
+            result,
+            data: { state: gpuOrchestrator.getState(), switchResult },
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            result: `Failed to switch GPU service: ${error.message}`,
+          };
+        }
+      }
+
+      case "gpu_status": {
+        try {
+          const state = await gpuOrchestrator.refreshState();
+          
+          let result = `## 🎮 GPU Status (RTX 3060 12GB)\n\n`;
+          result += `**Status:** ${state.status}\n`;
+          result += `**VRAM:** ${state.totalVramUsed.toFixed(1)}GB used / ${state.availableVram.toFixed(1)}GB free\n\n`;
+
+          if (state.activeServices.length > 0) {
+            result += `**Active Services:**\n`;
+            for (const s of state.activeServices) {
+              result += `  - ${s.service}${s.model ? ` (${s.model})` : ""}: ${s.vramUsage.toFixed(1)}GB\n`;
+            }
+          } else {
+            result += `**Active Services:** None (GPU idle)\n`;
+          }
+
+          result += `\n**Recommendations:**\n`;
+          result += `  ${gpuOrchestrator.getRecommendation("ollama", "llama3.2:3b")}\n`;
+          result += `  ${gpuOrchestrator.getRecommendation("ollama", "llama3:8b")}\n`;
+          result += `  ${gpuOrchestrator.getRecommendation("stablediffusion")}\n`;
+          result += `  ${gpuOrchestrator.getRecommendation("comfyui")}\n`;
+
+          return {
+            success: true,
+            result,
+            data: state,
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            result: `Failed to get GPU status: ${error.message}`,
           };
         }
       }
