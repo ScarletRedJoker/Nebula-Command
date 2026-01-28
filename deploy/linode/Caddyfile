@@ -8,7 +8,7 @@
     respond 404
 }
 
-bot.evindrake.net {
+bot.evindrake.net, bot.rig-city.com {
     reverse_proxy discord-bot:4000 {
         header_up Host {host}
         header_up X-Real-IP {remote_host}
@@ -17,7 +17,7 @@ bot.evindrake.net {
     }
 }
 
-stream.evindrake.net {
+stream.evindrake.net, stream.rig-city.com {
     reverse_proxy stream-bot:5001 {
         header_up Host {host}
         header_up X-Real-IP {remote_host}
