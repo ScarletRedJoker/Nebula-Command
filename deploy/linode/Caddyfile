@@ -8,7 +8,7 @@
     respond 404
 }
 
-bot.evindrake.net, bot.rig-city.com {
+bot.evindrake.net {
     reverse_proxy discord-bot:4000 {
         header_up Host {host}
         header_up X-Real-IP {remote_host}
@@ -17,7 +17,7 @@ bot.evindrake.net, bot.rig-city.com {
     }
 }
 
-stream.evindrake.net, stream.rig-city.com {
+stream.evindrake.net {
     reverse_proxy stream-bot:5001 {
         header_up Host {host}
         header_up X-Real-IP {remote_host}
@@ -41,14 +41,6 @@ discord.evindrake.net {
         header_up Upgrade {http.request.header.Upgrade}
         header_up Connection {http.request.header.Connection}
     }
-}
-
-rig-city.com {
-    reverse_proxy rig-city-site:80
-}
-
-www.rig-city.com {
-    redir https://rig-city.com{uri} permanent
 }
 
 n8n.evindrake.net {

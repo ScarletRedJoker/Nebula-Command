@@ -240,8 +240,12 @@ export function validateAIConfig(options: { strict?: boolean } = {}): { valid: b
     warnings.push('No OpenAI API key configured. Cloud AI fallback is disabled.');
   }
   
-  if (config.openai.apiKey && !config.openai.apiKey.startsWith('sk-')) {
-    errors.push('OpenAI API key appears invalid (should start with "sk-")');
+  // Allow both standard OpenAI keys (sk-*) and Replit modelfarm keys
+  if (config.openai.apiKey && 
+      !config.openai.apiKey.startsWith('sk-') && 
+      !process.env.REPLIT_DEPLOYMENT && 
+      process.env.NODE_ENV !== 'development') {
+    warnings.push('OpenAI API key format is non-standard (expected "sk-" prefix). Using as-is.');
   }
   
   if (config.ollama.url.includes('localhost') && isProduction) {
