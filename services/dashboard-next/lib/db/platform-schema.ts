@@ -2205,3 +2205,41 @@ export const userProgress = pgTable("user_progress", {
 
 export type UserProgress = typeof userProgress.$inferSelect;
 export type NewUserProgress = typeof userProgress.$inferInsert;
+
+// ============================================
+// Game Development Module
+// ============================================
+
+export const gameProjects = pgTable("game_projects", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name", { length: 255 }).notNull(),
+  engine: varchar("engine", { length: 50 }).notNull(), // godot, unity, unreal, custom
+  description: text("description"),
+  status: varchar("status", { length: 50 }).default("concept"), // concept, development, testing, released
+  progress: integer("progress").default(0),
+  metadata: jsonb("metadata").default({}),
+  userId: varchar("user_id", { length: 255 }),
+  repository: varchar("repository", { length: 500 }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const gameAssets = pgTable("game_assets", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: uuid("project_id").references(() => gameProjects.id).notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  type: varchar("type", { length: 50 }).notNull(), // sprite, texture, character, background, icon, ui, tileset
+  prompt: text("prompt"),
+  style: varchar("style", { length: 100 }),
+  filePath: text("file_path"),
+  fileSize: integer("file_size"),
+  width: integer("width"),
+  height: integer("height"),
+  metadata: jsonb("metadata").default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type GameProject = typeof gameProjects.$inferSelect;
+export type NewGameProject = typeof gameProjects.$inferInsert;
+export type GameAsset = typeof gameAssets.$inferSelect;
+export type NewGameAsset = typeof gameAssets.$inferInsert;
