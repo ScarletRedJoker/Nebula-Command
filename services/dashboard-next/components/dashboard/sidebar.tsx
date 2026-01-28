@@ -44,6 +44,7 @@ import {
   Key,
   Users,
   Lock,
+  Gamepad2,
   type LucideIcon,
 } from "lucide-react";
 import { useState } from "react";
@@ -102,10 +103,12 @@ const navGroups: NavGroup[] = [
       { href: "/servers", label: "Servers", icon: HardDrive },
       { href: "/services", label: "Services", icon: Server },
       { href: "/domain-manager", label: "Domain Manager", icon: Globe },
+      { href: "/domains-verify", label: "Domain Status", icon: Globe },
       { href: "/resources", label: "Resources", icon: Shield },
       { href: "/terminal", label: "Terminal", icon: Terminal },
       { href: "/remote", label: "Remote Console", icon: Monitor },
       { href: "/windows", label: "Windows VM", icon: Monitor },
+      { href: "/vms", label: "VM Manager", icon: Server },
       { href: "/files-remote", label: "Remote Files", icon: FolderOpen },
     ],
   },
@@ -145,6 +148,7 @@ const navGroups: NavGroup[] = [
       { href: "/code-assist", label: "Code Assist", icon: Wand2 },
       { href: "/projects", label: "Projects", icon: Layers },
       { href: "/editor", label: "Code Editor", icon: Code2 },
+      { href: "/game-dev", label: "Game Dev", icon: Gamepad2 },
     ],
   },
   {
@@ -181,6 +185,7 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/users", label: "User Management", icon: Users },
       { href: "/permissions", label: "Permissions", icon: Lock },
+      { href: "/security", label: "Security Tools", icon: Shield },
       { href: "/secrets-manager", label: "Secrets", icon: Key },
       { href: "/self", label: "Self", icon: Wrench },
       { href: "/settings", label: "Settings", icon: Settings },

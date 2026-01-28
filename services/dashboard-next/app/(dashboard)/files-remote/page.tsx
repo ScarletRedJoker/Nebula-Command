@@ -27,13 +27,22 @@ import {
   Loader2,
   FolderOpen,
   X,
+  Monitor,
 } from "lucide-react";
 
 interface ServerInfo {
   id: string;
   name: string;
   basePath: string;
+  type: "sftp" | "windows";
 }
+
+const WINDOWS_VM: ServerInfo = {
+  id: "windows-vm",
+  name: "Windows VM",
+  basePath: "C:/Users/Evin",
+  type: "windows",
+};
 
 export default function RemoteFilesPage() {
   const [servers, setServers] = useState<ServerInfo[]>([]);
@@ -46,6 +55,11 @@ export default function RemoteFilesPage() {
   const [previewFile, setPreviewFile] = useState<{ path: string; content: string; extension: string } | null>(null);
   const { toast } = useToast();
 
+  const getSelectedServerType = useCallback(() => {
+    const server = servers.find((s) => s.id === selectedServer);
+    return server?.type || "sftp";
+  }, [servers, selectedServer]);
+
   useEffect(() => {
     fetchServers();
   }, []);
@@ -55,9 +69,14 @@ export default function RemoteFilesPage() {
       const res = await fetch("/api/sftp");
       if (!res.ok) throw new Error("Failed to fetch servers");
       const data = await res.json();
-      setServers(data.servers || []);
-      if (data.servers?.length > 0) {
-        const first = data.servers[0];
+      const sftpServers: ServerInfo[] = (data.servers || []).map((s: any) => ({
+        ...s,
+        type: "sftp" as const,
+      }));
+      const allServers = [...sftpServers, WINDOWS_VM];
+      setServers(allServers);
+      if (allServers.length > 0) {
+        const first = allServers[0];
         setSelectedServer(first.id);
         setBasePath(first.basePath);
         setCurrentPath(first.basePath);
@@ -74,12 +93,23 @@ export default function RemoteFilesPage() {
   const fetchFiles = useCallback(async (path: string) => {
     if (!selectedServer) return;
     
+    const serverType = getSelectedServerType();
+    
     setLoading(true);
     setSelectedFiles([]);
     try {
-      const res = await fetch(
-        `/api/sftp?server=${selectedServer}&path=${encodeURIComponent(path)}&action=list`
-      );
+      let res: Response;
+      
+      if (serverType === "windows") {
+        res = await fetch(
+          `/api/windows/files?path=${encodeURIComponent(path)}&action=list`
+        );
+      } else {
+        res = await fetch(
+          `/api/sftp?server=${selectedServer}&path=${encodeURIComponent(path)}&action=list`
+        );
+      }
+      
       if (!res.ok) {
         const error = await res.json();
         throw new Error(error.details || error.error || "Failed to fetch files");
@@ -97,7 +127,7 @@ export default function RemoteFilesPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedServer, toast]);
+  }, [selectedServer, getSelectedServerType, toast]);
 
   useEffect(() => {
     if (selectedServer && currentPath) {
@@ -132,10 +162,21 @@ export default function RemoteFilesPage() {
   };
 
   const handlePreview = async (file: FileItem) => {
+    const serverType = getSelectedServerType();
+    
     try {
-      const res = await fetch(
-        `/api/sftp?server=${selectedServer}&path=${encodeURIComponent(file.path)}&action=preview`
-      );
+      let res: Response;
+      
+      if (serverType === "windows") {
+        res = await fetch(
+          `/api/windows/files?path=${encodeURIComponent(file.path)}&action=preview`
+        );
+      } else {
+        res = await fetch(
+          `/api/sftp?server=${selectedServer}&path=${encodeURIComponent(file.path)}&action=preview`
+        );
+      }
+      
       if (!res.ok) {
         const error = await res.json();
         throw new Error(error.details || error.error || "Failed to preview file");
@@ -152,15 +193,23 @@ export default function RemoteFilesPage() {
   };
 
   const handleAction = async (action: string, data?: any) => {
+    const serverType = getSelectedServerType();
+    
     const formData = new FormData();
-    formData.append("server", selectedServer);
     formData.append("action", action);
     formData.append("path", data?.path || currentPath);
     
+    if (serverType !== "windows") {
+      formData.append("server", selectedServer);
+    }
+    
     if (data?.name) formData.append("name", data.name);
     if (data?.newName) formData.append("newName", data.newName);
+    if (data?.file) formData.append("file", data.file);
 
-    const res = await fetch("/api/sftp", {
+    const endpoint = serverType === "windows" ? "/api/windows/files" : "/api/sftp";
+    
+    const res = await fetch(endpoint, {
       method: "POST",
       body: formData,
     });
@@ -174,10 +223,26 @@ export default function RemoteFilesPage() {
     await fetchFiles(currentPath);
   };
 
-  const breadcrumbs = currentPath.split("/").filter(Boolean);
+  const getServerIcon = (server: ServerInfo) => {
+    if (server.type === "windows") {
+      return <Monitor className="h-4 w-4" />;
+    }
+    if (server.id === "linode") {
+      return <HardDrive className="h-4 w-4" />;
+    }
+    return <Home className="h-4 w-4" />;
+  };
+
+  const currentServer = servers.find((s) => s.id === selectedServer);
+  const isWindows = currentServer?.type === "windows";
+  const pathSeparator = isWindows ? "/" : "/";
+  const breadcrumbs = currentPath.split(/[/\\]/).filter(Boolean);
+  
   const pathParts = breadcrumbs.map((part, i) => ({
     name: part,
-    path: "/" + breadcrumbs.slice(0, i + 1).join("/"),
+    path: isWindows
+      ? breadcrumbs.slice(0, i + 1).join("/")
+      : "/" + breadcrumbs.slice(0, i + 1).join("/"),
   }));
 
   return (
@@ -186,7 +251,7 @@ export default function RemoteFilesPage() {
         <div>
           <h1 className="text-3xl font-bold">Remote Files</h1>
           <p className="text-muted-foreground">
-            Browse and manage files on remote servers via SFTP
+            Browse and manage files on remote servers
           </p>
         </div>
       </div>
@@ -203,11 +268,7 @@ export default function RemoteFilesPage() {
                   {servers.map((server) => (
                     <SelectItem key={server.id} value={server.id}>
                       <div className="flex items-center gap-2">
-                        {server.id === "linode" ? (
-                          <HardDrive className="h-4 w-4" />
-                        ) : (
-                          <Home className="h-4 w-4" />
-                        )}
+                        {getServerIcon(server)}
                         {server.name}
                       </div>
                     </SelectItem>
@@ -274,7 +335,7 @@ export default function RemoteFilesPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between">
               <span className="truncate pr-8">
-                {previewFile?.path.split("/").pop()}
+                {previewFile?.path.split(/[/\\]/).pop()}
               </span>
             </DialogTitle>
           </DialogHeader>
