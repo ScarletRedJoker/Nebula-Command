@@ -840,10 +840,13 @@ export const creativeAssets = pgTable("creative_assets", {
   type: varchar("type", { length: 50 }).notNull(), // 'input', 'output', 'reference', 'controlnet_map', 'template'
   filename: varchar("filename", { length: 255 }).notNull(),
   path: varchar("path", { length: 500 }).notNull(),
+  cloudPath: varchar("cloud_path", { length: 500 }), // Cloud storage URL for sync
   mimeType: varchar("mime_type", { length: 100 }),
   size: integer("size"),
   metadata: jsonb("metadata").default({}),
   jobId: integer("job_id").references(() => creativeJobs.id),
+  userId: varchar("user_id", { length: 255 }), // Owner for cross-device sync
+  syncedAt: timestamp("synced_at"), // Last cloud sync timestamp
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -2181,3 +2184,24 @@ export type Client = typeof clients.$inferSelect;
 export type NewClient = typeof clients.$inferInsert;
 export type ClientProject = typeof clientProjects.$inferSelect;
 export type NewClientProject = typeof clientProjects.$inferInsert;
+
+// ============================================
+// User Progress Sync (Cross-Device State)
+// ============================================
+
+export const userProgress = pgTable("user_progress", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id", { length: 255 }).notNull().unique(),
+  currentModule: varchar("current_module", { length: 100 }), // Last active page/module
+  currentProject: uuid("current_project"), // Last active project
+  uiState: jsonb("ui_state").default({}), // Sidebar collapsed, theme, etc
+  workspaceState: jsonb("workspace_state").default({}), // Open tabs, editor state
+  recentAssets: jsonb("recent_assets").default([]), // Recent files/images
+  lastActiveAt: timestamp("last_active_at").defaultNow(),
+  syncVersion: integer("sync_version").default(1), // For conflict resolution
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type UserProgress = typeof userProgress.$inferSelect;
+export type NewUserProgress = typeof userProgress.$inferInsert;
