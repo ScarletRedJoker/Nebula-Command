@@ -264,12 +264,21 @@ CREATE TABLE IF NOT EXISTS content_pipelines (
     name VARCHAR(255) NOT NULL,
     description TEXT,
     persona_id UUID,
-    template_id UUID,
-    schedule_cron VARCHAR(100),
-    is_enabled BOOLEAN DEFAULT TRUE,
-    config JSONB DEFAULT '{}',
-    last_run_at TIMESTAMP,
+    pipeline_type VARCHAR(50) NOT NULL,
+    stages JSONB NOT NULL,
+    workflow_id UUID,
+    workflow_overrides JSONB,
+    output_format VARCHAR(50) DEFAULT 'mp4',
+    output_resolution VARCHAR(20) DEFAULT '1080p',
+    aspect_ratio VARCHAR(10) DEFAULT '16:9',
+    batch_size INTEGER DEFAULT 1,
+    parallel_execution BOOLEAN DEFAULT false,
+    is_scheduled BOOLEAN DEFAULT false,
+    cron_expression VARCHAR(100),
+    timezone VARCHAR(50) DEFAULT 'UTC',
     next_run_at TIMESTAMP,
+    last_run_at TIMESTAMP,
+    is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -281,7 +290,7 @@ CREATE INDEX IF NOT EXISTS idx_system_alerts_category ON system_alerts(category)
 CREATE INDEX IF NOT EXISTS idx_system_alerts_timestamp ON system_alerts(timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_incidents_status ON incidents(status);
 CREATE INDEX IF NOT EXISTS idx_failure_records_fingerprint ON failure_records(fingerprint);
-CREATE INDEX IF NOT EXISTS idx_content_pipelines_enabled ON content_pipelines(is_enabled);
+CREATE INDEX IF NOT EXISTS idx_content_pipelines_active ON content_pipelines(is_active);
 
 -- Grant permissions
 GRANT ALL ON ALL TABLES IN SCHEMA public TO jarvis;
