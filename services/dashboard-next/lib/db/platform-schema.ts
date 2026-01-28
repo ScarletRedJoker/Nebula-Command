@@ -1397,6 +1397,18 @@ export const userSessions = pgTable("user_sessions", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const roleModuleDefaults = pgTable("role_module_defaults", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  role: varchar("role", { length: 50 }).notNull(),
+  module: varchar("module", { length: 100 }).notNull(),
+  canAccess: boolean("can_access").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type RoleModuleDefault = typeof roleModuleDefaults.$inferSelect;
+export type NewRoleModuleDefault = typeof roleModuleDefaults.$inferInsert;
+
 // ============================================================================
 // AI MODEL TRAINING PIPELINE
 // ============================================================================

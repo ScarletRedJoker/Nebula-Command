@@ -72,6 +72,9 @@ import {
   ChevronRight,
   ChevronLeft,
   FolderOpen,
+  GitCompare,
+  Info,
+  AlertTriangle,
 } from "lucide-react";
 
 interface Secret {
@@ -122,6 +125,38 @@ interface SyncLog {
   message: string;
   secretsAffected: number;
   createdAt: string;
+}
+
+interface ComparisonResult {
+  timestamp: string;
+  replit: {
+    keyCount: number;
+    keys: string[];
+  };
+  production: {
+    keyCount: number;
+    keys: string[];
+    connected: boolean;
+    error?: string;
+  };
+  comparison: {
+    inBoth: string[];
+    onlyInReplit: string[];
+    onlyInProduction: string[];
+  };
+  critical: {
+    missingInReplit: string[];
+    missingInProduction: string[];
+  };
+  summary: {
+    replitTotal: number;
+    productionTotal: number;
+    matchCount: number;
+    onlyReplitCount: number;
+    onlyProductionCount: number;
+    criticalMissingInReplit: number;
+    criticalMissingInProduction: number;
+  };
 }
 
 const CATEGORIES = [
@@ -181,6 +216,10 @@ export default function SecretsManagerPage() {
 
   const [testingConnection, setTestingConnection] = useState<string | null>(null);
 
+  const [comparisonData, setComparisonData] = useState<ComparisonResult | null>(null);
+  const [comparisonLoading, setComparisonLoading] = useState(false);
+  const [comparisonError, setComparisonError] = useState<string | null>(null);
+
   const fetchData = useCallback(async () => {
     try {
       const [secretsRes, statusRes, tokensRes, syncLogsRes] = await Promise.all([
@@ -221,6 +260,28 @@ export default function SecretsManagerPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const fetchComparison = useCallback(async () => {
+    setComparisonLoading(true);
+    setComparisonError(null);
+    try {
+      const res = await fetch("/api/secrets/compare");
+      if (res.ok) {
+        const data = await res.json();
+        setComparisonData(data);
+      } else {
+        const errorData = await res.json();
+        setComparisonError(errorData.error || "Failed to fetch comparison");
+        toast.error("Failed to fetch comparison", { description: errorData.error });
+      }
+    } catch (error) {
+      console.error("Failed to fetch comparison:", error);
+      setComparisonError("Failed to fetch comparison");
+      toast.error("Failed to fetch comparison");
+    } finally {
+      setComparisonLoading(false);
+    }
+  }, []);
 
   const filteredSecrets = secrets.filter((s) => {
     const matchesSearch = s.keyName.toLowerCase().includes(search.toLowerCase());
@@ -578,7 +639,7 @@ export default function SecretsManagerPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="secrets" className="flex items-center gap-2">
             <Key className="h-4 w-4" />
             Secrets
@@ -590,6 +651,10 @@ export default function SecretsManagerPage() {
           <TabsTrigger value="sync" className="flex items-center gap-2">
             <ArrowUpDown className="h-4 w-4" />
             Sync Panel
+          </TabsTrigger>
+          <TabsTrigger value="compare" className="flex items-center gap-2">
+            <GitCompare className="h-4 w-4" />
+            Comparison
           </TabsTrigger>
           <TabsTrigger value="history" className="flex items-center gap-2">
             <History className="h-4 w-4" />
@@ -976,6 +1041,298 @@ export default function SecretsManagerPage() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        <TabsContent value="compare" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <GitCompare className="h-5 w-5" />
+                    Environment Comparison
+                  </CardTitle>
+                  <CardDescription>
+                    Compare secrets between Replit and Production environments
+                  </CardDescription>
+                </div>
+                <div className="flex gap-2 items-center">
+                  {comparisonData && (
+                    <span className="text-xs text-muted-foreground">
+                      Last updated: {new Date(comparisonData.timestamp).toLocaleString()}
+                    </span>
+                  )}
+                  <Button
+                    onClick={fetchComparison}
+                    disabled={comparisonLoading}
+                  >
+                    {comparisonLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                    )}
+                    {comparisonData ? "Refresh" : "Compare"}
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {!comparisonData && !comparisonLoading && !comparisonError && (
+                <div className="text-center py-12">
+                  <GitCompare className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground mb-4">
+                    Click &quot;Compare&quot; to analyze secrets across environments
+                  </p>
+                  <Button onClick={fetchComparison}>
+                    <GitCompare className="h-4 w-4 mr-2" />
+                    Start Comparison
+                  </Button>
+                </div>
+              )}
+
+              {comparisonLoading && (
+                <div className="text-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">Connecting to production server...</p>
+                </div>
+              )}
+
+              {comparisonError && !comparisonLoading && (
+                <div className="text-center py-12">
+                  <AlertCircle className="h-12 w-12 mx-auto text-destructive mb-4" />
+                  <p className="text-destructive mb-4">{comparisonError}</p>
+                  <Button onClick={fetchComparison} variant="outline">
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Try Again
+                  </Button>
+                </div>
+              )}
+
+              {comparisonData && !comparisonLoading && (
+                <div className="space-y-6">
+                  <div className="flex items-center gap-4 p-4 rounded-lg bg-muted">
+                    <div className="flex items-center gap-2">
+                      {comparisonData.production.connected ? (
+                        <>
+                          <Wifi className="h-5 w-5 text-green-500" />
+                          <span className="text-sm font-medium">Production Connected</span>
+                        </>
+                      ) : (
+                        <>
+                          <WifiOff className="h-5 w-5 text-destructive" />
+                          <span className="text-sm font-medium text-destructive">
+                            Production Disconnected
+                          </span>
+                        </>
+                      )}
+                    </div>
+                    {comparisonData.production.error && (
+                      <span className="text-sm text-muted-foreground">
+                        {comparisonData.production.error}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <Card>
+                      <CardContent className="pt-6">
+                        <div className="text-2xl font-bold text-green-600">
+                          {comparisonData.summary.matchCount}
+                        </div>
+                        <p className="text-xs text-muted-foreground">In Both Environments</p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="pt-6">
+                        <div className="text-2xl font-bold text-orange-500">
+                          {comparisonData.summary.onlyReplitCount}
+                        </div>
+                        <p className="text-xs text-muted-foreground">Only in Replit</p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="pt-6">
+                        <div className="text-2xl font-bold text-blue-500">
+                          {comparisonData.summary.onlyProductionCount}
+                        </div>
+                        <p className="text-xs text-muted-foreground">Only in Production</p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="pt-6">
+                        <div className="text-2xl font-bold text-destructive">
+                          {comparisonData.summary.criticalMissingInProduction +
+                            comparisonData.summary.criticalMissingInReplit}
+                        </div>
+                        <p className="text-xs text-muted-foreground">Critical Missing</p>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {(comparisonData.critical.missingInReplit.length > 0 ||
+                    comparisonData.critical.missingInProduction.length > 0) && (
+                    <Card className="border-destructive">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-destructive flex items-center gap-2 text-base">
+                          <AlertCircle className="h-5 w-5" />
+                          Critical Secrets Missing
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-3">
+                          {comparisonData.critical.missingInReplit.length > 0 && (
+                            <div>
+                              <p className="text-sm font-medium mb-2">Missing in Replit:</p>
+                              <div className="flex flex-wrap gap-2">
+                                {comparisonData.critical.missingInReplit.map((key) => (
+                                  <Badge key={key} variant="destructive" className="font-mono">
+                                    {key}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {comparisonData.critical.missingInProduction.length > 0 && (
+                            <div>
+                              <p className="text-sm font-medium mb-2">Missing in Production:</p>
+                              <div className="flex flex-wrap gap-2">
+                                {comparisonData.critical.missingInProduction.map((key) => (
+                                  <Badge key={key} variant="destructive" className="font-mono">
+                                    {key}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <CheckCircle className="h-4 w-4 text-green-500" />
+                          In Both Environments ({comparisonData.comparison.inBoth.length})
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="max-h-64 overflow-y-auto space-y-1">
+                          {comparisonData.comparison.inBoth.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">No matching secrets</p>
+                          ) : (
+                            comparisonData.comparison.inBoth.map((key) => (
+                              <div
+                                key={key}
+                                className="flex items-center gap-2 py-1 px-2 rounded bg-green-500/10"
+                              >
+                                <Check className="h-3 w-3 text-green-500" />
+                                <span className="font-mono text-xs">{key}</span>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4 text-orange-500" />
+                          Only in Replit ({comparisonData.comparison.onlyInReplit.length})
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="max-h-64 overflow-y-auto space-y-1">
+                          {comparisonData.comparison.onlyInReplit.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">All Replit secrets exist in Production</p>
+                          ) : (
+                            comparisonData.comparison.onlyInReplit.map((key) => (
+                              <div
+                                key={key}
+                                className="flex items-center gap-2 py-1 px-2 rounded bg-orange-500/10"
+                              >
+                                <AlertTriangle className="h-3 w-3 text-orange-500" />
+                                <span className="font-mono text-xs">{key}</span>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <Info className="h-4 w-4 text-blue-500" />
+                          Only in Production ({comparisonData.comparison.onlyInProduction.length})
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="max-h-64 overflow-y-auto space-y-1">
+                          {comparisonData.comparison.onlyInProduction.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">All Production secrets exist in Replit</p>
+                          ) : (
+                            comparisonData.comparison.onlyInProduction.map((key) => (
+                              <div
+                                key={key}
+                                className="flex items-center gap-2 py-1 px-2 rounded bg-blue-500/10"
+                              >
+                                <Info className="h-3 w-3 text-blue-500" />
+                                <span className="font-mono text-xs">{key}</span>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">Environment Summary</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Environment</TableHead>
+                            <TableHead className="text-right">Total Secrets</TableHead>
+                            <TableHead className="text-right">Status</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          <TableRow>
+                            <TableCell className="font-medium">Replit</TableCell>
+                            <TableCell className="text-right">
+                              {comparisonData.summary.replitTotal}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Badge className="bg-green-600">Active</Badge>
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell className="font-medium">Production</TableCell>
+                            <TableCell className="text-right">
+                              {comparisonData.summary.productionTotal}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {comparisonData.production.connected ? (
+                                <Badge className="bg-green-600">Connected</Badge>
+                              ) : (
+                                <Badge variant="destructive">Disconnected</Badge>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        </TableBody>
+                      </Table>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="history" className="space-y-4">

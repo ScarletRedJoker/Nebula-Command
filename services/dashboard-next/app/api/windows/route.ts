@@ -20,7 +20,23 @@ interface WindowsVMState {
     ollama?: { status: string; version?: string };
     sunshine?: { status: string; port?: number };
     comfyui?: { status: string; port?: number };
+    stableDiffusion?: { status: string; port?: number };
   };
+}
+
+interface OllamaModelInfo {
+  name: string;
+  size: string;
+  modified: string;
+  digest: string;
+}
+
+interface GpuInfo {
+  name: string;
+  memoryUsed: number;
+  memoryTotal: number;
+  utilization: number;
+  temperature: number;
 }
 
 async function getVMConfig(): Promise<{ vmName: string; vmIp: string } | null> {
@@ -168,7 +184,7 @@ async function executeSSH(vmIp: string, command: string, username?: string): Pro
     /^powershell\s+-Command\s+/,
     /^tasklist\s+/,
     /^shutdown\s+/,
-    /^ollama\s+(pull|list|run|serve|show|ps|stop)\s*/,
+    /^ollama\s+(pull|list|run|serve|show|ps|stop|rm)\s*/,
     /^systeminfo$/,
     /^whoami$/,
     /^hostname$/,
@@ -176,6 +192,7 @@ async function executeSSH(vmIp: string, command: string, username?: string): Pro
     /^ls\s*/,
     /^cat\s+/,
     /^type\s+/,
+    /^nvidia-smi/,
   ];
   
   const isAllowed = allowedCommands.some(pattern => pattern.test(command));
@@ -233,6 +250,108 @@ async function executeSSH(vmIp: string, command: string, username?: string): Pro
   });
 }
 
+async function testOllamaApi(vmIp: string): Promise<{ success: boolean; version?: string; models?: number; error?: string }> {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    
+    const [versionRes, tagsRes] = await Promise.all([
+      fetch(`http://${vmIp}:11434/api/version`, { signal: controller.signal }),
+      fetch(`http://${vmIp}:11434/api/tags`, { signal: controller.signal }),
+    ]);
+    
+    clearTimeout(timeoutId);
+    
+    const versionData = await versionRes.json();
+    const tagsData = await tagsRes.json();
+    
+    return {
+      success: true,
+      version: versionData.version,
+      models: tagsData.models?.length || 0,
+    };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+async function getOllamaModelsDetailed(vmIp: string): Promise<OllamaModelInfo[]> {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    
+    const res = await fetch(`http://${vmIp}:11434/api/tags`, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    
+    if (!res.ok) return [];
+    
+    const data = await res.json();
+    return (data.models || []).map((m: any) => ({
+      name: m.name,
+      size: formatBytes(m.size || 0),
+      modified: m.modified_at || "",
+      digest: m.digest?.substring(0, 12) || "",
+    }));
+  } catch {
+    return [];
+  }
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+}
+
+async function getGpuInfo(vmIp: string): Promise<GpuInfo | null> {
+  const result = await executeSSH(vmIp, "nvidia-smi --query-gpu=name,memory.used,memory.total,utilization.gpu,temperature.gpu --format=csv,noheader,nounits");
+  
+  if (!result.success || !result.output.trim()) {
+    return null;
+  }
+  
+  const parts = result.output.trim().split(",").map(s => s.trim());
+  if (parts.length < 5) return null;
+  
+  return {
+    name: parts[0],
+    memoryUsed: parseInt(parts[1]) || 0,
+    memoryTotal: parseInt(parts[2]) || 0,
+    utilization: parseInt(parts[3]) || 0,
+    temperature: parseInt(parts[4]) || 0,
+  };
+}
+
+async function testStableDiffusionApi(vmIp: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    
+    const res = await fetch(`http://${vmIp}:7860/sdapi/v1/options`, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    
+    return { success: res.ok };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+async function testComfyUIApi(vmIp: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    
+    const res = await fetch(`http://${vmIp}:8188/system_stats`, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    
+    return { success: res.ok };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const action = searchParams.get("action") || "status";
@@ -252,7 +371,7 @@ export async function GET(request: NextRequest) {
     
     switch (action) {
       case "status": {
-        const [winrmHttp, winrmHttps, ssh, rdp, ollama, sunshine, comfyui] = await Promise.all([
+        const [winrmHttp, winrmHttps, ssh, rdp, ollama, sunshine, comfyui, stableDiffusion] = await Promise.all([
           checkPort(vmIp, 5985),
           checkPort(vmIp, 5986),
           checkPort(vmIp, 22),
@@ -260,6 +379,7 @@ export async function GET(request: NextRequest) {
           checkPort(vmIp, 11434),
           checkPort(vmIp, 47989),
           checkPort(vmIp, 8188),
+          checkPort(vmIp, 7860),
         ]);
         
         let ollamaVersion: string | undefined;
@@ -293,7 +413,8 @@ export async function GET(request: NextRequest) {
           services: {
             ollama: ollama ? { status: "online", version: ollamaVersion } : { status: "offline" },
             sunshine: sunshine ? { status: "online", port: 47989 } : { status: "offline" },
-            comfyui: comfyui ? { status: "online", port: 8188 } : { status: "offline" }
+            comfyui: comfyui ? { status: "online", port: 8188 } : { status: "offline" },
+            stableDiffusion: stableDiffusion ? { status: "online", port: 7860 } : { status: "offline" },
           }
         };
         
@@ -307,8 +428,28 @@ export async function GET(request: NextRequest) {
             rdp: { port: 3389, available: rdp },
             ollama: { port: 11434, available: ollama },
             sunshine: { port: 47989, available: sunshine },
-            comfyui: { port: 8188, available: comfyui }
+            comfyui: { port: 8188, available: comfyui },
+            stableDiffusion: { port: 7860, available: stableDiffusion },
           }
+        });
+      }
+      
+      case "ai-health": {
+        const [ollamaTest, sdTest, comfyTest, gpuInfo, models] = await Promise.all([
+          testOllamaApi(vmIp),
+          testStableDiffusionApi(vmIp),
+          testComfyUIApi(vmIp),
+          getGpuInfo(vmIp),
+          getOllamaModelsDetailed(vmIp),
+        ]);
+        
+        return NextResponse.json({
+          success: true,
+          ollama: ollamaTest,
+          stableDiffusion: sdTest,
+          comfyui: comfyTest,
+          gpu: gpuInfo,
+          models,
         });
       }
       
@@ -444,6 +585,116 @@ export async function POST(request: NextRequest) {
       case "ollama-list": {
         const result = await executeSSH(vmIp, "ollama list");
         return NextResponse.json(result);
+      }
+      
+      case "ollama-delete": {
+        const { model } = body;
+        if (!model) {
+          return NextResponse.json({ success: false, error: "Model name required" }, { status: 400 });
+        }
+        
+        const result = await executeSSH(vmIp, `ollama rm ${model}`);
+        return NextResponse.json(result);
+      }
+      
+      case "ollama-start": {
+        const result = await executeSSH(vmIp, `powershell -Command "Start-Process ollama -ArgumentList 'serve' -WindowStyle Hidden"`);
+        return NextResponse.json(result);
+      }
+      
+      case "ollama-stop": {
+        const result = await executeSSH(vmIp, `powershell -Command "Stop-Process -Name ollama -Force -ErrorAction SilentlyContinue"`);
+        return NextResponse.json(result);
+      }
+      
+      case "comfyui-start": {
+        const result = await executeSSH(vmIp, `powershell -Command "Start-Process python -ArgumentList 'main.py --listen 0.0.0.0' -WorkingDirectory 'C:\\ComfyUI' -WindowStyle Hidden"`);
+        return NextResponse.json(result);
+      }
+      
+      case "comfyui-stop": {
+        const result = await executeSSH(vmIp, `powershell -Command "Get-Process python | Where-Object {$_.MainWindowTitle -like '*ComfyUI*' -or $_.CommandLine -like '*ComfyUI*'} | Stop-Process -Force -ErrorAction SilentlyContinue"`);
+        return NextResponse.json(result);
+      }
+      
+      case "sd-start": {
+        const result = await executeSSH(vmIp, `powershell -Command "Start-Process python -ArgumentList 'launch.py --listen --api' -WorkingDirectory 'C:\\stable-diffusion-webui' -WindowStyle Hidden"`);
+        return NextResponse.json(result);
+      }
+      
+      case "sd-stop": {
+        const result = await executeSSH(vmIp, `powershell -Command "Get-Process python | Where-Object {$_.CommandLine -like '*stable-diffusion*'} | Stop-Process -Force -ErrorAction SilentlyContinue"`);
+        return NextResponse.json(result);
+      }
+      
+      case "deploy-ollama": {
+        const result = await executeSSH(vmIp, `powershell -Command "winget install --accept-package-agreements --accept-source-agreements Ollama.Ollama; Start-Process ollama -ArgumentList 'serve' -WindowStyle Hidden"`);
+        return NextResponse.json(result);
+      }
+      
+      case "deploy-comfyui": {
+        const script = `
+          $ErrorActionPreference = 'Stop';
+          if (!(Test-Path 'C:\\ComfyUI')) {
+            git clone https://github.com/comfyanonymous/ComfyUI.git C:\\ComfyUI
+          };
+          cd C:\\ComfyUI;
+          pip install -r requirements.txt;
+          Write-Output 'ComfyUI installed successfully'
+        `.replace(/\n/g, " ");
+        const result = await executeSSH(vmIp, `powershell -Command "${script}"`);
+        return NextResponse.json(result);
+      }
+      
+      case "deploy-stable-diffusion": {
+        const script = `
+          $ErrorActionPreference = 'Stop';
+          if (!(Test-Path 'C:\\stable-diffusion-webui')) {
+            git clone https://github.com/AUTOMATIC1111/stable-diffusion-webui.git C:\\stable-diffusion-webui
+          };
+          Write-Output 'Stable Diffusion WebUI cloned. Run webui-user.bat to complete setup.'
+        `.replace(/\n/g, " ");
+        const result = await executeSSH(vmIp, `powershell -Command "${script}"`);
+        return NextResponse.json(result);
+      }
+      
+      case "clear-ollama-cache": {
+        const result = await executeSSH(vmIp, `powershell -Command "Remove-Item -Path '$env:USERPROFILE\\.ollama\\models\\blobs\\*' -Recurse -Force -ErrorAction SilentlyContinue; Write-Output 'Cache cleared'"`);
+        return NextResponse.json(result);
+      }
+      
+      case "set-autostart": {
+        const { service, enabled } = body;
+        if (!service) {
+          return NextResponse.json({ success: false, error: "Service name required" }, { status: 400 });
+        }
+        
+        const taskName = `AutoStart_${service}`;
+        if (enabled) {
+          const script = service === "ollama" 
+            ? `schtasks /Create /TN "${taskName}" /TR "ollama serve" /SC ONLOGON /RL HIGHEST /F`
+            : service === "comfyui"
+            ? `schtasks /Create /TN "${taskName}" /TR "python C:\\ComfyUI\\main.py --listen 0.0.0.0" /SC ONLOGON /RL HIGHEST /F`
+            : `schtasks /Create /TN "${taskName}" /TR "python C:\\stable-diffusion-webui\\launch.py --listen --api" /SC ONLOGON /RL HIGHEST /F`;
+          const result = await executeSSH(vmIp, script);
+          return NextResponse.json(result);
+        } else {
+          const result = await executeSSH(vmIp, `schtasks /Delete /TN "${taskName}" /F`);
+          return NextResponse.json(result);
+        }
+      }
+      
+      case "get-autostart": {
+        const result = await executeSSH(vmIp, `schtasks /Query /FO CSV | findstr "AutoStart_"`);
+        return NextResponse.json({
+          success: true,
+          output: result.output,
+          autostart: {
+            ollama: result.output.includes("AutoStart_ollama"),
+            comfyui: result.output.includes("AutoStart_comfyui"),
+            stableDiffusion: result.output.includes("AutoStart_stable-diffusion"),
+          }
+        });
       }
       
       default:

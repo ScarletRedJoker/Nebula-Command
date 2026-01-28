@@ -3,7 +3,9 @@ import { cookies } from "next/headers";
 import { verifySession } from "@/lib/session";
 import { userService } from "@/lib/services/user-service";
 import { auditService } from "@/lib/services/audit-service";
-import { DashboardModule } from "@/lib/db/platform-schema";
+import { DashboardModule, roleModuleDefaults } from "@/lib/db/platform-schema";
+import { db } from "@/lib/db";
+import { and, eq } from "drizzle-orm";
 
 export interface AuthenticatedUser {
   id: string;
@@ -119,6 +121,48 @@ export async function requirePermission(
     throw new AuthError(`Permission denied for ${action} on ${module}`, 403);
   }
   
+  return user;
+}
+
+export async function canAccessModule(role: string, module: string): Promise<boolean> {
+  if (role === "admin") {
+    return true;
+  }
+
+  try {
+    const result = await db
+      .select()
+      .from(roleModuleDefaults)
+      .where(
+        and(
+          eq(roleModuleDefaults.role, role),
+          eq(roleModuleDefaults.module, module)
+        )
+      )
+      .limit(1);
+
+    if (result.length === 0) {
+      return true;
+    }
+
+    return result[0].canAccess === true;
+  } catch (error) {
+    console.error("[canAccessModule] Error querying role_module_defaults:", error);
+    return true;
+  }
+}
+
+export async function requireModuleAccess(
+  module: string,
+  request?: NextRequest
+): Promise<AuthenticatedUser> {
+  const user = await requireAuth(request);
+
+  const hasAccess = await canAccessModule(user.role, module);
+  if (!hasAccess) {
+    throw new AuthError(`Access denied to module: ${module}`, 403);
+  }
+
   return user;
 }
 

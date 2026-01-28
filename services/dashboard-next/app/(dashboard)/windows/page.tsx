@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Switch } from "@/components/ui/switch";
+import { Progress } from "@/components/ui/progress";
 import {
   Monitor,
   Power,
@@ -30,6 +32,14 @@ import {
   ExternalLink,
   Maximize2,
   MonitorPlay,
+  Zap,
+  Image,
+  Activity,
+  Thermometer,
+  HardDrive,
+  Settings,
+  Rocket,
+  AlertTriangle,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -47,6 +57,7 @@ interface VMStatus {
     ollama?: { status: string; version?: string };
     sunshine?: { status: string; port?: number };
     comfyui?: { status: string; port?: number };
+    stableDiffusion?: { status: string; port?: number };
   };
   error?: string;
 }
@@ -55,6 +66,34 @@ interface CommandResult {
   success: boolean;
   output: string;
   error?: string;
+}
+
+interface OllamaModelInfo {
+  name: string;
+  size: string;
+  modified: string;
+  digest: string;
+}
+
+interface AIHealthData {
+  success: boolean;
+  ollama: { success: boolean; version?: string; models?: number; error?: string };
+  stableDiffusion: { success: boolean; error?: string };
+  comfyui: { success: boolean; error?: string };
+  gpu: {
+    name: string;
+    memoryUsed: number;
+    memoryTotal: number;
+    utilization: number;
+    temperature: number;
+  } | null;
+  models: OllamaModelInfo[];
+}
+
+interface AutostartState {
+  ollama: boolean;
+  comfyui: boolean;
+  stableDiffusion: boolean;
 }
 
 export default function WindowsVMPage() {
@@ -68,6 +107,11 @@ export default function WindowsVMPage() {
   const [modelName, setModelName] = useState("");
   const [ollamaModels, setOllamaModels] = useState<string[]>([]);
   const [gamestreamFullscreen, setGamestreamFullscreen] = useState(false);
+  const [aiHealth, setAiHealth] = useState<AIHealthData | null>(null);
+  const [aiHealthLoading, setAiHealthLoading] = useState(false);
+  const [deployingService, setDeployingService] = useState<string | null>(null);
+  const [autostart, setAutostart] = useState<AutostartState>({ ollama: false, comfyui: false, stableDiffusion: false });
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const { toast } = useToast();
   
   const GAMESTREAM_URL = process.env.NEXT_PUBLIC_GAMESTREAM_URL || "https://gamestream.evindrake.net";
@@ -114,15 +158,47 @@ export default function WindowsVMPage() {
     }
   };
 
+  const fetchAIHealth = useCallback(async () => {
+    setAiHealthLoading(true);
+    try {
+      const res = await fetch("/api/windows?action=ai-health");
+      const data = await res.json();
+      setAiHealth(data);
+    } catch (error) {
+      console.error("Failed to fetch AI health:", error);
+    } finally {
+      setAiHealthLoading(false);
+    }
+  }, []);
+
+  const fetchAutostart = useCallback(async () => {
+    try {
+      const res = await fetch("/api/windows", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "get-autostart" }),
+      });
+      const data = await res.json();
+      if (data.autostart) {
+        setAutostart(data.autostart);
+      }
+    } catch (error) {
+      console.error("Failed to fetch autostart:", error);
+    }
+  }, []);
+
   useEffect(() => {
     fetchStatus();
+    fetchAIHealth();
+    fetchAutostart();
     const interval = setInterval(fetchStatus, 30000);
     return () => clearInterval(interval);
-  }, [fetchStatus]);
+  }, [fetchStatus, fetchAIHealth, fetchAutostart]);
 
   const handleRefresh = () => {
     setRefreshing(true);
     fetchStatus();
+    fetchAIHealth();
   };
 
   const executeCommand = async () => {
@@ -188,32 +264,34 @@ export default function WindowsVMPage() {
     }
   };
 
-  const pullOllamaModel = async () => {
-    if (!modelName.trim()) return;
+  const pullOllamaModel = async (model?: string) => {
+    const targetModel = model || modelName;
+    if (!targetModel.trim()) return;
     
     setCommandLoading(true);
     toast({
       title: "Pulling model",
-      description: `Downloading ${modelName}... This may take a few minutes.`,
+      description: `Downloading ${targetModel}... This may take a few minutes.`,
     });
     
     try {
       const res = await fetch("/api/windows", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "ollama-pull", model: modelName }),
+        body: JSON.stringify({ action: "ollama-pull", model: targetModel }),
       });
       const result = await res.json();
       
       toast({
         title: result.success ? "Model pulled" : "Pull failed",
-        description: result.success ? `${modelName} downloaded successfully` : result.error,
+        description: result.success ? `${targetModel} downloaded successfully` : result.error,
         variant: result.success ? "default" : "destructive",
       });
       
       if (result.success) {
         setModelName("");
         fetchOllamaModels();
+        fetchAIHealth();
       }
     } catch (error) {
       toast({
@@ -223,6 +301,37 @@ export default function WindowsVMPage() {
       });
     } finally {
       setCommandLoading(false);
+    }
+  };
+
+  const deleteOllamaModel = async (model: string) => {
+    setActionLoading(`delete-${model}`);
+    try {
+      const res = await fetch("/api/windows", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "ollama-delete", model }),
+      });
+      const result = await res.json();
+      
+      toast({
+        title: result.success ? "Model deleted" : "Delete failed",
+        description: result.success ? `${model} removed` : result.error,
+        variant: result.success ? "default" : "destructive",
+      });
+      
+      if (result.success) {
+        fetchOllamaModels();
+        fetchAIHealth();
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete model",
+        variant: "destructive",
+      });
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -251,6 +360,150 @@ export default function WindowsVMPage() {
       });
     } finally {
       setCommandLoading(false);
+    }
+  };
+
+  const handleServiceAction = async (service: string, action: "start" | "stop") => {
+    setActionLoading(`${service}-${action}`);
+    const actionMap: Record<string, string> = {
+      "ollama-start": "ollama-start",
+      "ollama-stop": "ollama-stop",
+      "comfyui-start": "comfyui-start",
+      "comfyui-stop": "comfyui-stop",
+      "stableDiffusion-start": "sd-start",
+      "stableDiffusion-stop": "sd-stop",
+    };
+    
+    try {
+      const res = await fetch("/api/windows", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: actionMap[`${service}-${action}`] }),
+      });
+      const result = await res.json();
+      
+      toast({
+        title: result.success ? `${service} ${action}ed` : `Failed to ${action} ${service}`,
+        description: result.success ? `${service} ${action} initiated` : result.error,
+        variant: result.success ? "default" : "destructive",
+      });
+      
+      setTimeout(() => {
+        fetchStatus();
+        fetchAIHealth();
+      }, 3000);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: `Failed to ${action} ${service}`,
+        variant: "destructive",
+      });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleDeployService = async (service: string) => {
+    setDeployingService(service);
+    const actionMap: Record<string, string> = {
+      ollama: "deploy-ollama",
+      comfyui: "deploy-comfyui",
+      stableDiffusion: "deploy-stable-diffusion",
+    };
+    
+    toast({
+      title: `Deploying ${service}`,
+      description: "This may take several minutes...",
+    });
+    
+    try {
+      const res = await fetch("/api/windows", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: actionMap[service] }),
+      });
+      const result = await res.json();
+      
+      toast({
+        title: result.success ? `${service} deployed` : `Failed to deploy ${service}`,
+        description: result.success ? result.output : result.error,
+        variant: result.success ? "default" : "destructive",
+      });
+      
+      if (result.success) {
+        setTimeout(() => {
+          fetchStatus();
+          fetchAIHealth();
+        }, 5000);
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: `Failed to deploy ${service}`,
+        variant: "destructive",
+      });
+    } finally {
+      setDeployingService(null);
+    }
+  };
+
+  const handleAutostartToggle = async (service: string, enabled: boolean) => {
+    setActionLoading(`autostart-${service}`);
+    try {
+      const res = await fetch("/api/windows", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "set-autostart", service, enabled }),
+      });
+      const result = await res.json();
+      
+      if (result.success) {
+        setAutostart((prev) => ({ ...prev, [service]: enabled }));
+        toast({
+          title: `Auto-start ${enabled ? "enabled" : "disabled"}`,
+          description: `${service} will ${enabled ? "" : "no longer "}start automatically`,
+        });
+      } else {
+        toast({
+          title: "Failed to update auto-start",
+          description: result.error,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update auto-start settings",
+        variant: "destructive",
+      });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const clearOllamaCache = async () => {
+    setActionLoading("clear-cache");
+    try {
+      const res = await fetch("/api/windows", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "clear-ollama-cache" }),
+      });
+      const result = await res.json();
+      
+      toast({
+        title: result.success ? "Cache cleared" : "Failed to clear cache",
+        description: result.success ? "Ollama cache has been cleared" : result.error,
+        variant: result.success ? "default" : "destructive",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to clear cache",
+        variant: "destructive",
+      });
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -334,47 +587,90 @@ export default function WindowsVMPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Ollama</CardTitle>
-            <Bot className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">GPU</CardTitle>
+            <Cpu className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <Badge variant={status?.services?.ollama?.status === "online" ? "default" : "secondary"}>
-              {status?.services?.ollama?.status === "online" ? "Online" : "Offline"}
-            </Badge>
-            {status?.services?.ollama?.version && (
-              <p className="text-xs text-muted-foreground mt-1">v{status.services.ollama.version}</p>
+            {aiHealth?.gpu ? (
+              <>
+                <p className="text-sm font-medium truncate">{aiHealth.gpu.name}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {aiHealth.gpu.memoryUsed}MB / {aiHealth.gpu.memoryTotal}MB
+                </p>
+              </>
+            ) : (
+              <Badge variant="secondary">Not detected</Badge>
             )}
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Sunshine Gamestream</CardTitle>
-            <Gamepad2 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <Badge variant={status?.services?.sunshine?.status === "online" ? "default" : "secondary"}>
-              {status?.services?.sunshine?.status === "online" ? "Online" : "Offline"}
-            </Badge>
-            <p className="text-xs text-muted-foreground mt-1">Port 47989 (Moonlight compatible)</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">ComfyUI</CardTitle>
-            <Cpu className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <Badge variant={status?.services?.comfyui?.status === "online" ? "default" : "secondary"}>
-              {status?.services?.comfyui?.status === "online" ? "Online" : "Offline"}
-            </Badge>
-            <p className="text-xs text-muted-foreground mt-1">AI Video Generation (Port 8188)</p>
-          </CardContent>
-        </Card>
-      </div>
+      <Card className="border-blue-500/30 bg-gradient-to-r from-blue-500/5 to-purple-500/5">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Activity className="h-5 w-5 text-blue-500" />
+            Integration Status
+          </CardTitle>
+          <CardDescription>Real-time connection status to AI services</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="flex items-center justify-between p-3 rounded-lg border bg-background">
+              <div className="flex items-center gap-2">
+                <Bot className="h-5 w-5 text-blue-500" />
+                <div>
+                  <p className="font-medium">Ollama</p>
+                  <p className="text-xs text-muted-foreground">
+                    {aiHealth?.ollama?.version ? `v${aiHealth.ollama.version}` : "LLM Inference"}
+                  </p>
+                </div>
+              </div>
+              <Badge variant={aiHealth?.ollama?.success ? "default" : "secondary"} className={aiHealth?.ollama?.success ? "bg-green-500" : ""}>
+                {aiHealth?.ollama?.success ? "Connected" : "Offline"}
+              </Badge>
+            </div>
+            
+            <div className="flex items-center justify-between p-3 rounded-lg border bg-background">
+              <div className="flex items-center gap-2">
+                <Image className="h-5 w-5 text-purple-500" />
+                <div>
+                  <p className="font-medium">Stable Diffusion</p>
+                  <p className="text-xs text-muted-foreground">Image Generation</p>
+                </div>
+              </div>
+              <Badge variant={aiHealth?.stableDiffusion?.success ? "default" : "secondary"} className={aiHealth?.stableDiffusion?.success ? "bg-green-500" : ""}>
+                {aiHealth?.stableDiffusion?.success ? "Connected" : "Offline"}
+              </Badge>
+            </div>
+            
+            <div className="flex items-center justify-between p-3 rounded-lg border bg-background">
+              <div className="flex items-center gap-2">
+                <Zap className="h-5 w-5 text-orange-500" />
+                <div>
+                  <p className="font-medium">ComfyUI</p>
+                  <p className="text-xs text-muted-foreground">AI Workflows</p>
+                </div>
+              </div>
+              <Badge variant={aiHealth?.comfyui?.success ? "default" : "secondary"} className={aiHealth?.comfyui?.success ? "bg-green-500" : ""}>
+                {aiHealth?.comfyui?.success ? "Connected" : "Offline"}
+              </Badge>
+            </div>
+            
+            <div className="flex items-center justify-between p-3 rounded-lg border bg-background">
+              <div className="flex items-center gap-2">
+                <Gamepad2 className="h-5 w-5 text-green-500" />
+                <div>
+                  <p className="font-medium">Sunshine</p>
+                  <p className="text-xs text-muted-foreground">Game Streaming</p>
+                </div>
+              </div>
+              <Badge variant={status?.services?.sunshine?.status === "online" ? "default" : "secondary"} className={status?.services?.sunshine?.status === "online" ? "bg-green-500" : ""}>
+                {status?.services?.sunshine?.status === "online" ? "Connected" : "Offline"}
+              </Badge>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="flex gap-2 flex-wrap">
         <Button
@@ -397,8 +693,20 @@ export default function WindowsVMPage() {
         </Button>
       </div>
 
-      <Tabs defaultValue="gamestream" className="space-y-4">
-        <TabsList>
+      <Tabs defaultValue="ai-deploy" className="space-y-4">
+        <TabsList className="flex-wrap h-auto">
+          <TabsTrigger value="ai-deploy">
+            <Rocket className="h-4 w-4 mr-2" />
+            AI Deployment
+          </TabsTrigger>
+          <TabsTrigger value="ai-health">
+            <Activity className="h-4 w-4 mr-2" />
+            AI Health
+          </TabsTrigger>
+          <TabsTrigger value="quick-actions">
+            <Zap className="h-4 w-4 mr-2" />
+            Quick Actions
+          </TabsTrigger>
           <TabsTrigger value="gamestream">
             <Gamepad2 className="h-4 w-4 mr-2" />
             Gamestream
@@ -408,6 +716,423 @@ export default function WindowsVMPage() {
           <TabsTrigger value="ollama">Ollama AI</TabsTrigger>
           <TabsTrigger value="ports">Ports</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="ai-deploy" className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-3">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Bot className="h-5 w-5 text-blue-500" />
+                  Ollama
+                </CardTitle>
+                <CardDescription>Local LLM inference engine</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Status</span>
+                  <Badge variant={status?.services?.ollama?.status === "online" ? "default" : "secondary"}>
+                    {status?.services?.ollama?.status === "online" ? "Running" : "Stopped"}
+                  </Badge>
+                </div>
+                <div className="flex gap-2">
+                  {status?.services?.ollama?.status === "online" ? (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="flex-1"
+                      onClick={() => handleServiceAction("ollama", "stop")}
+                      disabled={actionLoading === "ollama-stop"}
+                    >
+                      {actionLoading === "ollama-stop" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Square className="h-4 w-4 mr-1" />}
+                      Stop
+                    </Button>
+                  ) : (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="flex-1"
+                      onClick={() => handleServiceAction("ollama", "start")}
+                      disabled={actionLoading === "ollama-start" || !isOnline}
+                    >
+                      {actionLoading === "ollama-start" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4 mr-1" />}
+                      Start
+                    </Button>
+                  )}
+                  <Button 
+                    size="sm" 
+                    className="flex-1"
+                    onClick={() => handleDeployService("ollama")}
+                    disabled={deployingService === "ollama" || !isOnline}
+                  >
+                    {deployingService === "ollama" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4 mr-1" />}
+                    Deploy
+                  </Button>
+                </div>
+                <div className="flex items-center justify-between pt-2 border-t">
+                  <span className="text-sm">Auto-start</span>
+                  <Switch
+                    checked={autostart.ollama}
+                    onCheckedChange={(checked) => handleAutostartToggle("ollama", checked)}
+                    disabled={actionLoading === "autostart-ollama" || !isOnline}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Zap className="h-5 w-5 text-orange-500" />
+                  ComfyUI
+                </CardTitle>
+                <CardDescription>Node-based AI workflow editor</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Status</span>
+                  <Badge variant={status?.services?.comfyui?.status === "online" ? "default" : "secondary"}>
+                    {status?.services?.comfyui?.status === "online" ? "Running" : "Stopped"}
+                  </Badge>
+                </div>
+                <div className="flex gap-2">
+                  {status?.services?.comfyui?.status === "online" ? (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="flex-1"
+                      onClick={() => handleServiceAction("comfyui", "stop")}
+                      disabled={actionLoading === "comfyui-stop"}
+                    >
+                      {actionLoading === "comfyui-stop" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Square className="h-4 w-4 mr-1" />}
+                      Stop
+                    </Button>
+                  ) : (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="flex-1"
+                      onClick={() => handleServiceAction("comfyui", "start")}
+                      disabled={actionLoading === "comfyui-start" || !isOnline}
+                    >
+                      {actionLoading === "comfyui-start" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4 mr-1" />}
+                      Start
+                    </Button>
+                  )}
+                  <Button 
+                    size="sm" 
+                    className="flex-1"
+                    onClick={() => handleDeployService("comfyui")}
+                    disabled={deployingService === "comfyui" || !isOnline}
+                  >
+                    {deployingService === "comfyui" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4 mr-1" />}
+                    Deploy
+                  </Button>
+                </div>
+                <div className="flex items-center justify-between pt-2 border-t">
+                  <span className="text-sm">Auto-start</span>
+                  <Switch
+                    checked={autostart.comfyui}
+                    onCheckedChange={(checked) => handleAutostartToggle("comfyui", checked)}
+                    disabled={actionLoading === "autostart-comfyui" || !isOnline}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Image className="h-5 w-5 text-purple-500" />
+                  Stable Diffusion
+                </CardTitle>
+                <CardDescription>AUTOMATIC1111 WebUI</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Status</span>
+                  <Badge variant={status?.services?.stableDiffusion?.status === "online" ? "default" : "secondary"}>
+                    {status?.services?.stableDiffusion?.status === "online" ? "Running" : "Stopped"}
+                  </Badge>
+                </div>
+                <div className="flex gap-2">
+                  {status?.services?.stableDiffusion?.status === "online" ? (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="flex-1"
+                      onClick={() => handleServiceAction("stableDiffusion", "stop")}
+                      disabled={actionLoading === "stableDiffusion-stop"}
+                    >
+                      {actionLoading === "stableDiffusion-stop" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Square className="h-4 w-4 mr-1" />}
+                      Stop
+                    </Button>
+                  ) : (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="flex-1"
+                      onClick={() => handleServiceAction("stableDiffusion", "start")}
+                      disabled={actionLoading === "stableDiffusion-start" || !isOnline}
+                    >
+                      {actionLoading === "stableDiffusion-start" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4 mr-1" />}
+                      Start
+                    </Button>
+                  )}
+                  <Button 
+                    size="sm" 
+                    className="flex-1"
+                    onClick={() => handleDeployService("stableDiffusion")}
+                    disabled={deployingService === "stableDiffusion" || !isOnline}
+                  >
+                    {deployingService === "stableDiffusion" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4 mr-1" />}
+                    Deploy
+                  </Button>
+                </div>
+                <div className="flex items-center justify-between pt-2 border-t">
+                  <span className="text-sm">Auto-start</span>
+                  <Switch
+                    checked={autostart.stableDiffusion}
+                    onCheckedChange={(checked) => handleAutostartToggle("stable-diffusion", checked)}
+                    disabled={actionLoading === "autostart-stable-diffusion" || !isOnline}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="ai-health" className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Cpu className="h-5 w-5" />
+                  GPU Status
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {aiHealth?.gpu ? (
+                  <div className="space-y-4">
+                    <div>
+                      <p className="font-medium">{aiHealth.gpu.name}</p>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span>VRAM Usage</span>
+                        <span>{aiHealth.gpu.memoryUsed}MB / {aiHealth.gpu.memoryTotal}MB</span>
+                      </div>
+                      <Progress value={(aiHealth.gpu.memoryUsed / aiHealth.gpu.memoryTotal) * 100} />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span>GPU Utilization</span>
+                        <span>{aiHealth.gpu.utilization}%</span>
+                      </div>
+                      <Progress value={aiHealth.gpu.utilization} />
+                    </div>
+                    <div className="flex items-center gap-2 pt-2 border-t">
+                      <Thermometer className="h-4 w-4 text-orange-500" />
+                      <span className="text-sm">Temperature: {aiHealth.gpu.temperature}°C</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                    <AlertTriangle className="h-8 w-8 mb-2" />
+                    <p>GPU not detected or nvidia-smi unavailable</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Bot className="h-5 w-5" />
+                  Ollama Models
+                </CardTitle>
+                <CardDescription>
+                  {aiHealth?.models?.length || 0} models installed
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ScrollArea className="h-[250px]">
+                  {aiHealth?.models && aiHealth.models.length > 0 ? (
+                    <div className="space-y-2">
+                      {aiHealth.models.map((model) => (
+                        <div key={model.name} className="flex items-center justify-between p-2 rounded-lg border hover:bg-muted/50">
+                          <div>
+                            <p className="font-medium">{model.name}</p>
+                            <p className="text-xs text-muted-foreground">{model.size}</p>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => deleteOllamaModel(model.name)}
+                              disabled={actionLoading === `delete-${model.name}`}
+                            >
+                              {actionLoading === `delete-${model.name}` ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                      <Package className="h-8 w-8 mb-2" />
+                      <p>No models installed</p>
+                    </div>
+                  )}
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="quick-actions" className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Download className="h-5 w-5" />
+                  Pull Popular Models
+                </CardTitle>
+                <CardDescription>One-click download for popular Ollama models</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { name: "llama3.2", desc: "Meta's latest" },
+                    { name: "codellama", desc: "Code generation" },
+                    { name: "mistral", desc: "Fast & capable" },
+                    { name: "phi3", desc: "Microsoft compact" },
+                    { name: "gemma2", desc: "Google's model" },
+                    { name: "qwen2.5", desc: "Alibaba's LLM" },
+                  ].map((model) => (
+                    <Button
+                      key={model.name}
+                      variant="outline"
+                      className="h-auto py-3 flex-col"
+                      onClick={() => pullOllamaModel(model.name)}
+                      disabled={commandLoading || status?.services?.ollama?.status !== "online"}
+                    >
+                      <span className="font-medium">{model.name}</span>
+                      <span className="text-xs text-muted-foreground">{model.desc}</span>
+                    </Button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Settings className="h-5 w-5" />
+                  Service Controls
+                </CardTitle>
+                <CardDescription>Start, stop, and manage AI services</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between p-2 rounded-lg border">
+                    <div className="flex items-center gap-2">
+                      <Bot className="h-4 w-4 text-blue-500" />
+                      <span>Ollama</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={() => handleServiceAction("ollama", "start")}
+                        disabled={actionLoading?.startsWith("ollama") || !isOnline}
+                      >
+                        <Play className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={() => handleServiceAction("ollama", "stop")}
+                        disabled={actionLoading?.startsWith("ollama")}
+                      >
+                        <Square className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center justify-between p-2 rounded-lg border">
+                    <div className="flex items-center gap-2">
+                      <Zap className="h-4 w-4 text-orange-500" />
+                      <span>ComfyUI</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={() => handleServiceAction("comfyui", "start")}
+                        disabled={actionLoading?.startsWith("comfyui") || !isOnline}
+                      >
+                        <Play className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={() => handleServiceAction("comfyui", "stop")}
+                        disabled={actionLoading?.startsWith("comfyui")}
+                      >
+                        <Square className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center justify-between p-2 rounded-lg border">
+                    <div className="flex items-center gap-2">
+                      <Image className="h-4 w-4 text-purple-500" />
+                      <span>Stable Diffusion</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={() => handleServiceAction("stableDiffusion", "start")}
+                        disabled={actionLoading?.startsWith("stableDiffusion") || !isOnline}
+                      >
+                        <Play className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={() => handleServiceAction("stableDiffusion", "stop")}
+                        disabled={actionLoading?.startsWith("stableDiffusion")}
+                      >
+                        <Square className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="pt-4 border-t">
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={clearOllamaCache}
+                    disabled={actionLoading === "clear-cache" || !isOnline}
+                  >
+                    {actionLoading === "clear-cache" ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4 mr-2" />
+                    )}
+                    Clear Ollama Cache
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
 
         <TabsContent value="gamestream" className="space-y-4">
           <Card className={gamestreamFullscreen ? "fixed inset-4 z-50" : ""}>
@@ -613,7 +1338,7 @@ export default function WindowsVMPage() {
                   disabled={status?.services?.ollama?.status !== "online" || commandLoading}
                 />
                 <Button
-                  onClick={pullOllamaModel}
+                  onClick={() => pullOllamaModel()}
                   disabled={status?.services?.ollama?.status !== "online" || commandLoading}
                 >
                   <Download className="h-4 w-4 mr-2" />

@@ -41,6 +41,9 @@ import {
   Radio,
   Music,
   Download,
+  Key,
+  Users,
+  Lock,
   type LucideIcon,
 } from "lucide-react";
 import { useState } from "react";
@@ -176,6 +179,9 @@ const navGroups: NavGroup[] = [
     label: "System",
     icon: Cog,
     items: [
+      { href: "/users", label: "User Management", icon: Users },
+      { href: "/permissions", label: "Permissions", icon: Lock },
+      { href: "/secrets-manager", label: "Secrets", icon: Key },
       { href: "/self", label: "Self", icon: Wrench },
       { href: "/settings", label: "Settings", icon: Settings },
     ],

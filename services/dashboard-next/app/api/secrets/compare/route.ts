@@ -1,15 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifySession } from "@/lib/session";
-import { cookies } from "next/headers";
 import { NodeSSH } from "node-ssh";
 import { getSSHPrivateKey } from "@/lib/server-config-store";
-
-async function checkAuth() {
-  const cookieStore = await cookies();
-  const session = cookieStore.get("session");
-  if (!session?.value) return null;
-  return verifySession(session.value);
-}
+import { requireRole, handleAuthError } from "@/lib/middleware/permissions";
 
 const CRITICAL_SECRETS = [
   "DATABASE_URL",
@@ -179,12 +171,9 @@ interface ComparisonResult {
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse<ComparisonResult | { error: string }>> {
-  const user = await checkAuth();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   try {
+    await requireRole("admin", request);
+
     const replitKeys = getReplitSecretKeys();
     const productionResult = await getProductionSecretKeys();
 
@@ -234,10 +223,6 @@ export async function GET(request: NextRequest): Promise<NextResponse<Comparison
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error("[Secrets Compare API] Error:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to compare secrets" },
-      { status: 500 }
-    );
+    return handleAuthError(error);
   }
 }
