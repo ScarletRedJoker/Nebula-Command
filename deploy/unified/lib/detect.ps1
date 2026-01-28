@@ -231,6 +231,8 @@ function Main {
         }
         $json | Out-File -FilePath $OutputFile -Encoding UTF8
         Write-Host "[Detect] Hardware profile saved to: $OutputFile"
+        # Return the file path for callers that capture output
+        return $OutputFile
     } else {
         Write-Output $json
     }

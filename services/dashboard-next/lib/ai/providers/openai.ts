@@ -26,7 +26,8 @@ export class OpenAIProvider {
   private initClient(): void {
     const apiKey = this.config.apiKey;
 
-    if (apiKey?.startsWith('sk-')) {
+    // Accept both standard OpenAI keys (sk-*) and Replit modelfarm keys
+    if (apiKey && apiKey.length > 10) {
       this.client = new OpenAI({
         apiKey,
         baseURL: this.config.baseUrl,
@@ -35,7 +36,7 @@ export class OpenAIProvider {
       this.healthStatus.available = true;
       aiLogger.logHealthCheck('openai', true, undefined, undefined);
     } else if (apiKey) {
-      aiLogger.logConfigWarning('openai', 'API key appears invalid (should start with "sk-")');
+      aiLogger.logConfigWarning('openai', 'API key appears too short or invalid');
     }
   }
 
