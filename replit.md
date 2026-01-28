@@ -28,12 +28,14 @@ The system monitors AI node health and performance, featuring APIs for Speech, J
 ### Key Features
 - **OOTB Setup Wizard:** Guided platform configuration.
 - **Command Center & Deploy Center:** Unified control and remote deployment.
-- **Services & Secrets Manager:** Container, service, and credential management.
+- **Services & Secrets Manager:** Container, service, and credential management with environment comparison (Replit vs Production).
+- **User Management:** Role-based user management (admin, developer, viewer, client) with CRUD operations.
+- **Module Permissions:** Configurable role-based access control for dashboard modules.
 - **Jarvis AI & Creative Studio:** AI chat assistance and advanced image generation.
 - **AI Models & Workflows:** Model marketplace, management, and multi-step AI automation.
 - **Agent Builder & Pipelines:** Custom AI agent configuration and deployment automation.
 - **Bot Editor & Servers:** Discord bot customization and server monitoring.
-- **Windows VM & Domains:** GPU server management and DNS/SSL management.
+- **Windows VM & AI Deployment:** GPU server management with one-click AI service deployment (Ollama, ComfyUI, Stable Diffusion), model management, GPU health monitoring, and auto-start configuration.
 - **Marketplace:** Docker package installation.
 - **AI Developer:** Autonomous code modification with local LLM (Ollama), Git branch isolation, auto-approval rules, build verification, remote execution, context management, and human approval gates.
 - **AI Influencer / Video Automation Pipeline:** Fully automated content generation with ComfyUI-based image sequences, AnimateDiff video generation, script-to-video workflows, batch generation, cron-based scheduling, FFmpeg video assembly, and structured asset storage.
