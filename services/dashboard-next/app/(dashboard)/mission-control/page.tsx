@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -40,6 +41,7 @@ import {
   TrendingUp,
   Star,
   ExternalLink,
+  ShieldAlert,
 } from "lucide-react";
 
 interface NodeHealth {
@@ -227,6 +229,9 @@ function getStatusIcon(status: string) {
 }
 
 export default function MissionControlPage() {
+  const router = useRouter();
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [nodeHealth, setNodeHealth] = useState<NodeHealth[]>([
@@ -234,6 +239,32 @@ export default function MissionControlPage() {
     { name: "Ubuntu Homelab", status: "online", services: { up: 4, down: 0, total: 4 }, lastChecked: new Date().toISOString() },
     { name: "Windows VM (GPU)", status: "online", services: { up: 4, down: 0, total: 4 }, lastChecked: new Date().toISOString() },
   ]);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const res = await fetch("/api/users/me");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.user?.role === "admin") {
+            setIsAdmin(true);
+          } else {
+            setIsAdmin(false);
+            setAuthError("Admin access required to view this page");
+          }
+        } else if (res.status === 401) {
+          router.push("/login");
+        } else {
+          setIsAdmin(false);
+          setAuthError("Failed to verify permissions");
+        }
+      } catch (error) {
+        setIsAdmin(false);
+        setAuthError("Failed to verify permissions");
+      }
+    };
+    checkAuth();
+  }, [router]);
 
   const fetchHealth = useCallback(async () => {
     try {
@@ -292,6 +323,27 @@ export default function MissionControlPage() {
   const currentPhaseIndex = roadmapPhases.findIndex(p => p.status === "current");
   const completedPhases = roadmapPhases.filter(p => p.status === "completed").length;
   const roadmapProgress = Math.round(((completedPhases + 0.5) / roadmapPhases.length) * 100);
+
+  if (isAdmin === null) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4">
+        <ShieldAlert className="h-16 w-16 text-destructive" />
+        <h2 className="text-2xl font-bold">Access Denied</h2>
+        <p className="text-muted-foreground">{authError || "Admin access required to view this page"}</p>
+        <Button variant="outline" onClick={() => router.push("/dashboard")}>
+          Return to Dashboard
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

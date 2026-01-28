@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -54,6 +55,7 @@ import {
   User,
   Sparkles,
   Sun,
+  ShieldAlert,
   type LucideIcon,
 } from "lucide-react";
 import type {
@@ -142,7 +144,10 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function ARVRStudioPage() {
+  const router = useRouter();
   const { toast } = useToast();
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
   
@@ -167,8 +172,38 @@ export default function ARVRStudioPage() {
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    fetchSystemStatus();
-  }, []);
+    const checkAuth = async () => {
+      try {
+        const res = await fetch("/api/users/me");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.user?.role === "admin") {
+            setIsAdmin(true);
+          } else {
+            setIsAdmin(false);
+            setAuthError("Admin access required to view this page");
+          }
+        } else if (res.status === 401) {
+          router.push("/login");
+        } else {
+          setIsAdmin(false);
+          setAuthError("Failed to verify permissions");
+        }
+      } catch (error) {
+        setIsAdmin(false);
+        setAuthError("Failed to verify permissions");
+      }
+    };
+    checkAuth();
+  }, [router]);
+
+  useEffect(() => {
+    if (isAdmin) {
+      fetchSystemStatus();
+    } else if (isAdmin === false) {
+      setLoading(false);
+    }
+  }, [isAdmin]);
 
   async function fetchSystemStatus() {
     setLoading(true);
@@ -240,6 +275,27 @@ export default function ARVRStudioPage() {
       setSystemStatus(prev => ({ ...prev, mocap: { ...prev.mocap, status: "capturing" } }));
       toast({ title: "Motion Capture Started", description: `Using ${selectedInputType} with ${selectedModelType} model` });
     }
+  }
+
+  if (isAdmin === null) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4">
+        <ShieldAlert className="h-16 w-16 text-destructive" />
+        <h2 className="text-2xl font-bold">Access Denied</h2>
+        <p className="text-muted-foreground">{authError || "Admin access required to view this page"}</p>
+        <Button variant="outline" onClick={() => router.push("/dashboard")}>
+          Return to Dashboard
+        </Button>
+      </div>
+    );
   }
 
   return (
