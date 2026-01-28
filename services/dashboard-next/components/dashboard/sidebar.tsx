@@ -45,6 +45,7 @@ import {
   Users,
   Lock,
   Gamepad2,
+  Glasses,
   type LucideIcon,
 } from "lucide-react";
 import { useState } from "react";
@@ -74,6 +75,10 @@ interface NavGroup {
   items: NavItem[];
   defaultOpen?: boolean;
 }
+
+const topNavItems: NavItem[] = [
+  { href: "/mission-control", label: "Mission Control", icon: Rocket },
+];
 
 const navGroups: NavGroup[] = [
   {
@@ -149,6 +154,7 @@ const navGroups: NavGroup[] = [
       { href: "/projects", label: "Projects", icon: Layers },
       { href: "/editor", label: "Code Editor", icon: Code2 },
       { href: "/game-dev", label: "Game Dev", icon: Gamepad2 },
+      { href: "/ar-vr", label: "AR/VR Studio", icon: Glasses },
     ],
   },
   {
@@ -312,6 +318,49 @@ function NavContent({ collapsed = false, onNavClick }: { collapsed?: boolean; on
   
   return (
     <nav className="flex-1 p-2 sm:p-4 space-y-2 overflow-y-auto">
+      {topNavItems.map((item) => {
+        const isActive = pathname === item.href || 
+          (item.href !== "/" && pathname.startsWith(item.href));
+        
+        if (collapsed) {
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={onNavClick}
+              className={cn(
+                "flex items-center justify-center rounded-lg p-2 transition-colors touch-manipulation",
+                isActive
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              )}
+              title={item.label}
+            >
+              <item.icon className="h-5 w-5" />
+            </Link>
+          );
+        }
+        
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            onClick={onNavClick}
+            className={cn(
+              "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors touch-manipulation",
+              isActive
+                ? "bg-gradient-to-r from-primary to-purple-600 text-primary-foreground shadow-md"
+                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            )}
+          >
+            <item.icon className="h-5 w-5 shrink-0" />
+            <span>{item.label}</span>
+          </Link>
+        );
+      })}
+      
+      <div className="h-px bg-border my-2" />
+      
       {navGroups.map((group) => (
         <NavGroupComponent
           key={group.id}
