@@ -166,12 +166,13 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    id: "websites",
-    label: "Websites",
+    id: "business",
+    label: "Business",
     icon: Globe,
     items: [
       { href: "/websites", label: "Websites", icon: Globe },
       { href: "/designer", label: "Designer", icon: Palette },
+      { href: "/clients", label: "Clients", icon: Users },
       { href: "/marketing", label: "Marketing", icon: Megaphone },
     ],
   },

@@ -3,12 +3,12 @@ import { db } from "@/lib/db";
 import { emailCampaigns, emailTemplates } from "@/lib/db/platform-schema";
 import { requireAuth, handleAuthError } from "@/lib/middleware/permissions";
 import { sendEmail, checkGmailConnection } from "@/lib/gmail-client";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, or, and } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 export async function GET(request: NextRequest) {
   try {
-    await requireAuth(request);
+    const user = await requireAuth(request);
     
     const { searchParams } = new URL(request.url);
     const action = searchParams.get("action");
@@ -18,8 +18,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(status);
     }
     
-    const campaigns = await db.select().from(emailCampaigns).orderBy(desc(emailCampaigns.createdAt));
-    const templates = await db.select().from(emailTemplates).orderBy(desc(emailTemplates.createdAt));
+    const campaigns = user.role === "admin"
+      ? await db.select().from(emailCampaigns).orderBy(desc(emailCampaigns.createdAt))
+      : await db.select().from(emailCampaigns).where(eq(emailCampaigns.createdBy, user.id)).orderBy(desc(emailCampaigns.createdAt));
+    
+    const templates = user.role === "admin"
+      ? await db.select().from(emailTemplates).orderBy(desc(emailTemplates.createdAt))
+      : await db.select().from(emailTemplates).where(eq(emailTemplates.createdBy, user.id)).orderBy(desc(emailTemplates.createdAt));
     
     return NextResponse.json({ campaigns, templates });
   } catch (error) {
@@ -42,11 +47,15 @@ export async function POST(request: NextRequest) {
       
       if (templateId) {
         const [template] = await db.select().from(emailTemplates).where(eq(emailTemplates.id, templateId));
-        if (template) {
-          finalSubject = template.subject;
-          finalBody = template.bodyText;
-          finalHtmlBody = template.bodyHtml || undefined;
+        if (!template) {
+          return NextResponse.json({ error: "Template not found" }, { status: 404 });
         }
+        if (user.role !== "admin" && template.createdBy !== user.id) {
+          return NextResponse.json({ error: "Access denied to template" }, { status: 403 });
+        }
+        finalSubject = template.subject;
+        finalBody = template.bodyText;
+        finalHtmlBody = template.bodyHtml || undefined;
       }
       
       if (!to || !finalSubject || !finalBody) {
@@ -129,6 +138,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
       }
       
+      if (user.role !== "admin" && campaign.createdBy !== user.id) {
+        return NextResponse.json({ error: "Access denied" }, { status: 403 });
+      }
+      
       if (!campaign.recipients || campaign.recipients.length === 0) {
         return NextResponse.json({ error: "No recipients in campaign" }, { status: 400 });
       }
@@ -175,7 +188,7 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    await requireAuth(request);
+    const user = await requireAuth(request);
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
     const type = searchParams.get("type") || "campaign";
@@ -185,8 +198,22 @@ export async function DELETE(request: NextRequest) {
     }
     
     if (type === "template") {
+      const [existing] = await db.select().from(emailTemplates).where(eq(emailTemplates.id, id));
+      if (!existing) {
+        return NextResponse.json({ error: "Template not found" }, { status: 404 });
+      }
+      if (user.role !== "admin" && existing.createdBy !== user.id) {
+        return NextResponse.json({ error: "Access denied" }, { status: 403 });
+      }
       await db.delete(emailTemplates).where(eq(emailTemplates.id, id));
     } else {
+      const [existing] = await db.select().from(emailCampaigns).where(eq(emailCampaigns.id, id));
+      if (!existing) {
+        return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+      }
+      if (user.role !== "admin" && existing.createdBy !== user.id) {
+        return NextResponse.json({ error: "Access denied" }, { status: 403 });
+      }
       await db.delete(emailCampaigns).where(eq(emailCampaigns.id, id));
     }
     
