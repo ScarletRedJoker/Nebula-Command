@@ -694,8 +694,8 @@ async function executeToolCall(
         return {
           success: result.success,
           result: result.success 
-            ? `✅ Wake signal sent to ${args.node}. ${result.message}`
-            : `❌ Failed to wake ${args.node}: ${result.error}`,
+            ? `✅ Wake signal sent to ${args.node}. ${result.output || 'Node is waking up'}`
+            : `❌ Failed to wake ${args.node}: ${result.error || 'Unknown error'}`,
           data: result,
         };
       }

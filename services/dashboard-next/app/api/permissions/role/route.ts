@@ -201,7 +201,7 @@ export async function PUT(request: NextRequest) {
     await auditService.log({
       userId: adminUser.id,
       username: adminUser.username,
-      action: "permission.role_update",
+      action: "permission.update",
       resource: "role_permissions",
       details: {
         updatedRoles,

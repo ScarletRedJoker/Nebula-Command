@@ -223,6 +223,6 @@ export async function GET(request: NextRequest): Promise<NextResponse<Comparison
 
     return NextResponse.json(result);
   } catch (error) {
-    return handleAuthError(error);
+    return handleAuthError(error) as NextResponse<ComparisonResult | { error: string }>;
   }
 }
