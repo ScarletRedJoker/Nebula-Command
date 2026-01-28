@@ -321,6 +321,132 @@ export class StableDiffusionProvider {
     return status.available;
   }
 
+  async getLoadedModel(): Promise<string | null> {
+    return this.getCurrentModel();
+  }
+
+  async getAvailableModels(): Promise<SDModel[]> {
+    return this.listModels();
+  }
+
+  async ensureModelLoaded(): Promise<{ success: boolean; model: string | null; error?: string }> {
+    const ctx = aiLogger.startRequest('stable-diffusion', 'ensure_model_loaded');
+
+    try {
+      const currentModel = await this.getCurrentModel();
+      
+      if (currentModel && currentModel.trim() !== '' && currentModel !== 'None') {
+        aiLogger.endRequest(ctx, true, { model: currentModel, action: 'already_loaded' });
+        return { success: true, model: currentModel };
+      }
+
+      const availableModels = await this.listModels();
+      
+      if (availableModels.length === 0) {
+        const error = 'No Stable Diffusion models available. Please download a model (e.g., SD 1.5 or SDXL) ' +
+          'and place it in the models/Stable-diffusion folder on your Windows VM.';
+        aiLogger.endRequest(ctx, false, { error });
+        return { success: false, model: null, error };
+      }
+
+      const preferredModels = ['sd_xl', 'sdxl', 'v1-5', 'sd15', 'realistic'];
+      let modelToLoad = availableModels[0];
+      
+      for (const preferred of preferredModels) {
+        const match = availableModels.find(m => 
+          m.model_name.toLowerCase().includes(preferred) ||
+          m.title.toLowerCase().includes(preferred)
+        );
+        if (match) {
+          modelToLoad = match;
+          break;
+        }
+      }
+
+      const setSuccess = await this.setModel(modelToLoad.title);
+      
+      if (!setSuccess) {
+        const error = `Failed to load model "${modelToLoad.title}". The model file may be corrupted or incompatible. ` +
+          'Please try selecting a different model in the Stable Diffusion WebUI.';
+        aiLogger.endRequest(ctx, false, { error, attemptedModel: modelToLoad.title });
+        return { success: false, model: null, error };
+      }
+
+      aiLogger.endRequest(ctx, true, { model: modelToLoad.title, action: 'loaded_new' });
+      return { success: true, model: modelToLoad.title };
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const userError = `Failed to ensure model is loaded: ${errorMessage}. ` +
+        'Please check that Stable Diffusion WebUI is running and accessible on your Windows VM.';
+      aiLogger.logError(ctx, errorMessage);
+      return { success: false, model: null, error: userError };
+    }
+  }
+
+  async getDiagnostics(): Promise<{
+    online: boolean;
+    modelLoaded: boolean;
+    currentModel: string | null;
+    availableModels: string[];
+    error?: string;
+    troubleshooting: string[];
+  }> {
+    const troubleshooting: string[] = [];
+    let online = false;
+    let modelLoaded = false;
+    let currentModel: string | null = null;
+    let availableModels: string[] = [];
+    let error: string | undefined;
+
+    try {
+      const healthStatus = await this.healthCheck();
+      online = healthStatus.available;
+
+      if (!online) {
+        error = 'Stable Diffusion WebUI is not reachable.';
+        troubleshooting.push('Check if Windows VM is powered on');
+        troubleshooting.push('Verify Stable Diffusion WebUI is running (webui.bat)');
+        troubleshooting.push('Check that API mode is enabled (--api flag in webui-user.bat)');
+        troubleshooting.push(`Test connection: curl ${this.config.url}/sdapi/v1/sd-models`);
+        return { online, modelLoaded, currentModel, availableModels, error, troubleshooting };
+      }
+
+      const models = await this.listModels();
+      availableModels = models.map(m => m.model_name);
+
+      if (availableModels.length === 0) {
+        error = 'No models installed in Stable Diffusion.';
+        troubleshooting.push('Download a Stable Diffusion model (SD 1.5 or SDXL recommended)');
+        troubleshooting.push('Place .safetensors or .ckpt file in models/Stable-diffusion folder');
+        troubleshooting.push('Restart Stable Diffusion WebUI to detect new models');
+        return { online, modelLoaded, currentModel, availableModels, error, troubleshooting };
+      }
+
+      currentModel = await this.getCurrentModel();
+      modelLoaded = !!(currentModel && currentModel.trim() !== '' && currentModel !== 'None');
+
+      if (!modelLoaded) {
+        error = 'No model currently loaded in Stable Diffusion.';
+        troubleshooting.push('Go to Windows VM and open Stable Diffusion WebUI');
+        troubleshooting.push('Select a model from the checkpoint dropdown at the top');
+        troubleshooting.push('Wait for the model to finish loading');
+        troubleshooting.push('Or use the API to load a model: POST /sdapi/v1/options with sd_model_checkpoint');
+      }
+
+      return { online, modelLoaded, currentModel, availableModels, troubleshooting };
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : 'Unknown error';
+      return {
+        online: false,
+        modelLoaded: false,
+        currentModel: null,
+        availableModels: [],
+        error: errMsg,
+        troubleshooting: ['Check network connectivity to Windows VM', 'Restart Stable Diffusion WebUI'],
+      };
+    }
+  }
+
   async txt2img(options: {
     prompt: string;
     negativePrompt?: string;

@@ -4,7 +4,10 @@
  * Supports SSE streaming to dashboard and event history tracking
  */
 
-import { AITrainingEvent } from '../db/ai-cluster-schema';
+import { randomUUID } from 'crypto';
+import { db } from '@/lib/db';
+import { aiTrainingEvents, AITrainingEvent } from '@/lib/db/ai-cluster-schema';
+import { eq, asc } from 'drizzle-orm';
 
 export type TrainingEventType = 
   | 'started'
@@ -48,8 +51,9 @@ export class TrainingEventBus {
    * Notifies all subscribers and stores in history
    */
   async emit(runId: string, eventType: TrainingEventType, payload: Record<string, unknown> = {}): Promise<TrainingEvent> {
+    const eventId = randomUUID();
     const event: TrainingEvent = {
-      id: crypto.randomUUID(),
+      id: eventId,
       runId,
       eventType,
       payload,
@@ -82,13 +86,17 @@ export class TrainingEventBus {
       });
     }
 
-    // TODO: Persist to database using Drizzle
-    // const db = getDb();
-    // await db.insert(aiTrainingEvents).values({
-    //   runId,
-    //   eventType,
-    //   payload,
-    // });
+    // Persist to database
+    try {
+      await db.insert(aiTrainingEvents).values({
+        id: eventId,
+        runId,
+        eventType,
+        payload,
+      });
+    } catch (error) {
+      console.error(`[TrainingEventBus] Failed to persist event to database:`, error);
+    }
 
     console.log(`[TrainingEventBus] Event emitted: ${runId}/${eventType}`);
     return event;
@@ -138,27 +146,28 @@ export class TrainingEventBus {
    * For loading historical events after restart
    */
   async loadHistoryFromDb(runId: string): Promise<TrainingEvent[]> {
-    // TODO: Drizzle query
-    // const db = getDb();
-    // const events = await db
-    //   .select()
-    //   .from(aiTrainingEvents)
-    //   .where(eq(aiTrainingEvents.runId, runId))
-    //   .orderBy(asc(aiTrainingEvents.createdAt));
-    //
-    // const trainingEvents = events.map(e => ({
-    //   id: e.id,
-    //   runId: e.runId,
-    //   eventType: e.eventType as TrainingEventType,
-    //   payload: e.payload,
-    //   createdAt: e.createdAt,
-    // }));
-    //
-    // this.eventHistory.set(runId, trainingEvents);
-    // return trainingEvents;
+    try {
+      const events = await db
+        .select()
+        .from(aiTrainingEvents)
+        .where(eq(aiTrainingEvents.runId, runId))
+        .orderBy(asc(aiTrainingEvents.createdAt));
 
-    console.log(`[TrainingEventBus] Loading history for run ${runId}`);
-    throw new Error('Database connection not initialized');
+      const trainingEvents: TrainingEvent[] = events.map(e => ({
+        id: e.id,
+        runId: e.runId,
+        eventType: e.eventType as TrainingEventType,
+        payload: (e.payload || {}) as Record<string, unknown>,
+        createdAt: e.createdAt!,
+      }));
+
+      this.eventHistory.set(runId, trainingEvents);
+      console.log(`[TrainingEventBus] Loaded ${trainingEvents.length} events for run ${runId}`);
+      return trainingEvents;
+    } catch (error) {
+      console.error(`[TrainingEventBus] Failed to load history for run ${runId}:`, error);
+      throw error;
+    }
   }
 
   /**

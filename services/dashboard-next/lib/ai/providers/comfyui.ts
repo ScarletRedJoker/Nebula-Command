@@ -244,14 +244,14 @@ export class ComfyUIClient {
     }
   }
 
-  async getObjectInfo(): Promise<Record<string, unknown>> {
+  async getObjectInfo(): Promise<Record<string, unknown> | null> {
     const ctx = aiLogger.startRequest('comfyui', 'get_object_info');
     
     try {
       const res = await fetch(`${this.config.url}/object_info`);
       if (!res.ok) {
         aiLogger.logError(ctx, `HTTP ${res.status}`, `HTTP_${res.status}`);
-        throw new Error(`Failed to get object info: ${res.status}`);
+        return null;
       }
       const info = await res.json();
       aiLogger.endRequest(ctx, true, { nodeCount: Object.keys(info).length });
@@ -259,8 +259,78 @@ export class ComfyUIClient {
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       aiLogger.logError(ctx, errorMessage);
-      throw error;
+      return null;
     }
+  }
+
+  async validateWorkflow(workflow: Record<string, unknown>): Promise<{
+    valid: boolean;
+    missingNodes: string[];
+    errors: string[];
+  }> {
+    const ctx = aiLogger.startRequest('comfyui', 'validate_workflow');
+    const result = {
+      valid: true,
+      missingNodes: [] as string[],
+      errors: [] as string[],
+    };
+
+    try {
+      const objectInfo = await this.getObjectInfo();
+      if (!objectInfo) {
+        result.valid = false;
+        result.errors.push('Could not fetch available nodes from ComfyUI. Please ensure ComfyUI is running and accessible.');
+        aiLogger.endRequest(ctx, false, { error: 'Could not fetch object_info' });
+        return result;
+      }
+
+      const availableNodes = new Set(Object.keys(objectInfo));
+      const workflowNodeTypes = new Set<string>();
+
+      for (const [nodeId, node] of Object.entries(workflow)) {
+        if (node && typeof node === 'object' && 'class_type' in node) {
+          const classType = (node as { class_type: string }).class_type;
+          workflowNodeTypes.add(classType);
+
+          if (!availableNodes.has(classType)) {
+            result.missingNodes.push(classType);
+          }
+        }
+      }
+
+      if (result.missingNodes.length > 0) {
+        result.valid = false;
+        const uniqueMissing = [...new Set(result.missingNodes)];
+        result.missingNodes = uniqueMissing;
+        
+        for (const nodeName of uniqueMissing) {
+          result.errors.push(
+            `Missing custom node: "${nodeName}". This node is required by the workflow but is not installed in ComfyUI. ` +
+            `Please install the required custom node package via ComfyUI Manager or manually.`
+          );
+        }
+      }
+
+      aiLogger.endRequest(ctx, result.valid, { 
+        missingNodes: result.missingNodes.length,
+        totalNodesChecked: workflowNodeTypes.size,
+      });
+      return result;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      result.valid = false;
+      result.errors.push(`Workflow validation failed: ${errorMessage}`);
+      aiLogger.logError(ctx, errorMessage);
+      return result;
+    }
+  }
+
+  async getAvailableNodeTypes(): Promise<string[]> {
+    const objectInfo = await this.getObjectInfo();
+    if (!objectInfo) {
+      return [];
+    }
+    return Object.keys(objectInfo);
   }
 
   async getEmbeddings(): Promise<string[]> {

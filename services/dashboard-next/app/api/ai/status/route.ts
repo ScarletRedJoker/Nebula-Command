@@ -216,60 +216,174 @@ async function checkImageGeneration(): Promise<AIProviderStatus> {
   }
 }
 
-async function checkStableDiffusion(): Promise<AIProviderStatus> {
-  const sdUrl = aiConfig.stableDiffusion.url;
-
-  const endpoints = [
-    { url: `${sdUrl}/sdapi/v1/sd-models`, parseModels: true },
-    { url: `${sdUrl}/internal/ping`, parseModels: false },
-    { url: `${sdUrl}/`, parseModels: false },
-  ];
-
-  for (const endpoint of endpoints) {
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
-      
-      const response = await fetch(endpoint.url, {
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
-      
-      if (response.ok) {
-        if (endpoint.parseModels) {
-          try {
-            const models = await response.json();
-            const modelName = models[0]?.model_name || "Default";
-            return {
-              name: "Stable Diffusion",
-              status: "connected",
-              model: modelName,
-            };
-          } catch {
-            return {
-              name: "Stable Diffusion",
-              status: "connected",
-              model: "WebUI Online",
-            };
-          }
-        }
-        
-        return {
-          name: "Stable Diffusion",
-          status: "connected",
-          model: "WebUI Online",
-        };
-      }
-    } catch {
-      // Try next endpoint
-    }
-  }
-
-  return { name: "Stable Diffusion", status: "not_configured", error: "Not reachable" };
+interface SDDiagnostics {
+  online: boolean;
+  modelLoaded: boolean;
+  currentModel: string | null;
+  availableModels: string[];
+  error?: string;
+  troubleshooting: string[];
 }
 
-async function checkComfyUI(): Promise<AIProviderStatus> {
+async function checkStableDiffusion(): Promise<AIProviderStatus & { diagnostics?: SDDiagnostics }> {
+  const sdUrl = aiConfig.stableDiffusion.url;
+  const windowsVMIP = aiConfig.windowsVM.ip;
+
+  const troubleshootingSteps = [
+    "Check if Windows VM is powered on",
+    `Verify Tailscale connection${windowsVMIP ? ` (ping ${windowsVMIP})` : ""}`,
+    "Start Stable Diffusion WebUI with --api flag",
+    "Check Windows Firewall allows port 7860",
+    `Test: curl ${sdUrl}/sdapi/v1/sd-models`,
+  ];
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    
+    const response = await fetch(`${sdUrl}/sdapi/v1/sd-models`, {
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    
+    if (!response.ok) {
+      return { 
+        name: "Stable Diffusion", 
+        status: "error", 
+        error: `HTTP ${response.status}`,
+        troubleshooting: troubleshootingSteps,
+      };
+    }
+
+    const models = await response.json();
+    const availableModels = models.map((m: any) => m.model_name);
+
+    if (availableModels.length === 0) {
+      return {
+        name: "Stable Diffusion",
+        status: "error",
+        error: "No models installed",
+        troubleshooting: [
+          "Download a Stable Diffusion model (SD 1.5 or SDXL recommended)",
+          "Place .safetensors or .ckpt file in models/Stable-diffusion folder",
+          "Restart Stable Diffusion WebUI to detect new models",
+        ],
+        diagnostics: {
+          online: true,
+          modelLoaded: false,
+          currentModel: null,
+          availableModels: [],
+          error: "No models installed in Stable Diffusion. Please download a checkpoint model.",
+          troubleshooting: [],
+        },
+      };
+    }
+
+    let currentModel: string | null = null;
+    try {
+      const optionsRes = await fetch(`${sdUrl}/sdapi/v1/options`, {
+        signal: AbortSignal.timeout(3000),
+      });
+      if (optionsRes.ok) {
+        const options = await optionsRes.json();
+        currentModel = options.sd_model_checkpoint || null;
+      }
+    } catch {
+      // Options endpoint failed, but we know SD is online
+    }
+
+    const modelLoaded = !!(currentModel && currentModel.trim() !== '' && currentModel !== 'None');
+
+    if (!modelLoaded) {
+      return {
+        name: "Stable Diffusion",
+        status: "error",
+        error: "No model loaded",
+        model: `${availableModels.length} models available`,
+        troubleshooting: [
+          "No model is currently loaded in Stable Diffusion.",
+          "Go to Windows VM and open Stable Diffusion WebUI",
+          "Select a model from the checkpoint dropdown at the top",
+          "Wait for the model to finish loading",
+        ],
+        diagnostics: {
+          online: true,
+          modelLoaded: false,
+          currentModel: null,
+          availableModels,
+          error: "No model loaded in Stable Diffusion. Please go to Windows VM page and select a model from the checkpoint dropdown.",
+          troubleshooting: [
+            "Open Stable Diffusion WebUI on Windows VM",
+            "Select a checkpoint model from the dropdown",
+            "Click 'Apply' and wait for loading to complete",
+          ],
+        },
+      };
+    }
+
+    return {
+      name: "Stable Diffusion",
+      status: "connected",
+      model: currentModel,
+      diagnostics: {
+        online: true,
+        modelLoaded: true,
+        currentModel,
+        availableModels,
+        troubleshooting: [],
+      },
+    };
+  } catch (error: any) {
+    let errorMsg: string;
+    if (error.name === "AbortError" || error.name === "TimeoutError") {
+      errorMsg = `Connection timeout - Stable Diffusion not responding`;
+    } else if (error.code === "ECONNREFUSED") {
+      errorMsg = `Connection refused - Stable Diffusion not running at ${sdUrl}`;
+    } else if (error.code === "ENOTFOUND" || error.code === "ENETUNREACH") {
+      errorMsg = `Cannot reach Windows VM - check Tailscale connection`;
+    } else {
+      errorMsg = error.message || "Stable Diffusion not reachable";
+    }
+
+    return { 
+      name: "Stable Diffusion", 
+      status: "not_configured", 
+      error: errorMsg,
+      troubleshooting: troubleshootingSteps,
+      diagnostics: {
+        online: false,
+        modelLoaded: false,
+        currentModel: null,
+        availableModels: [],
+        error: errorMsg,
+        troubleshooting: troubleshootingSteps,
+      },
+    };
+  }
+}
+
+interface ComfyUIDiagnostics {
+  online: boolean;
+  nodeCount: number;
+  gpuAvailable: boolean;
+  gpuName?: string;
+  vramTotal?: number;
+  vramFree?: number;
+  error?: string;
+  troubleshooting: string[];
+}
+
+async function checkComfyUI(): Promise<AIProviderStatus & { diagnostics?: ComfyUIDiagnostics }> {
   const comfyUrl = aiConfig.comfyui.url;
+  const windowsVMIP = aiConfig.windowsVM.ip;
+
+  const troubleshootingSteps = [
+    "Check if Windows VM is powered on",
+    `Verify Tailscale connection${windowsVMIP ? ` (ping ${windowsVMIP})` : ""}`,
+    "Start ComfyUI: run 'python main.py' in ComfyUI folder",
+    "Check Windows Firewall allows port 8188",
+    `Test: curl ${comfyUrl}/system_stats`,
+  ];
 
   try {
     const controller = new AbortController();
@@ -280,17 +394,96 @@ async function checkComfyUI(): Promise<AIProviderStatus> {
     });
     clearTimeout(timeout);
 
-    if (response.ok) {
-      return {
-        name: "ComfyUI",
-        status: "connected",
-        model: "Video Generation Ready",
+    if (!response.ok) {
+      return { 
+        name: "ComfyUI", 
+        status: "error", 
+        error: `HTTP ${response.status}`,
+        troubleshooting: troubleshootingSteps,
       };
     }
 
-    return { name: "ComfyUI", status: "error", error: `HTTP ${response.status}` };
+    const stats = await response.json();
+    const devices = stats.devices || [];
+    const gpuDevice = devices.find((d: any) => d.type === "cuda" || d.type === "gpu");
+
+    let nodeCount = 0;
+    try {
+      const objectInfoRes = await fetch(`${comfyUrl}/object_info`, {
+        signal: AbortSignal.timeout(5000),
+      });
+      if (objectInfoRes.ok) {
+        const objectInfo = await objectInfoRes.json();
+        nodeCount = Object.keys(objectInfo).length;
+      }
+    } catch {
+      // object_info failed but system is online
+    }
+
+    const diagnostics: ComfyUIDiagnostics = {
+      online: true,
+      nodeCount,
+      gpuAvailable: !!gpuDevice,
+      troubleshooting: [],
+    };
+
+    if (gpuDevice) {
+      diagnostics.gpuName = gpuDevice.name;
+      diagnostics.vramTotal = gpuDevice.vram_total;
+      diagnostics.vramFree = gpuDevice.vram_free;
+    }
+
+    if (!gpuDevice) {
+      diagnostics.troubleshooting.push(
+        "No GPU detected. ComfyUI may run slowly on CPU.",
+        "Ensure NVIDIA drivers are installed and CUDA is available."
+      );
+    }
+
+    if (nodeCount === 0) {
+      diagnostics.error = "Could not fetch node information from ComfyUI";
+      diagnostics.troubleshooting.push(
+        "ComfyUI may still be initializing",
+        "Try refreshing after a few seconds"
+      );
+    }
+
+    const vramGB = gpuDevice ? Math.round(gpuDevice.vram_total / 1024 / 1024 / 1024) : 0;
+    const modelInfo = gpuDevice 
+      ? `GPU: ${gpuDevice.name} (${vramGB}GB VRAM)` 
+      : "CPU Mode";
+
+    return {
+      name: "ComfyUI",
+      status: "connected",
+      model: `${nodeCount} nodes available - ${modelInfo}`,
+      diagnostics,
+    };
   } catch (error: any) {
-    return { name: "ComfyUI", status: "not_configured", error: "Not reachable" };
+    let errorMsg: string;
+    if (error.name === "AbortError" || error.name === "TimeoutError") {
+      errorMsg = `Connection timeout - ComfyUI not responding`;
+    } else if (error.code === "ECONNREFUSED") {
+      errorMsg = `Connection refused - ComfyUI not running at ${comfyUrl}`;
+    } else if (error.code === "ENOTFOUND" || error.code === "ENETUNREACH") {
+      errorMsg = `Cannot reach Windows VM - check Tailscale connection`;
+    } else {
+      errorMsg = error.message || "ComfyUI not reachable";
+    }
+
+    return { 
+      name: "ComfyUI", 
+      status: "not_configured", 
+      error: errorMsg,
+      troubleshooting: troubleshootingSteps,
+      diagnostics: {
+        online: false,
+        nodeCount: 0,
+        gpuAvailable: false,
+        error: errorMsg,
+        troubleshooting: troubleshootingSteps,
+      },
+    };
   }
 }
 
@@ -368,10 +561,14 @@ export async function GET(request: NextRequest) {
         online: sd.status === "connected",
         model: sd.model,
         error: sd.error,
+        troubleshooting: (sd as any).troubleshooting,
+        diagnostics: (sd as any).diagnostics,
       },
       comfyUI: {
         online: comfyui.status === "connected",
         error: comfyui.error,
+        troubleshooting: (comfyui as any).troubleshooting,
+        diagnostics: (comfyui as any).diagnostics,
       },
     },
     timestamp: new Date().toISOString(),

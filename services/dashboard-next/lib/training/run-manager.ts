@@ -4,7 +4,10 @@
  * Handles creation, execution, progress tracking, and completion
  */
 
-import { AITrainingRun, NewAITrainingRun } from '../db/ai-cluster-schema';
+import { randomUUID } from 'crypto';
+import { db } from '@/lib/db';
+import { aiTrainingRuns, AITrainingRun, NewAITrainingRun } from '@/lib/db/ai-cluster-schema';
+import { eq, and, desc, gte, lte, sql, inArray } from 'drizzle-orm';
 import { TrainingEventBus, getTrainingEventBus } from './event-bus';
 
 /**
@@ -109,31 +112,34 @@ export class TrainingRunManager {
    * Returns the run ID for tracking
    */
   async createRun(options: TrainingRunOptions): Promise<string> {
-    // TODO: Drizzle query
-    // const db = getDb();
-    // const runId = generateUUID();
-    //
-    // await db.insert(aiTrainingRuns).values({
-    //   id: runId,
-    //   runType: options.runType,
-    //   baseModel: options.baseModel,
-    //   outputName: options.outputName,
-    //   datasetPath: options.datasetPath,
-    //   datasetSize: options.datasetSize,
-    //   config: options.config as Record<string, unknown>,
-    //   status: 'pending',
-    //   userId: options.userId,
-    // });
+    const runId = randomUUID();
 
-    const runId = crypto.randomUUID();
-    await this.eventBus.emit(runId, 'started', {
-      runType: options.runType,
-      baseModel: options.baseModel,
-      outputName: options.outputName,
-    });
+    try {
+      await db.insert(aiTrainingRuns).values({
+        id: runId,
+        runType: options.runType,
+        baseModel: options.baseModel,
+        outputName: options.outputName,
+        datasetPath: options.datasetPath,
+        datasetSize: options.datasetSize,
+        config: options.config as Record<string, unknown>,
+        status: 'pending',
+        userId: options.userId,
+        totalEpochs: (options.config as any).epochs,
+      });
 
-    console.log(`[TrainingRunManager] Training run created: ${runId} (${options.runType})`);
-    return runId;
+      await this.eventBus.emit(runId, 'started', {
+        runType: options.runType,
+        baseModel: options.baseModel,
+        outputName: options.outputName,
+      });
+
+      console.log(`[TrainingRunManager] Training run created: ${runId} (${options.runType})`);
+      return runId;
+    } catch (error) {
+      console.error(`[TrainingRunManager] Failed to create training run:`, error);
+      throw error;
+    }
   }
 
   /**
@@ -141,36 +147,39 @@ export class TrainingRunManager {
    * Updates status to 'preparing' or 'training' and emits event
    */
   async startRun(runId: string): Promise<void> {
-    // TODO: Drizzle query
-    // const db = getDb();
-    // const run = await db
-    //   .select()
-    //   .from(aiTrainingRuns)
-    //   .where(eq(aiTrainingRuns.id, runId))
-    //   .then(rows => rows[0]);
-    //
-    // if (!run) {
-    //   throw new Error(`Training run ${runId} not found`);
-    // }
-    //
-    // if (!['pending'].includes(run.status)) {
-    //   throw new Error(`Cannot start training in ${run.status} state`);
-    // }
-    //
-    // await db
-    //   .update(aiTrainingRuns)
-    //   .set({
-    //     status: 'preparing',
-    //     startedAt: new Date(),
-    //   })
-    //   .where(eq(aiTrainingRuns.id, runId));
+    try {
+      const run = await db
+        .select()
+        .from(aiTrainingRuns)
+        .where(eq(aiTrainingRuns.id, runId))
+        .then(rows => rows[0]);
 
-    await this.eventBus.emit(runId, 'started', {
-      message: 'Training preparation started',
-      timestamp: new Date().toISOString(),
-    });
+      if (!run) {
+        throw new Error(`Training run ${runId} not found`);
+      }
 
-    console.log(`[TrainingRunManager] Training run started: ${runId}`);
+      if (!['pending'].includes(run.status || '')) {
+        throw new Error(`Cannot start training in ${run.status} state`);
+      }
+
+      await db
+        .update(aiTrainingRuns)
+        .set({
+          status: 'preparing',
+          startedAt: new Date(),
+        })
+        .where(eq(aiTrainingRuns.id, runId));
+
+      await this.eventBus.emit(runId, 'started', {
+        message: 'Training preparation started',
+        timestamp: new Date().toISOString(),
+      });
+
+      console.log(`[TrainingRunManager] Training run started: ${runId}`);
+    } catch (error) {
+      console.error(`[TrainingRunManager] Failed to start run ${runId}:`, error);
+      throw error;
+    }
   }
 
   /**
@@ -178,33 +187,34 @@ export class TrainingRunManager {
    * Called periodically by training worker to report progress
    */
   async updateProgress(runId: string, progress: TrainingProgress): Promise<void> {
-    // TODO: Drizzle query
-    // const db = getDb();
-    // await db
-    //   .update(aiTrainingRuns)
-    //   .set({
-    //     currentEpoch: progress.currentEpoch,
-    //     totalEpochs: progress.totalEpochs,
-    //     currentStep: progress.currentStep,
-    //     totalSteps: progress.totalSteps,
-    //     progressPercent: progress.progressPercent,
-    //     metrics: {
-    //       ...(progress.metrics || {}),
-    //     },
-    //     status: 'training',
-    //   })
-    //   .where(eq(aiTrainingRuns.id, runId));
+    try {
+      await db
+        .update(aiTrainingRuns)
+        .set({
+          currentEpoch: progress.currentEpoch,
+          totalEpochs: progress.totalEpochs,
+          currentStep: progress.currentStep,
+          totalSteps: progress.totalSteps,
+          progressPercent: progress.progressPercent,
+          metrics: progress.metrics || {},
+          status: 'training',
+        })
+        .where(eq(aiTrainingRuns.id, runId));
 
-    await this.eventBus.emit(runId, 'progress', {
-      epoch: progress.currentEpoch,
-      totalEpochs: progress.totalEpochs,
-      step: progress.currentStep,
-      totalSteps: progress.totalSteps,
-      progress: progress.progressPercent,
-      metrics: progress.metrics,
-    });
+      await this.eventBus.emit(runId, 'progress', {
+        epoch: progress.currentEpoch,
+        totalEpochs: progress.totalEpochs,
+        step: progress.currentStep,
+        totalSteps: progress.totalSteps,
+        progress: progress.progressPercent,
+        metrics: progress.metrics,
+      });
 
-    console.log(`[TrainingRunManager] Progress update for ${runId}: ${progress.progressPercent}%`);
+      console.log(`[TrainingRunManager] Progress update for ${runId}: ${progress.progressPercent}%`);
+    } catch (error) {
+      console.error(`[TrainingRunManager] Failed to update progress for ${runId}:`, error);
+      throw error;
+    }
   }
 
   /**
@@ -212,45 +222,56 @@ export class TrainingRunManager {
    * Stores checkpoint metadata and emits event
    */
   async saveCheckpoint(runId: string, checkpointPath: string, epoch: number, step: number, loss?: number): Promise<void> {
-    // TODO: Drizzle query - append to checkpoints array
-    // const db = getDb();
-    // const run = await db
-    //   .select()
-    //   .from(aiTrainingRuns)
-    //   .where(eq(aiTrainingRuns.id, runId))
-    //   .then(rows => rows[0]);
-    //
-    // if (!run) {
-    //   throw new Error(`Training run ${runId} not found`);
-    // }
-    //
-    // const updatedCheckpoints = [
-    //   ...run.checkpoints,
-    //   {
-    //     epoch,
-    //     step,
-    //     path: checkpointPath,
-    //     loss,
-    //     createdAt: new Date().toISOString(),
-    //   },
-    // ];
-    //
-    // await db
-    //   .update(aiTrainingRuns)
-    //   .set({
-    //     checkpoints: updatedCheckpoints,
-    //   })
-    //   .where(eq(aiTrainingRuns.id, runId));
+    try {
+      const run = await db
+        .select()
+        .from(aiTrainingRuns)
+        .where(eq(aiTrainingRuns.id, runId))
+        .then(rows => rows[0]);
 
-    await this.eventBus.emit(runId, 'checkpoint', {
-      epoch,
-      step,
-      path: checkpointPath,
-      loss,
-      timestamp: new Date().toISOString(),
-    });
+      if (!run) {
+        throw new Error(`Training run ${runId} not found`);
+      }
 
-    console.log(`[TrainingRunManager] Checkpoint saved for ${runId}: ${checkpointPath}`);
+      const existingCheckpoints = (run.checkpoints || []) as Array<{
+        epoch: number;
+        step: number;
+        path: string;
+        loss?: number;
+        createdAt: string;
+      }>;
+
+      const updatedCheckpoints = [
+        ...existingCheckpoints,
+        {
+          epoch,
+          step,
+          path: checkpointPath,
+          loss,
+          createdAt: new Date().toISOString(),
+        },
+      ];
+
+      await db
+        .update(aiTrainingRuns)
+        .set({
+          checkpoints: updatedCheckpoints,
+        })
+        .where(eq(aiTrainingRuns.id, runId));
+
+      await this.eventBus.emit(runId, 'checkpoint', {
+        epoch,
+        step,
+        path: checkpointPath,
+        loss,
+        timestamp: new Date().toISOString(),
+      });
+
+      console.log(`[TrainingRunManager] Checkpoint saved for ${runId}: ${checkpointPath}`);
+    } catch (error) {
+      console.error(`[TrainingRunManager] Failed to save checkpoint for ${runId}:`, error);
+      throw error;
+    }
   }
 
   /**
@@ -258,29 +279,31 @@ export class TrainingRunManager {
    * Updates status to 'completed' and stores output path and metrics
    */
   async completeRun(runId: string, result: TrainingResult): Promise<void> {
-    // TODO: Drizzle query
-    // const db = getDb();
-    // await db
-    //   .update(aiTrainingRuns)
-    //   .set({
-    //     status: 'completed',
-    //     completedAt: new Date(),
-    //     outputPath: result.outputPath,
-    //     outputSizeBytes: result.outputSizeBytes,
-    //     metrics: {
-    //       ...result.finalMetrics,
-    //     },
-    //   })
-    //   .where(eq(aiTrainingRuns.id, runId));
+    try {
+      await db
+        .update(aiTrainingRuns)
+        .set({
+          status: 'completed',
+          completedAt: new Date(),
+          outputPath: result.outputPath,
+          outputSizeBytes: result.outputSizeBytes,
+          metrics: result.finalMetrics,
+          progressPercent: 100,
+        })
+        .where(eq(aiTrainingRuns.id, runId));
 
-    await this.eventBus.emit(runId, 'completed', {
-      outputPath: result.outputPath,
-      outputSizeBytes: result.outputSizeBytes,
-      finalMetrics: result.finalMetrics,
-      timestamp: new Date().toISOString(),
-    });
+      await this.eventBus.emit(runId, 'completed', {
+        outputPath: result.outputPath,
+        outputSizeBytes: result.outputSizeBytes,
+        finalMetrics: result.finalMetrics,
+        timestamp: new Date().toISOString(),
+      });
 
-    console.log(`[TrainingRunManager] Training run completed: ${runId}`);
+      console.log(`[TrainingRunManager] Training run completed: ${runId}`);
+    } catch (error) {
+      console.error(`[TrainingRunManager] Failed to complete run ${runId}:`, error);
+      throw error;
+    }
   }
 
   /**
@@ -288,35 +311,38 @@ export class TrainingRunManager {
    * Updates status to 'cancelled' and cleans up resources
    */
   async cancelRun(runId: string): Promise<void> {
-    // TODO: Drizzle query
-    // const db = getDb();
-    // const run = await db
-    //   .select()
-    //   .from(aiTrainingRuns)
-    //   .where(eq(aiTrainingRuns.id, runId))
-    //   .then(rows => rows[0]);
-    //
-    // if (!run) {
-    //   throw new Error(`Training run ${runId} not found`);
-    // }
-    //
-    // if (!['pending', 'preparing', 'training'].includes(run.status)) {
-    //   throw new Error(`Cannot cancel training in ${run.status} state`);
-    // }
-    //
-    // await db
-    //   .update(aiTrainingRuns)
-    //   .set({
-    //     status: 'cancelled',
-    //     completedAt: new Date(),
-    //   })
-    //   .where(eq(aiTrainingRuns.id, runId));
+    try {
+      const run = await db
+        .select()
+        .from(aiTrainingRuns)
+        .where(eq(aiTrainingRuns.id, runId))
+        .then(rows => rows[0]);
 
-    await this.eventBus.emit(runId, 'cancelled', {
-      timestamp: new Date().toISOString(),
-    });
+      if (!run) {
+        throw new Error(`Training run ${runId} not found`);
+      }
 
-    console.log(`[TrainingRunManager] Training run cancelled: ${runId}`);
+      if (!['pending', 'preparing', 'training'].includes(run.status || '')) {
+        throw new Error(`Cannot cancel training in ${run.status} state`);
+      }
+
+      await db
+        .update(aiTrainingRuns)
+        .set({
+          status: 'cancelled',
+          completedAt: new Date(),
+        })
+        .where(eq(aiTrainingRuns.id, runId));
+
+      await this.eventBus.emit(runId, 'cancelled', {
+        timestamp: new Date().toISOString(),
+      });
+
+      console.log(`[TrainingRunManager] Training run cancelled: ${runId}`);
+    } catch (error) {
+      console.error(`[TrainingRunManager] Failed to cancel run ${runId}:`, error);
+      throw error;
+    }
   }
 
   /**
@@ -324,25 +350,28 @@ export class TrainingRunManager {
    * Updates status to 'failed' and stores error information
    */
   async failRun(runId: string, error: string, details?: Record<string, unknown>): Promise<void> {
-    // TODO: Drizzle query
-    // const db = getDb();
-    // await db
-    //   .update(aiTrainingRuns)
-    //   .set({
-    //     status: 'failed',
-    //     completedAt: new Date(),
-    //     error,
-    //     errorDetails: details,
-    //   })
-    //   .where(eq(aiTrainingRuns.id, runId));
+    try {
+      await db
+        .update(aiTrainingRuns)
+        .set({
+          status: 'failed',
+          completedAt: new Date(),
+          error,
+          errorDetails: details,
+        })
+        .where(eq(aiTrainingRuns.id, runId));
 
-    await this.eventBus.emit(runId, 'error', {
-      error,
-      details,
-      timestamp: new Date().toISOString(),
-    });
+      await this.eventBus.emit(runId, 'error', {
+        error,
+        details,
+        timestamp: new Date().toISOString(),
+      });
 
-    console.log(`[TrainingRunManager] Training run failed: ${runId} - ${error}`);
+      console.log(`[TrainingRunManager] Training run failed: ${runId} - ${error}`);
+    } catch (err) {
+      console.error(`[TrainingRunManager] Failed to mark run ${runId} as failed:`, err);
+      throw err;
+    }
   }
 
   /**
@@ -350,18 +379,75 @@ export class TrainingRunManager {
    * Returns full run information including progress and metrics
    */
   async getRun(runId: string): Promise<AITrainingRun | null> {
-    // TODO: Drizzle query
-    // const db = getDb();
-    // const run = await db
-    //   .select()
-    //   .from(aiTrainingRuns)
-    //   .where(eq(aiTrainingRuns.id, runId))
-    //   .then(rows => rows[0]);
-    //
-    // return run || null;
+    try {
+      const run = await db
+        .select()
+        .from(aiTrainingRuns)
+        .where(eq(aiTrainingRuns.id, runId))
+        .then(rows => rows[0]);
 
-    console.log(`[TrainingRunManager] Getting run details: ${runId}`);
-    throw new Error('Database connection not initialized');
+      return run || null;
+    } catch (error) {
+      console.error(`[TrainingRunManager] Failed to get run ${runId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get runs by status
+   * Returns all runs matching the specified status
+   */
+  async getRunsByStatus(status: string): Promise<AITrainingRun[]> {
+    try {
+      const runs = await db
+        .select()
+        .from(aiTrainingRuns)
+        .where(eq(aiTrainingRuns.status, status))
+        .orderBy(desc(aiTrainingRuns.createdAt));
+
+      return runs;
+    } catch (error) {
+      console.error(`[TrainingRunManager] Failed to get runs by status ${status}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get run status
+   * Returns just the status of a run
+   */
+  async getRunStatus(runId: string): Promise<string | null> {
+    try {
+      const run = await db
+        .select({ status: aiTrainingRuns.status })
+        .from(aiTrainingRuns)
+        .where(eq(aiTrainingRuns.id, runId))
+        .then(rows => rows[0]);
+
+      return run?.status || null;
+    } catch (error) {
+      console.error(`[TrainingRunManager] Failed to get run status ${runId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get run metrics
+   * Returns metrics for a specific run
+   */
+  async getRunMetrics(runId: string): Promise<Record<string, unknown> | null> {
+    try {
+      const run = await db
+        .select({ metrics: aiTrainingRuns.metrics })
+        .from(aiTrainingRuns)
+        .where(eq(aiTrainingRuns.id, runId))
+        .then(rows => rows[0]);
+
+      return run?.metrics || null;
+    } catch (error) {
+      console.error(`[TrainingRunManager] Failed to get run metrics ${runId}:`, error);
+      throw error;
+    }
   }
 
   /**
@@ -377,45 +463,57 @@ export class TrainingRunManager {
     limit?: number;
     offset?: number;
   }): Promise<{ runs: AITrainingRun[]; total: number }> {
-    // TODO: Drizzle query with conditions
-    // const db = getDb();
-    // let query = db.select().from(aiTrainingRuns);
-    //
-    // if (filters?.status) {
-    //   query = query.where(eq(aiTrainingRuns.status, filters.status));
-    // }
-    // if (filters?.userId) {
-    //   query = query.where(eq(aiTrainingRuns.userId, filters.userId));
-    // }
-    // if (filters?.runType) {
-    //   query = query.where(eq(aiTrainingRuns.runType, filters.runType));
-    // }
-    // if (filters?.startDate) {
-    //   query = query.where(gte(aiTrainingRuns.createdAt, filters.startDate));
-    // }
-    // if (filters?.endDate) {
-    //   query = query.where(lte(aiTrainingRuns.createdAt, filters.endDate));
-    // }
-    //
-    // const offset = filters?.offset || 0;
-    // const limit = filters?.limit || 50;
-    //
-    // const runs = await query
-    //   .orderBy(desc(aiTrainingRuns.createdAt))
-    //   .offset(offset)
-    //   .limit(limit);
-    //
-    // const totalResult = await db
-    //   .select({ count: sql<number>`COUNT(*)` })
-    //   .from(aiTrainingRuns);
-    //
-    // return {
-    //   runs,
-    //   total: totalResult[0]?.count || 0,
-    // };
+    try {
+      const conditions = [];
 
-    console.log(`[TrainingRunManager] Listing runs with filters:`, filters);
-    throw new Error('Database connection not initialized');
+      if (filters?.status) {
+        conditions.push(eq(aiTrainingRuns.status, filters.status));
+      }
+      if (filters?.userId) {
+        conditions.push(eq(aiTrainingRuns.userId, filters.userId));
+      }
+      if (filters?.runType) {
+        conditions.push(eq(aiTrainingRuns.runType, filters.runType));
+      }
+      if (filters?.startDate) {
+        conditions.push(gte(aiTrainingRuns.createdAt, filters.startDate));
+      }
+      if (filters?.endDate) {
+        conditions.push(lte(aiTrainingRuns.createdAt, filters.endDate));
+      }
+
+      const offset = filters?.offset || 0;
+      const limit = filters?.limit || 50;
+
+      let query = db.select().from(aiTrainingRuns);
+      
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions)) as typeof query;
+      }
+
+      const runs = await query
+        .orderBy(desc(aiTrainingRuns.createdAt))
+        .offset(offset)
+        .limit(limit);
+
+      let countQuery = db
+        .select({ count: sql<number>`COUNT(*)::int` })
+        .from(aiTrainingRuns);
+
+      if (conditions.length > 0) {
+        countQuery = countQuery.where(and(...conditions)) as typeof countQuery;
+      }
+
+      const totalResult = await countQuery;
+
+      return {
+        runs,
+        total: totalResult[0]?.count || 0,
+      };
+    } catch (error) {
+      console.error(`[TrainingRunManager] Failed to list runs:`, error);
+      throw error;
+    }
   }
 
   /**
@@ -429,39 +527,43 @@ export class TrainingRunManager {
     failedRuns: number;
     averageTrainingTime: number;
   }> {
-    // TODO: Drizzle query
-    // const db = getDb();
-    // const stats = await db
-    //   .select({
-    //     total: sql<number>`COUNT(*)`,
-    //     active: sql<number>`COUNT(*) FILTER (WHERE status IN ('pending', 'preparing', 'training'))`,
-    //     completed: sql<number>`COUNT(*) FILTER (WHERE status = 'completed')`,
-    //     failed: sql<number>`COUNT(*) FILTER (WHERE status = 'failed')`,
-    //   })
-    //   .from(aiTrainingRuns);
-    //
-    // const completedRuns = await db
-    //   .select()
-    //   .from(aiTrainingRuns)
-    //   .where(eq(aiTrainingRuns.status, 'completed'));
-    //
-    // const avgTime = completedRuns.reduce((sum, run) => {
-    //   if (run.startedAt && run.completedAt) {
-    //     return sum + (run.completedAt.getTime() - run.startedAt.getTime());
-    //   }
-    //   return sum;
-    // }, 0) / (completedRuns.length || 1);
-    //
-    // return {
-    //   totalRuns: stats[0].total,
-    //   activeRuns: stats[0].active,
-    //   completedRuns: stats[0].completed,
-    //   failedRuns: stats[0].failed,
-    //   averageTrainingTime: avgTime,
-    // };
+    try {
+      const stats = await db
+        .select({
+          total: sql<number>`COUNT(*)::int`,
+          active: sql<number>`COUNT(*) FILTER (WHERE status IN ('pending', 'preparing', 'training'))::int`,
+          completed: sql<number>`COUNT(*) FILTER (WHERE status = 'completed')::int`,
+          failed: sql<number>`COUNT(*) FILTER (WHERE status = 'failed')::int`,
+        })
+        .from(aiTrainingRuns);
 
-    console.log(`[TrainingRunManager] Getting stats`);
-    throw new Error('Database connection not initialized');
+      const completedRuns = await db
+        .select()
+        .from(aiTrainingRuns)
+        .where(eq(aiTrainingRuns.status, 'completed'));
+
+      let avgTime = 0;
+      if (completedRuns.length > 0) {
+        const totalTime = completedRuns.reduce((sum, run) => {
+          if (run.startedAt && run.completedAt) {
+            return sum + (run.completedAt.getTime() - run.startedAt.getTime());
+          }
+          return sum;
+        }, 0);
+        avgTime = totalTime / completedRuns.length;
+      }
+
+      return {
+        totalRuns: stats[0]?.total || 0,
+        activeRuns: stats[0]?.active || 0,
+        completedRuns: stats[0]?.completed || 0,
+        failedRuns: stats[0]?.failed || 0,
+        averageTrainingTime: avgTime,
+      };
+    } catch (error) {
+      console.error(`[TrainingRunManager] Failed to get stats:`, error);
+      throw error;
+    }
   }
 }
 
